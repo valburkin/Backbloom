@@ -1,0 +1,490 @@
+name: HyperHDR CI Build
+
+on:
+  push:
+  pull_request:  
+
+env:
+    USE_CACHE: ${{ fromJSON(vars.USE_CACHE || 'false') }}
+    RESET_CACHE: ${{ fromJSON(vars.RESET_CACHE || 'false') }}
+    BUILD_ARCHIVES: ${{ startsWith(github.event.ref, 'refs/tags') && true || false }}
+
+jobs:
+
+######################
+###### Linux #########
+######################
+
+  Linux:
+    name: ${{ matrix.architecture }}/${{ matrix.distroName}}:${{ matrix.distroVersion }}
+    runs-on: ${{ startsWith(matrix.architecture, 'arm') && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
+    if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository)
+    env:
+      platform: ${{ startsWith(matrix.architecture, 'arm') && 'rpi' || 'linux' }}
+    strategy:      
+      matrix:
+        distroName: [debian]
+        distroVersion: [bullseye, bookworm, trixie, forky]
+        architecture: [amd64, armhf, arm64]        
+        include:
+          - distroName: ubuntu
+            distroVersion: noble
+            architecture: amd64
+          - distroName: ubuntu
+            distroVersion: resolute
+            architecture: amd64
+          - distroName: fedora
+            distroVersion: 44
+            architecture: amd64
+          - distroName: archlinux
+            distroVersion: latest
+            architecture: amd64
+
+    steps:   
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: true
+
+      - name: Download ccache files
+        if: env.USE_CACHE == 'true'
+        uses: actions/cache@v6.1.0
+        with:
+           path: .ccache
+           key: ${{ matrix.architecture }}-${{ matrix.distroName }}-${{ matrix.distroVersion }}-ccache-${{ github.run_id }}
+           restore-keys: ${{ matrix.architecture }}-${{ matrix.distroName }}-${{ matrix.distroVersion }}-ccache-
+
+      - name: Check default version
+        if: matrix.distroVersion != 'bullseye'
+        run: |
+          echo "USE_STANDARD_INSTALLER_NAME=true" >> $GITHUB_ENV
+
+      - name: Build packages
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          DISTRO_NAME: ${{ matrix.distroName }}
+          DISTRO_VERSION: ${{ matrix.distroVersion }}
+          PLATFORM: ${{ env.platform }}
+          USE_CCACHE: ${{ env.USE_CACHE }}
+          RESET_CACHE: ${{ env.RESET_CACHE }}
+        shell: bash
+        run: |
+          ./build.sh
+
+      - name: Clear branch ccache storage
+        if: startsWith(github.event.ref, 'refs/tags') == false
+        continue-on-error: true
+        run: |
+          gh cache list --ref "${{ github.ref }}" --key "${{ matrix.architecture }}-${{ matrix.distroName }}-${{ matrix.distroVersion }}-ccache-" --limit 100 --json id --jq '.[].id' | xargs -r -n1 gh cache delete
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload artifacts (release)
+        if: startsWith(github.event.ref, 'refs/tags') && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: release-artifact-${{ matrix.architecture }}-${{ matrix.distroName }}-${{ matrix.distroVersion }}
+          path: deploy/Hyper*
+
+      - name: Find artifact file
+        id: find_artifact
+        if: startsWith(github.event.ref, 'refs/tags') == false
+        run: |
+          ARTIFACT_FILE=$(find deploy -maxdepth 1 -type f \( -name "Hyper*.deb" -o -name "Hyper*.zst" -o -name "Hyper*.rpm" \) | head -n 1)
+          echo "installer_artifact_path=$ARTIFACT_FILE" >> $GITHUB_OUTPUT
+
+      - name: Upload artifacts from commit
+        if: startsWith(github.event.ref, 'refs/tags') == false && steps.find_artifact.outputs.installer_artifact_path != ''
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          path: ${{ steps.find_artifact.outputs.installer_artifact_path }}
+          archive: false
+
+######################
+######## macOS #######
+######################
+
+  macOS:
+    name: ${{ matrix.JOB_NAME }}
+    runs-on: ${{ matrix.JOB_RUNNER }}
+    if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository)
+    strategy:
+      matrix:
+        include:        
+          - JOB_RUNNER: macos-15
+            JOB_NAME: "macOS 15 (arm64: M1/M2/M3/M4)"
+            NICE_NAME: arm64
+          - JOB_RUNNER: macos-15-intel
+            JOB_NAME: macOS 15 (x64)
+            NICE_NAME: x64
+    steps:
+      # Checkout
+      - uses: actions/checkout@v7.0.1
+        with:
+            submodules: true
+
+      - name: Download ccache files
+        if: env.USE_CACHE == 'true'
+        uses: actions/cache@v6.1.0
+        with:
+            path: build/.ccache
+            key: macOS-${{ matrix.NICE_NAME }}-ccache-${{ github.run_id }}
+            restore-keys: macOS-${{ matrix.NICE_NAME }}-ccache
+
+      # Install deps
+      - name: Install deps
+        shell: bash
+        run: brew install -q qtbase qtserialport ccache zstd webp jpeg-turbo flatbuffers pkg-config || true
+            
+      - name: Build packages
+        env:
+            PLATFORM: osx
+            USE_CCACHE: ${{ env.USE_CACHE }}
+            RESET_CACHE: ${{ env.RESET_CACHE }}
+            JOB_RUNNER: ${{ matrix.JOB_RUNNER }}
+        shell: bash
+        run: ./build.sh || ./build.sh
+
+      - name: Clear branch ccache storage
+        continue-on-error: true
+        run: |
+          gh cache list --ref "${{ github.ref }}" --key "macOS-${{ matrix.NICE_NAME }}-ccache" --limit 100 --json id --jq '.[].id' | xargs -r -n1 gh cache delete
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload artifacts (release)
+        if: startsWith(github.event.ref, 'refs/tags') && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+            name: release-artifact-${{ matrix.JOB_RUNNER }}      
+            path: build/Hyper*.dmg
+
+      - name: Find artifact file
+        id: find_artifact
+        if: startsWith(github.event.ref, 'refs/tags') == false
+        run: |
+          ARTIFACT_FILE=$(ls -S build/Hyper*.dmg 2>/dev/null | head -n 1)
+          echo "installer_artifact_path=$ARTIFACT_FILE" >> $GITHUB_OUTPUT
+
+      - name: Upload artifacts from commit
+        if: startsWith(github.event.ref, 'refs/tags') == false && steps.find_artifact.outputs.installer_artifact_path != ''
+        uses: actions/upload-artifact@v7.0.1
+        with:
+            path: ${{ steps.find_artifact.outputs.installer_artifact_path }}
+            archive: false
+
+######################
+###### Windows #######
+######################
+
+  windows:
+    name: Windows
+    runs-on: ${{ matrix.os }}
+    if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository)
+    strategy:
+      matrix:
+        os: [windows-2022]
+    env:
+      MSVC: 2022
+      QT_VERSION: 6.8.3
+      TOOLKIT_DIR: "${{ github.workspace }}\\Toolkit"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          submodules: true
+
+      - name: Cache Toolkit
+        uses: actions/cache@v6.1.0
+        id: cache-toolkit-windows
+        with:
+          path: ${{ env.TOOLKIT_DIR }}
+          key: ${{ matrix.os }}-Toolkit-Qt.${{ env.QT_VERSION }}-NSIS-TurboJPEG
+
+      - name: Python 3.13 for aqtinstall
+        if: steps.cache-toolkit-windows.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v7      
+        with:
+          python-version: '3.13'
+
+      - name: "Install Toolkit: Qt, TurboJPEG and NSIS"
+        if: steps.cache-toolkit-windows.outputs.cache-hit != 'true'
+        shell: powershell
+        run: |          
+          Invoke-WebRequest -Method Get -Uri https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.0.3/libjpeg-turbo-3.0.3-vc64.exe -OutFile turbojpeg.exe -UseBasicParsing
+          Start-Process -Wait turbojpeg.exe -ArgumentList "/S","/D=$env:TOOLKIT_DIR\libjpeg-turbo64"
+          Invoke-WebRequest -UserAgent "Wget" -Uri "https://prdownloads.sourceforge.net/nsis/nsis-3.11-setup.exe" -OutFile nsis.exe
+          Start-Process -Wait nsis.exe -ArgumentList "/S","/D=$env:TOOLKIT_DIR\nsis"
+          New-Item -ItemType Directory -Force -Path "$env:TOOLKIT_DIR\ccache" | Out-Null
+          Invoke-WebRequest -Method Get -Uri https://github.com/ccache/ccache/releases/download/v4.14/ccache-4.14-windows-x86_64.zip -OutFile "$env:TOOLKIT_DIR\ccache\ccache.zip" -UseBasicParsing
+          pip install aqtinstall
+          aqt install-qt -O "$env:TOOLKIT_DIR\Qt" windows desktop $env:QT_VERSION "win64_msvc${env:MSVC}_64" -m qtserialport
+
+      - name: "Restore Toolkit"
+        shell: cmd
+        run: |
+          7z e "%TOOLKIT_DIR%\ccache\ccache.zip" -o.\build *.exe -r
+          echo %TOOLKIT_DIR%\nsis>> %GITHUB_PATH%
+
+      - name: Download ccache files
+        if: env.USE_CACHE == 'true'
+        uses: actions/cache@v6.1.0
+        with:
+            path: build/.ccache
+            key: ${{ runner.os }}-ccache-${{ github.run_id }}
+            restore-keys: ${{ runner.os }}-ccache
+          
+      - name: Build packages        
+        env:
+          PLATFORM: windows
+          VCINSTALLDIR: 'C:/Program Files/Microsoft Visual Studio/${{ env.MSVC }}/Enterprise/VC'
+          CMAKE_PREFIX_PATH: "${{ env.TOOLKIT_DIR }}\\Qt\\${{ env.QT_VERSION }}\\msvc${{ env.MSVC }}_64\\lib\\cmake\\"
+          USE_CCACHE: ${{ env.USE_CACHE }}
+        shell: bash
+        run: |
+          "${{env.VCINSTALLDIR}}/Auxiliary/Build/vcvars64.bat"
+          ./build.sh
+
+      - name: Clear branch ccache storage
+        continue-on-error: true
+        run: |
+          gh cache list --ref "${{ github.ref }}" --key "${{ runner.os }}-ccache" --limit 100 --json id --jq '.[].id' | xargs -r -n1 gh cache delete
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload unsigned artifacts
+        if:  github.event_name != 'pull_request' && fromJSON(vars.USE_SIGNPATH || 'false')
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: unsigned-windows-installer
+          path: build/Hyper*.exe
+          retention-days: 1
+
+      - name: Find artifact file
+        id: find_artifact
+        if: startsWith(github.event.ref, 'refs/tags') == false && fromJSON(vars.USE_SIGNPATH || 'false') == false
+        shell: bash
+        run: |
+          ARTIFACT_FILE=$(ls -S build/Hyper*.exe 2>/dev/null | head -n 1)
+          echo "installer_artifact_path=$ARTIFACT_FILE" >> $GITHUB_OUTPUT
+
+      - name: Upload artifacts from commit
+        if: startsWith(github.event.ref, 'refs/tags') == false && steps.find_artifact.outputs.installer_artifact_path != ''
+        uses: actions/upload-artifact@v7.0.1
+        with:
+            path: ${{ steps.find_artifact.outputs.installer_artifact_path }}
+            archive: false          
+
+################################
+###### Sign Windows ############
+################################
+
+  sign-windows:
+    name: Sign Windows Installer
+    needs: [windows]
+    runs-on: ubuntu-26.04
+    if:  github.event_name != 'pull_request' && fromJSON(vars.USE_SIGNPATH || 'false')
+    steps:
+      - name: Download unsigned artifact
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: unsigned-windows-installer
+          path: to_sign
+
+      - name: Check SignPath Secrets
+        env:
+          SIGNPATH_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+        run: |
+          if [ -z "$SIGNPATH_TOKEN" ] || [ -z "$SIGNPATH_ORGANIZATION_ID" ]; then
+            echo "SignPath secrets not found."
+            exit 1
+          fi
+
+      - name: Upload unsigned ZIP to GitHub (SignPath V2 requirement)
+        id: upload-unsigned-artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: signpath_upload
+          path: to_sign/
+          retention-days: 1
+
+      - name: Sign artifact with SignPath
+        id: signpath_step
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: 'hyperhdr'
+          signing-policy-slug: ${{ startsWith(github.ref, 'refs/tags/') && 'release-signing' || 'test-signing' }}
+          github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed_artifact
+
+      - name: Check SignPath result & fail if needed
+        if: always()
+        run: |
+          if [ "${{ steps.signpath_step.outcome }}" != "success" ]; then
+            echo "::error::SignPath action failed technically (check logs for timeout/network issues)."
+            exit 1
+          fi
+          
+          if [ ! -d "signed_artifact" ] || [ -z "$(ls -A signed_artifact 2>/dev/null)" ]; then
+            echo "::error::SignPath reported success, but NO signed artifacts were downloaded!"
+            echo "This usually means the signing request was REJECTED or failed silently."
+            exit 1
+          fi          
+          echo "Signing successful. Artifacts found in 'signed_artifact'."
+          
+      - name: Upload artifacts (release)
+        if: startsWith(github.event.ref, 'refs/tags')
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: release-artifact-windows
+          path: signed_artifact/Hyper*.exe
+          
+      - name: Upload artifacts from commit
+        if: startsWith(github.event.ref, 'refs/tags') == false
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: Windows_x64_setup_signed
+          path: signed_artifact/Hyper*.exe
+
+################################
+####### CodeQL support #########
+################################
+
+  analyze:
+    name: Analyze (CodeQL)
+    runs-on: ubuntu-26.04
+    if: (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository) && fromJSON(vars.USE_CODEQL || 'true')
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'cpp', 'javascript' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          submodules: true
+
+      - name: Run composite CodeQL job for '${{matrix.language}}' language
+        uses: ./.github/actions/codeql
+        with:
+          language: ${{matrix.language}}
+
+#########################################
+####### Static C++20/QT analyze #########
+#########################################
+
+  clang-tidy-clazy:
+    name: Analyze (clang and clazy)
+    runs-on: ubuntu-26.04
+    if: fromJSON(vars.USE_CODEQL || 'false') && false
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7.0.1
+        with:
+          submodules: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc jq clang clang-tidy clang-tools clazy build-essential cmake flatbuffers-compiler git libasound2-dev libayatana-appindicator3-dev libegl-dev libflatbuffers-dev libftdi1-dev libgl-dev libglvnd-dev libgtk-3-dev liblzma-dev libpipewire-0.3-dev libssl-dev libsystemd-dev libturbojpeg0-dev libusb-1.0-0-dev libx11-dev libzstd-dev ninja-build patchelf pkg-config python3 qt6-serialport-dev qt6-base-dev unzip wget
+
+      - name: Configure (CMake with Makefiles)
+        run: |
+          cmake -S . -B build \
+            -DUSE_PRECOMPILED_HEADERS=OFF \
+            -DUSE_CCACHE_CACHING=OFF \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Build project
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Run clazy
+        run: |
+          jq -r '.[] | .file' build/compile_commands.json | tr '\n' '\0' | xargs -0 clazy-standalone -p build -ignore-dirs "/external/|_deps/" 2>&1 | sed "/warning: argument unused during compilation: '-fuse-ld=gold'/d; /\[-Wclazy-const-signal-or-slot\]/,/^[[:space:]]*\^/d; /\[-Wclazy-qstring-arg\]/,/^[[:space:]]*\^/d; /\[-Wclazy-skipped-base-method\]/,/^[[:space:]]*\^/d" | sed '/^In file included from/d; /^[0-9]\+ warning.* generated\./d' > clazy-report.txt || true
+
+      - name: Run clang-tidy
+        run: |
+          jq -r '.[] | select(.file | test("external/|_deps/|/mocs_") | not) | .file' build/compile_commands.json | xargs run-clang-tidy -p build -quiet | awk 'BEGIN{b=""}/: warning:/{if(b!=""&&!s)printf"%s",b;b="";s=0;c=$0~/(pass-by-value|value-param)/;l="";nx=0}{b=b$0"\n";if(c){if(nx){if(substr($0,idx)~/^Q[A-Z][a-zA-Z0-9]*/)s=1;nx=0}if($0~/^[ \t]*\|?[ \t]*\^/){idx=index($0,"^");if(substr(l,idx)~/^(const[ \t]+)?Q[A-Z][a-zA-Z0-9]*/)s=1;nx=1}if($0~/^[ \t]*[0-9]+ \|/)l=$0}}END{if(b!=""&&!s)printf"%s",b}' > clang-tidy-report.txt || true
+#          jq -r '.[] | select(.file | test("external/|_deps/|autogen|mocs_|qrc_") | not) | .file' build/compile_commands.json | xargs run-clang-tidy -p build -quiet -config="$(cat .clang-tidy-fix)" -fix > clang-tidy-fix.log 2>&1 || true
+      - name: Combine reports
+        run: |
+          echo "### Clang-Tidy Report" > report.md
+          echo "\`\`\`" >> report.md
+          cat clang-tidy-report.txt >> report.md
+          echo "\`\`\`" >> report.md
+          echo "" >> report.md
+          echo "### Clazy Report" >> report.md
+          echo "\`\`\`" >> report.md
+          cat clazy-report.txt >> report.md
+          echo "\`\`\`" >> report.md
+
+      - name: Convert report to HTML
+        run: |
+          pandoc report.md -f markdown -t html -s -o cpp_report.html
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: static-cpp-analysis-report
+          path: |
+            cpp_report.html
+            clang-tidy-report.txt
+            clazy-report.txt
+
+################################
+###### Publish Releases ########
+################################
+
+  publish:
+    name: Publish Releases
+    if: startsWith(github.event.ref, 'refs/tags') && github.event_name != 'pull_request'
+    needs: [Linux, sign-windows, macOS]
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Generate environment variables from version and tag
+        run: |
+          echo "TAG=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
+          echo "VERSION=$(tr -d '\n' < version)" >> $GITHUB_ENV
+          echo "preRelease=false" >> $GITHUB_ENV
+
+      - name: Mark release as pre-release
+        if: contains(env.VERSION, 'alpha') || contains(env.VERSION, 'beta')
+        run: echo "preRelease=true" >> $GITHUB_ENV
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v8.0.1
+        with:
+          path: artifacts
+          pattern: release-artifact-*
+          merge-multiple: true          
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v3.0.3
+        with:
+          name: HyperHDR ${{ env.VERSION }}
+          tag_name: ${{ env.TAG }}
+          files: "artifacts/**"
+          draft: true
+          prerelease: ${{ env.preRelease }}
