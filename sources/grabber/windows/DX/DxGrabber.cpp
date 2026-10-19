@@ -41,10 +41,6 @@
 #include <limits.h>
 #include <DirectXMath.h>
 
-#include <base/LightingInstance.h>
-
-#include <QDirIterator>
-#include <QFileInfo>
 #include <QCoreApplication>
 
 #include <grabber/windows/DX/DxGrabber.h>
@@ -58,9 +54,53 @@
 #define CHECK(hr) SUCCEEDED(hr)
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
+namespace
+{
+	// Scales down (takes every 'division' pixel) and converts a BGRA frame to RGB, optionally through the HDR tone mapping table
+	void decodeBGRA(Image<ColorRgb>& image, int targetSizeX, int targetSizeY,
+		int startX, int startY,
+		const uint8_t* source, int actualWidth, int actualHeight,
+		int division, const uint8_t* lutBuffer, int lineSize)
+	{
+		uint32_t	indexLut;
+		uint8_t		buffer[8];
+		size_t		divisionX = (size_t)division * 4;
+
+		if (lineSize == 0)
+			lineSize = actualWidth * 4;
+
+		for (int j = 0; j < targetSizeY; j++)
+		{
+			size_t lineSource = std::min(startY + j * division, actualHeight - 1);
+			uint8_t* dLine = (image.rawMem() + (size_t)j * targetSizeX * 3);
+			uint8_t* dLineEnd = dLine + (size_t)targetSizeX * 3;
+			const uint8_t* sLine = ((source + (lineSource * lineSize) + ((size_t)startX * 4)));
+
+			if (lutBuffer == nullptr)
+			{
+				sLine += 2;
+				while (dLine < dLineEnd)
+				{
+					*dLine++ = *sLine--;
+					*dLine++ = *sLine--;
+					*dLine++ = *sLine;
+					sLine += divisionX + 2;
+				}
+			}
+			else while (dLine < dLineEnd)
+			{
+				*((uint32_t*)&buffer) = *((const uint32_t*)sLine);
+				sLine += divisionX;
+				indexLut = LUT_INDEX(buffer[2], buffer[1], buffer[0]);
+				*((uint32_t*)dLine) = *((const uint32_t*)(&lutBuffer[indexLut]));
+				dLine += 3;
+			}
+		}
+	}
+}
+
 DxGrabber::DxGrabber(const QString& device, const QString& configurationPath)
 	: Grabber(configurationPath, "DX11_SYSTEM:" + device.left(14))
-	, _configurationPath(configurationPath)
 	, _timer(new QTimer(this))
 	, _retryTimer(new QTimer(this))
 	, _multiMonitor(false)
@@ -75,36 +115,31 @@ DxGrabber::DxGrabber(const QString& device, const QString& configurationPath)
 	_retryTimer->setSingleShot(true);
 	connect(_retryTimer, &QTimer::timeout, this, &DxGrabber::restart);
 
-	// Refresh devices
-	getDevices();
+	enumerateDevices();
 }
 
-QString DxGrabber::GetSharedLut()
+void DxGrabber::loadLutFile(bool silent)
 {
-	return QCoreApplication::applicationDirPath();
-}
+	if (!_hdrToneMappingEnabled)
+		return;
 
-void DxGrabber::loadLutFile(PixelFormat color, bool silent)
-{
-	// load lut table
 	QString fileName1 = QString("%1%2").arg(_configurationPath).arg("/lut_lin_tables.3d");
-	QString fileName2 = QString("%1%2").arg(GetSharedLut()).arg("/lut_lin_tables.3d");
+	QString fileName2 = QString("%1%2").arg(QCoreApplication::applicationDirPath()).arg("/lut_lin_tables.3d");
 
-	Grabber::loadLutFile((!silent) ? _log : nullptr, color, QList<QString>{fileName1, fileName2});
+	_lut.load((!silent) ? _log : LoggerName(), QList<QString>{fileName1, fileName2});
 }
 
 void DxGrabber::setHdrToneMappingEnabled(int mode)
 {
-	if (_hdrToneMappingEnabled != mode || _lut.data() == nullptr)
+	if (_hdrToneMappingEnabled != mode || !_lut.isLoaded())
 	{
 		_hdrToneMappingEnabled = mode;
-		if (_lut.data() != nullptr || !mode)
+		if (_lut.isLoaded() || !mode)
 			Debug(_log, "setHdrToneMappingMode to: {:s}", (mode == 0) ? "Disabled" : "Enabled");
 		else
 			Warning(_log, "setHdrToneMappingMode to: enable, but the LUT file is currently unloaded");
 
-
-		loadLutFile(PixelFormat::RGB24);
+		loadLutFile();
 	}
 	else
 		Debug(_log, "setHdrToneMappingMode nothing changed: {:s}", (mode == 0) ? "Disabled" : "Enabled");
@@ -141,14 +176,6 @@ void DxGrabber::uninit()
 	}
 }
 
-void DxGrabber::newWorkerFrameHandler(unsigned int /*workerIndex*/, Image<ColorRgb> /*image*/, quint64 /*sourceCount*/, qint64 /*_frameBegin*/)
-{
-};
-
-void DxGrabber::newWorkerFrameErrorHandler(unsigned int /*workerIndex*/, QString /*error*/, quint64 /*sourceCount*/)
-{
-};
-
 void DxGrabber::restart()
 {
 	if (!_initialized)
@@ -167,10 +194,9 @@ bool DxGrabber::init()
 		QString foundDevice = "";
 		bool    autoDiscovery = (QString::compare(_deviceName, Grabber::AUTO_SETTING, Qt::CaseInsensitive) == 0);
 
-		enumerateDevices(true);
+		enumerateDevices();
 
-
-		if (!autoDiscovery && !_deviceProperties.contains(_deviceName))
+		if (!autoDiscovery && !_devices.contains(_deviceName))
 		{
 			_retryTimer->setInterval(5000);
 			_retryTimer->start();
@@ -181,16 +207,16 @@ bool DxGrabber::init()
 		if (autoDiscovery)
 		{
 			Debug(_log, "Forcing auto discovery device");
-			if (!_deviceProperties.isEmpty())
+			if (!_devices.isEmpty())
 			{
-				foundDevice = _deviceProperties.firstKey();
+				foundDevice = _devices.first();
 				Debug(_log, "Auto discovery set to {:s}", (foundDevice));
 			}
 		}
 		else
 			foundDevice = _deviceName;
 
-		if (foundDevice.isNull() || foundDevice.isEmpty() || !_deviceProperties.contains(foundDevice))
+		if (foundDevice.isNull() || foundDevice.isEmpty() || !_devices.contains(foundDevice))
 		{
 			Error(_log, "Could not find any capture device");
 			return false;
@@ -211,17 +237,11 @@ bool DxGrabber::init()
 	return _initialized;
 }
 
-
-void DxGrabber::getDevices()
-{
-	enumerateDevices(false);
-}
-
-void DxGrabber::enumerateDevices(bool /*silent*/)
+void DxGrabber::enumerateDevices()
 {
 	IDXGIFactory1* pFactory = NULL;
 
-	_deviceProperties.clear();
+	_devices.clear();
 
 	if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory), (void**)&pFactory)))
 	{
@@ -232,7 +252,6 @@ void DxGrabber::enumerateDevices(bool /*silent*/)
 	IDXGIAdapter1* pAdapter;
 	for (UINT i = 0; pFactory->EnumAdapters1(i, &pAdapter) != DXGI_ERROR_NOT_FOUND; i++)
 	{
-		DeviceProperties properties;
 		DXGI_ADAPTER_DESC1 pDesc;
 
 		pAdapter->GetDesc1(&pDesc);
@@ -244,20 +263,23 @@ void DxGrabber::enumerateDevices(bool /*silent*/)
 			DXGI_OUTPUT_DESC oDesc;
 			pOutput->GetDesc(&oDesc);
 
-			QString dev = QString::fromWCharArray(oDesc.DeviceName) + "|" + QString::fromWCharArray(pDesc.Description);
-			_deviceProperties.insert(dev, properties);
+			_devices.append(QString::fromWCharArray(oDesc.DeviceName) + "|" + QString::fromWCharArray(pDesc.Description));
 
 			SafeRelease(&pOutput);
 		}
 
 		if (j > 1)
 		{
-			_deviceProperties.insert(MULTI_MONITOR + "|" + QString::fromWCharArray(pDesc.Description), properties);
+			_devices.append(MULTI_MONITOR + "|" + QString::fromWCharArray(pDesc.Description));
 		}
 
 		SafeRelease(&pAdapter);
 	}
 	SafeRelease(&pFactory);
+
+	// sorted and unique: the first one is the 'auto' choice
+	_devices.sort();
+	_devices.removeDuplicates();
 }
 
 bool DxGrabber::start()
@@ -310,7 +332,6 @@ bool DxGrabber::initDirectX(QString selectedDeviceName)
 	IDXGIAdapter1* pAdapter;
 	for (UINT i = 0; pFactory->EnumAdapters1(i, &pAdapter) != DXGI_ERROR_NOT_FOUND && !exitNow; i++)
 	{
-		DeviceProperties properties;
 		DXGI_ADAPTER_DESC1 pDesc{};
 
 		pAdapter->GetDesc1(&pDesc);
@@ -476,13 +497,10 @@ bool DxGrabber::initDirectX(QString selectedDeviceName)
 							sourceTextureDesc.BindFlags = 0;
 							if (CHECK(_d3dDevice->CreateTexture2D(&sourceTextureDesc, NULL, &display->d3dSourceTexture)))
 							{
-								_actualVideoFormat = PixelFormat::XRGB;
 								display->actualWidth = _actualWidth = sourceTextureDesc.Width;
 								display->actualHeight = _actualHeight = sourceTextureDesc.Height;
 
-								loadLutFile(PixelFormat::RGB24);
-								_frameByteSize = display->actualWidth * display->actualHeight * 4;
-								_lineLength = display->actualWidth * 4;
+								loadLutFile();
 
 								if (_hardware)
 								{
@@ -848,13 +866,7 @@ void DxGrabber::grabFrame()
 				image.insertHorizontal(source.first, source.second);
 			}
 
-		if (_signalDetectionEnabled)
-		{
-			if (checkSignalDetectionManual(image))
-				emit SignalNewCapturedFrame(image);
-		}
-		else
-			emit SignalNewCapturedFrame(image);
+		emit SignalNewCapturedFrame(image);
 	}
 	else
 	{
@@ -897,14 +909,14 @@ void DxGrabber::captureFrame(DisplayHandle& display)
 			if (CHECK(status) && CHECK(_d3dContext->Map(display.d3dSourceTexture, 0, D3D11_MAP_READ, 0, &internalMap)))
 			{
 				bool useLut = !(_hardware && display.wideGamut);
-				if (_hdrToneMappingEnabled && !_lutBufferInit && useLut)
+				if (_hdrToneMappingEnabled && !_lut.isLoaded() && useLut)
 				{
-					loadLutFile(PixelFormat::RGB24, true);
-					pleaseWaitForLut(false);
+					loadLutFile(true);
+					pleaseWaitForLut();
 				}
 				else
 				{
-					processSystemFrameBGRA((uint8_t*)internalMap.pData, (int)internalMap.RowPitch, _hdrToneMappingEnabled && useLut);
+					processFrameBGRA((const uint8_t*)internalMap.pData, (int)internalMap.RowPitch, _hdrToneMappingEnabled && useLut);
 				}
 				_d3dContext->Unmap(display.d3dSourceTexture, 0);
 			}
@@ -1002,14 +1014,14 @@ int DxGrabber::captureFrame(DisplayHandle& display, Image<ColorRgb>& image)
 
 				image = Image<ColorRgb>(targetSizeX, targetSizeY);
 
-				if (_hdrToneMappingEnabled && !_lutBufferInit && useLut)
+				if (_hdrToneMappingEnabled && !_lut.isLoaded() && useLut)
 				{
-					loadLutFile(PixelFormat::RGB24, true);
-					pleaseWaitForLut(false);
+					loadLutFile(true);
+					pleaseWaitForLut();
 				}
 				else
 				{
-					FrameDecoder::processSystemImageBGRA(image, targetSizeX, targetSizeY, 0, 0, (uint8_t*)internalMap.pData, display.actualWidth, display.actualHeight, divide, (_hdrToneMappingEnabled == 0 || !_lutBufferInit || !useLut) ? nullptr : _lut.data(), lineSize);
+					decodeBGRA(image, targetSizeX, targetSizeY, 0, 0, (const uint8_t*)internalMap.pData, display.actualWidth, display.actualHeight, divide, (_hdrToneMappingEnabled == 0 || !useLut) ? nullptr : _lut.data(), lineSize);
 				}
 
 				result = 1;
@@ -1070,13 +1082,15 @@ int DxGrabber::captureFrame(DisplayHandle& display, Image<ColorRgb>& image)
 	return result;
 }
 
-
-void DxGrabber::setCropping(unsigned cropLeft, unsigned cropRight, unsigned cropTop, unsigned cropBottom)
+void DxGrabber::processFrameBGRA(const uint8_t* source, int lineSize, bool useLut)
 {
-	_cropLeft = cropLeft;
-	_cropRight = cropRight;
-	_cropTop = cropTop;
-	_cropBottom = cropBottom;
+	int targetSizeX, targetSizeY;
+	int divide = getTargetSystemFrameDimension(targetSizeX, targetSizeY);
+	Image<ColorRgb> image(targetSizeX, targetSizeY);
+
+	decodeBGRA(image, targetSizeX, targetSizeY, _cropLeft, _cropTop, source, _actualWidth, _actualHeight, divide, (_hdrToneMappingEnabled == 0 || !useLut) ? nullptr : _lut.data(), lineSize);
+
+	emit SignalNewCapturedFrame(image);
 }
 
 void DxGrabber::cacheHandler(const Image<ColorRgb>& image)

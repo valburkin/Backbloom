@@ -61,10 +61,6 @@ $(document).ready( function() {
 		//blackborder
 		$('#conf_cont').append(createOptPanel('<svg data-src="svg/image_processing_blackborder.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_bb_heading_title"), 'editor_container_blackborder', 'btn_submit_blackborder'));
 		$('#conf_cont').append(createHelpTable(window.schema.blackborderdetector.properties, $.i18n("edt_conf_bb_heading_title")));
-
-		//automatic tone mapping
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/hdr.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_automatic_tone_mapping_title"), 'editor_container_automatic_tone_mapping', 'btn_submit_automatic_tone_mapping'));
-		$('#conf_cont').append(createHelpTable(window.schema.automaticToneMapping.properties, $.i18n("edt_automatic_tone_mapping_title")));
 	}	
 	
 	//color
@@ -126,31 +122,12 @@ $(document).ready( function() {
 		requestWriteConfig(editor_blackborder.getValue());
 	});
 
-	//tone mapping
-	editor_automatic_tone_mapping = createJsonEditor('editor_container_automatic_tone_mapping', {
-		automaticToneMapping: window.schema.automaticToneMapping
-	}, true, true, undefined, false);
-
-	editor_automatic_tone_mapping.on('change',function() {
-		editor_automatic_tone_mapping.validate().length ? $('#btn_submit_automatic_tone_mapping').attr('disabled', true) : $('#btn_submit_automatic_tone_mapping').attr('disabled', false);
-	});
-	
-	$('#btn_submit_automatic_tone_mapping').off().on('click',function() {
-		requestWriteConfig(editor_automatic_tone_mapping.getValue());
-	});
-
-	if (window.serverInfo.grabbers == null || Object.keys(window.serverInfo.grabbers).length === 0)
-	{
-		$("#editor_container_automatic_tone_mapping").parent().hide();
-	}
-	
 	//create introduction
 	if(window.showOptHelp)
 	{
 		createHint("intro", $.i18n('conf_colors_color_intro'), "editor_container_color");
 		createHint("intro", $.i18n('conf_colors_smoothing_intro'), "editor_container_smoothing");
 		createHint("intro", $.i18n('conf_colors_blackborder_intro'), "editor_container_blackborder");
-		createHint("intro", $.i18n('edt_automatic_tone_mapping_enable_explain'), "editor_container_automatic_tone_mapping");
 	}
 	
 	removeOverlay();

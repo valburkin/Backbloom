@@ -8,11 +8,7 @@ macro(InstallerWindows TARGET)
 		
 		# Collect the runtime libraries
 		get_filename_component(COMPILER_PATH "${CMAKE_CXX_COMPILER}" DIRECTORY)
-		if (Qt_VERSION EQUAL 5)
-			set(WINDEPLOYQT_PARAMS --no-angle --no-opengl-sw)
-		else()
-			set(WINDEPLOYQT_PARAMS --no-opengl-sw)
-		endif()
+		set(WINDEPLOYQT_PARAMS --no-opengl-sw)
 
 		execute_process(
 			COMMAND "${CMAKE_COMMAND}" -E
@@ -51,9 +47,6 @@ macro(InstallerWindows TARGET)
 
 			list(REMOVE_AT DEPENDENCIES 0 1)
 		endwhile()
-
-		# Copy TurboJPEG Libs
-		install(FILES ${TurboJPEG_INSTALL_LIB} DESTINATION "bin" COMPONENT "Overglow" )
 
 		# Web resources
 		if (NOT USE_EMBEDDED_WEB_RESOURCES)
@@ -123,23 +116,16 @@ macro(InstallerWindows TARGET)
 		endif()
 
 	else()
-		if (Qt_VERSION EQUAL 5)
-			get_target_property(QT_QMAKE_EXECUTABLE ${Qt5Core_QMAKE_EXECUTABLE} IMPORTED_LOCATION)
-			get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
-			find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${QT_BIN_DIR}")
-		else()
-			get_filename_component(My_Qt6Core_EXECUTABLE_DIR ${QT6_INSTALL_PREFIX}/${QT6_INSTALL_BINS} ABSOLUTE)
-			find_program(WINDEPLOYQT_EXECUTABLE windeployqt PATHS "${My_Qt6Core_EXECUTABLE_DIR}" NO_DEFAULT_PATH)
-			if (NOT WINDEPLOYQT_EXECUTABLE)
-				find_program(WINDEPLOYQT_EXECUTABLE windeployqt)
-			endif()
+		get_filename_component(My_Qt6Core_EXECUTABLE_DIR ${QT6_INSTALL_PREFIX}/${QT6_INSTALL_BINS} ABSOLUTE)
+		find_program(WINDEPLOYQT_EXECUTABLE windeployqt PATHS "${My_Qt6Core_EXECUTABLE_DIR}" NO_DEFAULT_PATH)
+		if (NOT WINDEPLOYQT_EXECUTABLE)
+			find_program(WINDEPLOYQT_EXECUTABLE windeployqt)
 		endif()
 		
 		if (WINDEPLOYQT_EXECUTABLE AND (NOT CMAKE_GITHUB_ACTION))
 			set(WINDEPLOYQT_PARAMS_RUNTIME --verbose 0 --no-compiler-runtime --no-opengl-sw --no-system-d3d-compiler)
 			message(STATUS "Found windeployqt: ${WINDEPLOYQT_EXECUTABLE} PATH_HINT:${My_Qt6Core_EXECUTABLE_DIR}${QT_BIN_DIR}")
 			add_custom_command(TARGET ${TARGET} POST_BUILD COMMAND ${WINDEPLOYQT_EXECUTABLE} ${WINDEPLOYQT_PARAMS_RUNTIME} "$<TARGET_FILE:${TARGET}>")
-			add_custom_command(TARGET ${TARGET} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TurboJPEG_INSTALL_LIB} $<TARGET_FILE_DIR:${TARGET}>)
 		endif()
 
 		add_custom_command(

@@ -3,6 +3,7 @@
 #endif
 
 #include <base/InstanceConfig.h>
+#include <base/SettingsMigration.h>
 #include <json-utils/JsonUtils.h>
 #include <db/SettingsTable.h>
 #include <json-utils/jsonschema/QJsonUtils.h>
@@ -11,8 +12,11 @@
 
 #include <algorithm>
 
-// Settings types of features that were removed from this product (protobuf/flatbuffers servers, forwarder, raw UDP server, boblight)
-static const QStringList OBSOLETE_SETTINGS = { "protoServer", "flatbufServer", "forwarder", "rawUdpServer", "boblightServer" };
+// Settings types of features that were removed from this product (protobuf/flatbuffers servers, forwarder, raw UDP server,
+// boblight, TCP JSON server, the capture card stack: video grabber, its instance control, signal detection calibration
+// and automatic tone mapping)
+static const QStringList OBSOLETE_SETTINGS = { "protoServer", "flatbufServer", "forwarder", "rawUdpServer", "boblightServer", "jsonServer",
+	"videoGrabber", "videoControl", "videoDetection", "automaticToneMapping" };
 
 QJsonObject	InstanceConfig::_schemaJson;
 QMutex		InstanceConfig::_lockerSettingsManager;
@@ -266,29 +270,10 @@ bool InstanceConfig::removeUnsupportedFeatures(QJsonObject& dbConfig)
 {
 	bool changed = false;
 
-	// CEC support was removed
-	const std::list<std::pair<settings::type, QStringList>> obsoleteFields = {
-		{ settings::type::VIDEOCONTROL, { "cecControl" } },
-		{ settings::type::SYSTEMCONTROL, { "cecControl" } },
-		{ settings::type::VIDEOGRABBER, { "cecHdrStart", "cecHdrStop" } }
-	};
-	for (const auto& [type, fields] : obsoleteFields)
+	for (const QString& change : SettingsMigration::removeUnsupportedFeatures(dbConfig))
 	{
-		const QString key = settings::typeToString(type);
-		QJsonObject object = dbConfig[key].toObject();
-		bool modified = false;
-		for (const auto& field : fields)
-			if (object.contains(field))
-			{
-				object.remove(field);
-				modified = true;
-			}
-		if (modified)
-		{
-			Info(_log, "Removed the CEC options from the '{:s}' settings: CEC is not part of this version", (key));
-			dbConfig[key] = object;
-			changed = true;
-		}
+		Info(_log, "{:s}", (change));
+		changed = true;
 	}
 
 	// LED device: fall back to the 'file' driver (no physical output) if the configured driver is not available
@@ -387,8 +372,7 @@ bool InstanceConfig::saveSettings(QJsonObject config, bool correct)
 	{
 		QString data = newValueList.takeFirst();
 		QString recordData = _sTable->getSettingsRecordString(key);
-		if ((recordData != data) &&
-			(settings::stringToType(key) != settings::type::VIDEODETECTION || recordData.length() < 8))
+		if (recordData != data)
 		{
 			if (!_sTable->createSettingsRecord(key, data))
 			{

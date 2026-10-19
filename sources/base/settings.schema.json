@@ -23,10 +23,6 @@
 		{
 			"$ref": "schema-smoothing.json"
 		},
-		"videoGrabber" :
-		{
-			"$ref": "schema-videoGrabber.json"
-		},
 		"systemGrabber" :
 		{
 			"$ref": "schema-systemGrabber.json"
@@ -47,10 +43,6 @@
 		{
 			"$ref": "schema-soundEffect.json"
 		},
-		"jsonServer" :
-		{
-			"$ref": "schema-jsonServer.json"
-		},
 		"webConfig" :
 		{
 			"$ref": "schema-webConfig.json"
@@ -59,17 +51,9 @@
 		{
 			"$ref": "schema-effects.json"
 		},
-		"videoControl":
-		{
-			"$ref": "schema-videoControl.json"
-		},
 		"systemControl":
 		{
 			"$ref": "schema-systemControl.json"
-		},
-		"videoDetection":
-		{
-			"$ref": "schema-videoDetection.json"
 		},
 		"network":
 		{
@@ -86,10 +70,6 @@
 		"mqtt":
 		{
 			"$ref": "schema-mqtt.json"
-		},
-		"automaticToneMapping" :
-		{
-			"$ref": "schema-automaticToneMapping.json"
 		},
 		"layout" :
 		{

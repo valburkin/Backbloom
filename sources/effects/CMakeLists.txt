@@ -7,8 +7,8 @@ FILE ( GLOB EffectsSOURCES "${CURRENT_HEADER_DIR}/*.h" "${CURRENT_SOURCE_DIR}/*.
 add_library(effects OBJECT ${EffectsSOURCES})
 
 target_link_libraries(effects
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 	linalg
 )
 

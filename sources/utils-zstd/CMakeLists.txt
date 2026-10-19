@@ -7,19 +7,12 @@ FILE ( GLOB_RECURSE utils_zstd_SOURCES "${CURRENT_HEADER_DIR}/*.h" "${CURRENT_SO
 
 if (USE_SHARED_LIBS)
 	add_library(utils-zstd SHARED ${utils_zstd_SOURCES})
-	if(WIN32)
-	   target_compile_definitions(utils-zstd
-		  INTERFACE
-			 "_ZSTD_SHARED_API=__declspec(dllimport)"
-		  PRIVATE
-			 "_ZSTD_SHARED_API=__declspec(dllexport)"
-	   )
-	else()
-	   target_compile_definitions(utils-zstd
-		  INTERFACE
-			 "_ZSTD_SHARED_API=__attribute__((visibility(\"default\")))"
-	   )
-	endif()
+	target_compile_definitions(utils-zstd
+		INTERFACE
+			"_ZSTD_SHARED_API=__declspec(dllimport)"
+		PRIVATE
+			"_ZSTD_SHARED_API=__declspec(dllexport)"
+	)
 	install(
 		TARGETS   utils-zstd
 		LIBRARY   DESTINATION "${CMAKE_INSTALL_LIBDIR}"

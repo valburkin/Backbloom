@@ -6,8 +6,6 @@
 	#include <QList>
 	#include <QHostAddress>
 	#include <QMultiMap>
-	#include <QDir>
-	#include <QNetworkReply>
 
 	#include <chrono>
 	#include <csignal>
@@ -22,7 +20,6 @@
 #include <led-drivers/LedDeviceManufactory.h>
 #include <led-drivers/net/ProviderRestApi.h>
 
-#include <base/GrabberWrapper.h>
 #include <base/SystemWrapper.h>
 #include <base/SoundCapture.h>
 #include <base/ImageToLedManager.h>
@@ -33,9 +30,7 @@
 #include <performance-counters/PerformanceCounters.h>
 
 // bonjour wrapper
-#ifdef ENABLE_BONJOUR
-	#include <bonjour/DiscoveryWrapper.h>
-#endif
+#include <bonjour/DiscoveryWrapper.h>
 
 using namespace overglow;
 
@@ -186,10 +181,6 @@ void HyperAPI::handleMessage(const QString& messageString, const QString& httpAu
 				handleLoggingCommand(message, command, tan);
 			else if (command == "processing")
 				handleProcessingCommand(message, command, tan);
-			else if (command == "videomodehdr")
-				handleVideoModeHdrCommand(message, command, tan);
-			else if (command == "lut-calibration")
-				handleLutCalibrationCommand(message, command, tan);
 			else if (command == "instance")
 				handleInstanceCommand(message, command, tan);
 			else if (command == "leddevice")
@@ -200,22 +191,12 @@ void HyperAPI::handleMessage(const QString& messageString, const QString& httpAu
 				handleLoadDB(message, command, tan);
 			else if (command == "tunnel")
 				handleTunnel(message, command, tan);
-			else if (command == "signal-calibration")
-				handleLoadSignalCalibration(message, command, tan);
 			else if (command == "performance-counters")
 				handlePerformanceCounters(message, command, tan);
 			else if (command == "clearall")
 				handleClearallCommand(message, command, tan);
 			else if (command == "help")
 				handleHelpCommand(message, command, tan);
-			else if (command == "video-crop")
-				handleCropCommand(message, command, tan);
-			else if (command == "video-controls")
-				handleVideoControlsCommand(message, command, tan);
-			else if (command == "benchmark")
-				handleBenchmarkCommand(message, command, tan);
-			else if (command == "lut-install")
-				handleLutInstallCommand(message, command, tan);
 			else if (command == "smoothing")
 				handleSmoothingCommand(message, command, tan);
 			else if (command == "current-state")
@@ -314,15 +295,6 @@ void HyperAPI::handleEffectCommand(const QJsonObject& message, const QString& co
 		sendErrorReply("Effect '" + dat.effectName + "' not found", command, tan);
 }
 
-overglow::Components HyperAPI::getActiveComponent()
-{
-	overglow::Components active;
-
-	SAFE_CALL_0_RET(_instance.get(), getCurrentPriorityActiveComponent, overglow::Components, active);
-
-	return active;
-}
-
 void HyperAPI::handleServerInfoCommand(const QJsonObject& message, const QString& command, int tan)
 {
 	try
@@ -333,7 +305,7 @@ void HyperAPI::handleServerInfoCommand(const QJsonObject& message, const QString
 			QJsonArray subsArr = message["subscribe"].toArray();
 			for (const QJsonValueRef entry : subsArr)
 			{
-				if (entry == "performance-update" || entry == "lut-calibration-update")
+				if (entry == "performance-update")
 					subscribeOnly = true;
 			}
 		}
@@ -370,8 +342,6 @@ void HyperAPI::handleServerInfoCommand(const QJsonObject& message, const QString
 			// Sound Device Info //
 			///////////////////////
 
-#if defined(ENABLE_SOUNDCAPLINUX) || defined(ENABLE_SOUNDCAPWINDOWS) || defined(ENABLE_SOUNDCAPMACOS)
-
 			QJsonObject resultSound;
 
 			if (_soundCapture != nullptr)
@@ -380,13 +350,9 @@ void HyperAPI::handleServerInfoCommand(const QJsonObject& message, const QString
 			if (!resultSound.isEmpty())
 				info["sound"] = resultSound;
 
-#endif
-
 			/////////////////////////
 			// System Grabber Info //
 			/////////////////////////
-
-#if defined(ENABLE_DX) || defined(ENABLE_MAC_SYSTEM) || defined(ENABLE_X11)
 
 			QJsonObject resultSGrabber;
 
@@ -396,30 +362,12 @@ void HyperAPI::handleServerInfoCommand(const QJsonObject& message, const QString
 			if (!resultSGrabber.isEmpty())
 				info["systemGrabbers"] = resultSGrabber;
 
-#endif
-
-
-			//////////////////////
-			//  Video grabbers  //
-			//////////////////////
-
-			QJsonObject grabbers;
-			[[maybe_unused]] GrabberWrapper* grabberWrapper = (_videoGrabber != nullptr) ? _videoGrabber->grabberWrapper() : nullptr;
-
-#if defined(ENABLE_V4L2) || defined(ENABLE_MF) || defined(ENABLE_AVF)
-			if (grabberWrapper != nullptr)
-				SAFE_CALL_0_RET(grabberWrapper, getJsonInfo, QJsonObject, grabbers);
-#endif
-
-			info["grabbers"] = grabbers;
-
-			//////////////////////////////////
-			//  Instances found by Bonjour  //
-			//////////////////////////////////
+			/////////////////////////////////
+			//  Devices found on the network  //
+			/////////////////////////////////
 
 			QJsonArray sessions;
 
-#ifdef ENABLE_BONJOUR					
 			QList<DiscoveryRecord> services;
 			if (_discoveryWrapper != nullptr)
 				SAFE_CALL_0_RET(_discoveryWrapper.get(), getAllServices, QList<DiscoveryRecord>, services);
@@ -434,8 +382,6 @@ void HyperAPI::handleServerInfoCommand(const QJsonObject& message, const QString
 				sessions.append(item);
 			}
 			info["sessions"] = sessions;
-#endif
-
 
 			///////////////////////////
 			//     Instances info    //
@@ -511,93 +457,8 @@ void HyperAPI::handleHelpCommand(const QJsonObject& /*message*/, const QString& 
 {
 	QJsonObject req;
 
-	req["available_commands"] = "color, image, effect, serverinfo, clear, clearall, adjustment, sourceselect, config, componentstate, ledcolors, logging, processing, sysinfo, videomodehdr, videomode, video-crop, authorize, instance, leddevice, transform, correction, temperature, help";
+	req["available_commands"] = "color, image, effect, serverinfo, clear, clearall, adjustment, sourceselect, config, componentstate, ledcolors, logging, processing, sysinfo, authorize, instance, leddevice, smoothing, current-state, performance-counters, save-db, load-db, tunnel, help";
 	sendSuccessDataReply(QJsonDocument(req), command, tan);
-}
-
-void HyperAPI::handleCropCommand(const QJsonObject& message, const QString& command, int tan)
-{
-	GrabberWrapper* grabberWrapper = (_videoGrabber != nullptr) ? _videoGrabber->grabberWrapper() : nullptr;
-	const QJsonObject& adjustment = message["crop"].toObject();
-	unsigned l = static_cast<unsigned>(adjustment["left"].toInt(0));
-	unsigned r = static_cast<unsigned>(adjustment["right"].toInt(0));
-	unsigned t = static_cast<unsigned>(adjustment["top"].toInt(0));
-	unsigned b = static_cast<unsigned>(adjustment["bottom"].toInt(0));
-
-	if (grabberWrapper != nullptr)
-		QUEUE_CALL_4(grabberWrapper,setCropping, unsigned, l, unsigned, r, unsigned, t, unsigned, b);
-
-	sendSuccessReply(command, tan);
-}
-
-void HyperAPI::handleBenchmarkCommand(const QJsonObject& message, const QString& command, int tan)
-{
-	const QString& subc = message["subcommand"].toString().trimmed();
-	int status = message["status"].toInt();
-	
-	emit _instanceManager->SignalBenchmarkCapture(status, subc);	
-
-	sendSuccessReply(command, tan);
-}
-
-void HyperAPI::lutDownloaded(QNetworkReply* reply, int hardware_brightness, int hardware_contrast, int hardware_saturation, qint64 time)
-{
-	QString fileName = QDir::cleanPath(_instanceManager->getRootPath() + QDir::separator() + "lut_lin_tables.3d");
-	QString error = installLut(reply, fileName, hardware_brightness, hardware_contrast, hardware_saturation, time);
-
-	if (error == nullptr)
-	{
-		Info(_log, "Reloading LUT...");
-		BaseAPI::setVideoModeHdr(0);
-		BaseAPI::setVideoModeHdr(1);
-
-		QJsonDocument newSet;
-		SAFE_CALL_1_RET(_instance.get(), getSetting, QJsonDocument, newSet, settings::type, settings::type::VIDEOGRABBER);
-		QJsonObject grabber = QJsonObject(newSet.object());
-		grabber["hardware_brightness"] = hardware_brightness;
-		grabber["hardware_contrast"] = hardware_contrast;
-		grabber["hardware_saturation"] = hardware_saturation;
-		QString newConfig = QJsonDocument(grabber).toJson(QJsonDocument::Compact);
-		BLOCK_CALL_2(_instance.get(), setSetting, settings::type, settings::type::VIDEOGRABBER, QString, newConfig);
-
-		Info(_log, "New LUT has been installed as: {:s} (from: {:s})", (fileName), (reply->url().toString()));
-	}
-	else
-	{
-		Error(_log, "Error occured while installing new LUT: {:s}", (error));
-	}
-
-	QJsonObject report;
-	report["status"] = (error == nullptr) ? 1 : 0;
-	report["error"] = error;
-	sendSuccessDataReply(QJsonDocument(report), "lut-install-update");
-}
-
-void HyperAPI::handleLutInstallCommand(const QJsonObject& message, const QString& command, int tan)
-{
-	const QString& address = QString("%1/lut_lin_tables.3d.zst").arg(message["subcommand"].toString().trimmed());
-	int hardware_brightness = message["hardware_brightness"].toInt(0);
-	int hardware_contrast = message["hardware_contrast"].toInt(0);
-	int hardware_saturation = message["hardware_saturation"].toInt(0);
-	qint64 time = message["now"].toInt(0);
-
-	Debug(_log, "Request to install LUT from: {:s} (params => [{:d}, {:d}, {:d}])", (address),
-		hardware_brightness, hardware_contrast, hardware_saturation);
-	if (_adminAuthorized)
-	{
-		QNetworkAccessManager* mgr = new QNetworkAccessManager(this);
-		connect(mgr, &QNetworkAccessManager::finished, this,
-			[this, mgr, hardware_brightness, hardware_contrast, hardware_saturation, time](QNetworkReply* reply) {
-				lutDownloaded(reply, hardware_brightness, hardware_contrast, hardware_saturation, time);
-				reply->deleteLater();
-				mgr->deleteLater();
-			});
-		QNetworkRequest request(address);
-		mgr->get(request);
-		sendSuccessReply(command, tan);
-	}
-	else
-		sendErrorReply("No Authorization", command, tan);
 }
 
 void HyperAPI::handleCurrentStateCommand(const QJsonObject& message, const QString& command, int tan)
@@ -623,30 +484,6 @@ void HyperAPI::handleSmoothingCommand(const QJsonObject& message, const QString&
 		QUEUE_CALL_1(_instanceManager.get(), setSmoothing, int, time)
 	else
 		QUEUE_CALL_1(_instance.get(), setSmoothing, int, time);
-
-	sendSuccessReply(command, tan);
-}
-
-void HyperAPI::handleVideoControlsCommand(const QJsonObject& message, const QString& command, int tan)
-{
-
-#if defined(__APPLE__)
-	sendErrorReply("Setting video controls is not supported under macOS", command, tan);
-	return;
-#endif
-
-	const QJsonObject& adjustment = message["video-controls"].toObject();
-	int hardware_brightness = adjustment["hardware_brightness"].toInt();
-	int hardware_contrast = adjustment["hardware_contrast"].toInt();
-	int hardware_saturation = adjustment["hardware_saturation"].toInt();
-	int hardware_hue = adjustment["hardware_hue"].toInt();
-
-	GrabberWrapper* grabberWrapper = (_videoGrabber != nullptr) ? _videoGrabber->grabberWrapper() : nullptr;
-
-	if (grabberWrapper != nullptr)
-	{
-		QUEUE_CALL_4(grabberWrapper, setBrightnessContrastSaturationHue, int, hardware_brightness, int, hardware_contrast, int, hardware_saturation, int, hardware_hue);
-	}
 
 	sendSuccessReply(command, tan);
 }
@@ -696,14 +533,8 @@ void HyperAPI::handleLoadDB(const QJsonObject& message, const QString& command, 
 
 		if (error.isEmpty())
 		{
-#ifdef __linux__
-			Info(_log, "Exiting now. If Overglow is running as a service, systemd should restart the process.");
-			LightingInstance::signalTerminateTriggered();
-			QTimer::singleShot(0, _instanceManager.get(), []() {QCoreApplication::exit(1); });
-#else
 			LightingInstance::signalTerminateTriggered();
 			QTimer::singleShot(0, _instanceManager.get(), []() {QCoreApplication::quit(); });
-#endif
 		}
 		else
 			sendErrorReply("Error occured while restoring the backup: " + error, command, tan);
@@ -725,43 +556,6 @@ void HyperAPI::handlePerformanceCounters(const QJsonObject& message, const QStri
 	{
 		QUEUE_CALL_1(_performanceCounters.get(), performanceInfoRequest, bool, false);
 		sendSuccessReply(command, tan);
-	}
-	else
-		sendErrorReply("Unknown subcommand", command, tan);
-}
-
-void HyperAPI::handleLoadSignalCalibration(const QJsonObject& message, const QString& command, int tan)
-{
-	QJsonDocument retVal;
-	QString subcommand = message["subcommand"].toString("");
-	QString full_command = command + "-" + subcommand;
-	GrabberWrapper* grabberWrapper = (_videoGrabber != nullptr) ? _videoGrabber->grabberWrapper() : nullptr;
-
-	if (grabberWrapper == nullptr)
-	{
-		sendErrorReply("No grabbers available", command, tan);
-		return;
-	}
-
-	if (subcommand == "start")
-	{
-		if (_adminAuthorized)
-		{
-			SAFE_CALL_0_RET(grabberWrapper, startCalibration, QJsonDocument, retVal);
-			sendSuccessDataReply(retVal, full_command, tan);
-		}
-		else
-			sendErrorReply("No Authorization", command, tan);
-	}
-	else if (subcommand == "stop")
-	{
-		SAFE_CALL_0_RET(grabberWrapper, stopCalibration, QJsonDocument, retVal);
-		sendSuccessDataReply(retVal, full_command, tan);
-	}
-	else if (subcommand == "get-info")
-	{
-		SAFE_CALL_0_RET(grabberWrapper, getCalibrationInfo, QJsonDocument, retVal);
-		sendSuccessDataReply(retVal, full_command, tan);
 	}
 	else
 		sendErrorReply("Unknown subcommand", command, tan);
@@ -992,48 +786,6 @@ void HyperAPI::handleLoggingCommand(const QJsonObject& message, const QString& c
 void HyperAPI::handleProcessingCommand(const QJsonObject& message, const QString& command, int tan)
 {
 	BaseAPI::setLedMappingType(ImageToLedManager::mappingTypeToInt(message["mappingType"].toString("multicolor_mean")));
-	sendSuccessReply(command, tan);
-}
-
-void HyperAPI::handleVideoModeHdrCommand(const QJsonObject& message, const QString& command, int tan)
-{
-	BaseAPI::setVideoModeHdr(message["HDR"].toInt());
-	sendSuccessReply(command, tan);
-}
-
-void HyperAPI::handleLutCalibrationCommand(const QJsonObject& message, const QString& command, int tan)
-{
-	QString subcommand = message["subcommand"].toString("");
-
-	if (subcommand == "capture")
-	{
-		bool debug = message["debug"].toBool(false);
-		bool lchCorrection = message["lch_correction"].toBool(false);
-
-		QThread* lutThread = new QThread();
-		LutCalibrator* lutCalibrator = new LutCalibrator(_instanceManager->getRootPath(), getActiveComponent(), debug, lchCorrection);
-		lutCalibrator->moveToThread(lutThread);
-		connect(lutThread, &QThread::finished, lutCalibrator, &LutCalibrator::deleteLater);
-		connect(lutThread, &QThread::started, lutCalibrator, &LutCalibrator::startHandler);		
-		connect(lutCalibrator, &LutCalibrator::SignalLutCalibrationUpdated, this, &CallbackAPI::lutCalibrationUpdateHandler);
-		
-		_lutCalibratorThread = std::unique_ptr<QThread, std::function<void(QThread*)>>(lutThread,
-			[lutCalibrator](QThread* mqttThread) {
-				lutCalibrator->cancelCalibrationSafe();
-				THREAD_REMOVER(QString("LutCalibrator"), mqttThread, lutCalibrator);
-			});
-		_lutCalibratorThread->start();
-	}
-	else if (_lutCalibratorThread != nullptr && subcommand == "stop")
-	{
-		_lutCalibratorThread = nullptr;
-	}
-	else
-	{
-		sendErrorReply("The command does not have any effect", command + "-" + subcommand, tan);
-		return;
-	}
-	
 	sendSuccessReply(command, tan);
 }
 

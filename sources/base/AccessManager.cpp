@@ -46,11 +46,6 @@ AccessManager::AccessManager(QObject* parent)
 AccessManager::~AccessManager()
 = default;
 
-const QString AccessManager::loadPipewire()
-{
-	return _authTable->loadPipewire();
-}
-
 AccessManager::AuthDefinition AccessManager::createToken(const QString& comment)
 {
 	const QString token = QUuid::createUuid().toString().mid(1, 36);
@@ -65,11 +60,6 @@ AccessManager::AuthDefinition AccessManager::createToken(const QString& comment)
 
 	emit SignalTokenUpdated(getTokenList());
 	return def;
-}
-
-void AccessManager::savePipewire(const QString& wToken)
-{
-	_authTable->savePipewire(wToken);
 }
 
 QVector<AccessManager::AuthDefinition> AccessManager::getTokenList() const

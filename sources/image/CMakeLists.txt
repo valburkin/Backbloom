@@ -8,8 +8,8 @@ FILE ( GLOB_RECURSE image_SOURCES "${CURRENT_HEADER_DIR}/*.h" "${CURRENT_SOURCE_
 add_library(image OBJECT ${image_SOURCES})
 
 target_link_libraries(image
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)

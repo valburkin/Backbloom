@@ -27,12 +27,10 @@ bool DriverOtherFile::init(QJsonObject deviceConfig)
 
 	_fileName = deviceConfig["output"].toString("/dev/null");
 
-#if _WIN32
 	if (_fileName == "/dev/null" || _fileName.trimmed().length() == 0)
 	{
 		_fileName = "\\\\.\\NUL";
 	}
-#endif
 
 	_printTimeStamp = deviceConfig["printTimeStamp"].toBool(true);
 
@@ -175,11 +173,7 @@ int DriverOtherFile::writeColors(const std::vector<ColorRgb>* ledValues, const S
 		result = infinityLedColors->size();
 	}
 
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
 	out << "]" << Qt::endl;
-#else
-	out << "]" << endl;
-#endif
 	out.flush();
 
 	return static_cast<int>(result);

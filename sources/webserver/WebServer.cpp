@@ -13,17 +13,8 @@
 #include <webserver/FileServer.h>
 #include <webserver/QtHttpServer.h>
 
-#ifdef USE_STATIC_QT_PLUGINS
-	#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-		#include <QtPlugin>
-		Q_IMPORT_PLUGIN(QTlsBackendOpenSSLPlugin)
-	#endif
-#endif
-
 // bonjour
-#ifdef ENABLE_BONJOUR
-	#include <bonjour/BonjourServiceRegister.h>
-#endif
+#include <bonjour/BonjourServiceRegister.h>
 
 // netUtil
 #include <utils/NetOrigin.h>
@@ -103,23 +94,20 @@ void WebServer::onServerStarted(quint16 port)
 {
 	Info(_log, "Started: '{:s}' on port: {:d}", (_server->getServerName()), port);
 
-#ifdef ENABLE_BONJOUR
 	if (!_useSsl)
 	{
 		if (_serviceRegister == nullptr)
 		{
-			_serviceRegister = new BonjourServiceRegister(this, DiscoveryRecord::Service::PeerInstance, port);
+			_serviceRegister = new BonjourServiceRegister(this, DiscoveryRecord::Service::WebUi, port);
 			_serviceRegister->registerService();
 		}
 		else if (_serviceRegister->getPort() != port)
 		{
 			delete _serviceRegister;
-			_serviceRegister = new BonjourServiceRegister(this, DiscoveryRecord::Service::PeerInstance, port);
+			_serviceRegister = new BonjourServiceRegister(this, DiscoveryRecord::Service::WebUi, port);
 			_serviceRegister->registerService();
 		}
 	}
-#endif
-
 }
 
 void WebServer::handleSettingsUpdate(settings::type type, QJsonDocument config)

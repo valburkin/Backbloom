@@ -23,10 +23,7 @@
 	#include <algorithm>
 #endif
 
-// util includes
-#include <utils/PixelFormat.h>
 #include <base/Grabber.h>
-#include <utils/Components.h>
 
 template <class T> void SafeRelease(T** ppT)
 {
@@ -94,8 +91,6 @@ public:
 
 	void setHdrToneMappingEnabled(int mode) override;
 
-	void setCropping(unsigned cropLeft, unsigned cropRight, unsigned cropTop, unsigned cropBottom) override;
-
 public slots:
 
 	void grabFrame();
@@ -105,10 +100,6 @@ public slots:
 	bool start() override;
 
 	void stop() override;
-
-	void newWorkerFrameHandler(unsigned int workerIndex, Image<ColorRgb> image, quint64 sourceCount, qint64 _frameBegin) override;
-
-	void newWorkerFrameErrorHandler(unsigned int workerIndex, QString error, quint64 sourceCount) override;
 
 	void restart();
 
@@ -120,15 +111,13 @@ private:
 
 	int captureFrame(DisplayHandle& display, Image<ColorRgb>& image);
 
-	QString GetSharedLut();
+	void processFrameBGRA(const uint8_t* source, int lineSize, bool useLut);
 
-	void enumerateDevices(bool silent);
+	void enumerateDevices();
 
-	void loadLutFile(PixelFormat color = PixelFormat::NO_CHANGE, bool silent = false);
+	void loadLutFile(bool silent = false);
 
-	void getDevices();
-
-	bool init() override;
+	bool init();
 
 	void uninit() override;
 
@@ -137,7 +126,6 @@ private:
 	bool initShaders(DisplayHandle& display);
 	HRESULT deepScaledCopy(DisplayHandle& display, ID3D11Texture2D* source);
 
-	QString					_configurationPath;
 	QTimer*					_timer;
 	QTimer*					_retryTimer;
 	bool					_multiMonitor;

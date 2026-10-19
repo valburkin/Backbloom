@@ -10,8 +10,8 @@ add_library(bonjour OBJECT ${Bonjour_SOURCES} )
 target_include_directories(bonjour PRIVATE ${CMAKE_SOURCE_DIR}/external/mdns)
 
 target_link_libraries(bonjour
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)

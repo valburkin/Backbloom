@@ -43,8 +43,6 @@ $(document).ready(function () {
 		// comps
 		window.comps = event.response.info.components;
 
-		window.serverInfo.grabberstate = event.response.info.grabbers.current;
-
 		$(window.serverEvents).trigger("ready");
 
 		window.comps.forEach(function (obj) {
@@ -64,26 +62,6 @@ $(document).ready(function () {
 			instNameInit = true;
 		}
 
-		// disable for now
-		if (false && window.suppressMissingLutWarningPerSession !== true &&
-			window.serverInfo.hasOwnProperty('grabbers') && window.serverInfo.grabbers.hasOwnProperty('active') &&
-			window.serverInfo.grabbers.active.length > 0 &&
-			!(window.serverInfo.grabbers.lut_for_hdr_exists === 1) &&
-			getStorage("suppressMissingLutWarning") !== "true" )
-		{
-			window.suppressMissingLutWarningPerSession = true;
-			setTimeout(function(){
-				var suppressMissingLutWarningCheckbox = '<div class="text-end text-muted mt-1 me-3 mb-2">'+$.i18n('dashboard_message_do_not_show_again') + 
-					': <input id="chk_suppressMissingLutWarning" class="form-check-input" type="checkbox" onChange="suppressMissingLutWarning()"> </div>';
-				showNotification('warning', $.i18n('warning_lut_not_found_1'), $.i18n('warning_lut_not_found_t'),
-					'<a href="#lut_downloader" class="ms-1 callout-link" style="cursor:pointer;" onClick="systemLink(event);">' +
-					$.i18n('warning_lut_not_found_3') + '</a><br/><br/>' + $.i18n('warning_lut_not_found_2') + 
-					'<a href="#grabber_calibration" class="ms-1 me-2 callout-link" style="cursor:pointer;" onClick="systemLink(event);">' +
-										$.i18n('main_menu_grabber_calibration_token') + '</a>' +
-					suppressMissingLutWarningCheckbox);
-			}, 500);			
-		}
-
 		if (window.suppressErrorDetectedWarningPerSession !== true &&
 			window.serverInfo.lastError.length > 0 &&
 			getStorage("suppressErrorDetectedWarning") !== "true" )
@@ -101,10 +79,7 @@ $(document).ready(function () {
 			}, 700);			
 		}
 
-		let VIDEO_CAPTURE_AVAILABLE = (window.serverInfo.grabbers != null && window.serverInfo.grabbers.available != null &&
-							window.serverInfo.grabbers.available.find(element => element.indexOf("Video capturing")!=-1))
-							|| (window.serverInfo.systemGrabbers != null);
-		if (!VIDEO_CAPTURE_AVAILABLE)
+		if (window.serverInfo.systemGrabbers == null)
 		{
 			let menuItemGrab = document.getElementById("grabber_capturing_menu_item");
 			menuItemGrab.classList.add("d-none");
@@ -317,20 +292,7 @@ $(document).ready(function () {
 		$(window.serverEvents).trigger("adjustment-update", event.response.data);
 	});
 
-	$(window.serverEvents).on("cmd-videomode-update", function (event) {
-		window.serverInfo.videomode = event.response.data.videomode;
-	});
-
-	$(window.serverEvents).on("cmd-videomodehdr-update", function (event) {
-		window.serverInfo.videomodehdr = event.response.data.videomodehdr;
-	});	
-
-	$(window.serverEvents).on("cmd-grabberstate-update", function (event) {
-		window.serverInfo.grabberstate = event.response.data;
-		$(window.serverEvents).trigger("grabberstate-update", event.response.data);
-	});	
-
-	$(window.serverEvents).on("cmd-components-update", function (event) {
+$(window.serverEvents).on("cmd-components-update", function (event) {
 		let obj = event.response.data
 
 		// notfication in index
@@ -417,14 +379,6 @@ function suppressErrorDetectedWarningCheckbox()
 		setStorage("suppressErrorDetectedWarning", "true");
 	else 
 		setStorage("suppressErrorDetectedWarning", "false");
-}
-
-function suppressMissingLutWarning()
-{
-	if (document.getElementById('chk_suppressMissingLutWarning').checked) 
-		setStorage("suppressMissingLutWarning", "true");
-	else 
-		setStorage("suppressMissingLutWarning", "false");
 }
 
 //Dark Mode

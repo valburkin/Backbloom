@@ -30,13 +30,8 @@
 #include <QMetaObject>
 #include <QPointer>
 
-#ifdef _WIN32
-	#include <Windows.h>
-	using namespace std::chrono_literals;
-#else
-	#include <ctime>
-#endif
-
+#include <Windows.h>
+using namespace std::chrono_literals;
 
 const std::chrono::time_point<std::chrono::steady_clock> InternalClock::start = std::chrono::steady_clock::now();
 const std::chrono::time_point<std::chrono::steady_clock> InternalClock::startMicro = std::chrono::steady_clock::now();
@@ -73,11 +68,9 @@ void HighResolutionScheduler::start(QObject* receiver, const std::function<void(
 {
 	stop();
 
-#ifdef _WIN32
 	if (timer = CreateWaitableTimerEx(
 		NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS); timer == nullptr)
 		return;
-#endif
 
 	running = true;
 	worker = std::thread([this, receiver = QPointer<QObject>(receiver), task, period]() {
@@ -91,13 +84,10 @@ void HighResolutionScheduler::start(QObject* receiver, const std::function<void(
 		}
 	});
 
-#ifdef _WIN32
 	if (period < 10ms)
 	{
 		SetThreadPriority(worker.native_handle(), THREAD_PRIORITY_TIME_CRITICAL);
 	}
-#endif
-
 }
 
 void HighResolutionScheduler::stop()
@@ -107,18 +97,15 @@ void HighResolutionScheduler::stop()
 	{
 		worker.join();
 	}
-#ifdef _WIN32
 	if (timer)
 	{
 		CloseHandle(timer);
 		timer = nullptr;
 	}
-#endif
 }
 
 void HighResolutionScheduler::sleepUntil(std::chrono::steady_clock::time_point tp)
 {
-#ifdef _WIN32
 	using hundred_nanoseconds = std::chrono::duration<long long, std::ratio<1, 10000000>>;
 	auto now = std::chrono::steady_clock::now();
 	auto diff = std::chrono::duration_cast<hundred_nanoseconds>(tp - now).count();
@@ -130,22 +117,6 @@ void HighResolutionScheduler::sleepUntil(std::chrono::steady_clock::time_point t
 		SetWaitableTimerEx(timer, &li, 0, NULL, NULL, NULL, 0);
 		WaitForSingleObject(timer, INFINITE);
 	}
-#elif defined(__APPLE__)
-	auto now = std::chrono::steady_clock::now();
-	if (tp <= now) return;
-	auto duration = tp - now;
-	auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
-	timespec ts;
-	ts.tv_sec = ns / 1000000000;
-	ts.tv_nsec = ns % 1000000000;
-	nanosleep(&ts, nullptr);
-#else
-	timespec ts;
-	auto ns = std::chrono::time_point_cast<std::chrono::nanoseconds>(tp).time_since_epoch().count();
-	ts.tv_sec = ns / 1000000000;
-	ts.tv_nsec = ns % 1000000000;
-	clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, nullptr);
-#endif
 }
 
 /*

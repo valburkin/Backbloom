@@ -10,7 +10,6 @@
 #include <base/AccessManager.h>
 #include <base/GrabberHelper.h>
 
-class QNetworkReply;
 class SoundCapture;
 class DiscoveryWrapper;
 
@@ -69,7 +68,6 @@ protected:
 	QVector<QVariantMap> getAllInstanceData();
 	QJsonObject getAverageColor(quint8 index);
 	quint8 getCurrentInstanceIndex();
-	QString installLut(QNetworkReply* reply, QString fileName, int hardware_brightness, int hardware_contrast, int hardware_saturation, qint64 time);
 	bool isInstanceEnabled();
 	void registerInput(int priority, overglow::Components component, const QString& origin, const QString& owner, overglow::Components callerComp);
 	void unregisterInput(int priority);
@@ -81,7 +79,6 @@ protected:
 	bool setImage(ImageCmdData& data, overglow::Components comp, QString& replyMsg, overglow::Components callerComp = overglow::COMP_INVALID);
 	void setLedMappingType(int type, overglow::Components callerComp = overglow::COMP_INVALID);
 	void setSourceAutoSelect(bool state, overglow::Components callerComp = overglow::COMP_INVALID);
-	void setVideoModeHdr(int hdr, overglow::Components callerComp = overglow::COMP_INVALID);
 	void setVisiblePriority(int priority, overglow::Components callerComp = overglow::COMP_INVALID);
 	
 	bool startInstance(quint8 index, int tan = 0);
@@ -122,11 +119,9 @@ protected:
 	std::shared_ptr<AccessManager>		_accessManager;	
 	std::shared_ptr<LightingInstance>	_instance;
 	std::shared_ptr<SoundCapture> _soundCapture;
-	std::shared_ptr<GrabberHelper> _videoGrabber;
 	std::shared_ptr<GrabberHelper> _systemGrabber;
 	std::shared_ptr<PerformanceCounters> _performanceCounters;
 	std::shared_ptr<DiscoveryWrapper> _discoveryWrapper;
-	std::unique_ptr<QThread, std::function<void(QThread*)>> _lutCalibratorThread;
 
 	struct {
 		bool	init = false;

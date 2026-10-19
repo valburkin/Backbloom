@@ -144,6 +144,20 @@ describe('WsClient', () => {
     expect(got).toEqual(['p:{"priorities":[]}', '*:priorities-update']);
   });
 
+  it('treats stream events that echo the request tan as events (log history before the logging reply)', async () => {
+    const { c } = makeClient();
+    const got: unknown[] = [];
+    c.onEvent('logging-update', (e) => got.push(e.data));
+    c.connect();
+    latest().open();
+    const p = c.call('logging', 'start');
+    const { tan } = latest().last as { tan: number };
+    latest().receive({ command: 'logging-update', result: { messages: [{ message: 'old' }] }, tan });
+    latest().receive({ command: 'logging-start', success: true, tan });
+    await expect(p).resolves.toMatchObject({ command: 'logging-start' });
+    expect(got).toEqual([{ messages: [{ message: 'old' }] }]);
+  });
+
   it('ignores binary frames and malformed JSON', () => {
     const { c } = makeClient();
     const spy = vi.fn();

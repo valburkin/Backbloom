@@ -6,7 +6,6 @@
 #endif
 
 #include <image/ColorRgb.h>
-#include <utils/VideoBenchmark.h>
 #include <utils/Logger.h>
 #include <utils/settings.h>
 #include <utils/Components.h>
@@ -15,7 +14,6 @@
 class LightingInstance;
 class InstanceTable;
 class SoundCapture;
-class GrabberHelper;
 
 namespace overglow
 {
@@ -44,8 +42,6 @@ public:
 	bool areInstancesReady();
 
 public slots:
-	void handleRequestComponent(overglow::Components component, int instanceIndex, bool listen);
-
 	void setSmoothing(int time);
 
 
@@ -67,7 +63,7 @@ public slots:
 
 	void toggleStateAllInstances(bool pause = false);
 
-	void toggleGrabbersAllInstances(bool pause, bool includingSystemGrabber, bool includingVideoGrabber);
+	void toggleGrabbersAllInstances(bool active);
 
 	void hibernate(bool wakeUp, overglow::SystemComponent source);
 
@@ -77,8 +73,6 @@ public slots:
 
 	bool saveName(quint8 inst, const QString& name);
 
-	void saveCalibration(QString saveData);
-
 	void handleInstanceStateChange(overglow::InstanceState state, quint8 instance, const QString& name);
 
 	std::vector<QString> getInstances();
@@ -87,8 +81,6 @@ public slots:
 	void setInstanceEffect(int instance, QString effectName, int priority);
 	void clearInstancePriority(int instance, int priority);
 	std::list<EffectDefinition> getEffects();
-
-	void handleLutRequestSignal();
 
 signals:
 	void SignalInstanceStateChanged(overglow::InstanceState state, quint8 instance, const QString& name = QString());
@@ -101,12 +93,6 @@ signals:
 
 	void SignalCompStateChangeRequest(overglow::Components component, bool enable);
 
-	void SignalSetNewComponentStateToAllInstances(overglow::Components component, bool enable);
-
-	void SignalInstancePauseChanged(int instance, bool isEnabled);
-
-	void SignalBenchmarkUpdate(int status, QString message);
-	void SignalBenchmarkCapture(int status, QString message);
 
 private slots:
 	void handleInstanceJustStarted();
@@ -133,5 +119,4 @@ private:
 	int		_fireStarter;
 
 	QMap<quint8, PendingRequests> _pendingRequests;
-	VideoBenchmark	_videoBenchmark;
 };

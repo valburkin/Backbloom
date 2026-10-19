@@ -7,7 +7,7 @@ import {
   type LedRect,
 } from '../layout';
 import type { RpcApi } from './rpcApi';
-import type { BackendConfig, ServerInfo } from './types';
+import type { ServerInfo } from './types';
 
 export type LayoutSource = 'saved' | 'legacy' | 'empty';
 
@@ -109,7 +109,9 @@ export async function loadLayout(api: RpcApi, opts: { admin: boolean; serverInfo
   const instance = opts.serverInfo?.currentInstance ?? 0;
   if (opts.admin) {
     const config = await api.getConfig();
-    if (isLayoutSpec(config.layout)) return { spec: config.layout, source: 'saved', instance };
+    // The backend creates an empty layout by default; that means "never saved", so use the LED positions instead.
+    const saved = isLayoutSpec(config.layout) && (config.layout.controllers.length > 0 || config.layout.strips.length > 0);
+    if (saved) return { spec: config.layout as LayoutSpec, source: 'saved', instance };
     const rects = isRectArray(config.leds) ? config.leds : [];
     const { controller, note } = await controllerForDevice(api, config.device, rects.length);
     return fromLegacy(rects, controller, instance, note);
@@ -177,8 +179,8 @@ export interface SaveResult {
 }
 
 /**
- * Compile and save: global `layout` (the spec) + the target instance's `leds`. Sends the full merged config,
- * matching the legacy UI (the backend replaces its in-memory config with what it receives).
+ * Compile and save: global `layout` (the spec) + the target instance's `leds`. Only these two sections are
+ * sent; the backend keeps the others.
  * Only called from an explicit user action.
  */
 export async function saveLayout(api: RpcApi, spec: LayoutSpec, serverInfo: ServerInfo | null): Promise<SaveResult> {
@@ -192,9 +194,7 @@ export async function saveLayout(api: RpcApi, spec: LayoutSpec, serverInfo: Serv
   const switched = instance !== current;
   try {
     if (switched) await api.switchInstance(instance);
-    const config: BackendConfig = await api.getConfig();
-    const next: BackendConfig = { ...config, leds: compiled.leds, layout: spec };
-    await api.setConfig(next);
+    await api.setConfig({ leds: compiled.leds, layout: spec });
     let layoutPersisted = true;
     try {
       layoutPersisted = isLayoutSpec((await api.getConfig()).layout);

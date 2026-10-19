@@ -63,11 +63,7 @@ void LedDeviceWrapper::createLedDevice(QJsonObject config, int smoothingInterval
 
 		threadReadyPromisePtr->set_value();
 	},
-	#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-		static_cast<Qt::ConnectionType>(Qt::SingleShotConnection | Qt::DirectConnection)
-	#else
-		Qt::DirectConnection
-	#endif
+	static_cast<Qt::ConnectionType>(Qt::SingleShotConnection | Qt::DirectConnection)
 	);
 
 	threadReadyPromisePtr->get_future().get();

@@ -29,18 +29,14 @@ add_library(webserver OBJECT
 )
 
 if (NOT USE_EMBEDDED_WEB_RESOURCES)
-    if (WIN32)
-        set(EMBEDDED_WEB_RESOURCES ${CMAKE_BINARY_DIR}/bin/lib/web_resources.rcc)
-    else()
-        set(EMBEDDED_WEB_RESOURCES ${CMAKE_BINARY_DIR}/lib/web_resources.rcc)
-    endif()
+    set(EMBEDDED_WEB_RESOURCES ${CMAKE_BINARY_DIR}/bin/lib/web_resources.rcc)
 
     FILE ( GLOB_RECURSE web_resources_list ${CMAKE_SOURCE_DIR}/www/* )
     list(APPEND web_resources_list ${LEGAL_NOTICES})
 
     add_custom_command (
         OUTPUT ${EMBEDDED_WEB_RESOURCES}
-        COMMAND Qt${Qt_VERSION}::rcc -no-compress --binary ${CMAKE_BINARY_DIR}/web_resources.qrc -o ${EMBEDDED_WEB_RESOURCES}
+        COMMAND Qt6::rcc -no-compress --binary ${CMAKE_BINARY_DIR}/web_resources.qrc -o ${EMBEDDED_WEB_RESOURCES}
         MAIN_DEPENDENCY ${CMAKE_BINARY_DIR}/web_resources.qrc
         DEPENDS ${web_resources_list}
         VERBATIM)
@@ -51,13 +47,9 @@ if (NOT USE_EMBEDDED_WEB_RESOURCES)
 endif()
 
 target_link_libraries(webserver
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 )
-
-if (USE_STATIC_QT_PLUGINS)
-	target_link_libraries(webserver ${STATIC_QT_PLUGINS_LIBS})
-endif()
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
 	target_precompile_headers(webserver REUSE_FROM precompiled_headers)

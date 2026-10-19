@@ -7,8 +7,8 @@ FILE ( GLOB DB_SOURCES "${CURRENT_HEADER_DIR}/*.h"  "${CURRENT_SOURCE_DIR}/*.h" 
 add_library(database OBJECT ${DB_SOURCES})
 
 target_link_libraries(database
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 	sqlite3
 )
 

@@ -1,6 +1,4 @@
-#ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS 1
-#endif
 
 #include <bonjour/DiscoveryRecord.h>
 #include <bonjour/BonjourServiceHelper.h>
@@ -15,16 +13,10 @@
 #include <cstdio>
 #include <vector>
 
-#ifdef _WIN32
 #include <winsock2.h>
 #include <iphlpapi.h>
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "iphlpapi.lib")
-#else
-#include <netdb.h>
-#include <ifaddrs.h>
-#include <net/if.h>
-#endif
 
 int BonjourServiceHelper::_instanceCount = 0;
 
@@ -36,8 +28,7 @@ BonjourServiceHelper::BonjourServiceHelper(BonjourServiceRegister* parent, QStri
 	_service = service;
 	has_ipv4 = 0;
 	has_ipv6 = 0;
-	_scanService = (1 << DiscoveryRecord::Service::PeerInstance) |
-		(1 << DiscoveryRecord::Service::WLED) |
+	_scanService = (1 << DiscoveryRecord::Service::WLED) |
 		(1 << DiscoveryRecord::Service::PhilipsHue) |
 		(1 << DiscoveryRecord::Service::HomeAssistant);
 
@@ -46,7 +37,6 @@ BonjourServiceHelper::BonjourServiceHelper(BonjourServiceRegister* parent, QStri
 	memset(&service_address_ipv4, 0, sizeof(service_address_ipv4));
 	memset(&service_address_ipv6, 0, sizeof(service_address_ipv6));
 
-#ifdef _WIN32
 	WORD versionWanted = MAKEWORD(1, 1);
 	WSADATA wsaData;
 
@@ -60,20 +50,12 @@ BonjourServiceHelper::BonjourServiceHelper(BonjourServiceRegister* parent, QStri
 	DWORD hostname_size = (DWORD)sizeof(hostname_buffer);
 	if (GetComputerNameA(hostname_buffer, &hostname_size))
 		_hostname = QString::fromLocal8Bit(hostname_buffer);
-#else
-	char hostname_buffer[256];
-	size_t hostname_size = sizeof(hostname_buffer);
-	if (gethostname(hostname_buffer, hostname_size) == 0)
-		_hostname = QString::fromLocal8Bit(hostname_buffer);
-#endif
 }
 
 BonjourServiceHelper::~BonjourServiceHelper()
 {
-#ifdef _WIN32
 	if (--_instanceCount == 0)
 		WSACleanup();
-#endif
 }
 
 void BonjourServiceHelper::run()
@@ -124,8 +106,6 @@ int BonjourServiceHelper::open_client_sockets(int* sockets, int max_sockets, int
 	// When sending, each socket can only send to one network interface
 	// Thus we need to open one socket for each interface and address family
 	int num_sockets = 0;
-
-#ifdef _WIN32
 
 	IP_ADAPTER_ADDRESSES* adapter_address = 0;
 	ULONG address_size = 8000;
@@ -230,90 +210,6 @@ int BonjourServiceHelper::open_client_sockets(int* sockets, int max_sockets, int
 
 	free(adapter_address);
 
-#else
-
-	struct ifaddrs* ifaddr = nullptr;
-	struct ifaddrs* ifa = nullptr;
-
-	if (getifaddrs(&ifaddr) < 0)
-		printf("Unable to get interface addresses\n");
-
-	int first_ipv4 = 1;
-	int first_ipv6 = 1;
-	for (ifa = ifaddr; ifa; ifa = ifa->ifa_next) {
-		if (!ifa->ifa_addr)
-			continue;
-		if (!(ifa->ifa_flags & IFF_UP) || !(ifa->ifa_flags & IFF_MULTICAST))
-			continue;
-		if ((ifa->ifa_flags & IFF_LOOPBACK) || (ifa->ifa_flags & IFF_POINTOPOINT))
-			continue;
-
-		if (ifa->ifa_addr->sa_family == AF_INET) {
-			struct sockaddr_in* saddr = (struct sockaddr_in*)ifa->ifa_addr;
-			if (saddr->sin_addr.s_addr != htonl(INADDR_LOOPBACK)) {
-				int log_addr = 0;
-				if (first_ipv4) {
-					service_address_ipv4 = *saddr;
-					first_ipv4 = 0;
-					log_addr = 1;
-				}
-				has_ipv4 = 1;
-				if (num_sockets < max_sockets) {
-					saddr->sin_port = htons(port);
-					int sock = mdns_socket_open_ipv4(saddr);
-					if (sock >= 0) {
-						sockets[num_sockets++] = sock;
-						log_addr = 1;
-					}
-					else {
-						log_addr = 0;
-					}
-				}
-				if (log_addr) {
-					ip_address_to_string(saddr, sizeof(struct sockaddr_in));
-				}
-			}
-		}
-		else if (ifa->ifa_addr->sa_family == AF_INET6) {
-			struct sockaddr_in6* saddr = (struct sockaddr_in6*)ifa->ifa_addr;
-			// Ignore link-local addresses
-			if (saddr->sin6_scope_id)
-				continue;
-			static const unsigned char localhost[] = { 0, 0, 0, 0, 0, 0, 0, 0,
-													  0, 0, 0, 0, 0, 0, 0, 1 };
-			static const unsigned char localhost_mapped[] = { 0, 0, 0,    0,    0,    0, 0, 0,
-															 0, 0, 0xff, 0xff, 0x7f, 0, 0, 1 };
-			if (memcmp(saddr->sin6_addr.s6_addr, localhost, 16) &&
-				memcmp(saddr->sin6_addr.s6_addr, localhost_mapped, 16)) {
-				int log_addr = 0;
-				if (first_ipv6) {
-					service_address_ipv6 = *saddr;
-					first_ipv6 = 0;
-					log_addr = 1;
-				}
-				has_ipv6 = 1;
-				if (num_sockets < max_sockets) {
-					saddr->sin6_port = htons(port);
-					int sock = mdns_socket_open_ipv6(saddr);
-					if (sock >= 0) {
-						sockets[num_sockets++] = sock;
-						log_addr = 1;
-					}
-					else {
-						log_addr = 0;
-					}
-				}
-				if (log_addr) {
-					ip_address_to_string(saddr, sizeof(struct sockaddr_in6));
-				}
-			}
-		}
-	}
-
-	freeifaddrs(ifaddr);
-
-#endif
-
 	return num_sockets;
 }
 
@@ -334,15 +230,8 @@ int BonjourServiceHelper::open_service_sockets(int* sockets, int max_sockets)
 		struct sockaddr_in sock_addr;
 		memset(&sock_addr, 0, sizeof(struct sockaddr_in));
 		sock_addr.sin_family = AF_INET;
-#ifdef _WIN32
 		sock_addr.sin_addr = in4addr_any;
-#else
-		sock_addr.sin_addr.s_addr = INADDR_ANY;
-#endif
 		sock_addr.sin_port = htons(MDNS_PORT);
-#ifdef __APPLE__
-		sock_addr.sin_len = sizeof(struct sockaddr_in);
-#endif
 		int sock = mdns_socket_open_ipv4(&sock_addr);
 		if (sock >= 0)
 			sockets[num_sockets++] = sock;
@@ -354,9 +243,6 @@ int BonjourServiceHelper::open_service_sockets(int* sockets, int max_sockets)
 		sock_addr.sin6_family = AF_INET6;
 		sock_addr.sin6_addr = in6addr_any;
 		sock_addr.sin6_port = htons(MDNS_PORT);
-#ifdef __APPLE__
-		sock_addr.sin6_len = sizeof(struct sockaddr_in6);
-#endif
 		int sock = mdns_socket_open_ipv6(&sock_addr);
 		if (sock >= 0)
 			sockets[num_sockets++] = sock;
@@ -505,8 +391,7 @@ int BonjourServiceHelper::service_mdns(QString hostname, QString serviceName, in
 
 		if (_scanService != 0)
 		{
-			for (auto scanner :{ DiscoveryRecord::Service::PeerInstance,
-							DiscoveryRecord::Service::WLED,
+			for (auto scanner :{ DiscoveryRecord::Service::WLED,
 							DiscoveryRecord::Service::PhilipsHue,
 							DiscoveryRecord::Service::HomeAssistant })
 			{

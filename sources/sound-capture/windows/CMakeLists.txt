@@ -7,8 +7,8 @@ FILE ( GLOB SOUNDCAPWINDOWS_SOURCES "${CURRENT_HEADER_DIR}/*.h"  "${CURRENT_SOUR
 add_library(sound-capture-windows OBJECT ${SOUNDCAPWINDOWS_SOURCES} )
 
 target_link_libraries(sound-capture-windows
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)

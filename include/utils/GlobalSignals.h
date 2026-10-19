@@ -71,15 +71,11 @@ signals:
 
 	void SignalGetSystemGrabber(std::shared_ptr<GrabberHelper>& systemGrabber);
 
-	void SignalGetVideoGrabber(std::shared_ptr<GrabberHelper>& videoGrabber);
-
 	void SignalGetPerformanceCounters(std::shared_ptr<PerformanceCounters>& performanceCounters);
 
 	void SignalGetDiscoveryWrapper(std::shared_ptr<DiscoveryWrapper>& discoveryWrapper);
 
 	void SignalNewSystemImage(const QString& name, const Image<ColorRgb>& image);
-
-	void SignalNewVideoImage(const QString& name, const Image<ColorRgb>& image);
 
 	void SignalRequestComponent(overglow::Components component, int instanceIndex, bool listen);
 
@@ -90,10 +86,6 @@ signals:
 	void SignalDiscoveryRequestToScan(DiscoveryRecord::Service type);
 
 	void SignalDiscoveryEvent(DiscoveryRecord message);
-
-	void SignalSetLut(MemoryBuffer<uint8_t>* lut);
-
-	void SignalLutRequest();
 
 	void SignalMqttSubscribe(bool subscribe, QString topic);
 

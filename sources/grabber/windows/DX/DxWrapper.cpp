@@ -36,6 +36,5 @@ DxWrapper::DxWrapper(const QString& device,
 {
 	qRegisterMetaType<Image<ColorRgb>>("Image<ColorRgb>");
 	connect(&_grabber, &Grabber::SignalNewCapturedFrame, this, &SystemWrapper::newCapturedFrameHandler, Qt::DirectConnection);
-    connect(&_grabber, &Grabber::SignalCapturingException, this, &SystemWrapper::capturingExceptionHandler, Qt::DirectConnection);
 }
 

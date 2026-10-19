@@ -35,17 +35,17 @@
 #define STEP_5   5
 #define STEP_6   6
 
-Animation_Fade::Animation_Fade() :
+Animation_Fade::Animation_Fade(const Params& params) :
 	AnimationBase()
 {
 	currentStep = 1;
 
-	fadeInTime = 2000;
-	fadeOutTime = 2000;
-	colorStart = { 255,174,11 };
-	colorEnd = { 0,0,0 };
-	colorStartTime = 1000;
-	colorEndTime = 1000;
+	fadeInTime = params.fadeInTime;
+	fadeOutTime = params.fadeOutTime;
+	colorStart = params.colorStart;
+	colorEnd = params.colorEnd;
+	colorStartTime = params.colorStartTime;
+	colorEndTime = params.colorEndTime;
 	repeat = 0;
 	maintainEndCol = true;
 	minStepTime = 0;
@@ -65,6 +65,15 @@ Animation_Fade::Animation_Fade() :
 
 
 };
+
+EffectDefinition Animation_Fade::definition(const char* name, const Params& params)
+{
+	EffectDefinition ed([params]() -> AnimationBase* { return new Animation_Fade(params); });
+	ed.name = name;
+	return ed;
+}
+
+bool Animation_Fade::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_Fade::definition("Breath", { { 50, 50, 50 }, { 255, 255, 255 }, 3000, 1000, 50, 250 }));
 
 void Animation_Fade::SetPoint(Point3d /*point*/) {
 }

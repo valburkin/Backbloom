@@ -5,7 +5,6 @@
 #include <OverglowConfig.h>
 #include <api/CallbackAPI.h>
 #include <base/LightingInstance.h>
-#include <base/GrabberWrapper.h>
 #include <base/InstanceManager.h>
 #include <base/ComponentController.h>
 #include <base/Muxer.h>
@@ -17,8 +16,8 @@ using namespace overglow;
 CallbackAPI::CallbackAPI(const LoggerName& log, bool localConnection, QObject* parent)
 	: BaseAPI(log, localConnection, parent)
 {
-	_availableCommands << "components-update" << "performance-update" << "sessions-update" << "priorities-update" << "imageToLedMapping-update" << "grabberstate-update" << "lut-calibration-update"
-		<< "adjustment-update" << "leds-colors" << "live-video" << "videomodehdr-update" << "settings-update" << "leds-update" << "instance-update" << "token-update" << "benchmark-update";
+	_availableCommands << "components-update" << "performance-update" << "sessions-update" << "priorities-update" << "imageToLedMapping-update"
+		<< "adjustment-update" << "leds-colors" << "live-video" << "settings-update" << "leds-update" << "instance-update" << "token-update";
 }
 
 void CallbackAPI::addSubscriptions()
@@ -40,8 +39,6 @@ bool CallbackAPI::subscribeFor(const QString& type, bool unsubscribe)
 {
 	if (!_availableCommands.contains(type))
 		return false;
-
-	GrabberWrapper* grabberWrapper = (_videoGrabber != nullptr) ? _videoGrabber->grabberWrapper() : nullptr;
 
 	if (unsubscribe)
 		_subscribedCommands.removeAll(type);
@@ -67,22 +64,12 @@ bool CallbackAPI::subscribeFor(const QString& type, bool unsubscribe)
 		}
 	}
 
-	if (type == "lut-calibration-update")
-	{
-		if (unsubscribe)
-		{
-			_lutCalibratorThread = nullptr;
-		}
-	}
-
 	if (type == "sessions-update" && _discoveryWrapper != nullptr)
 	{
-#ifdef ENABLE_BONJOUR
 		if (unsubscribe)
 			disconnect(_discoveryWrapper.get(), &DiscoveryWrapper::SignalDiscoveryFoundService, this, &CallbackAPI::signalDiscoveryFoundServiceHandler);
 		else
 			connect(_discoveryWrapper.get(), &DiscoveryWrapper::SignalDiscoveryFoundService, this, &CallbackAPI::signalDiscoveryFoundServiceHandler, Qt::UniqueConnection);
-#endif
 	}
 
 	if (type == "priorities-update" && _instance != nullptr)
@@ -107,22 +94,6 @@ bool CallbackAPI::subscribeFor(const QString& type, bool unsubscribe)
 			disconnect(_instance.get(), &LightingInstance::SignalAdjustmentUpdated, this, &CallbackAPI::signalAdjustmentUpdatedHandler);
 		else
 			connect(_instance.get(), &LightingInstance::SignalAdjustmentUpdated, this, &CallbackAPI::signalAdjustmentUpdatedHandler, Qt::UniqueConnection);
-	}
-
-	if (type == "grabberstate-update" && grabberWrapper != nullptr)
-	{
-		if (unsubscribe)
-			disconnect(grabberWrapper, &GrabberWrapper::SignalVideoStreamChanged, this, &CallbackAPI::videoStreamChangedHandler);
-		else
-			connect(grabberWrapper, &GrabberWrapper::SignalVideoStreamChanged, this, &CallbackAPI::videoStreamChangedHandler, Qt::UniqueConnection);
-	}
-
-	if (type == "videomodehdr-update")
-	{
-		if (unsubscribe)
-			disconnect(_instanceManager.get(), &InstanceManager::SignalSetNewComponentStateToAllInstances, this, &CallbackAPI::videoModeHdrChangeHandler);
-		else
-			connect(_instanceManager.get(), &InstanceManager::SignalSetNewComponentStateToAllInstances, this, &CallbackAPI::videoModeHdrChangeHandler, Qt::UniqueConnection);
 	}
 
 	if (type == "settings-update" && _instance != nullptr)
@@ -174,14 +145,6 @@ bool CallbackAPI::subscribeFor(const QString& type, bool unsubscribe)
 			disconnect(_accessManager.get(), &AccessManager::SignalTokenUpdated, this, &CallbackAPI::tokenChangeHandler);
 		else
 			connect(_accessManager.get(), &AccessManager::SignalTokenUpdated, this, &CallbackAPI::tokenChangeHandler, Qt::UniqueConnection);
-	}
-
-	if (type == "benchmark-update")
-	{
-		if (unsubscribe)
-			disconnect(_instanceManager.get(), &InstanceManager::SignalBenchmarkUpdate, this, &CallbackAPI::signalBenchmarkUpdateHandler);
-		else
-			connect(_instanceManager.get(), &InstanceManager::SignalBenchmarkUpdate, this, &CallbackAPI::signalBenchmarkUpdateHandler, Qt::UniqueConnection);
 	}
 
 	return true;
@@ -245,27 +208,25 @@ void CallbackAPI::componentStateHandler(overglow::Components comp, bool state)
 	doCallback("components-update", QVariant(data));
 }
 
-#ifdef ENABLE_BONJOUR
-	void CallbackAPI::signalDiscoveryFoundServiceHandler(DiscoveryRecord::Service type, QList<DiscoveryRecord> records)
+void CallbackAPI::signalDiscoveryFoundServiceHandler(DiscoveryRecord::Service type, QList<DiscoveryRecord> records)
+{
+	QJsonObject retValue;
+	QJsonArray data;
+
+	for (const auto& session : records)
 	{
-		QJsonObject retValue;
-		QJsonArray data;
-
-		for (const auto& session : records)
-		{
-			QJsonObject item;
-			item["name"] = session.getName();
-			item["host"] = session.hostName;
-			item["address"] = session.address;
-			item["port"] = session.port;
-			data.append(item);
-		}
-
-		retValue["service"] = DiscoveryRecord::getName(type);
-		retValue["items"] = data;
-		doCallback("sessions-update", QVariant(retValue));
+		QJsonObject item;
+		item["name"] = session.getName();
+		item["host"] = session.hostName;
+		item["address"] = session.address;
+		item["port"] = session.port;
+		data.append(item);
 	}
-#endif
+
+	retValue["service"] = DiscoveryRecord::getName(type);
+	retValue["items"] = data;
+	doCallback("sessions-update", QVariant(retValue));
+}
 
 void CallbackAPI::priorityUpdateHandler()
 {
@@ -290,24 +251,6 @@ void CallbackAPI::imageToLedsMappingChangeHandler(int mappingType)
 void CallbackAPI::signalAdjustmentUpdatedHandler(QJsonArray newConfig)
 {
 	doCallback("adjustment-update", QVariant(newConfig));
-}
-
-void CallbackAPI::videoModeHdrChangeHandler(overglow::Components component, bool enable)
-{
-	if (component == overglow::Components::COMP_HDR)
-	{
-		QJsonObject data;
-		data["videomodehdr"] = enable;
-		doCallback("videomodehdr-update", QVariant(data));
-	}
-}
-
-void CallbackAPI::videoStreamChangedHandler(QString device, QString videoMode)
-{
-	QJsonObject data;
-	data["device"] = device;
-	data["videoMode"] = videoMode;
-	doCallback("grabberstate-update", QVariant(data));
 }
 
 void CallbackAPI::settingsChangeHandler(settings::type type, const QJsonDocument& data)
@@ -363,20 +306,6 @@ void CallbackAPI::tokenChangeHandler(const QVector<AccessManager::AuthDefinition
 	}
 	doCallback("token-update", QVariant(arr));
 }
-
-void CallbackAPI::signalBenchmarkUpdateHandler(int status, QString message)
-{
-	QJsonObject dat;
-	dat["status"] = status;
-	dat["message"] = message;
-	doCallback("benchmark-update", QVariant(dat));
-}
-
-void CallbackAPI::lutCalibrationUpdateHandler(const QJsonObject& data)
-{
-	doCallback("lut-calibration-update", QVariant(data));
-}
-
 
 void CallbackAPI::performanceUpdateHandler(const QJsonObject& data)
 {

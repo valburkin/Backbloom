@@ -1,11 +1,12 @@
 import { memo, useMemo } from 'react';
 import type { LayoutSpec, Strip } from '../../layout';
 import { stripColor } from '../../editor/colors';
-import { LANE_BASE, LANE_STEP, stripDots, typicalSpacing, type LedDot, type ScreenBox } from '../../editor/geometry';
+import { assignLanes, LANE_BASE, LANE_STEP, stripDots, typicalSpacing, type LedDot, type ScreenBox } from '../../editor/geometry';
 import type { Selection } from '../../editor/state';
 import { controllerIndex, safeCompileStrip, segmentRanges } from './model';
 
 const W = 1000;
+const NO_LANES: readonly number[] = [];
 
 export interface FoundLed {
   stripId: string;
@@ -37,6 +38,7 @@ function Arrow({ a, b, color, size }: { a: LedDot; b: LedDot; color: string; siz
 const StripGraphic = memo(function StripGraphic({
   strip,
   index,
+  lanes,
   box,
   selected,
   dimmed,
@@ -47,6 +49,7 @@ const StripGraphic = memo(function StripGraphic({
 }: {
   strip: Strip;
   index: number;
+  lanes: readonly number[];
   box: ScreenBox;
   selected: boolean;
   dimmed: boolean;
@@ -56,19 +59,28 @@ const StripGraphic = memo(function StripGraphic({
   onSelect(stripId: string, segmentIndex: number | null): void;
 }) {
   const color = stripColor(index);
-  const dots = useMemo(() => stripDots(strip, box, index), [strip, box, index]);
+  const dots = useMemo(() => stripDots(strip, box, lanes), [strip, box, lanes]);
   if (!dots.length) return null;
   const spacing = typicalSpacing(dots);
   const r = Math.max(2.2, Math.min(6, spacing * 0.34));
   const arrowEvery = Math.max(3, Math.round(dots.length / 10));
-  const path = dots.map((d, i) => `${i ? 'L' : 'M'} ${d.x.toFixed(1)} ${d.y.toFixed(1)}`).join(' ');
+  // Lift the pen across long jumps (e.g. a cable run from the desk to the ceiling) instead of drawing a line over the screen.
+  const maxStep = Math.max(spacing * 4, r * 6);
+  const path = dots
+    .map((d, i) => {
+      const jump = i === 0 || Math.hypot(d.x - dots[i - 1].x, d.y - dots[i - 1].y) > maxStep;
+      return `${jump ? 'M' : 'L'} ${d.x.toFixed(1)} ${d.y.toFixed(1)}`;
+    })
+    .join(' ');
   const first = dots[0];
 
   return (
     <g opacity={dimmed ? 0.35 : 1} style={{ transition: 'opacity 150ms' }}>
       <path d={path} fill="none" stroke={color} strokeOpacity={selected ? 0.55 : 0.3} strokeWidth={selected ? 2 : 1.5} strokeLinejoin="round" />
       {dots.map((d, i) =>
-        i % arrowEvery === Math.floor(arrowEvery / 2) && i + 1 < dots.length ? (
+        i % arrowEvery === Math.floor(arrowEvery / 2) &&
+        i + 1 < dots.length &&
+        Math.hypot(dots[i + 1].x - d.x, dots[i + 1].y - d.y) <= maxStep ? (
           <Arrow key={`a${i}`} a={d} b={dots[i + 1]} color={color} size={Math.max(3, r * 0.75)} />
         ) : null,
       )}
@@ -113,8 +125,8 @@ const StripGraphic = memo(function StripGraphic({
 
 export function LayoutCanvas({ spec, ratio, selection, found, onSelect }: Props) {
   const H = W / ratio;
-  const lanes = Math.max(1, spec.strips.length);
-  const M = LANE_BASE + lanes * LANE_STEP + 26;
+  const laneMap = useMemo(() => assignLanes(spec.strips), [spec.strips]);
+  const M = LANE_BASE + laneMap.count * LANE_STEP + 26;
   const box: ScreenBox = useMemo(() => ({ x: M, y: M, w: W, h: H }), [M, H]);
 
   const selectedIdx = spec.strips.findIndex((s) => s.id === selection.stripId);
@@ -193,6 +205,7 @@ export function LayoutCanvas({ spec, ratio, selection, found, onSelect }: Props)
             key={s.id}
             strip={s}
             index={i}
+            lanes={laneMap.lanes.get(s.id) ?? NO_LANES}
             box={box}
             spec={spec}
             selected={s.id === selection.stripId}

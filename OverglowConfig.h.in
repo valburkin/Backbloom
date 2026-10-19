@@ -6,68 +6,6 @@
 // enable shared lib loading
 #cmakedefine USE_SHARED_LIBS
 
-// support for static QT plugins
-#cmakedefine USE_STATIC_QT_PLUGINS
-
-// directx grabber
-#cmakedefine ENABLE_DX
-
-// macOs system grabber
-#cmakedefine ENABLE_MAC_SYSTEM
-
-// x11 linux system grabber
-#cmakedefine ENABLE_X11
-
-// PipeWire system grabber
-#cmakedefine ENABLE_PIPEWIRE
-
-// PipeWire EGL extension
-#cmakedefine ENABLE_PIPEWIRE_EGL
-
-// Define to enable sound linux
-#cmakedefine ENABLE_SOUNDCAPLINUX
-
-// Define to enable sound windows
-#cmakedefine ENABLE_SOUNDCAPWINDOWS
-
-// Define to enable sound macos
-#cmakedefine ENABLE_SOUNDCAPMACOS
-
-// Define to enable the macOS grabber
-#cmakedefine ENABLE_AVF
-
-// Define to enable the v4l2 grabber
-#cmakedefine ENABLE_V4L2
-
-// Define to enable the WMF grabber
-#cmakedefine ENABLE_MF
-
-// Define to enable HID devices
-#cmakedefine ENABLE_HID
-
-// Define to enable systray control
-#cmakedefine ENABLE_SYSTRAY
-
-// Define to enable network discovery
-#cmakedefine ENABLE_BONJOUR
-
-// Define to enable MQTT network client
-#cmakedefine ENABLE_MQTT
-
-// Define to enable system qmqtt
-#cmakedefine USE_SYSTEM_MQTT_LIBS
-
-// Define to enable zstd
-#cmakedefine ENABLE_ZSTD
-
-#cmakedefine ENABLE_POWER_MANAGEMENT
-
-#cmakedefine OVERGLOW_HAVE_DBUS
-
-#cmakedefine PORTABLE_LIB_FOLDER "@PORTABLE_LIB_FOLDER@"
-
-#cmakedefine WEB_RESOURCES_FOLDER "@WEB_RESOURCES_FOLDER@"
-
 // the build id string
 #define OVERGLOW_BUILD_ID "${OVERGLOW_BUILD_ID}"
 

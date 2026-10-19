@@ -16,41 +16,26 @@
 
 #include <csignal>
 
-#if !defined(__APPLE__) && !defined(_WIN32)
-	#include <sys/prctl.h>
+#ifndef NOMINMAX
+	#define NOMINMAX
 #endif
-
-
-#ifdef _WIN32
-	#ifndef NOMINMAX
-		#define NOMINMAX
-	#endif
-	#include <windows.h>
-	#include <process.h>
-#else
-	#include <unistd.h>
-#endif
+#include <windows.h>
+#include <process.h>
+#include <io.h>
+#include <fcntl.h>
 
 #include <OverglowConfig.h>
 
 #include "SystrayHandler.h"
 #include <utils/Logger.h>
 #include <commandline/Parser.h>
-#include <utils/DefaultSignalHandler.h>
 #include <db/AuthTable.h>
 
 #include "detectProcess.h"
 #include "AppDaemon.h"
 #include "LegacyMigration.h"
 
-#if defined(WIN32)
-	#include <io.h>
-	#include <fcntl.h>
-#endif
-
 using namespace commandline;
-
-#if defined(WIN32)
 
 void CreateConsole()
 {
@@ -68,55 +53,27 @@ void CreateConsole()
 
 }
 
-#endif
-
 #define PERM0664 (QFileDevice::ReadOwner | QFileDevice::ReadGroup | QFileDevice::ReadOther | QFileDevice::WriteOwner | QFileDevice::WriteGroup)
 
 AppDaemon* appDaemon = nullptr;
 
 QCoreApplication* createApplication(bool& isGuiApp, int& argc, char* argv[])
 {
-	bool forceNoGui = false;
-	// command line
+	// the systray is shown unless the app runs as a console service
+	isGuiApp = true;
 	for (int i = 1; i < argc; ++i)
 	{
-		if (qstrcmp(argv[i], "--desktop") == 0)
-		{
-			isGuiApp = true;
-		}
-		else if (qstrcmp(argv[i], "--service") == 0)
+		if (qstrcmp(argv[i], "--service") == 0)
 		{
 			isGuiApp = false;
-			forceNoGui = true;
 		}
 	}
-
-	// on osx/windows gui always available
-#if defined(__APPLE__) || defined(_WIN32)
-	isGuiApp = true && !forceNoGui;
-#else
-	if (!forceNoGui)
-	{
-		const char* display = getenv("DISPLAY");
-		const char* xdgType = getenv("XDG_SESSION_TYPE");
-		const char* wayland = getenv("WAYLAND_DISPLAY");
-
-		isGuiApp = (display != nullptr && ((xdgType != nullptr && strcmp(xdgType, "tty") != 0) || wayland != nullptr ));
-
-		std::cout << (isGuiApp ? "GUI" : "Console") << " application" << std::endl;
-	}
-#endif
 
 	QCoreApplication* app = new QCoreApplication(argc, argv);
 	QCoreApplication::setApplicationName("Overglow");
 	QCoreApplication::setApplicationVersion(OVERGLOW_VERSION);
 
-	// add optional library path	
-	#ifdef PORTABLE_LIB_FOLDER
-		const QString base = QDir(QCoreApplication::applicationDirPath()).filePath(PORTABLE_LIB_FOLDER) + "/external";
-		for (const auto& p : { base, base + "/plugins" })
-			if (QDir(p).exists()) QCoreApplication::addLibraryPath(p);
-	#endif
+	// add optional library path
 	QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath() + "/../lib");
 
 	return app;
@@ -124,21 +81,12 @@ QCoreApplication* createApplication(bool& isGuiApp, int& argc, char* argv[])
 
 int main(int argc, char** argv)
 {
-	QStringList params;
-
 	// check if we are running already an instance
-	// TODO Allow one session per user
-#ifdef _WIN32
 	const char* processName = "overglow.exe";
-#else
-	const char* processName = "overglow";
-#endif
 
 	// Initialising QCoreApplication
 	bool isGuiApp = false;
 	QScopedPointer<QCoreApplication> app(createApplication(isGuiApp, argc, argv));
-
-	DefaultSignalHandler::install();
 
 	// force the locale
 	setlocale(LC_ALL, "C");
@@ -156,12 +104,7 @@ int main(int argc, char** argv)
 	BooleanOption& silentOption = parser.add<BooleanOption>('s', "silent", "Do not print any outputs");
 	BooleanOption& verboseOption = parser.add<BooleanOption>('v', "verbose", "Increase verbosity");
 	BooleanOption& debugOption = parser.add<BooleanOption>('d', "debug", "Show debug messages");
-#ifdef ENABLE_PIPEWIRE
-	BooleanOption& pipewireOption = parser.add<BooleanOption>(0x0, "pipewire", "Force pipewire screen grabber if it's available");
-#endif
-#ifdef WIN32
 	BooleanOption& consoleOption = parser.add<BooleanOption>('c', "console", "Open a console window to view log output");
-#endif
 	parser.add<BooleanOption>(0x0, "desktop", "Show systray on desktop");
 	parser.add<BooleanOption>(0x0, "service", "Force Overglow to start as console service");
 
@@ -196,12 +139,10 @@ int main(int argc, char** argv)
 		}
 	}
 
-#ifdef WIN32
 	if (parser.isSet(consoleOption))
 	{
 		CreateConsole();
 	}
-#endif
 
 	// initialize main logger and set global log level
 	LoggerName log("MAIN");
@@ -234,13 +175,6 @@ int main(int argc, char** argv)
 	}
 
 	qInstallMessageHandler(Logger::qtMessageHandler);
-
-#ifdef ENABLE_PIPEWIRE
-	if (parser.isSet(pipewireOption))
-	{
-		params.append("pipewire");
-	}
-#endif
 
 	int rc = 1;
 	bool readonlyMode = false;
@@ -351,13 +285,11 @@ int main(int argc, char** argv)
 			Warning(log, "The user data path '{:s}' is not writeable. Overglow starts in read-only mode. Configuration updates will not be persisted!", (userDataDirectory.absolutePath()));
 		}
 
-		#ifdef _WIN32
-			SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-		#endif	
+		SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
 		try
 		{
-			appDaemon = new AppDaemon(userDataDirectory.absolutePath(), qApp, bool(logLevelCheck), readonlyMode, params, isGuiApp);
+			appDaemon = new AppDaemon(userDataDirectory.absolutePath(), qApp, bool(logLevelCheck));
 		}
 		catch (std::exception& e)
 		{
@@ -370,28 +302,16 @@ int main(int argc, char** argv)
 
 		if (systray != nullptr && systray->isInitialized())
 		{
-			#ifdef __APPLE__
-				QTimer* timer = new QTimer(systray);
-				QObject::connect(timer, &QTimer::timeout, systray, [&systray]() {
-					systray->loop();
-					});
-
-				timer->setInterval(200);			
-				timer->start();
-			#endif
-
 			rc = app->exec();
 
 			systray->close();
 		}
 		else
 		{
-			#if defined(ENABLE_SYSTRAY)
-				if (isGuiApp)
-				{
-					Error(log, "Could not inilized the systray. Make sure that the libgtk-3-0/gtk3 package is installed.");
-				}
-			#endif
+			if (isGuiApp)
+			{
+				Error(log, "Could not initialize the systray.");
+			}
 			rc = app->exec();
 		}
 
@@ -408,12 +328,10 @@ int main(int argc, char** argv)
 		Error(log, "Overglow aborted: {:s}", e.what());
 	}
 
-#ifdef _WIN32
 	if (parser.isSet(consoleOption))
 	{
 		system("pause");
 	}
-#endif
 
 	return rc;
 }

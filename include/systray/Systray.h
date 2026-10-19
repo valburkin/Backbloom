@@ -43,8 +43,6 @@ struct SystrayMenu
 	std::string label;
 	std::string tooltip;
 
-	std::string iconName;
-
 	bool isDisabled = false;
 	bool isChecked = false;
 	int checkGroup = false;
@@ -56,26 +54,8 @@ struct SystrayMenu
 	std::unique_ptr<SystrayMenu> next = nullptr;
 };
 
-#ifdef __linux__
-	typedef bool (*SystrayInitializeFun)(SystrayMenu* tray);
-	typedef int (*SystrayLoopFun)(void);
-	typedef void (*SystrayUpdateFun)(SystrayMenu* tray);
-	typedef void (*SystrayCloseFun)(void);
-	typedef bool (*SystrayDarkmodeFun)(void);
-#else
-	bool SystrayInitialize(SystrayMenu* tray);
-	int SystrayLoop();
-	void SystrayUpdate(SystrayMenu* tray);
-	void SystrayClose();
-#endif
-
-#ifdef __APPLE__
-	bool SystrayDarkmode();
-#endif
-
-#ifdef _WIN32
-	HWND SystrayGetWindow();
-	void SystrayAssignQueueHandler(std::function<void(WPARAM wparam)> _queueHandler);
-#endif
-
-
+bool SystrayInitialize(SystrayMenu* tray);
+void SystrayUpdate(SystrayMenu* tray);
+void SystrayClose();
+HWND SystrayGetWindow();
+void SystrayAssignQueueHandler(std::function<void(WPARAM wparam)> _queueHandler);

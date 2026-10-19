@@ -412,7 +412,7 @@ function requestInstanceSwitch(inst)
 
 function requestServerInfo()
 {
-	sendToInstance("serverinfo", "", '"subscribe":["components-update","sessions-update","priorities-update", "imageToLedMapping-update", "adjustment-update", "videomode-update", "videomodehdr-update", "settings-update", "instance-update", "grabberstate-update", "benchmark-update"]');
+	sendToInstance("serverinfo", "", '"subscribe":["components-update","sessions-update","priorities-update", "imageToLedMapping-update", "adjustment-update", "settings-update", "instance-update"]');
 }
 
 function requestSysInfo()
@@ -538,37 +538,12 @@ function requestMappingType(type)
 	sendToInstance("processing", "", '"mappingType": "' + type + '"');
 }
 
-function requestVideoMode(newMode)
-{
-	sendToInstance("videomode", "", '"videoMode": "' + newMode + '"');
-}
-
 function requestPerformanceCounter(allCounter)
 {
 	if (allCounter)
 		sendToInstance("performance-counters", "all", "");
 	else
 		sendToInstance("performance-counters", "resources", "");
-}
-
-function requestCalibrationStart()
-{
-	sendToInstance("signal-calibration", "start", "");
-}
-
-function requestCalibrationStop()
-{
-	sendToInstance("signal-calibration", "stop", "");
-}
-
-async function requestCalibrationData()
-{
-	return sendAsyncToInstance("signal-calibration", "get-info", "", Math.floor(Math.random() * 1000));
-}
-
-function requestVideoModeHdr(newMode)
-{
-	sendToInstance("videomodehdr", "", '"HDR": ' + newMode + '');
 }
 
 
@@ -637,24 +612,6 @@ async function requestGetDB()
 function requestRestoreDB(backupData)
 {
 	sendToInstance("load-db", "", '"config":' + JSON.stringify(backupData));
-}
-
-function requestBenchmark(mode, status)
-{
-	sendToInstance("benchmark", mode, '"status": ' + status);
-}
-
-function requestLutInstall(address, hardware_brightness, hardware_contrast, hardware_saturation, now)
-{
-	sendToInstance("lut-install", address, `"hardware_brightness":${hardware_brightness},
-											"hardware_contrast":${hardware_contrast},
-											"hardware_saturation":${hardware_saturation},
-											"now":${now}`);
-}
-
-async function requestLutCalibration(mode, debug, lch_correction)
-{
-	sendToInstance("lut-calibration", mode, `"debug":${debug}, "lch_correction":${lch_correction}`);
 }
 
 async function requestHasLedClock()

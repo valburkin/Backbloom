@@ -98,9 +98,20 @@ export interface PriorityInfo {
   priority: number;
   componentId: string;
   origin: string;
+  /** Effect name for EFFECT priorities, grabber name for grabbers. */
   owner?: string;
   active: boolean;
   visible: boolean;
+  value?: { RGB?: [number, number, number] };
+}
+
+/** One entry of `serverinfo.adjustment` / `color.channelAdjustment` (only fields the UI reads are listed). */
+export interface ChannelAdjustment {
+  scaleOutput?: number;
+  gamma?: number;
+  saturationGain?: number;
+  luminanceGain?: number;
+  [key: string]: unknown;
 }
 
 export interface ServerInfo {
@@ -109,15 +120,107 @@ export interface ServerInfo {
   instance?: InstanceInfo[];
   components?: ComponentInfo[];
   priorities?: PriorityInfo[];
+  priorities_autoselect?: boolean;
   leds?: Array<{ hmin: number; hmax: number; vmin: number; vmax: number; group?: number; disabled?: boolean }>;
   ledDevices?: { available: Array<{ name: string; group: string }> };
+  effects?: Array<{ name: string }>;
+  activeEffects?: Array<{ name: string; priority: number; timeout: number }>;
+  adjustment?: ChannelAdjustment[];
+  sound?: { active?: boolean; device?: string; sound_available?: string[] };
+  systemGrabbers?: { device?: string; modes?: string[] };
+  imageToLedMappingType?: string;
   [key: string]: unknown;
 }
 
 export interface SysInfo {
-  overglow?: { version?: string; build?: string; readOnlyMode?: boolean; id?: string; supportUrl?: string };
-  system?: { hostName?: string; prettyName?: string; architecture?: string };
+  overglow?: { version?: string; build?: string; time?: string; readOnlyMode?: boolean; id?: string; supportUrl?: string };
+  system?: {
+    hostName?: string;
+    prettyName?: string;
+    architecture?: string;
+    kernelType?: string;
+    kernelVersion?: string;
+    productType?: string;
+    productVersion?: string;
+    qtVersion?: string;
+    openssl?: string;
+    wordSize?: string;
+    cpuModelName?: string;
+    [key: string]: unknown;
+  };
+}
+
+/** One message of the `logging-update` stream. */
+export interface LogMessage {
+  loggerName: string;
+  levelString: string;
+  message: string;
+  /** Milliseconds since the epoch, as a string. */
+  utime: string;
+  fileName?: string;
+  line?: string;
+  function?: string;
+}
+
+/** One `performance-update` report (see the backend's PerformanceReportType). */
+export interface PerformanceReport {
+  type: number;
+  id: number;
+  name: string;
+  param1: number;
+  param2: number;
+  param3: number;
+  param4: number;
+  token: number;
+  remove: number;
+  refresh?: number;
+}
+
+export interface DiscoveredDevice {
+  name: string;
+  value: string;
+}
+
+export interface TokenInfo {
+  id: string;
+  comment: string;
+  last_use?: string;
+}
+
+/** JSON schema node as used by the backend's settings schema (draft-03 style `required: true`). */
+export interface JsonSchema {
+  type?: string;
+  title?: string;
+  default?: unknown;
+  enum?: Array<string | number>;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
+  step?: number;
+  format?: string;
+  append?: string;
+  access?: 'expert' | 'advanced' | string;
+  pattern?: string;
+  propertyOrder?: number;
+  required?: boolean | string[];
+  properties?: Record<string, JsonSchema>;
+  items?: JsonSchema;
+  additionalProperties?: boolean;
+  options?: {
+    hidden?: boolean;
+    enum_titles?: string[];
+    dependencies?: Record<string, unknown>;
+  };
+  [key: string]: unknown;
 }
 
 /** Full settings object as returned by `config getconfig` (per instance, includes global settings). */
 export type BackendConfig = Record<string, unknown>;
+
+/** `config getschema`: the settings schema with every LED driver's schema under `properties.alldevices`. */
+export interface SettingsSchema extends JsonSchema {
+  properties: Record<string, JsonSchema> & { alldevices?: Record<string, JsonSchema> };
+}

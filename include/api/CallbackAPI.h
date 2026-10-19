@@ -10,18 +10,13 @@
 #include <utils/Components.h>
 #include <api/BaseAPI.h>
 #include <base/AccessManager.h>
-#include <lut-calibrator/LutCalibrator.h>
 
-#ifdef ENABLE_BONJOUR
-	#include <bonjour/DiscoveryWrapper.h>
-#endif
-
+#include <bonjour/DiscoveryWrapper.h>
 
 class LightingInstance;
 class ComponentRegister;
 class BonjourBrowserWrapper;
 class PriorityMuxer;
-class LutCalibrator;
 
 class CallbackAPI : public BaseAPI
 {
@@ -52,19 +47,12 @@ private slots:
 	void priorityUpdateHandler();
 	void imageToLedsMappingChangeHandler(int mappingType);
 	void signalAdjustmentUpdatedHandler(QJsonArray newConfig);
-	void videoModeHdrChangeHandler(overglow::Components component, bool enable);
-	void videoStreamChangedHandler(QString device, QString videoMode);
 	void settingsChangeHandler(settings::type type, const QJsonDocument& data);
 	void ledsConfigChangeHandler(settings::type type, const QJsonDocument& data);
 	void instancesListChangedHandler();
 	void tokenChangeHandler(const QVector<AccessManager::AuthDefinition>& def);
-	void signalBenchmarkUpdateHandler(int status, QString message);
 	void performanceUpdateHandler(const QJsonObject& data);
-#ifdef ENABLE_BONJOUR
 	void signalDiscoveryFoundServiceHandler(DiscoveryRecord::Service type, QList<DiscoveryRecord> records);
-#endif
-public slots:
-	void lutCalibrationUpdateHandler(const QJsonObject& data);
 
 private:
 	QStringList _availableCommands;

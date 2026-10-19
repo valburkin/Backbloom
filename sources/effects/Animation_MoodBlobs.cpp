@@ -31,7 +31,7 @@
 #define M_PI           3.14159265358979323846
 #endif
 
-Animation_MoodBlobs::Animation_MoodBlobs() :
+Animation_MoodBlobs::Animation_MoodBlobs(const Params& params) :
 	AnimationBase()
 {
 
@@ -49,18 +49,29 @@ Animation_MoodBlobs::Animation_MoodBlobs() :
 
 
 
-	rotationTime = 20.0;
-	color = { 0,0,255 };
-	colorRandom = false;
-	hueChange = 60.0;
+	rotationTime = 60.0;
+	color = params.color;
+	colorRandom = params.colorRandom;
+	hueChange = 30.0;
 	blobs = 5;
 	reverse = false;
-	baseColorChange = false;
-	baseColorRangeLeft = 0.0;
-	baseColorRangeRight = 360.0;
-	baseColorChangeRate = 10.0;
+	baseColorChange = true;
+	baseColorRangeLeft = params.baseColorRangeLeft;
+	baseColorRangeRight = params.baseColorRangeRight;
+	baseColorChangeRate = params.baseColorChangeRate;
 	hyperledCount = -1;
 };
+
+EffectDefinition Animation_MoodBlobs::definition(const char* name, const Params& params, int smoothingTime, int smoothingFrequency)
+{
+	EffectDefinition ed([params]() -> AnimationBase* { return new Animation_MoodBlobs(params); }, smoothingTime, smoothingFrequency);
+	ed.name = name;
+	return ed;
+}
+
+bool Animation_MoodBlobs::isRegistered =
+	overglow::effects::REGISTER_EFFECT(Animation_MoodBlobs::definition("Full color mood blobs", { { 0, 0, 255 }, true, 0, 360, 0.2 })) &&
+	overglow::effects::REGISTER_EFFECT(Animation_MoodBlobs::definition("Warm mood blobs", { { 255, 0, 0 }, false, 333, 151, 2.0 }, 200, 25));
 
 
 

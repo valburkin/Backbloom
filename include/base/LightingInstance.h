@@ -25,7 +25,6 @@
 #include <effects/EffectDefinition.h>
 #include <effects/ActiveEffectDefinition.h>
 #include <led-drivers/LedDevice.h>
-#include <lut-calibrator/LutCalibrator.h>
 #include <infinite-color-engine/SharedOutputColors.h>
 
 class Muxer;
@@ -34,13 +33,11 @@ class ImageToLedManager;
 class CoreInfiniteEngine;
 class EffectEngine;
 class InstanceConfig;
-class VideoControl;
 class SystemControl;
 class LedDeviceWrapper;
 class Logger;
 class InstanceManager;
 class SoundCapture;
-class GrabberHelper;
 
 
 class LightingInstance : public QObject
@@ -77,7 +74,6 @@ public slots:
 	QJsonObject getJsonConfig() const;
 	QJsonObject getJsonInfo(bool full);
 	void registerInput(int priority, overglow::Components component, const QString& origin = "System", const QString& owner = "", unsigned smooth_cfg = 0);
-	void saveCalibration(QString saveData);
 	bool saveSettings(const QJsonObject& config, bool correct = false);
 	bool setInputLeds(int priority, const QVector<ColorRgb>& ledColors, int timeout_ms = -1, bool clearEffect = true);
 	void setInputImage(int priority, const Image<ColorRgb>& image, int64_t timeout_ms = -1, bool clearEffect = true);
@@ -91,7 +87,7 @@ public slots:
 	bool setVisiblePriority(int priority);
 	bool sourceAutoSelectEnabled() const;
 	void start();
-	void turnGrabbers(bool active, bool includingSystemGrabber, bool includingVideoGrabber);
+	void turnGrabbers(bool active);
 	void update();
 	void updateAdjustments(const QJsonObject& config);
 	
@@ -103,7 +99,6 @@ signals:
 	void SignalPrioritiesChanged();
 	void SignalVisiblePriorityChanged(quint8 priority);
 	void SignalVisibleComponentChanged(overglow::Components comp);
-	void SignalInstancePauseChanged(int instance, bool isEnabled);
 	void SignalRequestComponent(overglow::Components component, bool enabled);
 	void SignalImageToLedsMappingChanged(int mappingType);
 	void SignalInstanceImageUpdated(const Image<ColorRgb>& ret);
@@ -135,7 +130,6 @@ private:
 	std::unique_ptr<LedDeviceWrapper> _ledDeviceWrapper;
 	std::unique_ptr<CoreInfiniteEngine> _infinite;
 	std::unique_ptr<EffectEngine> _effectEngine;
-	std::unique_ptr<VideoControl> _videoControl;
 	std::unique_ptr<SystemControl> _systemControl;
 
 	LoggerName			_log;

@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <vector>
 
-// Generic HID access layer shared by all HID based LED drivers (Windows: SetupAPI + hid.dll, Linux: hidraw).
+// Generic HID access layer shared by all HID based LED drivers (SetupAPI + hid.dll).
 // It lists and opens HID devices and moves raw reports, but knows nothing about any particular device.
 // A driver derived from it only has to:
 //   - selectDevices():  pick the devices it supports from everything that was found (VID/PID, usage page, serial...)
@@ -86,5 +86,5 @@ private:
 	bool isOpen() const { return !_handles.empty(); }
 
 	std::vector<HidDeviceInfo> _opened;
-	std::vector<std::intptr_t> _handles; // Linux: fds, Windows: HANDLEs. Both use -1 as "invalid", so windows.h isn't needed here
+	std::vector<std::intptr_t> _handles; // HANDLEs, -1 is "invalid", so windows.h isn't needed here
 };

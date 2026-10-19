@@ -63,13 +63,8 @@ static void SuspendHandlerQueueHandler(WPARAM wparam)
 		message.message = WM_POWERBROADCAST;
 		message.wParam = wparam;
 
-		#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-			long result = 0;
-			BLOCK_CALL_3(instance, nativeEventFilter, QByteArray, eventType, void*, &message, long*, &result);
-		#else
-			qintptr result = 0;
-			BLOCK_CALL_3(instance, nativeEventFilter, QByteArray, eventType, void*, &message, qintptr*, &result);
-		#endif
+		qintptr result = 0;
+		BLOCK_CALL_3(instance, nativeEventFilter, QByteArray, eventType, void*, &message, qintptr*, &result);
 	}
 }
 
@@ -132,11 +127,7 @@ SuspendHandler::~SuspendHandler()
 	}
 }
 
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-bool SuspendHandler::nativeEventFilter(const QByteArray& /*eventType*/, void* message, long* /*result*/)
-#else
 bool SuspendHandler::nativeEventFilter(const QByteArray& /*eventType*/, void* message, qintptr* /*result*/)
-#endif
 {
 	MSG* msg = static_cast<MSG*>(message);
 

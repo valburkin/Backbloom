@@ -1,8 +1,6 @@
 #include <OverglowConfig.h>
 
-#ifdef ENABLE_BONJOUR
-	#include <bonjour/DiscoveryWrapper.h>	
-#endif
+#include <bonjour/DiscoveryWrapper.h>
 
 // LedDevice includes
 #include <led-drivers/LedDevice.h>
@@ -328,11 +326,7 @@ QString ProviderSerial::discoverFirst()
 	for (int round = 0; round < 4; round++)
 		for (auto const& port : QSerialPortInfo::availablePorts())
 		{
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-			if (!port.isNull() && !port.isBusy())
-#else
 			if (!port.isNull())
-#endif
 			{
 				QString infoMessage = QString("%1 (%2 => %3)").arg(port.description()).arg(port.systemLocation()).arg(port.portName());
 				quint16 vendor = port.vendorIdentifier();
@@ -377,7 +371,6 @@ QJsonObject ProviderSerial::discover(const QJsonObject& /*params*/)
 			{ "name", QString("%2 (%1)").arg(info.systemLocation()).arg(info.description()) }
 		});
 
-#ifdef ENABLE_BONJOUR
 		quint16 vendor = info.vendorIdentifier();
 		quint16 prodId = info.productIdentifier();
 		DiscoveryRecord newRecord;
@@ -404,16 +397,11 @@ QJsonObject ProviderSerial::discover(const QJsonObject& /*params*/)
 			newRecord.isExists = true;
 			emit GlobalSignals::getInstance()->SignalDiscoveryEvent(newRecord);
 		}
-#endif
 	}
 
 
 	devicesDiscovered.insert("ledDeviceType", _activeDeviceType);
 	devicesDiscovered.insert("devices", deviceList);
-
-#ifndef ENABLE_BONJOUR
-	Debug(_log, "Serial devices discovered: [{:s}]", QString(QJsonDocument(devicesDiscovered).toJson(QJsonDocument::Compact)).toUtf8().constData());
-#endif
 
 	return devicesDiscovered;
 }

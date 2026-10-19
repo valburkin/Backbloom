@@ -34,7 +34,7 @@
 	#include <tuple>
 #endif
 
-#if defined(QT_DEBUG) && QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#ifdef QT_DEBUG
 	#include <QMetaType>
 	#include <QDebug>
 	#define QT_METATYPE_CHECK_INTERNAL(ptype, method, n) \

@@ -34,10 +34,56 @@ export interface LedDot {
   kind: Segment['kind'];
 }
 
-/** Base distance of strip lane 0 from the screen edge, and extra distance per lane. */
+/** Base distance of lane 0 from the screen edge, and extra distance per lane. */
 export const LANE_BASE = 20;
 export const LANE_STEP = 16;
 const CLUSTER_SPACING = 9;
+/** Nominal screen size used to estimate how far a fixed-area cluster reaches along its edge. */
+const NOMINAL_SPAN = 1000;
+
+/** Edge and normalized [lo, hi] range a segment occupies when drawn, or null for dark segments. */
+function segmentSpan(seg: Segment): { edge: Edge; lo: number; hi: number } | null {
+  if (seg.kind === 'edge') return { edge: seg.edge, lo: Math.min(seg.from, seg.to), hi: Math.max(seg.from, seg.to) };
+  if (seg.kind === 'fixed') {
+    const { edge, t } = nearestEdge(seg.area);
+    const half = (Math.max(1, seg.count) * CLUSTER_SPACING) / 2 / NOMINAL_SPAN;
+    return { edge, lo: t - half, hi: t + half };
+  }
+  return null;
+}
+
+export interface LaneAssignment {
+  /** Lane of every segment, per strip id (dark segments get lane 0; they are placed between neighbors). */
+  lanes: Map<string, number[]>;
+  /** Number of lanes used on the busiest edge (at least 1). */
+  count: number;
+}
+
+/**
+ * Give every drawn segment its own lane so runs that share a screen edge don't sit on top of each other.
+ * Segments are placed in strip order, then wiring order; each one takes the innermost lane on its edge that
+ * is still free over its range (touching ranges may share a lane).
+ */
+export function assignLanes(strips: readonly Strip[]): LaneAssignment {
+  const EPS = 1e-6;
+  const taken: Record<Edge, Array<Array<[number, number]>>> = { top: [], bottom: [], left: [], right: [] };
+  const lanes = new Map<string, number[]>();
+  let count = 1;
+  for (const strip of strips) {
+    const perSegment = strip.segments.map((seg) => {
+      const span = segmentSpan(seg);
+      if (!span) return 0;
+      const edgeLanes = taken[span.edge];
+      let lane = 0;
+      while (edgeLanes[lane]?.some(([lo, hi]) => span.lo < hi - EPS && lo < span.hi - EPS)) lane++;
+      (edgeLanes[lane] ??= []).push([span.lo, span.hi]);
+      count = Math.max(count, lane + 1);
+      return lane;
+    });
+    lanes.set(strip.id, perSegment);
+  }
+  return { lanes, count };
+}
 
 function edgePoint(box: ScreenBox, edge: Edge, t: number, off: number): { x: number; y: number } {
   switch (edge) {
@@ -69,14 +115,16 @@ export function nearestEdge(area: Area): { edge: Edge; t: number } {
 /**
  * Where each LED of a strip is drawn: just outside the screen edge it samples, in wiring order.
  * Fixed-area LEDs cluster next to the area's nearest edge; "off" LEDs are spread between their neighbors
- * so the strip still reads as one continuous path.
+ * so the strip still reads as one continuous path. `lanes` is one lane for the whole strip or one per segment
+ * (see assignLanes); higher lanes are drawn further out from the screen.
  */
-export function stripDots(strip: Strip, box: ScreenBox, lane = 0): LedDot[] {
-  const off = LANE_BASE + lane * LANE_STEP;
+export function stripDots(strip: Strip, box: ScreenBox, lanes: number | readonly number[] = 0): LedDot[] {
+  const laneOf = (i: number) => (typeof lanes === 'number' ? lanes : (lanes[i] ?? 0));
   const dots: Array<LedDot & { anchored: boolean }> = [];
   let index = 0;
   strip.segments.forEach((seg, segmentIndex) => {
     const n = Math.max(0, Math.floor(seg.count));
+    const off = LANE_BASE + laneOf(segmentIndex) * LANE_STEP;
     if (seg.kind === 'edge') {
       for (let k = 0; k < n; k++) {
         const t = seg.from + ((k + 0.5) * (seg.to - seg.from)) / n;
@@ -126,7 +174,7 @@ export function stripDots(strip: Strip, box: ScreenBox, lane = 0): LedDot[] {
       } else {
         // Strip with only dark LEDs: lay them along the bottom-left.
         d.x = box.x + (i + k) * CLUSTER_SPACING;
-        d.y = box.y + box.h + off;
+        d.y = box.y + box.h + LANE_BASE + laneOf(d.segmentIndex) * LANE_STEP;
       }
     }
     i = j - 1;

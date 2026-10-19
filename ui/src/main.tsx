@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import { createBackend } from './api/backend';
 import { ConnectionProvider } from './app/connection';
+import { ConfigProvider } from './app/config';
 import { EditorProvider } from './app/editor';
 import { ToastProvider } from './app/toast';
 import { App } from './app/App';
@@ -12,9 +13,11 @@ function Root() {
   return (
     <ToastProvider>
       <ConnectionProvider backend={backend}>
-        <EditorProvider>
-          <App />
-        </EditorProvider>
+        <ConfigProvider>
+          <EditorProvider>
+            <App />
+          </EditorProvider>
+        </ConfigProvider>
       </ConnectionProvider>
     </ToastProvider>
   );

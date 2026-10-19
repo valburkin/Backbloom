@@ -7,8 +7,8 @@ FILE ( GLOB mqtt_SOURCES "${CURRENT_HEADER_DIR}/*.h"  "${CURRENT_SOURCE_DIR}/*.h
 add_library(mqtt OBJECT ${mqtt_SOURCES} )
 
 target_link_libraries(mqtt
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 	core_mqtt
 )
 

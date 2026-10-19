@@ -38,9 +38,7 @@
 #include <utils/GlobalSignals.h>
 #include <performance-counters/SystemPerformanceCounters.h>
 
-#ifdef ENABLE_BONJOUR
-	#include <bonjour/DiscoveryWrapper.h>
-#endif
+#include <bonjour/DiscoveryWrapper.h>
 
 using namespace overglow;
 
@@ -62,13 +60,10 @@ PerformanceReport::PerformanceReport(int _type, qint64 _token, QString _name, do
 
 	switch (_type)
 	{
-		case static_cast<int>(PerformanceReportType::VIDEO_GRABBER):
 		case static_cast<int>(PerformanceReportType::INSTANCE):
 		case static_cast<int>(PerformanceReportType::LED):
 		case static_cast<int>(PerformanceReportType::CPU_USAGE):
 		case static_cast<int>(PerformanceReportType::RAM_USAGE):
-		case static_cast<int>(PerformanceReportType::CPU_TEMPERATURE):
-		case static_cast<int>(PerformanceReportType::SYSTEM_UNDERVOLTAGE):
 			_testType = static_cast<PerformanceReportType>(_type);
 			break;
 	}
@@ -112,13 +107,11 @@ void PerformanceCounters::performanceInfoRequest(bool /*all*/)
 
 	_lastRead = InternalClock::now();
 
-#ifdef ENABLE_BONJOUR
 	if (InternalClock::now() - _lastNetworkScan > 10*1000)
 	{
 		_lastNetworkScan = InternalClock::now();
 		emit GlobalSignals::getInstance()->SignalDiscoveryRequestToScan(DiscoveryRecord::Service::REFRESH_ALL);
 	}
-#endif
 
 	QString cpu = _system->getCPU();
 	if (cpu != "")
@@ -135,32 +128,6 @@ void PerformanceCounters::performanceInfoRequest(bool /*all*/)
 		PerformanceReport pr;
 		pr.type = static_cast<int>(PerformanceReportType::RAM_USAGE);
 		pr.name = ram;
-		createUpdate(pr);
-	}
-
-	QString temp = _system->getTEMP();
-	if (temp != "")
-	{
-		PerformanceReport pr;
-		pr.type = static_cast<int>(PerformanceReportType::CPU_TEMPERATURE);
-		pr.name = temp;
-		createUpdate(pr);
-	}
-
-	QString under = _system->getUNDERVOLATGE();
-	if (under != "")
-	{
-		PerformanceReport pr;
-		pr.type = static_cast<int>(PerformanceReportType::SYSTEM_UNDERVOLTAGE);
-
-		if (under.indexOf("NOW") >= 0)
-		{
-			under = under.replace("NOW", "");
-			if (under == "1")
-				Error(_log, "Under-voltage detected. The system is not stable. Please fix it!");
-		}
-		pr.name = under;
-
 		createUpdate(pr);
 	}
 }
@@ -238,13 +205,11 @@ void PerformanceCounters::signalPerformanceStateChangedHandler(bool state, Perfo
 
 void PerformanceCounters::consoleReport(int type, int token)
 {
-	if (type == static_cast<int>(PerformanceReportType::VIDEO_GRABBER) ||
-		type == static_cast<int>(PerformanceReportType::INSTANCE) ||
+	if (type == static_cast<int>(PerformanceReportType::INSTANCE) ||
 		type == static_cast<int>(PerformanceReportType::LED))
 	{
 		for (const auto& z : this->_reports)
 			if (z.token != token && (
-				z.type == static_cast<int>(PerformanceReportType::VIDEO_GRABBER) ||
 				z.type == static_cast<int>(PerformanceReportType::INSTANCE) ||
 				z.type == static_cast<int>(PerformanceReportType::LED)))
 				return;
@@ -258,12 +223,7 @@ void PerformanceCounters::consoleReport(int type, int token)
 	while (i.hasNext())
 	{
 		PerformanceReport del = i.next();
-		if (del.type == static_cast<int>(PerformanceReportType::VIDEO_GRABBER))
-		{
-			if (del.token > 0)
-				list.append(QString("[USB: FPS = %1, decoding = %2ms, frames = %3, invalid = %4, mode = %5]").arg(del.param1, 0, 'f', 2).arg(del.param2).arg(del.param3).arg(del.param4).arg((del.name.indexOf("(direct)") ? "direct" : "signal-detection" )));
-		}
-		else if (del.type == static_cast<int>(PerformanceReportType::INSTANCE))
+		if (del.type == static_cast<int>(PerformanceReportType::INSTANCE))
 		{
 			if (del.token > 0)
 				list.append(QString("[INSTANCE%1: FPS = %2, processed = %3]").arg(del.id).arg(del.param1, 0, 'f', 2).arg(del.param2));

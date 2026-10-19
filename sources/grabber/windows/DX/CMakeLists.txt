@@ -7,8 +7,8 @@ FILE ( GLOB GRABBER_DX_SOURCES "${CURRENT_HEADER_DIR}/*.h" "${CURRENT_SOURCE_DIR
 add_library(grabber-DX OBJECT ${GRABBER_DX_SOURCES} )
 
 target_link_libraries(grabber-DX
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)

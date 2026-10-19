@@ -20,9 +20,7 @@ compile_commands.json
 .ccache/
 deploy/
 build/
-
-tests/codec_test/build/
-
+CMakeUserPresets.json
 
 # Kdevelop project files
 *.kdev*
@@ -32,3 +30,6 @@ tests/codec_test/build/
 CMakeSettings.json
 cmake-build-debug
 .idea
+
+# Agent worktrees
+.claude/worktrees/

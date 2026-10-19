@@ -106,15 +106,7 @@
 		info += "- UI Lang:         " + storedLang + " (BrowserLang: " + navigator.language + ")\n";
 
 		info += "- Avail Capt:      ";
-		if (window.serverInfo.grabbers != null && window.serverInfo.grabbers != undefined && window.serverInfo.grabbers.active != null && window.serverInfo.grabbers.active != undefined) {
-			var grabbers = window.serverInfo.grabbers.active;
-			if (grabbers.indexOf("Media Foundation") > -1) info += "Windows (Microsoft Media Foundation)";
-			else if (grabbers.indexOf("macOS AVF") > -1) info += "macOS (AVF)";
-			else if (grabbers.indexOf("V4L2") > -1) info += "Linux (V4L2)";
-			else info += "Unknown";
-		} else {
-			info += "None";
-		}
+		info += (window.serverInfo.systemGrabbers != null) ? "Windows (" + window.serverInfo.systemGrabbers.device + ")" : "None";
 		info += "\n";
 
 		info += "- Database:        " + (shy.readOnlyMode ? "ready-only" : "read/write") + "\n";

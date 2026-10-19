@@ -1,8 +1,4 @@
-#ifdef _WIN32
-	#include <winsock.h>
-#else
-	#include <arpa/inet.h>
-#endif
+#include <winsock.h>
 
 #include <QHostInfo>
 #include <QUuid>

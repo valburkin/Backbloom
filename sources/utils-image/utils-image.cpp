@@ -32,16 +32,8 @@
 #include <cmath>
 #include <algorithm>
 
-#include <turbojpeg.h>
 #include <lunasvg.h>
-#ifdef __clang__
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#endif
 #include <stb_image_write.h>
-#ifdef __clang__
-	#pragma clang diagnostic pop
-#endif
 #include <stb_image.h>
 #include <utils-image/utils-image.h>
 
@@ -116,26 +108,29 @@ namespace utils_image
 
 	void _IMAGE_SHARED_API encodeJpeg(std::vector<uint8_t>& buffer, Image<ColorRgb>& inputImage, bool scaleDown)
 	{
+		// scaleDown: only every second line is encoded (half height), like the live preview always did
 		const int aspect = (scaleDown) ? 2 : 1;
 		const int width = inputImage.width();
 		const int height = inputImage.height() / aspect;
-		int pitch = width * sizeof(ColorRgb) * aspect;
-		int subSample = (scaleDown) ? TJSAMP_422 : TJSAMP_444;
-		int quality = 75;
+		const size_t lineSize = static_cast<size_t>(width) * sizeof(ColorRgb);
+		const int quality = 75;
 
-		unsigned long compressedImageSize = 0;
-		unsigned char* compressedImage = nullptr;
+		std::vector<uint8_t> lines;
+		const uint8_t* source = inputImage.rawMem();
+		if (scaleDown)
+		{
+			lines.resize(lineSize * height);
+			for (int y = 0; y < height; y++)
+				memcpy(lines.data() + lineSize * y, source + lineSize * aspect * y, lineSize);
+			source = lines.data();
+		}
 
-		tjhandle _jpegCompressor = tjInitCompress();
-
-		tjCompress2(_jpegCompressor, inputImage.rawMem(), width, pitch, height, TJPF_RGB,
-			&compressedImage, &compressedImageSize, subSample, quality, TJFLAG_FASTDCT);
-
-		buffer.resize(compressedImageSize);
-		memcpy(buffer.data(), compressedImage, compressedImageSize);
-
-		tjDestroy(_jpegCompressor);
-		tjFree(compressedImage);
+		buffer.clear();
+		stbi_write_jpg_to_func([](void* context, void* data, int size) {
+				auto output = static_cast<std::vector<uint8_t>*>(context);
+				auto bytes = static_cast<const uint8_t*>(data);
+				output->insert(output->end(), bytes, bytes + size);
+			}, &buffer, width, height, 3, source, quality);
 	}
 
 	bool _IMAGE_SHARED_API savePng(const std::string& filename, const Image<ColorRgb>& image)

@@ -13,8 +13,8 @@ add_library(api OBJECT
 )
 
 target_link_libraries(api
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 	linalg
 )
 

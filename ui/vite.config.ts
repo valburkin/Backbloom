@@ -8,5 +8,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: './',
   build: { outDir: 'dist', emptyOutDir: true },
+  // The About page bundles the repository's LICENSE and 3RD_PARTY_LICENSES files.
+  server: { fs: { allow: ['..'] } },
   test: { globals: true, environment: 'node' },
 });

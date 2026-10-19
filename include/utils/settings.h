@@ -16,20 +16,15 @@ namespace settings {
 		DEVICE,
 		EFFECTS,
 		GENERAL,
-		VIDEOGRABBER,
 		SYSTEMGRABBER,
-		JSONSERVER,
 		LEDCONFIG,
 		LEDS,
 		LOGGER,
 		SMOOTHING,
 		WEBSERVER,
-		VIDEOCONTROL,
 		SYSTEMCONTROL,
-		VIDEODETECTION,
 		NETWORK,
 		MQTT,
-		AUTOTONEMAPPING,
 		LAYOUT,
 		INVALID
 	};
@@ -46,20 +41,15 @@ namespace settings {
 		case type::DEVICE:        return "device";
 		case type::EFFECTS:       return "effects";
 		case type::GENERAL:       return "general";
-		case type::VIDEOGRABBER:  return "videoGrabber";
 		case type::SYSTEMGRABBER: return "systemGrabber";
-		case type::JSONSERVER:    return "jsonServer";
 		case type::LEDCONFIG:     return "ledConfig";
 		case type::LEDS:          return "leds";
 		case type::LOGGER:        return "logger";
 		case type::SMOOTHING:     return "smoothing";
 		case type::WEBSERVER:     return "webConfig";
-		case type::VIDEOCONTROL:  return "videoControl";
 		case type::SYSTEMCONTROL: return "systemControl";
-		case type::VIDEODETECTION:return "videoDetection";
 		case type::NETWORK:       return "network";
 		case type::MQTT:          return "mqtt";
-		case type::AUTOTONEMAPPING: return "automaticToneMapping";
 		case type::LAYOUT:        return "layout";
 		default:                  return "invalid";
 		}
@@ -75,20 +65,15 @@ namespace settings {
 		else if (type == "device")               return type::DEVICE;
 		else if (type == "effects")              return type::EFFECTS;
 		else if (type == "general")              return type::GENERAL;
-		else if (type == "videoGrabber")         return type::VIDEOGRABBER;
 		else if (type == "systemGrabber")        return type::SYSTEMGRABBER;
-		else if (type == "jsonServer")           return type::JSONSERVER;
 		else if (type == "ledConfig")            return type::LEDCONFIG;
 		else if (type == "leds")                 return type::LEDS;
 		else if (type == "logger")               return type::LOGGER;
 		else if (type == "smoothing")            return type::SMOOTHING;
 		else if (type == "webConfig")            return type::WEBSERVER;
-		else if (type == "videoControl")         return type::VIDEOCONTROL;
 		else if (type == "systemControl")        return type::SYSTEMCONTROL;
-		else if (type == "videoDetection")       return type::VIDEODETECTION;
 		else if (type == "network")              return type::NETWORK;
 		else if (type == "mqtt")                 return type::MQTT;
-		else if (type == "automaticToneMapping") return type::AUTOTONEMAPPING;
 		else if (type == "layout")               return type::LAYOUT;
 		else                                     return type::INVALID;
 	}

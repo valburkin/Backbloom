@@ -78,8 +78,6 @@ $(document).ready(function()
 		createHint("intro", $.i18n('remote_adjustment_intro', $.i18n('remote_losthint')), "adjust_content");
 		createHint("intro", $.i18n('remote_components_intro', $.i18n('remote_losthint')), "comp_intro");
 		createHint("intro", $.i18n('remote_maptype_intro', $.i18n('remote_losthint')), "maptype_intro");
-		createHint("intro", $.i18n('remote_videoMode_intro', $.i18n('remote_losthint')), "videomode_intro");
-		createHint("intro", $.i18n('remote_videoModeHdr_intro', $.i18n('remote_losthint')), "videomodehdr_intro");
 	}
 
 	const editor_color = createJsonEditor('conf_cont', {
@@ -205,9 +203,6 @@ $(document).ready(function()
 				case "SYSTEMGRABBER":
 					owner = $.i18n('general_comp_GRABBER') + ': <span class="small text-secondary">' + owner + '<span/>';
 					break;
-				case "VIDEOGRABBER":
-					owner = $.i18n('general_comp_VIDEOGRABBER') + ': <span class="small text-secondary">' + owner + '<span/>';
-					break;
 			}
 
 			if (duration && compId != "GRABBER")
@@ -252,12 +247,7 @@ $(document).ready(function()
 			if (comp.name === "ALL")
 				continue;
 
-			if (comp.name === "VIDEOGRABBER")
-			{
-				if (window.serverInfo.grabbers == null || Object.keys(window.serverInfo.grabbers).length === 0)
-					continue;
-			}
-			else if (comp.name === "SYSTEMGRABBER")
+			if (comp.name === "SYSTEMGRABBER")
 			{
 				if (window.serverInfo.systemGrabbers == null || Object.keys(window.serverInfo.systemGrabbers).length === 0)
 					continue;
@@ -318,23 +308,6 @@ $(document).ready(function()
 			$('#effect_select').append(createSel(classicEffects, $.i18n('remote_optgroup_classicEffects')));
 			$('#effect_select').append(createSel(soundEffects, $.i18n('remote_optgroup_musicEffects')));
 			oldEffects = newEffects;
-		}
-	}
-
-	function updateVideoModeHdr()
-	{
-		var videoModes = [$.i18n("general_btn_off").toUpperCase(), $.i18n("general_btn_on").toUpperCase()];
-		var videoModesVal = [0, 1];
-		var currVideoMode = window.serverInfo.videomodehdr;
-
-		$('#videomodehdrbtns').html("");
-		for (var ix = 0; ix < videoModes.length; ix++)
-		{
-			if (((currVideoMode) ? 1 : 0 ) == videoModesVal[ix])
-				var btn_style = 'btn-success';
-			else
-				var btn_style = 'btn-primary';
-			$('#videomodehdrbtns').append('<div class="row"><button type="button" id="vModeHdrBtn_' + videoModesVal[ix] + '" class="btn ' + btn_style + '" style="margin:3px;min-width:200px" onclick="requestVideoModeHdr(' + videoModesVal[ix] + ');">' + videoModes[ix] + '</button></div>');
 		}
 	}
 
@@ -479,7 +452,6 @@ $(document).ready(function()
 	initComponents();
 	updateInputSelect();
 	updateLedMapping();
-	updateVideoModeHdr();
 	updateEffectlist();
 	updateColorAdjustment();
 	
@@ -518,12 +490,6 @@ $(document).ready(function()
 	{
 		window.serverInfo.imageToLedMappingType = event.response.data.imageToLedMappingType;
 		updateLedMapping();
-	});
-
-	$(window.serverEvents).on("cmd-videomodehdr-update", function(event)
-	{
-		window.serverInfo.videomodehdr = event.response.data.videomodehdr;
-		updateVideoModeHdr();
 	});
 
 	removeOverlay();

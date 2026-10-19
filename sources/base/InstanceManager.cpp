@@ -35,11 +35,9 @@
 #include <base/InstanceManager.h>
 #include <base/LightingInstance.h>
 #include <db/InstanceTable.h>
-#include <base/GrabberWrapper.h>
 #include <base/AccessManager.h>
 #include <base/Muxer.h>
 #include <utils/GlobalSignals.h>
-#include <lut-calibrator/LutCalibrator.h>
 
 QString InstanceManager::getRootPath()
 {
@@ -51,42 +49,14 @@ InstanceManager::InstanceManager(const QString& rootPath)
 	, _instanceTable(new InstanceTable())
 	, _rootPath(rootPath)
 	, _fireStarter(0)
-	, _videoBenchmark(this)
 {
 	qRegisterMetaType<InstanceState>("InstanceState");
 	connect(this, &InstanceManager::SignalInstanceStateChanged, this, &InstanceManager::handleInstanceStateChange);
-
-	connect(&_videoBenchmark, &VideoBenchmark::SignalBenchmarkUpdate, this, &InstanceManager::SignalBenchmarkUpdate);
-	connect(this, &InstanceManager::SignalBenchmarkCapture, &_videoBenchmark, &VideoBenchmark::benchmarkCapture);
-
-	connect(GlobalSignals::getInstance(), &GlobalSignals::SignalRequestComponent, this, &InstanceManager::handleRequestComponent);
-	connect(GlobalSignals::getInstance(), &GlobalSignals::SignalLutRequest, this, &InstanceManager::handleLutRequestSignal);
-}
-
-void InstanceManager::handleRequestComponent(overglow::Components component, int instanceIndex, bool listen)
-{
-	if (component == overglow::Components::COMP_VIDEOGRABBER && instanceIndex == -1)
-	{
-		Warning(_log, "Global request to {:s} USB grabber", (listen) ? "resume" : "pause");
-		toggleGrabbersAllInstances(listen, false, true);
-	}
 }
 
 InstanceManager::~InstanceManager()
 {
 	Debug(_log, "InstanceManager has been removed");
-}
-
-void InstanceManager::handleLutRequestSignal()
-{
-	static bool requested = false;
-
-	if (!requested)
-	{
-		requested = true;
-
-		LutCalibrator::CreateDefaultLut(_rootPath);
-	}
 }
 
 void InstanceManager::startAll(bool disableOnStartup)
@@ -246,11 +216,11 @@ void InstanceManager::toggleStateAllInstances(bool pause)
 	}
 }
 
-void InstanceManager::toggleGrabbersAllInstances(bool pause, bool includingSystemGrabber, bool includingVideoGrabber)
+void InstanceManager::toggleGrabbersAllInstances(bool active)
 {
 	for (const auto& instance : std::as_const(_runningInstances))
 	{
-		QUEUE_CALL_3(instance.get(), turnGrabbers, bool, pause, bool, includingSystemGrabber, bool, includingVideoGrabber);
+		QUEUE_CALL_1(instance.get(), turnGrabbers, bool, active);
 	}
 }
 
@@ -261,9 +231,9 @@ void InstanceManager::hibernate(bool wakeUp, overglow::SystemComponent source)
 		Debug(_log, "OS event: {:s}", (source == overglow::SystemComponent::LOCKER) ? ((wakeUp) ? "OS unlocked" : "OS locked") : ((wakeUp) ? "Monitor On" : "Monitor Off"));
 
 		if (wakeUp)
-			QTimer::singleShot(3000, this, [this, wakeUp]() { toggleGrabbersAllInstances(wakeUp, true, false);  });
+			QTimer::singleShot(3000, this, [this, wakeUp]() { toggleGrabbersAllInstances(wakeUp); });
 		else
-			toggleGrabbersAllInstances(wakeUp, true, false);
+			toggleGrabbersAllInstances(wakeUp);
 	}
 	else if (source == overglow::SystemComponent::SUSPEND)
 	{
@@ -303,10 +273,8 @@ bool InstanceManager::startInstance(quint8 inst, QObject* caller, int tan, bool 
 
 			connect(instanceThread, &QThread::started, lightingInstance.get(), &LightingInstance::start);
 			connect(lightingInstance.get(), &LightingInstance::SignalInstanceJustStarted, this, &InstanceManager::handleInstanceJustStarted);
-			connect(lightingInstance.get(), &LightingInstance::SignalInstancePauseChanged, this, &InstanceManager::SignalInstancePauseChanged);
 			connect(lightingInstance.get(), &LightingInstance::SignalInstanceSettingsChanged, this, &InstanceManager::SignalSettingsChanged);
 			connect(lightingInstance.get(), &LightingInstance::SignalRequestComponent, this, &InstanceManager::SignalCompStateChangeRequest);
-			connect(this, &InstanceManager::SignalSetNewComponentStateToAllInstances, lightingInstance.get(), &LightingInstance::setNewComponentState);
 
 			_startingInstances.insert(inst, lightingInstance);
 
@@ -450,14 +418,4 @@ QString InstanceManager::restoreBackup(const QJsonObject& message)
 	}
 
 	return error;
-}
-
-void InstanceManager::saveCalibration(QString saveData)
-{
-	LightingInstance* instance = InstanceManager::getLightingInstance(0).get();
-
-	if (instance != nullptr)
-		QUEUE_CALL_1(instance, saveCalibration, QString, saveData)
-	else
-		Error(_log, "Overglow instance is not running...can't save the calibration data");
 }

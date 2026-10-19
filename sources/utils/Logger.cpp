@@ -42,22 +42,14 @@
 
 #include <utils/FileUtils.h>
 
-#ifndef _WIN32
-	#include <syslog.h>
-	#include <unistd.h>
-	#include <cstring>
-#elif _WIN32
-	#include <io.h>
-	#include <windows.h>
-	#include <Shlwapi.h>
-	#pragma comment(lib, "Shlwapi.lib")
-#endif
+#include <io.h>
+#include <windows.h>
+#include <Shlwapi.h>
+#pragma comment(lib, "Shlwapi.lib")
 
 namespace
 {	
-	#ifdef _WIN32
-		HANDLE consoleHandle = nullptr;
-	#endif
+	HANDLE consoleHandle = nullptr;
 
 	constexpr auto MAX_LOGS_NUMBER_SIZE = 500;
 	//constexpr auto MAX_REPEAT_MESSAGE_CYCLE = 10;
@@ -118,28 +110,14 @@ Logger::Logger()
 	qRegisterMetaType<Logger::T_LOG_MESSAGE>();
 
 	// detect if we can output colorized logs
-	#ifdef _WIN32
-		consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-		_hasConsole = (consoleHandle != nullptr);
-	#else
-		_hasConsole = isatty(fileno(stdin));
-	#endif
-
+	consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+	_hasConsole = (consoleHandle != nullptr);
 
 	std::string message = (_hasConsole) ? "TTY is attached to the log output" : "TTY is not attached to the log output";
 	storeMessage("LOGGER", LogLevel::INFO, __FILE__, __func__, __LINE__, message);	
 }
 
-Logger::~Logger()
-{
-	if (_hasConsole || _forceVerbose)
-	{
-#ifndef _WIN32				
-		const char* reset_color = "\033[0m";
-		[[maybe_unused]] auto result = write(STDOUT_FILENO, reset_color, strlen(reset_color));
-#endif
-	}
-}
+Logger::~Logger() = default;
 
 void Logger::storeMessage(const LoggerName& logName, LogLevel level, const char* sourceFile, const char* func, unsigned int line, const std::string& msg)
 {
@@ -165,7 +143,7 @@ void Logger::storeMessage(const LoggerName& logName, LogLevel level, const char*
 
 		if (_hasConsole || _forceVerbose)
 		{
-			QString location, prefix, sufix;
+			QString location;
 
 			if (level == Logger::DEBUG)
 			{
@@ -178,29 +156,14 @@ void Logger::storeMessage(const LoggerName& logName, LogLevel level, const char*
 			QString name = logMsg.loggerName;
 			name.resize(MAX_IDENTIFICATION_LENGTH, ' ');
 
-		#ifndef _WIN32				
-			prefix = "\033[0m";
-			sufix = "\033[36;1m";
-		#else
 			SetConsoleTextAttribute(consoleHandle, 7);
-		#endif
 
-			std::cout << QString("%1%2 %3 : ")
-				.arg(prefix)
+			std::cout << QString("%1 %2 : ")
 				.arg(timeNow.toString("hh:mm:ss.zzz"))
 				.arg(name)
 				.toStdString();
 			bool isDaemon = (level == Logger::INFO && logMsg.loggerName == "DAEMON" && logMsg.message.indexOf("[") > 0);
 
-		#ifndef _WIN32
-			switch (level)
-			{
-				case(Logger::INFO): prefix = (isDaemon) ? "\033[33;1m" : "\033[32;1m"; break;
-				case(Logger::WARNING): prefix = "\033[93;1m"; break;
-				case(Logger::ERRORR): prefix = "\033[31;1m"; break;
-				default: break;
-			}
-		#else
 			switch (level)
 			{
 				case(Logger::INFO):SetConsoleTextAttribute(consoleHandle, (isDaemon) ? 6 : 10); break;
@@ -208,18 +171,13 @@ void Logger::storeMessage(const LoggerName& logName, LogLevel level, const char*
 				case(Logger::ERRORR):SetConsoleTextAttribute(consoleHandle, 12); break;
 				default: break;
 			}
-		#endif
-			std::cout << QString("%1<%2> %3%4%5")
-				.arg(prefix)
+			std::cout << QString("<%1> %2%3")
 				.arg(logMsg.levelString)
 				.arg(location)
 				.arg(logMsg.message)
-				.arg(sufix)
 				.toStdString()
 				<< std::endl;
-		#ifdef _WIN32		
 			SetConsoleTextAttribute(consoleHandle, 11);
-		#endif
 		}
 
 		_logs.push_back(logMsg);

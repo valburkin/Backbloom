@@ -35,7 +35,6 @@ public slots:
 	QJsonObject getJsonInfo();
 
 	void newCapturedFrameHandler(const Image<ColorRgb>& image);
-	void capturingExceptionHandler(const char* err);
 	bool start();
 	void stop();
 
@@ -46,9 +45,6 @@ signals:
 	void SignalSystemImage(const QString& name, const Image<ColorRgb>& image);
 
 public slots:
-	void setSignalThreshold(double redSignalThreshold, double greenSignalThreshold, double blueSignalThreshold, int noSignalCounterThreshold);
-	void setSignalDetectionEnable(bool enable);
-	void setDeviceVideoStandard(const QString& device);
 	void setHdrToneMappingEnabled(int mode);
 	void handleSettingsUpdate(settings::type type, const QJsonDocument& config);
 	virtual void stateChanged(bool state);

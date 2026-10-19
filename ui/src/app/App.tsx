@@ -1,20 +1,28 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Cpu, House, Loader2, MonitorSmartphone, Settings as SettingsIcon, WifiOff } from 'lucide-react';
+import { Cpu, House, Loader2, MonitorSmartphone, Palette, ScreenShare, Settings as SettingsIcon, Sparkles, WifiOff } from 'lucide-react';
 import { cx, StatusDot } from '../components/ui';
 import { Logo } from '../components/Logo';
+import { isPageDirty } from '../settings/drafts';
 import { useConnection } from './connection';
+import { useConfig } from './config';
 import { useEditor } from './editor';
-import { useRoute, type Route } from './router';
+import { hrefFor, useRoute, type Route } from './router';
 import { LoginScreen } from '../pages/LoginScreen';
 import { HomePage } from '../pages/HomePage';
 import { LayoutPage } from '../pages/layout/LayoutPage';
 import { DevicesPage } from '../pages/DevicesPage';
-import { SettingsPage } from '../pages/SettingsPage';
+import { CapturePage } from '../pages/CapturePage';
+import { ColorsPage } from '../pages/ColorsPage';
+import { EffectsPage } from '../pages/EffectsPage';
+import { SettingsPage } from '../pages/settings/SettingsPage';
 
 const NAV: Array<{ route: Route; label: string; icon: ReactNode }> = [
   { route: 'home', label: 'Home', icon: <House size={20} /> },
   { route: 'layout', label: 'Layout', icon: <MonitorSmartphone size={20} /> },
   { route: 'devices', label: 'Devices', icon: <Cpu size={20} /> },
+  { route: 'capture', label: 'Screen capture', icon: <ScreenShare size={20} /> },
+  { route: 'colors', label: 'Colors', icon: <Palette size={20} /> },
+  { route: 'effects', label: 'Effects & Music', icon: <Sparkles size={20} /> },
   { route: 'settings', label: 'Settings', icon: <SettingsIcon size={20} /> },
 ];
 
@@ -43,63 +51,76 @@ function ConnectionPill() {
 }
 
 function Shell() {
-  const [route, go] = useRoute();
-  const { dirty } = useEditor();
+  const [loc, go] = useRoute();
+  const { dirty: layoutDirty } = useEditor();
+  const { drafts } = useConfig();
   const main = useRef<HTMLElement>(null);
   useEffect(() => {
     main.current?.focus({ preventScroll: true });
-  }, [route]);
+  }, [loc.route]);
+  const unsaved = (r: Route) => isPageDirty(drafts[r]) || (layoutDirty && (r === 'layout' || r === 'devices'));
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 flex-col sm:flex-row">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-surface-3 focus:px-3 focus:py-2">
         Skip to content
       </a>
-      <nav aria-label="Main" className="flex w-[72px] shrink-0 flex-col border-r border-line bg-surface/60 px-3 py-4 xl:w-56">
-        <div className="mb-6 flex items-center gap-2.5 px-1.5">
+      <nav
+        aria-label="Main"
+        className={cx(
+          'order-last flex shrink-0 border-line bg-surface/95 backdrop-blur',
+          'border-t px-1 pb-[env(safe-area-inset-bottom)] sm:order-first sm:w-[72px] sm:flex-col sm:border-r sm:border-t-0 sm:bg-surface/60 sm:px-3 sm:py-4 xl:w-56',
+        )}
+      >
+        <div className="mb-6 hidden items-center gap-2.5 px-1.5 sm:flex">
           <Logo />
           <span className="hidden text-[15px] font-semibold tracking-tight xl:inline">Overglow</span>
         </div>
-        <ul className="flex flex-col gap-1">
+        <ul className="flex w-full justify-around gap-1 sm:flex-col sm:justify-start">
           {NAV.map((n) => {
-            const active = n.route === route;
-            const showDot = dirty && (n.route === 'layout' || n.route === 'devices');
+            const active = n.route === loc.route;
+            const showDot = unsaved(n.route);
             return (
               <li key={n.route}>
                 <a
-                  href={`#/${n.route}`}
+                  href={hrefFor(n.route)}
                   aria-current={active ? 'page' : undefined}
                   onClick={(e) => {
                     e.preventDefault();
                     go(n.route);
                   }}
                   className={cx(
-                    'relative flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors',
+                    'relative flex h-12 items-center justify-center gap-3 rounded-xl px-2.5 text-sm font-medium transition-colors sm:h-11 sm:justify-start sm:px-3',
                     active ? 'bg-surface-3 text-ink' : 'text-ink-muted hover:bg-surface-2 hover:text-ink',
                   )}
                   title={n.label}
                 >
-                  {active && <span className="absolute left-0 top-2.5 h-6 w-[3px] rounded-r bg-accent" aria-hidden />}
+                  {active && <span className="absolute left-0 top-2.5 hidden h-6 w-[3px] rounded-r bg-accent sm:block" aria-hidden />}
                   <span className={active ? 'text-accent-strong' : ''}>{n.icon}</span>
-                  <span className="hidden xl:inline">{n.label}</span>
+                  <span className="sr-only xl:not-sr-only xl:whitespace-nowrap">{n.label}</span>
                   {showDot && (
-                    <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-warn xl:static xl:ml-auto" aria-label="Unsaved changes" />
+                    <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-warn xl:static xl:ml-auto" aria-label="Unsaved changes" />
                   )}
                 </a>
               </li>
             );
           })}
         </ul>
-        <div className="mt-auto">
+        <div className="mt-auto hidden sm:block">
           <ConnectionPill />
         </div>
       </nav>
-      <main id="main" ref={main} tabIndex={-1} className="min-w-0 flex-1 overflow-hidden outline-none">
+      <main id="main" ref={main} tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none">
         <ReconnectBanner />
-        {route === 'home' && <HomePage />}
-        {route === 'layout' && <LayoutPage />}
-        {route === 'devices' && <DevicesPage />}
-        {route === 'settings' && <SettingsPage />}
+        <div className="min-h-0 flex-1">
+          {loc.route === 'home' && <HomePage />}
+          {loc.route === 'layout' && <LayoutPage />}
+          {loc.route === 'devices' && <DevicesPage />}
+          {loc.route === 'capture' && <CapturePage />}
+          {loc.route === 'colors' && <ColorsPage />}
+          {loc.route === 'effects' && <EffectsPage />}
+          {loc.route === 'settings' && <SettingsPage tab={loc.sub} onTab={(t) => go('settings', t)} />}
+        </div>
       </main>
     </div>
   );

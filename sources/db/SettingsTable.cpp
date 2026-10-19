@@ -126,12 +126,12 @@ bool SettingsTable::isSettingGlobal(const QString& type) const
 	// list of global settings
 	QStringList list;
 	// server port services
-	list << settings::typeToString(settings::type::JSONSERVER) << settings::typeToString(settings::type::NETWORK)
+	list << settings::typeToString(settings::type::NETWORK)
 		<< settings::typeToString(settings::type::WEBSERVER)
-		<< settings::typeToString(settings::type::VIDEOGRABBER) << settings::typeToString(settings::type::SYSTEMGRABBER)
+		<< settings::typeToString(settings::type::SYSTEMGRABBER)
 		<< settings::typeToString(settings::type::LOGGER) << settings::typeToString(settings::type::GENERAL)
-		<< settings::typeToString(settings::type::SNDEFFECT) << settings::typeToString(settings::type::VIDEODETECTION)
-		<< settings::typeToString(settings::type::MQTT) << settings::typeToString(settings::type::AUTOTONEMAPPING)
+		<< settings::typeToString(settings::type::SNDEFFECT)
+		<< settings::typeToString(settings::type::MQTT)
 		<< settings::typeToString(settings::type::LAYOUT)
 		// legacy
 		<< "grabberV4L2";

@@ -1,9 +1,7 @@
 #include <QSslConfiguration>
 #include <led-drivers/net/DriverNetPhilipsHue.h>
 #include <OverglowConfig.h>
-#ifdef ENABLE_BONJOUR
-	#include <bonjour/DiscoveryWrapper.h>
-#endif
+#include <bonjour/DiscoveryWrapper.h>
 #include <ssdp/SSDPDiscover.h>
 
 #include <chrono>
@@ -1999,7 +1997,6 @@ QJsonObject DriverNetPhilipsHue::discover(const QJsonObject& /*params*/)
 	QJsonArray deviceList;
 	devicesDiscovered.insert("ledDeviceType", _activeDeviceType);
 
-#ifdef ENABLE_BONJOUR
 	std::shared_ptr<DiscoveryWrapper> bonInstance = _discoveryWrapper.lock();
 	if (bonInstance != nullptr)
 	{
@@ -2015,9 +2012,6 @@ QJsonObject DriverNetPhilipsHue::discover(const QJsonObject& /*params*/)
 			deviceList.push_back(newIp);
 		}
 	}
-#else
-	Error(_log, "The Network Discovery Service was mysteriously disabled while the maintainer was compiling this version of Overglow");
-#endif
 	if (deviceList.isEmpty())
 	{
 		// Discover Devices

@@ -1,0 +1,53 @@
+{
+	"backgroundEffect": {
+		"color": [
+			255,
+			138,
+			0
+		],
+		"effect": "Rainbow swirl fast",
+		"enable": false,
+		"type": "effect"
+	},
+	"foregroundEffect": {
+		"color": [
+			255,
+			0,
+			0
+		],
+		"duration_ms": 3000,
+		"effect": "Rainbow swirl fast",
+		"enable": true,
+		"type": "effect"
+	},
+	"smoothing": {
+		"antiFlickeringFilter": true,
+		"continuousOutput": false,
+		"damping": 26,
+		"enable": false,
+		"smoothingFactor": 0,
+		"stiffness": 150,
+		"time_ms": 150,
+		"type": "HybridRgbInterpolator",
+		"updateFrequency": 50
+	},
+	"systemControl": {
+		"cecControl": false,
+		"systemInstanceEnable": true,
+		"systemInstancePriority": 245
+	},
+	"systemGrabber": {
+		"cropBottom": 0,
+		"cropLeft": 0,
+		"cropRight": 0,
+		"cropTop": 0,
+		"device": "\\.\\DISPLAY1|Graphics adapter",
+		"fps": 30,
+		"hardware": true,
+		"hdrToneMapping": true,
+		"monitor_nits": 200,
+		"reorder_displays": 0,
+		"signalDetection": false,
+		"videoMode": 512
+	}
+}

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { RpcApi, SUBSCRIPTIONS } from '../api/rpcApi';
-import type { Backend, ComponentInfo, ConnectionStatus, InstanceInfo, PriorityInfo, ServerInfo, SysInfo } from '../api/types';
+import type { Backend, ChannelAdjustment, ComponentInfo, ConnectionStatus, InstanceInfo, PriorityInfo, ServerInfo, SysInfo } from '../api/types';
 
 /**
  * - checking: talking to the backend to find out what's needed
@@ -135,8 +135,17 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
   useEffect(() => {
     const offs = [
       backend.onEvent('priorities-update', (e) => {
-        const d = e.data as { priorities?: PriorityInfo[] };
-        setServerInfo((si) => (si && d.priorities ? { ...si, priorities: d.priorities } : si));
+        const d = e.data as { priorities?: PriorityInfo[]; priorities_autoselect?: boolean };
+        setServerInfo((si) =>
+          si && d.priorities ? { ...si, priorities: d.priorities, priorities_autoselect: d.priorities_autoselect ?? si.priorities_autoselect } : si,
+        );
+      }),
+      backend.onEvent('adjustment-update', (e) => {
+        if (Array.isArray(e.data)) setServerInfo((si) => (si ? { ...si, adjustment: e.data as ChannelAdjustment[] } : si));
+      }),
+      backend.onEvent('imageToLedMapping-update', (e) => {
+        const d = e.data as { imageToLedMappingType?: string };
+        setServerInfo((si) => (si && d?.imageToLedMappingType ? { ...si, imageToLedMappingType: d.imageToLedMappingType } : si));
       }),
       backend.onEvent('components-update', (e) => {
         const d = e.data as ComponentInfo;

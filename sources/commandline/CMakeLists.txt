@@ -10,8 +10,8 @@ FILE ( GLOB Parser_SOURCES "${CURRENT_HEADER_DIR}/BooleanOption.h" "${CURRENT_SO
 add_library(commandline OBJECT ${Parser_SOURCES} )
 
 target_link_libraries(commandline
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)

@@ -141,51 +141,6 @@ function updateInstanceListing()
 		}
 	}
 
-	let peers = window.serverInfo.sessions;
-	if (peers != null && peers.length > 0)
-	{
-		for(var i = 0; i< peers.length; i++)
-			if(peers[i].name == "Overglow")
-			{				
-				if (i == 0)
-				{
-					if (hasItems)
-						$('#instances_list').append('<li class="dropdown-divider bg-info" style="border-top-width:2px;"></li>');
-				}
-				else if (hasItems)
-					$('#instances_list').append('<li class="dropdown-divider bg-info"></li>');
-				
-
-				var hostName = peers[i].host;
-
-				if (hostName.length > 0)
-				{
-					hostName = hostName.replace(/"/g, "'");
-				}
-
-				var html = `<li id="remote_instance_item_${i}" class="text-info" data-toggle="tooltip" data-placement="right" title="${hostName}"><a>`+
-						'<div class="d-flex" style="cursor: pointer;">'+							
-							`<div class="flex ps-2 pe-1">`+
-								`<svg xmlns="http://www.w3.org/2000/svg" data-src="svg/button_link.svg" width="16" height="16" fill="currentColor" style="position: relative;top: -2px;"></svg>`+
-							'</div>'+
-							`<div class="flex pe-2">`+
-								`<span class="h-100" style="display: inline-flex; align-items: center;">${peers[i].address}:${peers[i].port}</span>`+
-							'</div>'+
-						'</div>'+
-					'</a></li>';
-				$('#instances_list').append(html);
-
-				const destAddress = `http://${peers[i].address}:${peers[i].port}`;
-				$(`#remote_instance_item_${i}`).off().on("click",function(e){
-					$("#loading_overlay").addClass("overlay");
-					window.location.href = destAddress;
-				});
-
-				hasItems = true;
-			}		
-	}
-
-	
 	if (hasItems)
 	{			
 		$('#btn_hypinstanceswitch').removeClass('disabled');		

@@ -1,0 +1,62 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "win-base",
+      "hidden": true,
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build",
+      "environment": {
+        "OPENSSL_ROOT_DIR": "C:/Code/deps/Qt/Tools/OpenSSLv3/Win_x64"
+      },
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "C:/Code/deps/Qt/6.8.3/msvc2022_64/lib/cmake",
+        "USE_CCACHE_CACHING": "OFF",
+        "BUILD_TESTING": "ON"
+      },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "win-debug",
+      "displayName": "Windows x64 (Debug)",
+      "inherits": "win-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "win-release",
+      "displayName": "Windows x64 (Release)",
+      "inherits": "win-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "win-debug",
+      "configurePreset": "win-debug",
+      "configuration": "Debug",
+      "nativeToolOptions": [ "/nologo", "/v:m", "/m" ]
+    },
+    {
+      "name": "win-release",
+      "configurePreset": "win-release",
+      "configuration": "Release",
+      "nativeToolOptions": [ "/nologo", "/v:m", "/m" ]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "win-debug",
+      "configurePreset": "win-debug",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "win-release",
+      "configurePreset": "win-release",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

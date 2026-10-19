@@ -246,23 +246,6 @@ bool SystrayInitialize(SystrayMenu *tray)
 	return true;
 }
 
-int SystrayLoop()
-{
-	MSG msg;
-	int limit = 10;
-
-	while (PeekMessage(&msg, window, 0, 0, PM_REMOVE) && limit-- > 0)
-	{
-		if (msg.message == WM_QUIT)
-		{
-			return -1;
-		}
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-	}
-	return 0;
-}
-
 static void cleanup()
 {
 	if (menu != nullptr)

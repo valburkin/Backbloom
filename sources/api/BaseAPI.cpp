@@ -4,7 +4,6 @@
 	#include <QBuffer>
 	#include <QByteArray>
 	#include <QTimer>
-	#include <QNetworkReply>
 	#include <QFile>
 
 	#include <iostream>
@@ -21,7 +20,6 @@
 #include <OverglowConfig.h>
 #include <api/BaseAPI.h>
 #include <base/ImageToLedManager.h>
-#include <base/GrabberWrapper.h>
 #include <base/SystemWrapper.h>
 #include <base/Muxer.h>
 #include <db/AuthTable.h>
@@ -30,13 +28,7 @@
 #include <base/GrabberHelper.h>
 #include <utils-image/utils-image.h>
 
-#ifdef ENABLE_ZSTD
-	#include <utils-zstd/utils-zstd.h>
-#endif
-
-#ifdef _WIN32
-	#include <QProcess>
-#endif
+#include <QProcess>
 
 using namespace overglow;
 
@@ -47,7 +39,6 @@ BaseAPI::BaseAPI(const LoggerName& log, bool localConnection, QObject* parent)
 	_instanceManager(nullptr),
 	_accessManager(nullptr),
 	_soundCapture(nullptr),
-	_videoGrabber(nullptr),
 	_systemGrabber(nullptr),
 	_performanceCounters(nullptr),
 	_discoveryWrapper(nullptr),
@@ -80,7 +71,6 @@ BaseAPI::BaseAPI(const LoggerName& log, bool localConnection, QObject* parent)
 	}
 
 	emit GlobalSignals::getInstance()->SignalGetSoundCapture(_soundCapture);	
-	emit GlobalSignals::getInstance()->SignalGetVideoGrabber(_videoGrabber);
 	emit GlobalSignals::getInstance()->SignalGetSystemGrabber(_systemGrabber);
 	emit GlobalSignals::getInstance()->SignalGetDiscoveryWrapper(_discoveryWrapper);	
 	
@@ -277,18 +267,11 @@ bool BaseAPI::setComponentState(const QString& comp, bool& compState, QString& r
 	QString input(comp);
 	if (input == "GRABBER")
 		input = "SYSTEMGRABBER";
-	if (input == "V4L")
-		input = "VIDEOGRABBER";
 	Components component = stringToComponent(input);
 	if (component == COMP_ALL)
 	{
 		QUEUE_CALL_1(_instanceManager.get(), toggleStateAllInstances, bool, compState);
 
-		return true;
-	}
-	else if (component == COMP_HDR)
-	{
-		setVideoModeHdr((compState) ? 1 : 0, component);
 		return true;
 	}
 	else if (component != COMP_INVALID)
@@ -303,11 +286,6 @@ bool BaseAPI::setComponentState(const QString& comp, bool& compState, QString& r
 void BaseAPI::setLedMappingType(int type, overglow::Components /*callerComp*/)
 {
 	QUEUE_CALL_1(_instance.get(), setLedMappingType, int, type);
-}
-
-void BaseAPI::setVideoModeHdr(int hdr, overglow::Components /*callerComp*/)
-{
-	emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_HDR, -1, hdr);
 }
 
 bool BaseAPI::setEffect(const EffectCmdData& dat, overglow::Components /*callerComp*/)
@@ -397,27 +375,6 @@ bool BaseAPI::saveSettings(const QJsonObject& data)
 		SAFE_CALL_2_RET(_instance.get(), saveSettings, bool, rc, QJsonObject, data, bool, true);
 	}
 	return rc;
-}
-
-QString BaseAPI::installLut(QNetworkReply* reply, QString fileName, int /*hardware_brightness*/, int /*hardware_contrast*/, int /*hardware_saturation*/, qint64 /*time*/)
-{
-#ifdef ENABLE_ZSTD
-	QString error = nullptr;
-
-	if (reply->error() == QNetworkReply::NetworkError::NoError)
-	{
-		QByteArray downloadedData = reply->readAll();
-
-		QByteArray utf8fileName = fileName.toUtf8();
-		error = DecompressZSTD(downloadedData.size(), reinterpret_cast<uint8_t*>(downloadedData.data()), (utf8fileName.constData()));
-	}
-	else
-		error = "Could not download LUT file";
-
-	return error;
-#else
-	return "ZSTD support was disabled in the build configuration";
-#endif
 }
 
 quint8 BaseAPI::getCurrentInstanceIndex()
@@ -591,76 +548,13 @@ void BaseAPI::putSystemInfo(QJsonObject& system)
 		_sysInfo.hostName = QHostInfo::localHostName();
 		_sysInfo.domainName = QHostInfo::localDomainName();
 
-		#ifdef _WIN32
-			QProcess windowscpu;
-			#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-				windowscpu.start("wmic", { "cpu", "get", "name" });
-			#else
-				windowscpu.startCommand("wmic cpu get name");
-			#endif
-			windowscpu.waitForFinished();
-			QString result = windowscpu.readAllStandardOutput().trimmed();
-			if (result.startsWith("Name", Qt::CaseInsensitive))
-				result = result.right(result.size()-4).trimmed();
-			_sysInfo.cpuModelName = result;
-		#else
-			QString cpuString;
-			QFile file("/proc/cpuinfo");
-
-			if (file.exists() && file.open(QFile::ReadOnly | QFile::Text))
-			{
-				QTextStream in(&file);
-
-				while (in.readLineInto(&cpuString))
-				{
-					bool more = false;
-
-					if (_sysInfo.cpuModelType.isEmpty())
-					{
-						QString match = "model\t";
-						if (cpuString.startsWith(match, Qt::CaseInsensitive))
-							_sysInfo.cpuModelType = cpuString.right(cpuString.length() - match.length() - 2).trimmed();
-						else
-							more = true;
-					}
-
-					if (_sysInfo.cpuModelName.isEmpty())
-					{
-						QString match = "model name\t";
-
-						if (cpuString.startsWith(match, Qt::CaseInsensitive))
-							_sysInfo.cpuModelName = cpuString.right(cpuString.length() - match.length() - 2).trimmed();
-						else
-							more = true;
-					}
-
-					if (_sysInfo.cpuHardware.isEmpty())
-					{
-						QString match = "hardware\t";
-
-						if (cpuString.startsWith(match, Qt::CaseInsensitive))
-							_sysInfo.cpuHardware = cpuString.right(cpuString.length() - match.length() - 2).trimmed();
-						else
-							more = true;
-					}
-
-					if (_sysInfo.cpuRevision.isEmpty())
-					{
-						QString match = "revision\t";
-
-						if (cpuString.startsWith(match, Qt::CaseInsensitive))
-							_sysInfo.cpuHardware = cpuString.right(cpuString.length() - match.length() - 2).trimmed();
-						else
-							more = true;
-					}
-
-					if (!more)
-						break;
-				}
-
-				file.close();
-			}
-		#endif
+		QProcess windowscpu;
+		windowscpu.startCommand("wmic cpu get name");
+		windowscpu.waitForFinished();
+		QString result = windowscpu.readAllStandardOutput().trimmed();
+		if (result.startsWith("Name", Qt::CaseInsensitive))
+			result = result.right(result.size()-4).trimmed();
+		_sysInfo.cpuModelName = result;
 	};
 
 	system["kernelType"] = _sysInfo.kernelType;

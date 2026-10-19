@@ -27,6 +27,7 @@
 
 #include <infinite-color-engine/CoreInfiniteEngine.h>
 #include <infinite-color-engine/InfiniteSmoothing.h>
+#include <infinite-color-engine/ColorSpace.h>
 #include <base/LightingInstance.h>
 
 using namespace overglow;

@@ -42,8 +42,3 @@ SystemWrapper* GrabberHelper::systemWrapper()
 {
 	return qobject_cast<SystemWrapper*>(_grabberInstance);
 }
-
-GrabberWrapper* GrabberHelper::grabberWrapper()
-{
-	return qobject_cast<GrabberWrapper*>(_grabberInstance);
-}

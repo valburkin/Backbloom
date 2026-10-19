@@ -14,10 +14,8 @@ class AuthTable : public DBManager
 public:
 	AuthTable();
 	bool createUser(const QString& user, const QString& pw);
-	void savePipewire(const QString& wToken);
 	bool userExist(const QString& user);
 	bool isUserAuthorized(const QString& user, const QString& pw);
-	const QString loadPipewire();
 	bool isUserTokenAuthorized(const QString& usr, const QString& token);
 	bool setUserToken(const QString& user);
 	const QByteArray getUserToken(const QString& user);

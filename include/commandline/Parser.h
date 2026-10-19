@@ -75,11 +75,7 @@ namespace commandline
 				_getDescription(description, default_),
 				longOption,
 				default_);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 8, 0))
 			option->setFlags(QCommandLineOption::HiddenFromHelp);
-#else
-			option->setHidden(true);
-#endif
 
 			addOption(option);
 			return *option;

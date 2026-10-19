@@ -23,3 +23,14 @@ indent_size = 4
 # version file
 [version]
 insert_final_newline = false
+
+[*.{json,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[{CMakeLists.txt,*.cmake}]
+indent_style = tab
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false

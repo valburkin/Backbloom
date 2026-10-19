@@ -48,49 +48,46 @@ python -m aqt install-tool windows desktop tools_opensslv3_x64 qt.tools.opensslv
 
 Result: Qt in `C:\Code\deps\Qt\6.8.3\msvc2022_64`, OpenSSL 3.0.x (headers, import libs, DLLs) in `C:\Code\deps\Qt\Tools\OpenSSLv3\Win_x64`.
 
-## 4. libjpeg-turbo 3.0.3 (built from source)
-
-The official `libjpeg-turbo-3.0.3-vc64.exe` installer requires administrator rights, so build it instead (NASM enables the SIMD code):
-
-```powershell
-mkdir C:\Code\deps\downloads, C:\Code\deps\src -Force | Out-Null
-curl.exe -sL -o C:\Code\deps\downloads\nasm.zip https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/win64/nasm-2.16.03-win64.zip
-curl.exe -sL -o C:\Code\deps\downloads\ljt.tar.gz https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.0.3/libjpeg-turbo-3.0.3.tar.gz
-Expand-Archive C:\Code\deps\downloads\nasm.zip -DestinationPath C:\Code\deps -Force
-tar -xzf C:\Code\deps\downloads\ljt.tar.gz -C C:\Code\deps\src
-
-cmake -S C:\Code\deps\src\libjpeg-turbo-3.0.3 -B C:\Code\deps\src\libjpeg-turbo-build `
-  -G "Visual Studio 18 2026" -A x64 `
-  -DCMAKE_INSTALL_PREFIX=C:/Code/deps/libjpeg-turbo64 `
-  -DCMAKE_ASM_NASM_COMPILER=C:/Code/deps/nasm-2.16.03/nasm.exe `
-  -DENABLE_STATIC=OFF -DWITH_TURBOJPEG=ON
-cmake --build C:\Code\deps\src\libjpeg-turbo-build --config Release --target install -- -m
-```
-
-`C:\Code\deps\libjpeg-turbo64\{include,lib,bin}` is the layout `cmake/cmake_modules/FindTurboJPEG.cmake` expects under `$env:TOOLKIT_DIR`.
-
-## 5. Configure and build Overglow
+## 4. Configure and build Overglow
 
 ```powershell
 cd <repo>
-$env:TOOLKIT_DIR       = 'C:\Code\deps'                                   # finds libjpeg-turbo64
 $env:CMAKE_PREFIX_PATH = 'C:\Code\deps\Qt\6.8.3\msvc2022_64\lib\cmake'
 $env:OPENSSL_ROOT_DIR  = 'C:\Code\deps\Qt\Tools\OpenSSLv3\Win_x64'
 
-cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DPLATFORM=windows -DCMAKE_BUILD_TYPE=Release -DUSE_CCACHE_CACHING=OFF
+cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DCMAKE_BUILD_TYPE=Release -DUSE_CCACHE_CACHING=OFF
 cmake --build build --config Release -- '/nologo' '/v:m' '/m'
 ```
 
 - With VS 2022 use `-G "Visual Studio 17 2022"` instead.
-- Output: `build\Bin\Release\overglow.exe` plus the Qt/turbojpeg/zstd DLLs (windeployqt runs as a post-build step).
+- Alternatively use the CMake presets, which encode the same settings and the `C:\Code\deps` paths above
+  (put a `CMakeUserPresets.json` that inherits `win-base` next to it to use other paths):
+  `cmake --preset win-release` then `cmake --build --preset win-release` (`win-debug` for a Debug build; both share `build`).
+- Output: `build\Bin\Release\overglow.exe` plus the Qt/zstd DLLs (windeployqt runs as a post-build step).
 - A clean build takes about 5 minutes. Expected warnings: `VCINSTALLDIR is not set` from windeployqt (harmless;
   set `$env:VCINSTALLDIR = 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\'` to also deploy the VC runtime),
   C4756 in `ColorSpace.cpp`, and C4701/C4996 in third-party code.
 - Optional installer: install NSIS and run `cmake --build build --config Release --target package`.
 - `-DOVERGLOW_SUPPORT_URL=<url>` sets the support/documentation link shown by both web UIs and the installer (default: none).
 - Icons, installer banners and the old web UI logos are generated from `branding/` by `python -I branding\generate_icons.py`.
-- Windows product defaults: DirectX system grabber, sound capture, HID, Bonjour/mDNS, MQTT, power management, systray, zstd and OpenSSL are ON;
-  the Media Foundation capture-card (USB grabber) support is OFF (add `-DENABLE_MF=ON` to build it).
+- The product is Windows-only: the DirectX system grabber, sound capture, HID, mDNS, MQTT, power management, systray and zstd
+  are always built. Build options (`-D<option>=ON|OFF`):
+  - `USE_SHARED_LIBS` (ON): build sqlite, utils-image and utils-zstd as DLLs.
+  - `USE_EMBEDDED_WEB_RESOURCES` (OFF): embed the web UI into the exe instead of `lib\web_resources.rcc`.
+  - `USE_PRECOMPILED_HEADERS` (ON), `USE_CCACHE_CACHING` (ON, used only if ccache is found), `BUILD_TESTING` (ON).
+  - OpenSSL is optional: without it the HTTPS server and Philips Hue (DTLS) are disabled.
+
+## 5. Tests
+
+Unit tests use Qt Test and run with ctest (`BUILD_TESTING` is ON by default). Each test is a separate executable in
+`build\tests\<config>`, registered with `overglow_add_test()` from `cmake/cmake_modules/OverglowTest.cmake`; ctest puts the Qt
+`bin` directory on `PATH` and runs Qt with the offscreen platform, so nothing needs to be deployed. Fixtures live in `tests/fixtures`.
+
+```powershell
+cd <repo>
+cmake --build --preset win-release          # or only the tests: --target test_ledstring
+ctest --preset win-release                  # all tests; -L unit for one label, -R <regex> for some tests, -V for the Qt Test log
+```
 
 ## 6. Run
 
@@ -117,7 +114,7 @@ migration can be exercised without `--userdata` and without touching the real `%
 
 ### Running next to an installed copy (dev side-by-side)
 
-`main.cpp` refuses to start if another `overglow.exe` process is running, and a fresh DB uses the default ports (8090/8092/19444/19400).
+`main.cpp` refuses to start if another `overglow.exe` process is running, and a fresh DB uses the default web ports (8090/8092).
 To run a dev build next to a production install without touching it:
 
 1. Copy the exe to a different name (only the process name is checked):
@@ -131,8 +128,8 @@ db_dir = os.path.join(sys.argv[1], "db")
 os.makedirs(db_dir, exist_ok=True)
 db = sqlite3.connect(os.path.join(db_dir, "overglow.db"))
 db.execute("CREATE TABLE IF NOT EXISTS settings (type TEXT, config TEXT, instance INTEGER, updated_at TEXT)")
-rows = [("webConfig", {"port": 18090, "sslPort": 18092}, None), ("jsonServer", {"port": 29444}, None),
-        ("videoControl", {"videoInstanceEnable": False}, 0), ("systemControl", {"systemInstanceEnable": False}, 0),
+rows = [("webConfig", {"port": 18090, "sslPort": 18092}, None),
+        ("systemControl", {"systemInstanceEnable": False}, 0),
         ("device", {"type": "file"}, 0)]
 for t, c, i in rows:  # global settings have instance NULL, per-instance ones use the instance index
     db.execute("INSERT INTO settings VALUES (?, ?, ?, datetime('now'))", (t, json.dumps(c), i))
@@ -140,10 +137,10 @@ db.commit()
 ```
 
 3. Start it: `build\Bin\Release\overglow-test.exe --service --userdata C:\Code\deps\testdata`
-   (LED device `file` writes to `\\.\NUL`; video/system grabbers stay off).
+   (LED device `file` writes to `\\.\NUL`; the system grabber stays off).
 4. Stop it by PID only (never by image name): `Get-Process overglow-test | Stop-Process`.
 
 JSON-RPC: `config getconfig`/`setconfig` need admin rights. Local connections must log in first (`localAdminAuth` is on by default), which only
-works on a persistent connection (TCP JSON server, port 29444 above, newline-delimited JSON, or WebSocket):
+works on a persistent connection (WebSocket on the web port, e.g. `ws://127.0.0.1:18090/`):
 `{"command":"authorize","subcommand":"login","password":"overglow"}`. Plain HTTP `POST /json-rpc` only accepts an
 `Authorization: token <token>` header, which does not grant admin rights, so it returns `No Authorization` for getconfig/setconfig.

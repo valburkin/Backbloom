@@ -60,10 +60,6 @@ void SystemWrapper::stateChanged(bool /*state*/)
 
 }
 
-void SystemWrapper::capturingExceptionHandler(const char* err)
-{
-	Error(_log, "Grabber signals error ({:s})", err);
-}
 
 SystemWrapper::~SystemWrapper()
 {
@@ -100,23 +96,6 @@ void SystemWrapper::stop()
 		_grabber->stop();
 }
 
-void SystemWrapper::setSignalThreshold(double redSignalThreshold, double greenSignalThreshold, double blueSignalThreshold, int noSignalCounterThreshold)
-{
-	if (_grabber != nullptr)
-		_grabber->setSignalThreshold(redSignalThreshold, greenSignalThreshold, blueSignalThreshold, noSignalCounterThreshold);
-}
-
-void SystemWrapper::setSignalDetectionEnable(bool enable)
-{
-	if (_grabber != nullptr)
-		_grabber->setSignalDetectionEnable(enable);
-}
-
-void SystemWrapper::setDeviceVideoStandard(const QString& device)
-{
-	if (_grabber != nullptr)
-		_grabber->setDeviceVideoStandard(device);
-}
 
 void SystemWrapper::setHdrToneMappingEnabled(int mode)
 {
@@ -151,31 +130,14 @@ void SystemWrapper::handleSettingsUpdate(settings::type type, const QJsonDocumen
 			// device framerate
 			_grabber->setFramerate(obj["fps"].toInt(10));
 
-#ifdef ENABLE_DX
 			// HDR tone mapping
 			setHdrToneMappingEnabled(obj["hdrToneMapping"].toBool(false) ? 1 : 0);
-#endif
-
-			// signal
-			_grabber->setSignalDetectionEnable(obj["signalDetection"].toBool(false));
 
 			_grabber->enableHardwareAcceleration(obj["hardware"].toBool(false));
 
 			_grabber->setMonitorNits(obj["monitor_nits"].toInt(200));
 
-			_grabber->setReorderDisplays(obj["reorder_displays"].toInt(0));			
-
-			_grabber->setSignalDetectionOffset(
-				obj["sDHOffsetMin"].toDouble(0.25),
-				obj["sDVOffsetMin"].toDouble(0.25),
-				obj["sDHOffsetMax"].toDouble(0.75),
-				obj["sDVOffsetMax"].toDouble(0.75));
-
-			_grabber->setSignalThreshold(
-				obj["redSignalThreshold"].toDouble(0.0) / 100.0,
-				obj["greenSignalThreshold"].toDouble(0.0) / 100.0,
-				obj["blueSignalThreshold"].toDouble(0.0) / 100.0,
-				obj["noSignalCounterThreshold"].toInt(50));
+			_grabber->setReorderDisplays(obj["reorder_displays"].toInt(0));
 
 			_grabber->setDeviceVideoStandard(obj["device"].toString(Grabber::AUTO_SETTING));
 
@@ -191,15 +153,7 @@ void SystemWrapper::handleSettingsUpdate(settings::type type, const QJsonDocumen
 
 QString SystemWrapper::getGrabberInfo()
 {
-#if defined(ENABLE_DX)
 	return "DirectX11";
-#elif defined(ENABLE_MAC_SYSTEM)
-	return "macOS";
-#elif defined(ENABLE_X11)
-	return "X11";
-#else
-	return "";
-#endif
 }
 
 bool SystemWrapper::isActivated(bool /*forced*/)

@@ -2,9 +2,7 @@
 #include <led-drivers/net/DriverNetWled.h>
 #include <OverglowConfig.h>
 #include <QString>
-#ifdef ENABLE_BONJOUR
-	#include <bonjour/DiscoveryWrapper.h>
-#endif
+#include <bonjour/DiscoveryWrapper.h>
 
 DriverNetWled::DriverNetWled(const QJsonObject& deviceConfig)
 	: ProviderUdp(deviceConfig)
@@ -212,7 +210,6 @@ QJsonObject DriverNetWled::discover(const QJsonObject& /*params*/)
 	QJsonArray deviceList;
 	devicesDiscovered.insert("ledDeviceType", _activeDeviceType);
 	
-#ifdef ENABLE_BONJOUR
 	std::shared_ptr<DiscoveryWrapper> bonInstance = _discoveryWrapper.lock();
 	if (bonInstance != nullptr)
 	{
@@ -228,9 +225,6 @@ QJsonObject DriverNetWled::discover(const QJsonObject& /*params*/)
 			deviceList.push_back(newIp);
 		}
 	}
-#else
-	Error(_log, "The Network Discovery Service was mysteriously disabled while the maintenair was compiling this version of Overglow");
-#endif	
 
 	devicesDiscovered.insert("devices", deviceList);
 	Debug(_log, "devicesDiscovered: [{:s}]", QString(QJsonDocument(devicesDiscovered).toJson(QJsonDocument::Compact)).toUtf8().constData());

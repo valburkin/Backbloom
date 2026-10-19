@@ -44,8 +44,15 @@ describe('loadLayout', () => {
     });
   });
 
+  it('treats the backend default (an empty layout) as not saved', async () => {
+    const { api } = await connected({ config: { layout: { version: 1, controllers: [], strips: [] } } });
+    const res = await loadLayout(api, { admin: true, serverInfo: null });
+    expect(res.source).toBe('legacy');
+    expect(res.spec.strips.length).toBeGreaterThan(0);
+  });
+
   it('prefers a saved layout setting', async () => {
-    const saved: LayoutSpec = { version: 1, controllers: [], strips: [] };
+    const saved: LayoutSpec = { version: 1, controllers: [{ id: 'c', name: 'C', kind: 'wled', host: 'c.local', outputs: [] }], strips: [] };
     const { api } = await connected({ config: { layout: saved } });
     const res = await loadLayout(api, { admin: true, serverInfo: null });
     expect(res.source).toBe('saved');
@@ -61,7 +68,7 @@ describe('loadLayout', () => {
 });
 
 describe('saveLayout', () => {
-  it('writes the full config with compiled leds and the layout spec', async () => {
+  it('writes the compiled leds and the layout spec, keeping other settings', async () => {
     const { api } = await connected();
     const si = await api.serverInfo();
     const { spec } = await loadLayout(api, { admin: true, serverInfo: si });

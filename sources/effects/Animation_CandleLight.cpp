@@ -39,6 +39,15 @@ Animation_CandleLight::Animation_CandleLight() :
 	hsv = { 0, 0, 0 };
 };
 
+EffectDefinition Animation_CandleLight::getDefinition()
+{
+	EffectDefinition ed(EffectFactory<Animation_CandleLight>, 500, 20);
+	ed.name = "Candle";
+	return ed;
+}
+
+bool Animation_CandleLight::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_CandleLight::getDefinition());
+
 void Animation_CandleLight::Init(
 	HyperImage& /*hyperImage*/,
 	int /*hyperLatchTime*/

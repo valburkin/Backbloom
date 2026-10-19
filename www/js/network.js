@@ -3,7 +3,6 @@ $(document).ready( function() {
 	
 	var conf_editor = null;
 	var conf_editor_net = null;
-	var conf_editor_json = null;
 	var conf_editor_mqtt = null;
 	
 	{
@@ -13,10 +12,6 @@ $(document).ready( function() {
 		//network
 		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_net_heading_title"), 'editor_container_net', 'btn_submit_net'));
 		$('#conf_cont').append(createHelpTable(window.schema.network.properties, $.i18n("edt_conf_net_heading_title")));
-
-		//jsonserver
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_js_heading_title"), 'editor_container_jsonserver', 'btn_submit_jsonserver'));
-		$('#conf_cont').append(createHelpTable(window.schema.jsonServer.properties, $.i18n("edt_conf_js_heading_title")));
 
 		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_mqtt_heading_title"), 'editor_container_mqtt', 'btn_submit_mqtt'));
 		$('#conf_cont').append(createHelpTable(window.schema.mqtt.properties, $.i18n("edt_conf_mqtt_heading_title")));
@@ -50,21 +45,8 @@ $(document).ready( function() {
 		requestWriteConfig(conf_editor_net.getValue());
 	});
 
-	//json
-	conf_editor_json = createJsonEditor('editor_container_jsonserver', {
-		jsonServer         : window.schema.jsonServer
-	}, true, true);
-	
 	conf_editor.on('change',function() {
 		conf_editor.validate().length ? $('#btn_submit').attr('disabled', true) : $('#btn_submit').attr('disabled', false);
-	});
-
-	conf_editor_json.on('change',function() {
-		conf_editor_json.validate().length ? $('#btn_submit_jsonserver').attr('disabled', true) : $('#btn_submit_jsonserver').attr('disabled', false);
-	});
-
-	$('#btn_submit_jsonserver').off().on('click',function() {
-		requestWriteConfig(conf_editor_json.getValue());
 	});
 
 	//mqtt
@@ -85,7 +67,6 @@ $(document).ready( function() {
 	{
 		createHint("intro", $.i18n('conf_webconfig_label_intro'), "editor_container");
 		createHint("intro", $.i18n('conf_network_net_intro'), "editor_container_net");
-		createHint("intro", $.i18n('conf_network_json_intro'), "editor_container_jsonserver");
 		createHint("intro", $.i18n('conf_network_mqtt_intro'), "editor_container_mqtt");
 		createHint("intro", $.i18n('conf_network_tok_intro'), "tok_desc_cont");
 	}

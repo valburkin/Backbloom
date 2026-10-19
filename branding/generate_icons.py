@@ -3,9 +3,8 @@
 Usage: python -I generate_icons.py
 
 Writes:
-  ./png/overglow-<size>.png, ./overglow.ico, ./overglow.icns   app icons (Windows exe/installer, Linux, macOS bundle)
+  ./png/overglow-<size>.png, ./overglow.ico                       app icons (exe, installer)
   ./installer/header.bmp, ./installer/welcome.bmp               NSIS installer banners (150x57, 164x314)
-  ./installer/dmg-background.png                                 macOS disk image background
   ../www/img/brand/*.png, ../www/*.png                            old web UI logos, wordmark and favicons
 The wordmark uses the first available font of WORDMARK_FONTS (Segoe UI Semibold on Windows).
 """
@@ -152,15 +151,6 @@ def installer_images() -> None:
     left, top, right, bottom = f.getbbox(NAME)
     ImageDraw.Draw(welcome).text(((164 - (right - left)) // 2 - left, 200 - top), NAME, font=f, fill=WHITE)
     welcome.convert("RGB").save(out / "welcome.bmp")
-    # macOS disk image background (601x402): wordmark top-left, drag arrow in the middle
-    dmg = Image.new("RGBA", (601, 402), BG)
-    mark_w = wordmark(44, WHITE)
-    dmg.paste(mark_w, (24, 20), mark_w)
-    d = ImageDraw.Draw(dmg)
-    d.rounded_rectangle([117, 146, 484, 298], radius=76, fill=(30, 32, 52, 255))
-    d.polygon([(272, 208), (300, 208), (300, 194), (330, 222), (300, 250), (300, 236), (272, 236)], fill=(139, 92, 246, 255))
-    dmg.convert("RGB").save(out / "dmg-background.png")
-
 
 def web_images() -> None:
     brand = REPO / "www" / "img" / "brand"
@@ -181,8 +171,6 @@ def main() -> None:
     ico_sizes = [16, 24, 32, 48, 64, 128, 256]
     frames = [render(sz) for sz in ico_sizes]
     frames[-1].save(HERE / "overglow.ico", sizes=[(sz, sz) for sz in ico_sizes], append_images=frames[:-1])
-    # Pillow writes all standard .icns sizes (16-1024, @2x variants) from the largest image
-    render(1024).save(HERE / "overglow.icns")
     installer_images()
     web_images()
 

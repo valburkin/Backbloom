@@ -2,6 +2,7 @@
 
 #include <effects/AnimationBase.h>
 
+// Flickering candle light, preset: "Candle"
 class Animation_CandleLight : public AnimationBase
 {
 public:
@@ -19,7 +20,8 @@ private:
 
 	Point3d	   CandleRgb();
 
-protected:
+	static EffectDefinition getDefinition();
+	static bool isRegistered;
 
 	int        colorShift;
 	Point3d    color;

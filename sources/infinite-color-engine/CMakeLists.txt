@@ -7,8 +7,8 @@ FILE ( GLOB INFINITE_ENGINE_SOURCES "${CURRENT_HEADER_DIR}/*.h"  "${CURRENT_SOUR
 add_library(infinite-engine OBJECT ${INFINITE_ENGINE_SOURCES})
 
 target_link_libraries(infinite-engine
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 	linalg
 )
 

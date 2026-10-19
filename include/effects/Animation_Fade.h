@@ -1,11 +1,22 @@
 #pragma once
 
 #include <effects/AnimationBase.h>
+
+// Fades in from colorStart to colorEnd and out again (repeat = 0: forever), preset: "Breath"
 class Animation_Fade : public AnimationBase
 {
 public:
+	struct Params
+	{
+		Point3d colorStart;
+		Point3d colorEnd;
+		double  fadeInTime;		// [ms]
+		double  fadeOutTime;	// [ms]
+		double  colorStartTime;	// time to hold colorStart [ms]
+		double  colorEndTime;	// time to hold colorEnd [ms]
+	};
 
-	Animation_Fade();
+	explicit Animation_Fade(const Params& params);
 
 	void Init(
 		HyperImage& hyperImage,
@@ -27,7 +38,8 @@ private:
 	double  steps;
 	std::vector<Point3d> colors;
 
-protected:
+	static EffectDefinition definition(const char* name, const Params& params);
+	static bool isRegistered;
 
 	double  fadeInTime;
 	double  fadeOutTime;

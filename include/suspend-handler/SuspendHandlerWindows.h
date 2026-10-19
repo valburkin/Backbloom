@@ -34,8 +34,6 @@
 
 #include <utils/Components.h>
 
-#define HAVE_POWER_MANAGEMENT
-
 class SuspendHandler : public QObject, public QAbstractNativeEventFilter {
 	Q_OBJECT
 
@@ -48,9 +46,5 @@ signals:
 public:
 	SuspendHandler(bool sessionLocker = false);
 	~SuspendHandler();
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-	virtual bool nativeEventFilter(const QByteArray& eventType, void* message, long* result) Q_DECL_OVERRIDE;
-#else
 	virtual bool nativeEventFilter(const QByteArray& eventType, void* message, qintptr* result) Q_DECL_OVERRIDE;
-#endif
 };

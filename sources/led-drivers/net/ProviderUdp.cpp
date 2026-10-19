@@ -30,8 +30,6 @@
 #include <cstdio>
 #include <iostream>
 #include <exception>
-// Linux includes
-#include <fcntl.h>
 
 #include <QStringList>
 #include <QUdpSocket>

@@ -1,0 +1,13 @@
+# Overglow C++ style (matches the existing code: tabs, Allman braces, indented namespaces).
+BasedOnStyle: Microsoft
+UseTab: ForIndentation
+IndentWidth: 4
+TabWidth: 4
+ColumnLimit: 140
+AccessModifierOffset: -4
+NamespaceIndentation: All
+PointerAlignment: Left
+IndentCaseLabels: true
+AllowShortFunctionsOnASingleLine: Inline
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup

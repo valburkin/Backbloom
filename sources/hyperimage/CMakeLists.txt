@@ -7,8 +7,8 @@ FILE ( GLOB HYPERIMAGE_SOURCES "${CURRENT_HEADER_DIR}/*.h" "${CURRENT_SOURCE_DIR
 add_library(hyperimage OBJECT ${HYPERIMAGE_SOURCES} )
 
 target_link_libraries(hyperimage
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)

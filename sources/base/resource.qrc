@@ -6,23 +6,18 @@
 		<file alias="schema-device.json">schema/schema-device.json</file>
 		<file alias="schema-color.json">schema/schema-color.json</file>
 		<file alias="schema-smoothing.json">schema/schema-smoothing.json</file>
-		<file alias="schema-videoGrabber.json">schema/schema-videoGrabber.json</file>
 		<file alias="schema-systemGrabber.json">schema/schema-systemGrabber.json</file>
 		<file alias="schema-blackborderdetector.json">schema/schema-blackborderdetector.json</file>
 		<file alias="schema-foregroundEffect.json">schema/schema-foregroundEffect.json</file>
 		<file alias="schema-backgroundEffect.json">schema/schema-backgroundEffect.json</file>
 		<file alias="schema-soundEffect.json">schema/schema-soundEffect.json</file>
-		<file alias="schema-jsonServer.json">schema/schema-jsonServer.json</file>
 		<file alias="schema-webConfig.json">schema/schema-webConfig.json</file>
 		<file alias="schema-effects.json">schema/schema-effects.json</file>
 		<file alias="schema-ledConfig.json">schema/schema-ledConfig.json</file>
 		<file alias="schema-leds.json">schema/schema-leds.json</file>
-		<file alias="schema-videoControl.json">schema/schema-videoControl.json</file>
 		<file alias="schema-systemControl.json">schema/schema-systemControl.json</file>
-		<file alias="schema-videoDetection.json">schema/schema-videoDetection.json</file>
 		<file alias="schema-network.json">schema/schema-network.json</file>
 		<file alias="schema-mqtt.json">schema/schema-mqtt.json</file>
-		<file alias="schema-automaticToneMapping.json">schema/schema-automaticToneMapping.json</file>
 		<file alias="schema-layout.json">schema/schema-layout.json</file>
 	</qresource>
 </RCC>

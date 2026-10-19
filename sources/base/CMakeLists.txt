@@ -12,8 +12,8 @@ add_library(base OBJECT
 )
 
 target_link_libraries(base
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 	infinite-engine
 )
 

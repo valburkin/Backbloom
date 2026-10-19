@@ -5,7 +5,6 @@
 #endif
 
 #include <utils/FileUtils.h>
-#include <base/LightingInstance.h>
 
 namespace FileUtils {
 

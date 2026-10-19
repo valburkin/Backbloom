@@ -1,0 +1,214 @@
+{
+ "backgroundEffect": {
+  "color": [
+   255,
+   138,
+   0
+  ],
+  "effect": "Rainbow swirl fast",
+  "enable": false,
+  "type": "effect"
+ },
+ "blackborderdetector": {
+  "blurRemoveCnt": 1,
+  "borderFrameCnt": 50,
+  "enable": false,
+  "maxInconsistentCnt": 10,
+  "mode": "default",
+  "threshold": 5,
+  "unknownFrameCnt": 600
+ },
+ "color": {
+  "channelAdjustment": [
+   {
+    "backlightColored": true,
+    "backlightThreshold": 0.0039,
+    "black": [
+     0,
+     0,
+     0
+    ],
+    "blue": [
+     0,
+     0,
+     255
+    ],
+    "classic_config": true,
+    "cyan": [
+     0,
+     255,
+     255
+    ],
+    "gamma": 1.5,
+    "green": [
+     0,
+     255,
+     0
+    ],
+    "luminanceGain": 1,
+    "magenta": [
+     255,
+     0,
+     255
+    ],
+    "powerLimit": 1,
+    "red": [
+     255,
+     0,
+     0
+    ],
+    "saturationGain": 1,
+    "scaleOutput": 1,
+    "temperatureBlue": 1,
+    "temperatureGreen": 1,
+    "temperatureRed": 1,
+    "temperatureSetting": "disabled",
+    "white": [
+     255,
+     255,
+     255
+    ],
+    "yellow": [
+     255,
+     255,
+     0
+    ]
+   }
+  ],
+  "imageToLedMappingType": "advanced",
+  "sparse_processing": false
+ },
+ "device": {
+  "type": "wled",
+  "host": "wled-mock.local",
+  "colorOrder": "rgb",
+  "refreshTime": 0,
+  "brightnessMax": true,
+  "brightnessMaxLevel": 255,
+  "maxRetry": 60,
+  "restoreOriginalState": false
+ },
+ "effects": {
+  "disable": [
+   ""
+  ],
+  "paths": [
+   "$ROOT/custom-effects"
+  ]
+ },
+ "foregroundEffect": {
+  "color": [
+   255,
+   0,
+   0
+  ],
+  "duration_ms": 3000,
+  "effect": "Rainbow swirl fast",
+  "enable": true,
+  "type": "effect"
+ },
+ "general": {
+  "disableLedsStartup": false,
+  "disableOnLocked": true,
+  "name": "My Overglow Config",
+  "showOptHelp": true,
+  "version": 6
+ },
+ "ledConfig": {
+  "classic": {
+   "bottom": 0,
+   "edgegap": 0,
+   "glength": 0,
+   "gpos": 0,
+   "groupX": 0,
+   "groupY": 0,
+   "hdepth": 8,
+   "left": 0,
+   "overlap": 0,
+   "pblh": 0,
+   "pblv": 100,
+   "pbrh": 100,
+   "pbrv": 100,
+   "position": 0,
+   "ptlh": 0,
+   "ptlv": 0,
+   "ptrh": 100,
+   "ptrv": 0,
+   "reverse": false,
+   "right": 0,
+   "top": 100,
+   "vdepth": 5
+  },
+  "matrix": {
+   "cabling": "snake",
+   "ledshoriz": 1,
+   "ledsvert": 1,
+   "start": "top-left"
+  }
+ },
+ "logger": {
+  "level": "warn"
+ },
+ "mqtt": {
+  "custom_topic": "",
+  "disableApiAccess": false,
+  "enable": false,
+  "host": "",
+  "ignore_ssl_errors": true,
+  "is_ssl": false,
+  "maxRetry": 0,
+  "password": "",
+  "port": 1883,
+  "username": ""
+ },
+ "network": {
+  "apiAuth": true,
+  "internetAccessAPI": false,
+  "ipWhitelist": [],
+  "localAdminAuth": true,
+  "localApiAuth": false,
+  "restirctedInternetAccessAPI": false
+ },
+ "smoothing": {
+  "antiFlickeringFilter": true,
+  "continuousOutput": false,
+  "damping": 26,
+  "enable": true,
+  "smoothingFactor": 0,
+  "stiffness": 150,
+  "time_ms": 150,
+  "type": "HybridRgbInterpolator",
+  "updateFrequency": 50
+ },
+ "soundEffect": {
+  "device": "Microphone (HD Pro Webcam C920)",
+  "enable": false,
+  "enable_smoothing": false
+ },
+ "systemControl": {
+  "systemInstanceEnable": true,
+  "systemInstancePriority": 245
+ },
+ "systemGrabber": {
+  "cropBottom": 0,
+  "cropLeft": 0,
+  "cropRight": 0,
+  "cropTop": 0,
+  "device": "\\\\.\\DISPLAY5|NVIDIA GeForce RTX 5080",
+  "fps": 30,
+  "hardware": true,
+  "hdrToneMapping": true,
+  "monitor_nits": 200,
+  "reorder_displays": 0,
+  "signalDetection": false,
+  "videoMode": 512
+ },
+ "webConfig": {
+  "crtPath": "",
+  "document_root": "",
+  "keyPassPhrase": "",
+  "keyPath": "",
+  "port": 8090,
+  "sslPort": 8092
+ }
+}

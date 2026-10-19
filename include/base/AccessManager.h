@@ -60,8 +60,6 @@ public slots:
 	QString getUserToken(const QString& usr = QString()) const;
 	QVector<AccessManager::AuthDefinition> getTokenList() const;
 	void handleSettingsUpdate(settings::type type, const QJsonDocument& config);
-	void savePipewire(const QString& wToken);
-	const QString loadPipewire();
 
 signals:
 	void newPendingTokenRequest(const QString& id, const QString& comment);	

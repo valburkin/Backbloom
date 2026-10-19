@@ -14,9 +14,7 @@ ComponentController::ComponentController(LightingInstance* lightingInstance, boo
 {
 	// init all comps to false
 	QVector<overglow::Components> vect;
-	vect << COMP_ALL << COMP_HDR << COMP_SMOOTHING << COMP_BLACKBORDER;
-
-	vect << COMP_VIDEOGRABBER << COMP_SYSTEMGRABBER << COMP_LEDDEVICE;
+	vect << COMP_ALL << COMP_SMOOTHING << COMP_BLACKBORDER << COMP_SYSTEMGRABBER << COMP_LEDDEVICE;
 	for (auto e : vect)
 	{
 		_componentStates.emplace(e, (e == COMP_ALL));
@@ -104,42 +102,38 @@ void ComponentController::setNewComponentState(overglow::Components comp, bool a
 	}
 }
 
-void ComponentController::turnGrabbers(bool activated, bool includingSystemGrabber, bool includingVideoGrabber)
+void ComponentController::turnGrabbers(bool activated)
 {
-	std::list<overglow::Components> components;
+	const overglow::Components component = COMP_SYSTEMGRABBER;
 
-	if (includingSystemGrabber) components.push_back(COMP_SYSTEMGRABBER);
-	if (includingVideoGrabber) components.push_back(COMP_VIDEOGRABBER);
-
-	for(const auto& component : components)
-		if (activated)
+	if (activated)
+	{
+		if (_prevGrabbers.contains(component))
 		{
-			if (_prevGrabbers.contains(component))
-			{
-				auto previousStatusIsEnabled = _prevGrabbers[component];
-				Info(_log, "Restoring {:s} state {:s} after resuming", componentToIdString(component), (previousStatusIsEnabled) ? "ON" : "OFF");
-				emit SignalRequestComponent(component, previousStatusIsEnabled);
-			}
-			_prevGrabbers.erase(component);
+			auto previousStatusIsEnabled = _prevGrabbers[component];
+			Info(_log, "Restoring {:s} state {:s} after resuming", componentToIdString(component), (previousStatusIsEnabled) ? "ON" : "OFF");
+			emit SignalRequestComponent(component, previousStatusIsEnabled);
 		}
-		else
+		_prevGrabbers.erase(component);
+	}
+	else
+	{
+		auto currentStatusIsEnabled = isComponentEnabled(component);
+		if (!_prevGrabbers.contains(component))
 		{
-			auto currentStatusIsEnabled = isComponentEnabled(component);
-			if (!_prevGrabbers.contains(component))
-			{
-				if (_prevComponentStates.contains(component))
-				{					
-					currentStatusIsEnabled = _prevComponentStates[component];
-					_prevComponentStates.erase(component);
-					Info(_log, "Component {:s} state {:s} was already saved when the instance was disabled. The value is now taken over by the grabber’s own resume procedure", componentToIdString(component), (currentStatusIsEnabled) ? "ON" : "OFF");
-				}
-				else
-				{
-					Info(_log, "Saving {:s} state {:s} before stopping", componentToIdString(component), (currentStatusIsEnabled) ? "ON" : "OFF");
-				}
-				_prevGrabbers.emplace(component, currentStatusIsEnabled);
+			if (_prevComponentStates.contains(component))
+			{					
+				currentStatusIsEnabled = _prevComponentStates[component];
+				_prevComponentStates.erase(component);
+				Info(_log, "Component {:s} state {:s} was already saved when the instance was disabled. The value is now taken over by the grabber’s own resume procedure", componentToIdString(component), (currentStatusIsEnabled) ? "ON" : "OFF");
 			}
-			if (currentStatusIsEnabled)
-				emit SignalRequestComponent(component, false);
+			else
+			{
+				Info(_log, "Saving {:s} state {:s} before stopping", componentToIdString(component), (currentStatusIsEnabled) ? "ON" : "OFF");
+			}
+			_prevGrabbers.emplace(component, currentStatusIsEnabled);
 		}
+		if (currentStatusIsEnabled)
+			emit SignalRequestComponent(component, false);
+	}
 }

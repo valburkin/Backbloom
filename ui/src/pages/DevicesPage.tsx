@@ -2,7 +2,10 @@ import { useState, type FormEvent } from 'react';
 import { Cpu, Loader2, Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
 import { controllerFromWledConfig, stripLedCount, type Controller } from '../layout';
 import { Badge, Button, Card, Dialog, EmptyState, IconButton, TextField } from '../components/ui';
-import { PageHeader } from '../components/PageHeader';
+import { PageFrame } from '../components/PageFrame';
+import { Callout } from '../components/form';
+import { usePageSettings } from '../app/config';
+import { DriverCard } from './devices/DriverCard';
 import { SaveBar } from '../components/SaveBar';
 import { useConnection } from '../app/connection';
 import { useEditor } from '../app/editor';
@@ -234,37 +237,57 @@ function ControllerCard({ controller }: { controller: Controller }) {
 
 export function DevicesPage() {
   const { state } = useEditor();
+  const { auth, requestLogin } = useConnection();
+  const ps = usePageSettings('devices', { 'device.host': 'Address', 'device.output': 'Port' });
   const [adding, setAdding] = useState(false);
   const controllers = state.spec.controllers;
   return (
-    <div className="flex h-full flex-col">
-      <PageHeader title="Devices" subtitle="The LED controllers your strips are wired to." actions={<SaveBar />} />
-      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl space-y-4 p-6">
-          {controllers.length > 1 && (
-            <div className="flex gap-3 rounded-xl border border-warn/30 bg-warn/10 p-4 text-[13px] text-warn">
-              <TriangleAlert size={18} className="shrink-0" />
-              <p>
-                Layouts with more than one controller can be designed here, but saving them isn’t supported yet. Keep a single controller to
-                save your layout.
-              </p>
-            </div>
-          )}
-          {controllers.length === 0 ? (
-            <Card>
-              <EmptyState icon={<Cpu size={28} />} title="No controllers yet">
-                Add the WLED controller your LED strips are connected to.
-              </EmptyState>
-            </Card>
-          ) : (
-            controllers.map((c) => <ControllerCard key={c.id} controller={c} />)
-          )}
-          <Button icon={<Plus size={16} />} onClick={() => setAdding(true)}>
-            Add WLED controller
-          </Button>
+    <PageFrame
+      title="Devices"
+      subtitle="Your LED controller: how Overglow reaches it, and the outputs your strips are wired to."
+      actions={<SaveBar />}
+      settings={ps}
+      gate={false}
+      unsavedLabel="LED driver settings changed"
+    >
+      {auth === 'admin' && ps.ready ? (
+        <DriverCard ps={ps} />
+      ) : auth === 'readOnly' ? (
+        <Callout tone="info">
+          <button type="button" className="font-medium text-accent-strong hover:underline" onClick={requestLogin}>
+            Sign in
+          </button>{' '}
+          to see and change the LED driver settings.
+        </Callout>
+      ) : null}
+      <div className="flex items-end justify-between gap-3 pt-2">
+        <div>
+          <h2 className="text-[15px] font-semibold">Outputs for the layout</h2>
+          <p className="text-[13px] text-ink-muted">The data outputs of your controller and the strips wired to them. Saved with the layout (top right).</p>
         </div>
       </div>
+      {controllers.length > 1 && (
+        <div className="flex gap-3 rounded-xl border border-warn/30 bg-warn/10 p-4 text-[13px] text-warn">
+          <TriangleAlert size={18} className="shrink-0" />
+          <p>
+            Layouts with more than one controller can be designed here, but saving them isn’t supported yet. Keep a single controller to
+            save your layout.
+          </p>
+        </div>
+      )}
+      {controllers.length === 0 ? (
+        <Card>
+          <EmptyState icon={<Cpu size={28} />} title="No controllers yet">
+            Add the WLED controller your LED strips are connected to.
+          </EmptyState>
+        </Card>
+      ) : (
+        controllers.map((c) => <ControllerCard key={c.id} controller={c} />)
+      )}
+      <Button icon={<Plus size={16} />} onClick={() => setAdding(true)}>
+        Add WLED controller
+      </Button>
       <AddControllerDialog open={adding} onClose={() => setAdding(false)} />
-    </div>
+    </PageFrame>
   );
 }

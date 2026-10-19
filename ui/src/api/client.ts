@@ -215,7 +215,10 @@ export class WsClient implements Backend {
     }
     if (!msg || typeof msg !== 'object') return;
     const tan = typeof msg.tan === 'number' ? msg.tan : undefined;
-    const p = tan !== undefined ? this.pending.get(tan) : undefined;
+    // Streams may echo the request's tan on their first event (the log history arrives as "logging-update"
+    // with the tan of "logging start", before the real reply); treat those as events.
+    const isEvent = typeof msg.command === 'string' && msg.command.endsWith('-update') && ('data' in msg || 'result' in msg);
+    const p = tan !== undefined && !isEvent ? this.pending.get(tan) : undefined;
     if (p && tan !== undefined) {
       this.pending.delete(tan);
       clearTimeout(p.timer);
@@ -224,8 +227,9 @@ export class WsClient implements Backend {
       else p.resolve(reply);
       return;
     }
-    if (typeof msg.command === 'string' && 'data' in msg) {
-      this.events.emitEvent({ command: msg.command, data: msg.data });
+    // Pushed events carry `data`; the log and LED streams use `result` instead.
+    if (typeof msg.command === 'string' && ('data' in msg || 'result' in msg)) {
+      this.events.emitEvent({ command: msg.command, data: 'data' in msg ? msg.data : msg.result });
     }
   }
 }

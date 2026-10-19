@@ -35,7 +35,8 @@
 class DiscoveryRecord
 {
 public:
-	enum Service { Unknown = 0, PeerInstance, WLED, PhilipsHue, HomeAssistant, Pico, ESP32_S2, ESP, SerialPort, REFRESH_ALL };
+	// WebUi is only advertised (so phones can find the web UI), the others are discovered
+	enum Service { Unknown = 0, WebUi, WLED, PhilipsHue, HomeAssistant, Pico, ESP32_S2, ESP, SerialPort, REFRESH_ALL };
 
 	Service type;
 	QString hostName;

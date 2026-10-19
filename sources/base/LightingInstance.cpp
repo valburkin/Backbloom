@@ -44,14 +44,11 @@
 #include <infinite-color-engine/InfiniteSmoothing.h>
 #include <effects/EffectEngine.h>
 #include <base/InstanceConfig.h>
-#include <base/VideoControl.h>
 #include <base/SystemControl.h>
-#include <base/GrabberWrapper.h>
 #include <base/ComponentController.h>
 #include <base/Muxer.h>
 #include <base/SoundCapture.h>
 #include <base/SystemWrapper.h>
-#include <base/GrabberHelper.h>
 #include <utils/Logger.h>
 #include <infinite-color-engine/InfiniteProcessing.h>
 #include <infinite-color-engine/CoreInfiniteEngine.h>
@@ -72,7 +69,6 @@ LightingInstance::LightingInstance(quint8 instance, bool disableOnStartup, QStri
 	, _ledDeviceWrapper(nullptr)
 	, _infinite(nullptr)
 	, _effectEngine(nullptr)
-	, _videoControl(nullptr)
 	, _systemControl(nullptr)
 	, _log("")
 	, _hwLedCount()
@@ -94,21 +90,19 @@ LightingInstance::~LightingInstance()
 	if (_muxer != nullptr)
 		clear(-1, true);
 
-	Info(_log, "[ 1/8] Releasing Overglow{:d}->VideoControl...", _instIndex);
-	_videoControl = nullptr;
-	Info(_log, "[ 2/8] Releasing Overglow{:d}->SystemControl...", _instIndex);
+	Info(_log, "[ 1/7] Releasing Overglow{:d}->SystemControl...", _instIndex);
 	_systemControl = nullptr;
-	Info(_log, "[ 3/8] Releasing Overglow{:d}->EffectEngine...", _instIndex);
+	Info(_log, "[ 2/7] Releasing Overglow{:d}->EffectEngine...", _instIndex);
 	_effectEngine = nullptr;
-	Info(_log, "[ 4/8] Releasing Overglow{:d}->InstanceConfiguration...", _instIndex);
+	Info(_log, "[ 3/7] Releasing Overglow{:d}->InstanceConfiguration...", _instIndex);
 	_instanceConfig = nullptr;
-	Info(_log, "[ 5/8] Releasing Overglow{:d}->LED driver wrapper...", _instIndex);
+	Info(_log, "[ 4/7] Releasing Overglow{:d}->LED driver wrapper...", _instIndex);
 	_ledDeviceWrapper = nullptr;
-	Info(_log, "[ 6/8] Releasing Overglow{:d}->InfiniteColorEngine...", _instIndex);
+	Info(_log, "[ 5/7] Releasing Overglow{:d}->InfiniteColorEngine...", _instIndex);
 	_infinite = nullptr;
-	Info(_log, "[ 7/8] Releasing Overglow{:d}->ComponentController...", _instIndex);
+	Info(_log, "[ 6/7] Releasing Overglow{:d}->ComponentController...", _instIndex);
 	_componentController = nullptr;
-	Info(_log, "[ 8/8] Releasing Overglow{:d}->Muxer...", _instIndex);
+	Info(_log, "[ 7/7] Releasing Overglow{:d}->Muxer...", _instIndex);
 	_muxer = nullptr;
 
 	_totalRunningCount--;
@@ -167,9 +161,7 @@ void LightingInstance::start()
 	_effectEngine = std::make_unique<EffectEngine>(this);
 	connect(this, &LightingInstance::SignalVisiblePriorityChanged, _effectEngine.get(), &EffectEngine::visiblePriorityChanged);
 
-	// create the Daemon capture interface
-	_videoControl = std::make_unique<VideoControl>(this);
-
+	// create the system capture interface
 	_systemControl = std::make_unique<SystemControl>(this);
 
 	// if there is no startup / background effect and no sending capture interface we probably want to push once BLACK (as PrioMuxer won't emit a priority change)
@@ -179,8 +171,6 @@ void LightingInstance::start()
 	QUEUE_CALL_2(this, handleSettingsUpdate,
 		settings::type, settings::type::BGEFFECT,
 		QJsonDocument, getSetting(settings::type::BGEFFECT));
-
-	emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_HDR, _instIndex, true);
 
 	// instance initiated, enter thread event loop
 	emit SignalInstanceJustStarted();
@@ -315,11 +305,6 @@ bool LightingInstance::saveSettings(const QJsonObject& config, bool correct)
 	return _instanceConfig->saveSettings(config, correct);
 }
 
-void LightingInstance::saveCalibration(QString saveData)
-{
-	_instanceConfig->saveSetting(settings::type::VIDEODETECTION, saveData);
-}
-
 void LightingInstance::setSmoothing(int time)
 {
 	QJsonDocument tempDoc = getSetting(settings::type::SMOOTHING);
@@ -409,8 +394,6 @@ void LightingInstance::setNewComponentState(overglow::Components component, bool
 	if (overglow::Components::COMP_LEDDEVICE == component)
 	{
 		emit GlobalSignals::getInstance()->SignalPerformanceStateChanged(state, overglow::PerformanceReportType::LED, getInstanceIndex());
-
-		emit SignalInstancePauseChanged(_instIndex, state);
 	}
 }
 
@@ -905,7 +888,6 @@ QJsonObject LightingInstance::getJsonInfo(bool full)
 	//    MISC    //
 	////////////////
 
-	info["videomodehdr"] = (_componentController->isComponentEnabled(overglow::Components::COMP_HDR)) ? 1 : 0;
 	info["leds"] = getSetting(settings::type::LEDS).array();
 	info["imageToLedMappingType"] = ImageToLedManager::mappingTypeToStr(_imageProcessor->getLedMappingType());
 
@@ -923,7 +905,7 @@ bool LightingInstance::getScanParameters(size_t led, double& hscanBegin, double&
 }
 
 
-void LightingInstance::turnGrabbers(bool active, bool includingSystemGrabber, bool includingVideoGrabber)
+void LightingInstance::turnGrabbers(bool active)
 {
-	_componentController->turnGrabbers(active, includingSystemGrabber, includingVideoGrabber);
+	_componentController->turnGrabbers(active);
 }

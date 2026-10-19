@@ -52,7 +52,6 @@ public slots:
 	void settings();
 	void setEffect(QString effect);
 	void clearEfxColor();	
-	void loop();
 	void close();
 	void setAutorunState();
 	void selectInstance();
@@ -64,9 +63,7 @@ private slots:
 
 private:
 
-	#ifdef _WIN32
-		bool getCurrentAutorunState();
-	#endif
+	bool getCurrentAutorunState();
 	std::unique_ptr<SystrayMenu>	_menu;
 	bool							_haveSystray;
 	std::weak_ptr<InstanceManager>	_instanceManager;

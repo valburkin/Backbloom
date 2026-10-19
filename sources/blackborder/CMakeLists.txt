@@ -8,8 +8,8 @@ FILE ( GLOB Blackborder_SOURCES "${CURRENT_HEADER_DIR}/*.h"  "${CURRENT_SOURCE_D
 add_library(blackborder	OBJECT ${Blackborder_SOURCES} )
 
 target_link_libraries(blackborder
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)

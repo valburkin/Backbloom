@@ -2,6 +2,7 @@
 
 #include <effects/AnimationBase.h>
 
+// Rotating rainbow (conical gradient), presets: "Rainbow swirl" and "Rainbow swirl fast"
 class Animation_Swirl : public AnimationBase
 {
 public:
@@ -11,12 +12,8 @@ public:
 		uint8_t items[5];
 	};
 
-	struct SwirlColor
-	{
-		uint8_t items[4];
-	};
-
-	Animation_Swirl();
+	// rotationTime: duration of one full rotation [s]
+	explicit Animation_Swirl(double rotationTime);
 
 	void Init(
 		HyperImage& hyperImage,
@@ -26,36 +23,12 @@ public:
 
 private:
 
-	Point2d getPoint(const HyperImage& hyperImage, bool random, double x, double y);
-	int   getSTime(int hyperLatchTime, int _rt, double steps);
+	static int getSTime(int hyperLatchTime, int _rt, double steps = 360);
 
-	void  buildGradient(std::vector<Animation_Swirl::SwirlGradient>& ba, bool withAlpha, std::vector<Animation_Swirl::SwirlColor> cc, bool closeCircle);
-	static bool  imageConicalGradient(HyperImage& painter, int centerX, int centerY, int angle, const std::vector<Animation_Swirl::SwirlGradient>& bytearray, bool reset);
+	static EffectDefinition definition(const char* name, double rotationTime, int smoothingTime = 0, int smoothingFrequency = 0);
+	static bool isRegistered;
 
-	Point2d pointS1;
-	Point2d pointS2;
-
-	int angle;
-	int angle2;
-	bool   S2;
-
-	int increment;
-	int increment2;
-	std::vector<Animation_Swirl::SwirlGradient> baS1, baS2;
-
-
-protected:
-
-	double rotation_time;
-	bool reverse;
-	double center_x;
-	double center_y;
-	bool random_center;
-	std::vector<Animation_Swirl::SwirlColor> custom_colors;
-	bool enable_second;
-	bool reverse2;
-	double center_x2;
-	double center_y2;
-	bool random_center2;
-	std::vector<Animation_Swirl::SwirlColor> custom_colors2;
+	const double _rotationTime;
+	int _angle;
+	std::vector<Animation_Swirl::SwirlGradient> _gradient;
 };

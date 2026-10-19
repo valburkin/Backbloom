@@ -11,8 +11,8 @@ add_library(json-utils OBJECT
 )
 
 target_link_libraries(json-utils
-	Qt${Qt_VERSION}::Core
-	Qt${Qt_VERSION}::Network
+	Qt6::Core
+	Qt6::Network
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)

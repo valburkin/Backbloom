@@ -2,9 +2,7 @@
 #include <utils/InternalClock.h>
 
 #include <OverglowConfig.h>
-#ifdef ENABLE_BONJOUR
-	#include <bonjour/DiscoveryWrapper.h>
-#endif
+#include <bonjour/DiscoveryWrapper.h>
 
 DriverNetHomeAssistant::DriverNetHomeAssistant(const QJsonObject& deviceConfig)
 	: LedDevice(deviceConfig),
@@ -298,7 +296,6 @@ QJsonObject DriverNetHomeAssistant::discover(const QJsonObject& /*params*/)
 	QJsonArray deviceList;
 	devicesDiscovered.insert("ledDeviceType", _activeDeviceType);
 
-#ifdef ENABLE_BONJOUR
 	std::shared_ptr<DiscoveryWrapper> bonInstance = _discoveryWrapper.lock();
 	if (bonInstance != nullptr)
 	{
@@ -314,9 +311,6 @@ QJsonObject DriverNetHomeAssistant::discover(const QJsonObject& /*params*/)
 			deviceList.push_back(newIp);
 		}
 	}
-#else
-	Error(_log, "The Network Discovery Service was mysteriously disabled while the maintainer was compiling this version of Overglow");
-#endif	
 
 	devicesDiscovered.insert("devices", deviceList);
 	Debug(_log, "devicesDiscovered: [{:s}]", QString(QJsonDocument(devicesDiscovered).toJson(QJsonDocument::Compact)).toUtf8().constData());

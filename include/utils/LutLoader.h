@@ -6,19 +6,30 @@
 	#include <QFile>
 #endif
 
-#include <utils/PixelFormat.h>
 #include <image/MemoryBuffer.h>
 #include <utils/Logger.h>
 
-class LutLoader {
-	public:
-		int		_hdrToneMappingEnabled = 0;
-		bool	_lutBufferInit = false;
+// Byte offset of an RGB triplet in a 256x256x256 HDR tone mapping table (red is the fastest changing index)
+constexpr uint32_t LUT_INDEX(uint32_t r, uint32_t g, uint32_t b)
+{
+	return (r + (g << 8) + (b << 16)) * 3;
+}
 
-		MemoryBuffer<uint8_t>	_lut;		
+// Loads the HDR to SDR tone mapping table of the system grabber from 'lut_lin_tables.3d' (or its '.zst'
+// compressed variant). Files with the legacy layout of three tables (HDR RGB, HDR YUV, YUV) are accepted too:
+// the HDR RGB table comes first in both layouts.
+class LutLoader
+{
+public:
+	static constexpr int TABLE_SIZE = 256 * 256 * 256 * 3;
 
-		void loadLutFile(const LoggerName& _log, PixelFormat color, const QList<QString>& files);
-	private:
-		bool decompressLut(const LoggerName& _log, QFile& file, int index);
-		void hasher(int index, const LoggerName& _log);
+	bool load(const LoggerName& log, const QList<QString>& files);
+	bool isLoaded() const;
+	const uint8_t* data() const;
+
+private:
+	bool decompress(const LoggerName& log, QFile& file);
+
+	bool _loaded = false;
+	MemoryBuffer<uint8_t> _lut;
 };

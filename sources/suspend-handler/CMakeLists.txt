@@ -2,33 +2,12 @@
 SET(CURRENT_HEADER_DIR ${CMAKE_SOURCE_DIR}/include/suspend-handler)
 SET(CURRENT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/sources/suspend-handler)
 
-if (ENABLE_POWER_MANAGEMENT)
-	if(WIN32)
-		list(APPEND SUSPEND_HANDLER_SOURCES ${CURRENT_HEADER_DIR}/SuspendHandlerWindows.h)
-		list(APPEND SUSPEND_HANDLER_SOURCES ${CURRENT_SOURCE_DIR}/SuspendHandlerWindows.cpp)
-	else()
-		if(APPLE)
-			find_library(APPKIT_FRAMEWORK AppKit REQUIRED)
-			list(APPEND SUSPEND_HANDLER_SOURCES ${CURRENT_HEADER_DIR}/SuspendHandlerMacOS.h)
-			list(APPEND SUSPEND_HANDLER_SOURCES ${CURRENT_SOURCE_DIR}/SuspendHandlerMacOS.mm)
-		else()
-			list(APPEND SUSPEND_HANDLER_SOURCES ${CURRENT_HEADER_DIR}/SuspendHandlerLinux.h)
-			list(APPEND SUSPEND_HANDLER_SOURCES ${CURRENT_HEADER_DIR}/SuspendHandlerLinuxDBus.h)
-			list(APPEND SUSPEND_HANDLER_SOURCES ${CURRENT_SOURCE_DIR}/SuspendHandlerLinux.cpp)			
-		endif()
-	endif()
-else()
-	list(APPEND SUSPEND_HANDLER_SOURCES ${CURRENT_HEADER_DIR}/SuspendHandlerDummy.h)
-	list(APPEND SUSPEND_HANDLER_SOURCES ${CURRENT_SOURCE_DIR}/SuspendHandlerDummy.cpp)
-endif()
+add_library(suspend-handler OBJECT
+	${CURRENT_HEADER_DIR}/SuspendHandlerWindows.h
+	${CURRENT_SOURCE_DIR}/SuspendHandlerWindows.cpp
+)
+target_link_libraries(suspend-handler PUBLIC Qt6::Core Qt6::Network)
 
-add_library(suspend-handler OBJECT ${SUSPEND_HANDLER_SOURCES} )
-target_link_libraries(suspend-handler PUBLIC ${APPKIT_FRAMEWORK} Qt${Qt_VERSION}::Core Qt${Qt_VERSION}::Network)
-
-if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers AND NOT APPLE)
+if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
 	target_precompile_headers(suspend-handler REUSE_FROM precompiled_headers)
-endif()
-
-if(ENABLE_POWER_MANAGEMENT AND UNIX AND NOT APPLE)
-	target_link_libraries(suspend-handler PUBLIC micro-dbus)
 endif()

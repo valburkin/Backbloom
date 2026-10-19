@@ -27,7 +27,7 @@ signals:
 
 public slots:
 	void setNewComponentState(overglow::Components comp, bool activated);
-	void turnGrabbers(bool activated, bool includingSystemGrabber, bool includingVideoGrabber);
+	void turnGrabbers(bool activated);
 
 private slots:
 	void handleCompStateChangeRequest(overglow::Components comps, bool activated);

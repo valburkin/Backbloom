@@ -7,12 +7,7 @@ service itself.
 
 ## Platforms
 
-- **Windows 10/11 x64** — the primary, tested platform (DirectX 11 screen capture, including HDR displays).
-- Linux (x64/ARM, X11 and PipeWire capture) and macOS (system screen capture) build from the
-  same sources, but are not currently tested or packaged.
-
-USB capture cards (Media Foundation/V4L2/AVFoundation) are supported by the sources but are off in the
-Windows product build (`-DENABLE_MF=ON` enables them).
+Windows 10/11 x64 (DirectX 11 screen capture, including HDR displays).
 
 ## LED devices
 
@@ -26,8 +21,7 @@ MQTT control and mDNS discovery are built in.
 
 ## Building
 
-- Windows: [BUILDING-WINDOWS.md](BUILDING-WINDOWS.md)
-- Linux/macOS: [BUILDING.md](BUILDING.md)
+See [BUILDING-WINDOWS.md](BUILDING-WINDOWS.md).
 
 The new web UI lives in [`ui/`](ui) (React, `npm install && npm run build`); the original web UI in
 [`www/`](www) is still served until the new one reaches feature parity.

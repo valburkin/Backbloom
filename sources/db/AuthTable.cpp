@@ -28,15 +28,6 @@ bool AuthTable::createUser(const QString& user, const QString& pw)
 	return createRecord(cond, map);
 }
 
-void AuthTable::savePipewire(const QString& wToken)
-{
-	QVariantMap map;
-	map["portal_token"] = wToken;
-
-	VectorPair cond;
-	updateRecord(cond, map);
-}
-
 
 bool AuthTable::userExist(const QString& user)
 {
@@ -54,16 +45,6 @@ bool AuthTable::isUserAuthorized(const QString& user, const QString& pw)
 		return true;
 	}
 	return false;
-}
-
-const QString AuthTable::loadPipewire()
-{
-	QVariantMap results;
-	VectorPair cond;
-
-	getRecord(cond, results, QStringList() << "portal_token");
-
-	return results["portal_token"].toString();
 }
 
 bool AuthTable::isUserTokenAuthorized(const QString& usr, const QString& token)

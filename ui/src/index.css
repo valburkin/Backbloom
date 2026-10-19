@@ -82,3 +82,27 @@ input[type="number"]::-webkit-inner-spin-button {
     animation: none;
   }
 }
+
+/* Hue slider of the color picker. */
+.hue-range {
+  appearance: none;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+.hue-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.hue-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}

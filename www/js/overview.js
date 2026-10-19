@@ -48,15 +48,6 @@ $(document).ready(function ()
 
 	putInstanceName(document.getElementById("compent_status_header"));
 
-	function updateGrabber()
-	{
-		if (window.serverInfo.grabberstate != null)
-		{
-			$("#dash_current_video_device").html(window.serverInfo.grabberstate.device);
-			$("#dash_current_video_mode").html(window.serverInfo.grabberstate.videoMode);
-		}
-	}
-
 	function insertReport(report)
 	{
 		let inserted = false;
@@ -74,16 +65,7 @@ $(document).ready(function ()
 				{
 					performance.splice(i, 1);
 
-					if (report.type == 1)
-					{
-						document.getElementById("perf_usb_data_holder").innerHTML = "";
-						let grabberContainer = document.getElementById("perf_grabber_data");
-						if (grabberContainer != null)
-						{
-							grabberContainer.classList.add("d-none");
-						}
-					}
-					else if (report.type == 2 || report.type == 3)
+					if (report.type == 2 || report.type == 3)
 					{
 						let holder = document.getElementById("perf_per_instance_data_row" + report.id);
 
@@ -142,26 +124,7 @@ $(document).ready(function ()
 
 			curElem.rendered = true;
 
-			if (curElem.type == 1)
-			{
-				let render = (curElem.token <= 0) ? waitingSpinner :
-					`<span class="card-tools"><span class="badge bg-secondary" style="font-size: 1em;font-weight: normal;">${curElem.param1.toFixed(1)} fps</span></span>` +
-					` <small>&nbsp;${curElem.param2}ms</small><svg data-src="svg/performance_clock.svg" fill="currentColor" class="svg-icon ms-1 me-2"></svg><small>${curElem.param3}</small><svg data-src="svg/performance_two_ways.svg" fill="currentColor" class="svg-icon ms-0 me-0"></svg>`+
-					((curElem.param4 != 0)?`, ${$.i18n("perf_invalid_frames")}: <small>${curElem.param4}</small>`:``);
-				render += ` <span class='perf_counter small text-muted'>(${curElem.refresh})</span>`;
-
-				let content = document.getElementById("perf_usb_data_holder");
-
-				if (content!=null)
-					content.innerHTML = render;
-				
-				let grabberContainer = document.getElementById("perf_grabber_data");
-				if (grabberContainer != null)
-				{
-					grabberContainer.classList.remove("d-none");
-				}
-			}
-			else if (curElem.type == 2 || curElem.type == 3)
+			if (curElem.type == 2 || curElem.type == 3)
 			{
 				let idElem = "perf_per_instance_data_row" + curElem.id;
 				let holder = document.getElementById(idElem);
@@ -309,12 +272,7 @@ $(document).ready(function ()
 							  '</div>';
 		for (var idx = 0; idx < components.length; idx++)
 		{
-			if (components[idx].name === "VIDEOGRABBER")
-			{
-				if (window.serverInfo.grabbers == null || Object.keys(window.serverInfo.grabbers).length === 0)
-					continue;
-			}
-			else if (components[idx].name === "SYSTEMGRABBER")
+			if (components[idx].name === "SYSTEMGRABBER")
 			{
 				if (window.serverInfo.systemGrabbers == null || Object.keys(window.serverInfo.systemGrabbers).length === 0)
 					continue;
@@ -385,23 +343,10 @@ $(document).ready(function ()
 	//determine platform
 	var html = "";
 
-	if (window.serverInfo.grabbers != null && window.serverInfo.grabbers != undefined &&
-		window.serverInfo.grabbers.active != null && window.serverInfo.grabbers.active != undefined)
-	{
-		var grabbers = window.serverInfo.grabbers.active;
-		if (grabbers.indexOf('Media Foundation') > -1)
-			html += 'Windows (Microsoft Media Foundation)';
-		else if (grabbers.indexOf('macOS AVF') > -1)
-			html += 'macOS (AVF)';
-		else if (grabbers.indexOf('V4L2') > -1)
-			html += 'Linux (V4L2)';
-		else
-			html += 'Unknown';
-	}
+	if (window.serverInfo.systemGrabbers != null)
+		html = 'Windows (' + window.serverInfo.systemGrabbers.device + ')';
 	else
-	{
 		html = 'None';
-	}
 
 	$('#dash_platform').html(html);
 
@@ -409,11 +354,9 @@ $(document).ready(function ()
 	//interval update
 	updateComponents();
 	updateNetworkServices();
-	updateGrabber();
 
 	$(window.serverEvents).on("components-updated", updateComponents);
 	$(window.serverEvents).off("cmd-sessions-received").on("cmd-sessions-received", updateNetworkServices);
-	$(window.serverEvents).on("grabberstate-update", updateGrabber);
 
 	sendToInstance("serverinfo", "", '"subscribe":["performance-update"]');
 	$(window.serverEvents).off("cmd-performance-update").on("cmd-performance-update", function (event)

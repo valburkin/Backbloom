@@ -30,15 +30,7 @@
 	#include <list>
 #endif
 
-#ifndef _WIN32
-	#include <unistd.h>
-#else
-	#include <windows.h>
-#endif
-
-#ifdef __APPLE__
-	#include <ApplicationServices/ApplicationServices.h>
-#endif
+#include <windows.h>
 
 #include <QBuffer>
 #include <QByteArray>
@@ -61,43 +53,6 @@
 #include "AppDaemon.h"
 #include "SystrayHandler.h"
 
-#ifdef __linux__
-#define SYSTRAY_WIDGET_LIB "libsystray-widget.so"
-#include <cstdlib>
-#include <dlfcn.h>
-#include <QStandardPaths>
-#include <QSaveFile>
-#include <QRegularExpression>
-
-namespace
-{
-	void* _library = nullptr;
-	SystrayInitializeFun SystrayInitialize = nullptr;
-	SystrayLoopFun SystrayLoop = nullptr;
-	SystrayUpdateFun SystrayUpdate = nullptr;
-	SystrayCloseFun SystrayClose = nullptr;
-	SystrayDarkmodeFun SystrayDarkmode = nullptr;
-
-	QString makeIconName(const QString& filename)
-	{
-		QString name = QFileInfo(filename).completeBaseName();
-		name.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_-]+")), QStringLiteral("-"));
-		while (name.contains(QStringLiteral("--")))
-			name.replace(QStringLiteral("--"), QStringLiteral("-"));
-		name = name.trimmed();
-		if (!name.startsWith(QStringLiteral("overglow-"), Qt::CaseInsensitive))
-			name.prepend(QStringLiteral("overglow-"));
-		return name;
-	}
-}
-#endif
-
-#if defined(__linux__) || defined(__APPLE__)
-namespace {
-	bool isDarkMode = false;
-}
-#endif
-
 SystrayHandler::SystrayHandler(AppDaemon* appDaemon, quint16 webPort, QString rootFolder)
 	: QObject(),
 	_menu(nullptr),
@@ -114,40 +69,7 @@ SystrayHandler::SystrayHandler(AppDaemon* appDaemon, quint16 webPort, QString ro
 	connect(instanceManager.get(), &InstanceManager::SignalInstanceStateChanged, this, &SystrayHandler::signalInstanceStateChangedHandler);
 	connect(instanceManager.get(), &InstanceManager::SignalSettingsChanged, this, &SystrayHandler::signalSettingsChangedHandler);
 
-#ifdef __linux__
-	// Load library
-	_library = dlopen(SYSTRAY_WIDGET_LIB, RTLD_NOW);
-
-	if (_library)
-	{
-		SystrayInitialize = (SystrayInitializeFun)dlsym(_library, "SystrayInitialize");
-		SystrayLoop = (SystrayLoopFun)dlsym(_library, "SystrayLoop");
-		SystrayUpdate = (SystrayUpdateFun)dlsym(_library, "SystrayUpdate");
-		SystrayClose = (SystrayCloseFun)dlsym(_library, "SystrayClose");
-		SystrayDarkmode = (SystrayDarkmodeFun)dlsym(_library, "SystrayDarkmode");
-
-		if (SystrayInitialize == nullptr || SystrayLoop == nullptr || SystrayUpdate == nullptr || SystrayClose == nullptr || SystrayDarkmode == nullptr)
-		{
-			printf("Could not resolve libSystrayWidget.so functions\n");
-			dlclose(_library);
-			_library = nullptr;
-		}
-	}
-	else
-		printf("Could not load libSystrayWidget.so library\n");
-
-	if (_library != nullptr)
-		_haveSystray = SystrayInitialize(nullptr);
-#else
 	_haveSystray = SystrayInitialize(nullptr);
-#endif
-
-#if defined(__linux__) || defined(__APPLE__)
-	if (_haveSystray) {
-		isDarkMode = SystrayDarkmode();
-		qDebug().nospace() << "System theme mode: " << ((isDarkMode) ? "dark" : "standard");
-	}
-#endif
 }
 
 SystrayHandler::~SystrayHandler()
@@ -155,25 +77,11 @@ SystrayHandler::~SystrayHandler()
 	printf("Releasing SysTray\n");
 	if (_haveSystray)
 		SystrayClose();
-
-#ifdef __linux__
-	if (_library != nullptr)
-	{
-		dlclose(_library);
-		_library = nullptr;
-	}
-#endif
 }
 
 bool SystrayHandler::isInitialized()
 {
 	return _haveSystray;
-}
-
-void SystrayHandler::loop()
-{
-	if (_haveSystray)
-		SystrayLoop();
 }
 
 void SystrayHandler::close()
@@ -205,68 +113,16 @@ static void loadSvg(std::unique_ptr<SystrayMenu>& menu, QString filename, [[mayb
 		return;
 
 	int iconDim = 16;
-#ifdef __APPLE__
-	iconDim = 18;
-#elif defined(__linux__)
-	iconDim = 22;
-#endif
 
 	if (filename == ":/tray-icon.svg")
 		iconDim = 32;
 
-#ifdef __linux__
-	menu->iconName.clear();
-
-	const QString iconsRoot = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/icons");
-	const QString iconName = makeIconName(destFilename.isEmpty() ? QFileInfo(filename).fileName() : destFilename);
-	if (!iconsRoot.isEmpty() && !iconName.isEmpty())
-	{
-		if (QString targetDir = QDir(iconsRoot).filePath(QStringLiteral("hicolor/%1/apps").arg(QStringLiteral("%1x%1").arg(iconDim))); QDir().mkpath(targetDir))
-		{
-			QString target = QDir(targetDir).filePath(iconName + QStringLiteral(".png"));
-			if (!QFileInfo::exists(target))
-			{
-				std::vector<uint8_t> data;
-				QString svgFile = preloadSvg(filename);
-				
-				const QString clearColor = isDarkMode ? QStringLiteral("#F4A100") : QStringLiteral("#996A00");
-				const QString settingsColor = isDarkMode ? QStringLiteral("#33D17A") : QStringLiteral("#0E8420");
-
-				if (filename.contains(QStringLiteral("clear.svg"), Qt::CaseInsensitive))
-					svgFile.replace(QStringLiteral("fill=\"black\""), QString("fill=\"%1\"").arg(clearColor));
-				else if (filename.contains(QStringLiteral("settings.svg"), Qt::CaseInsensitive))
-					svgFile.replace(QStringLiteral("fill=\"black\""), QString("fill=\"%1\"").arg(settingsColor));
-
-				utils_image::svg2png(svgFile.toStdString(), iconDim, iconDim, data);
-				if (data.empty())
-					return;
-
-				QSaveFile file(target);
-				if (!file.open(QIODevice::WriteOnly) ||
-					file.write(reinterpret_cast<const char*>(data.data()), static_cast<qint64>(data.size())) != static_cast<qint64>(data.size()) ||
-					!file.commit())
-				{
-					qWarning() << "Systray: cannot write Linux tray icon" << target;
-					return;
-				}
-			}
-			menu->iconName = iconName.toStdString();
-		}
-	}
-#else
 	std::vector<uint8_t> ar;
 	QString svgFile = preloadSvg(filename);
-	#ifdef __APPLE__
-	if (filename.indexOf(":/") == 0 && isDarkMode)
-	{
-		svgFile.replace("fill=\"black\"", "fill=\"white\"");
-	}
-	#endif
 	utils_image::svg2png(svgFile.toStdString(), iconDim, iconDim, ar);
 
 	menu->icon.resize(ar.size());
 	memcpy(menu->icon.data(), ar.data(), ar.size());
-#endif
 }
 
 void SystrayHandler::createSystray()
@@ -447,8 +303,6 @@ void SystrayHandler::createSystray()
 		}
 	};
 
-
-#ifdef _WIN32
 	std::unique_ptr<SystrayMenu> separator3 = std::unique_ptr<SystrayMenu>(new SystrayMenu);
 	separator3->label = "-";
 
@@ -463,22 +317,16 @@ void SystrayHandler::createSystray()
 			QUEUE_CALL_0(sh, setAutorunState);
 		}
 	};
-#endif
 
 	std::swap(separator2->next, quitMenu);
 	std::swap(clearMenu->next, separator2);
 	std::swap(effectsMenu->next, clearMenu);
 	std::swap(colorMenu->next, effectsMenu);
 
-#ifdef _WIN32
 	std::swap(instances->next, colorMenu);
 	std::swap(separator3->next, instances);
 	std::swap(autostartMenu->next, separator3);
 	std::swap(separator1->next, autostartMenu);
-#else
-	std::swap(instances->next, colorMenu);
-	std::swap(separator1->next, instances);
-#endif
 
 	std::swap(settingsMenu->next, separator1);	
 	std::swap(mainMenu->submenu, settingsMenu);
@@ -487,24 +335,20 @@ void SystrayHandler::createSystray()
 	std::swap(_menu, mainMenu);
 }
 
-#ifdef _WIN32
 bool SystrayHandler::getCurrentAutorunState()
 {	
 	QSettings reg("HKEY_CURRENT_USER\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", QSettings::NativeFormat);
 	return reg.value("Overglow", 0).toString() == qApp->applicationFilePath().replace('/', '\\');
 }
-#endif
 
 void SystrayHandler::setAutorunState()
 {
-	#ifdef _WIN32
-		bool currentState = getCurrentAutorunState();
-		QSettings reg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", QSettings::NativeFormat);
-		(currentState)
-			? reg.remove("Overglow")
-			: reg.setValue("Overglow", qApp->applicationFilePath().replace('/', '\\'));
-		QUEUE_CALL_0(this, createSystray);
-	#endif
+	bool currentState = getCurrentAutorunState();
+	QSettings reg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", QSettings::NativeFormat);
+	(currentState)
+		? reg.remove("Overglow")
+		: reg.setValue("Overglow", qApp->applicationFilePath().replace('/', '\\'));
+	QUEUE_CALL_0(this, createSystray);
 }
 
 void SystrayHandler::selectInstance()
@@ -522,62 +366,10 @@ void SystrayHandler::setColor(ColorRgb color)
 
 void SystrayHandler::settings()
 {
-#ifndef _WIN32
-	// Hide error messages when opening webbrowser
-
-	int out_pipe[2];
-	int saved_stdout;
-	int saved_stderr;
-
-	// saving stdout and stderr file descriptor
-	saved_stdout = ::dup(STDOUT_FILENO);
-	saved_stderr = ::dup(STDERR_FILENO);
-
-	if (::pipe(out_pipe) == 0)
-	{
-		// redirecting stdout to pipe
-		::dup2(out_pipe[1], STDOUT_FILENO);
-		::close(out_pipe[1]);
-		// redirecting stderr to stdout
-		::dup2(STDOUT_FILENO, STDERR_FILENO);
-	}
-#endif
-
 	QString link = QString("http://localhost:%1/").arg(_webPort);
 
-#ifdef _WIN32
 	const wchar_t* array = (const wchar_t*)link.utf16();
 	ShellExecuteW(0, 0, array, 0, 0, SW_SHOW);
-#endif
-
-#ifdef __linux__
-	QString command = QString("xdg-open %1").arg(link);
-	QByteArray commandUtf8 = command.toUtf8();
-	if (system((commandUtf8.constData())) == -1)
-	{
-		printf("xdg-open <http_link> failed. xdg-utils package is required.\n");
-	}
-#endif
-	
-#ifdef __APPLE__
-	std::string slink = link.toStdString();
-	CFURLRef url = CFURLCreateWithBytes(
-		NULL,                       
-		(UInt8*)slink.c_str(),
-		slink.length(),
-		kCFStringEncodingASCII,
-		NULL
-	);
-	LSOpenCFURLRef(url, 0);
-	CFRelease(url);
-#endif
-
-#ifndef _WIN32
-	// restoring stdout
-	::dup2(saved_stdout, STDOUT_FILENO);
-	// restoring stderr
-	::dup2(saved_stderr, STDERR_FILENO);
-#endif
 }
 
 void SystrayHandler::setEffect(QString effect)

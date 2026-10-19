@@ -86,7 +86,6 @@ void BonjourServiceRegister::requestToScanHandler(DiscoveryRecord::Service type)
 {
 	switch (type)
 	{
-		case (DiscoveryRecord::Service::PeerInstance): _helper->_scanService |= (1 << DiscoveryRecord::Service::PeerInstance); break;
 		case (DiscoveryRecord::Service::WLED): _helper->_scanService |= (1 << DiscoveryRecord::Service::WLED); break;
 		case (DiscoveryRecord::Service::PhilipsHue): _helper->_scanService |= (1 << DiscoveryRecord::Service::PhilipsHue); break;
 		case (DiscoveryRecord::Service::HomeAssistant): _helper->_scanService |= (1 << DiscoveryRecord::Service::HomeAssistant); break;
@@ -105,8 +104,6 @@ void BonjourServiceRegister::messageFromFriendHandler(bool isExists, QString mdn
 		type = DiscoveryRecord::Service::PhilipsHue;
 	else if (mdnsString.indexOf(DiscoveryRecord::getmDnsHeader(DiscoveryRecord::Service::HomeAssistant)) >= 0)
 		type = DiscoveryRecord::Service::HomeAssistant;
-	else if (mdnsString.indexOf(DiscoveryRecord::getmDnsHeader(DiscoveryRecord::Service::PeerInstance)) >= 0)
-		type = DiscoveryRecord::Service::PeerInstance;
 
 	if (type != DiscoveryRecord::Service::Unknown)
 	{
