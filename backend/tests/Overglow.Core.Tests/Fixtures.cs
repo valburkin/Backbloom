@@ -1,13 +1,12 @@
-using System.Numerics;
 using System.Text.Json.Nodes;
 using Overglow.Core.Imaging;
 
 namespace Overglow.Core.Tests;
 
 /// <summary>
-/// Golden fixture files under backend/tests/fixtures (copied next to the test binaries). Hand-written fixtures and
-/// the ones exported from the C++ reference build share one format per folder (see backend/README.md), so exported
-/// files can simply be dropped into the folder and are picked up by the theories.
+/// Golden fixture files under backend/tests/fixtures (copied next to the test binaries): exported from the C++
+/// reference by tests/golden (cpp-*.json) or hand-written (hand-*.json), one format per folder (see backend/README.md);
+/// the theories pick up every file of a folder.
 /// </summary>
 internal static class Fixtures
 {
@@ -26,30 +25,6 @@ internal static class Fixtures
         }
 
         return data;
-    }
-
-    public static Vector3 ReadVector(JsonNode? node)
-    {
-        var a = node?.AsArray() ?? throw new InvalidDataException("Expected [r, g, b].");
-        return new Vector3(a[0]!.GetValue<float>(), a[1]!.GetValue<float>(), a[2]!.GetValue<float>());
-    }
-
-    /// <summary>
-    /// Builds a BGRA frame from a fixture <c>frame</c> object: <c>{ width, height, rgb: "hex" }</c> where
-    /// <c>rgb</c> is row-major 8-bit RGB (the C++ <c>Image&lt;ColorRgb&gt;</c> memory layout).
-    /// </summary>
-    public static Frame ReadFrame(JsonNode? node)
-    {
-        var o = node?.AsObject() ?? throw new InvalidDataException("Expected a frame object.");
-        var width = o["width"]!.GetValue<int>();
-        var height = o["height"]!.GetValue<int>();
-        var rgb = Convert.FromHexString(o["rgb"]!.GetValue<string>().Replace(" ", "", StringComparison.Ordinal));
-        if (rgb.Length != width * height * 3)
-        {
-            throw new InvalidDataException($"Frame data has {rgb.Length} bytes, expected {width * height * 3}.");
-        }
-
-        return TestFrames.FromRgb(width, height, rgb);
     }
 }
 

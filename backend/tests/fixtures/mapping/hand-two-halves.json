@@ -1,13 +1,7 @@
 {
   "source": "hand-computed",
   "description": "Left half red, right half blue; per-half LEDs, a full-frame LED, a disabled LED and a two-LED group.",
-  "frame": {
-    "width": 4,
-    "height": 2,
-    "rgb": "ff0000 ff0000 0000ff 0000ff ff0000 ff0000 0000ff 0000ff"
-  },
-  "mappingType": "advanced",
-  "sparseProcessing": false,
+  "tolerance": 1e-7,
   "leds": [
     { "hmin": 0, "hmax": 0.5, "vmin": 0, "vmax": 1, "group": 0 },
     { "hmin": 0.5, "hmax": 1, "vmin": 0, "vmax": 1, "group": 0 },
@@ -16,13 +10,16 @@
     { "hmin": 0, "hmax": 0.5, "vmin": 0, "vmax": 1, "group": 7 },
     { "hmin": 0.5, "hmax": 1, "vmin": 0, "vmax": 1, "group": 7 }
   ],
-  "tolerance": 1e-7,
-  "expected": [
-    [1, 0, 0],
-    [0, 0, 1],
-    [0.5, 0, 0.5],
-    [0, 0, 0],
-    [0.5, 0, 0.5],
-    [0.5, 0, 0.5]
+  "cases": [
+    {
+      "image": { "kind": "hex", "rgb": "ff0000 ff0000 0000ff 0000ff ff0000 ff0000 0000ff 0000ff" },
+      "width": 4,
+      "height": 2,
+      "mappingType": "advanced",
+      "sparseProcessing": false,
+      "horizontalBorder": 0,
+      "verticalBorder": 0,
+      "expected": [[1, 0, 0], [0, 0, 1], [0.5, 0, 0.5], [0, 0, 0], [0.5, 0, 0.5], [0.5, 0, 0.5]]
+    }
   ]
 }

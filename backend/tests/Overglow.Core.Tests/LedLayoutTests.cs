@@ -43,6 +43,18 @@ public sealed class LedLayoutTests
     }
 
     [Fact]
+    public void FromJson_GroupMustBeAnIntegerAndDisabledMustBeTrue()
+    {
+        // like QJsonValue::toInt(0) and toBool(false) in LedString::createLedString
+        var layout = LedLayout.FromJson(JsonNode.Parse("""
+            [{ "group": 2.5, "disabled": 1 }, { "group": "3" }, { "group": 4.0, "disabled": true }]
+            """));
+
+        Assert.Equal([0, 0, 4], layout.Areas.Select(a => a.Group));
+        Assert.Equal([false, false, true], layout.Areas.Select(a => a.Disabled));
+    }
+
+    [Fact]
     public void FromJson_NonArrayIsEmpty()
     {
         Assert.Equal(0, LedLayout.FromJson(JsonNode.Parse("{}")).Count);

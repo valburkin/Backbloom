@@ -16,38 +16,6 @@ public sealed class ColorProcessorTests
 
     private static ColorProcessor Processor(ColorAdjustment adjustment) => new(adjustment);
 
-    [Theory]
-    [MemberData(nameof(ColorFixtures))]
-    public void Golden_MatchesFixture(string fixture)
-    {
-        var f = Fixtures.Load(fixture);
-        var processor = new ColorProcessor(ColorAdjustment.FromJson(f["adjustment"]));
-        var tolerance = f["tolerance"]!.GetValue<float>();
-        var step = f["step"]!.GetValue<string>();
-
-        foreach (var c in f["cases"]!.AsArray())
-        {
-            var color = Fixtures.ReadVector(c!["input"]);
-            switch (step)
-            {
-                case "calibrate":
-                    processor.Calibrate(ref color);
-                    break;
-                case "process":
-                    var one = new[] { color };
-                    processor.Process(one);
-                    color = one[0];
-                    break;
-                default:
-                    throw new InvalidDataException($"Unknown step '{step}' in {fixture}.");
-            }
-
-            AssertClose(Fixtures.ReadVector(c["expected"]), color, tolerance);
-        }
-    }
-
-    public static TheoryData<string> ColorFixtures() => Fixtures.All("color");
-
     // ---- step tests ported from InfiniteProcessing::test() ----
 
     [Fact]

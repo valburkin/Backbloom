@@ -1,0 +1,1565 @@
+{
+  "source": "C++ reference: overglow::BlackBorderDetector (tests/golden/BlackBorderGolden.cpp)",
+  "description": "Detected border per image, threshold (the setting / 100) and mode; calculateThreshold maps the fraction to the 8-bit limit (a pixel is black when all channels are below it).",
+  "calculateThreshold": [[-0.1, 0], [0, 0], [0.01, 3], [0.03, 8], [0.05, 13], [0.1, 26], [0.15, 39], [0.5, 128], [1, 255], [1.5, 255]],
+  "cases": [
+    {
+      "name": "none",
+      "image": {"kind": "random", "seed": 1},
+      "width": 160,
+      "height": 90,
+      "fnv1a": "2c54407e",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 160, 11, [0, 0, 0]], [0, 79, 160, 11, [0, 0, 0]], [0, 0, 0, 90, [0, 0, 0]], [160, 0, 0, 90, [0, 0, 0]]]
+      },
+      "width": 160,
+      "height": 90,
+      "fnv1a": "658da6cd",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 11, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 11, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 11, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "pillarbox",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 160, 0, [0, 0, 0]], [0, 90, 160, 0, [0, 0, 0]], [0, 0, 20, 90, [0, 0, 0]], [140, 0, 20, 90, [0, 0, 0]]]
+      },
+      "width": 160,
+      "height": 90,
+      "fnv1a": "49715a01",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 20},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 20},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 20},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 20},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 20},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 20},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 20},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 20},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 20},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "windowbox",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 160, 9, [0, 0, 0]], [0, 81, 160, 9, [0, 0, 0]], [0, 0, 17, 90, [0, 0, 0]], [143, 0, 17, 90, [0, 0, 0]]]
+      },
+      "width": 160,
+      "height": 90,
+      "fnv1a": "c00a0dd0",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 9, "verticalSize": 17},
+          "classic": {"unknown": false, "horizontalSize": 9, "verticalSize": 17},
+          "osd": {"unknown": false, "horizontalSize": 9, "verticalSize": 17},
+          "letterbox": {"unknown": false, "horizontalSize": 9, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 9, "verticalSize": 17},
+          "classic": {"unknown": false, "horizontalSize": 9, "verticalSize": 17},
+          "osd": {"unknown": false, "horizontalSize": 9, "verticalSize": 17},
+          "letterbox": {"unknown": false, "horizontalSize": 9, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 9, "verticalSize": 17},
+          "classic": {"unknown": false, "horizontalSize": 9, "verticalSize": 17},
+          "osd": {"unknown": false, "horizontalSize": 9, "verticalSize": 17},
+          "letterbox": {"unknown": false, "horizontalSize": 9, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-near-black",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [
+          [0, 0, 160, 11, [10, 10, 10]],
+          [0, 79, 160, 11, [10, 10, 10]],
+          [0, 0, 0, 90, [10, 10, 10]],
+          [160, 0, 0, 90, [10, 10, 10]]
+        ]
+      },
+      "width": 160,
+      "height": 90,
+      "fnv1a": "d772c3cd",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 11, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 11, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-dark-gray",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [
+          [0, 0, 160, 11, [30, 30, 30]],
+          [0, 79, 160, 11, [30, 30, 30]],
+          [0, 0, 0, 90, [30, 30, 30]],
+          [160, 0, 0, 90, [30, 30, 30]]
+        ]
+      },
+      "width": 160,
+      "height": 90,
+      "fnv1a": "ba8c1acd",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 11, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 11, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-asymmetric",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 160, 12, [0, 0, 0]], [0, 86, 160, 4, [0, 0, 0]], [0, 0, 0, 90, [0, 0, 0]], [160, 0, 0, 90, [0, 0, 0]]]
+      },
+      "width": 160,
+      "height": 90,
+      "fnv1a": "ef4efe49",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 4, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 12, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 4, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 4, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 4, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 12, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 4, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 4, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 4, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 12, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 4, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 4, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-subtitle",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [
+            [0, 0, 160, 15, [0, 0, 0]],
+            [0, 75, 160, 15, [0, 0, 0]],
+            [0, 0, 0, 90, [0, 0, 0]],
+            [160, 0, 0, 90, [0, 0, 0]]
+          ]
+        },
+        "kind": "overlay",
+        "rects": [[54, 81, 53, 4, [255, 255, 255]]]
+      },
+      "width": 160,
+      "height": 90,
+      "fnv1a": "a4c5563a",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 5, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 15, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 5, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 15, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 5, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 15, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-logo-top-left",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [
+            [0, 0, 160, 15, [0, 0, 0]],
+            [0, 75, 160, 15, [0, 0, 0]],
+            [0, 0, 0, 90, [0, 0, 0]],
+            [160, 0, 0, 90, [0, 0, 0]]
+          ]
+        },
+        "kind": "overlay",
+        "rects": [[38, 1, 5, 3, [255, 255, 255]]]
+      },
+      "width": 160,
+      "height": 90,
+      "fnv1a": "259c5b4f",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 15, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "pillarbox-osd-left",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [
+            [0, 0, 160, 0, [0, 0, 0]],
+            [0, 90, 160, 0, [0, 0, 0]],
+            [0, 0, 22, 90, [0, 0, 0]],
+            [138, 0, 22, 90, [0, 0, 0]]
+          ]
+        },
+        "kind": "overlay",
+        "rects": [[0, 28, 11, 5, [255, 255, 255]]]
+      },
+      "width": 160,
+      "height": 90,
+      "fnv1a": "f92b2ad5",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 22},
+          "osd": {"unknown": false, "horizontalSize": 28, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 22},
+          "osd": {"unknown": false, "horizontalSize": 28, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 22},
+          "osd": {"unknown": false, "horizontalSize": 28, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "black",
+      "image": {"color": [0, 0, 0], "kind": "solid"},
+      "width": 160,
+      "height": 90,
+      "fnv1a": "b62b24c5",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "black-with-dot",
+      "image": {"base": {"color": [0, 0, 0], "kind": "solid"}, "kind": "overlay", "rects": [[80, 45, 1, 1, [255, 255, 255]]]},
+      "width": 160,
+      "height": 90,
+      "fnv1a": "9d12aabc",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "dark-content",
+      "image": {"color": [12, 12, 12], "kind": "solid"},
+      "width": 160,
+      "height": 90,
+      "fnv1a": "09c351c5",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "bright-corner",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [
+            [0, 0, 160, 11, [0, 0, 0]],
+            [0, 79, 160, 11, [0, 0, 0]],
+            [0, 0, 20, 90, [0, 0, 0]],
+            [140, 0, 20, 90, [0, 0, 0]]
+          ]
+        },
+        "kind": "overlay",
+        "rects": [[0, 0, 2, 2, [255, 255, 255]]]
+      },
+      "width": 160,
+      "height": 90,
+      "fnv1a": "d9360bfe",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 11, "verticalSize": 20},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 11, "verticalSize": 20},
+          "letterbox": {"unknown": false, "horizontalSize": 11, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 11, "verticalSize": 20},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 11, "verticalSize": 20},
+          "letterbox": {"unknown": false, "horizontalSize": 11, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 11, "verticalSize": 20},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 11, "verticalSize": 20},
+          "letterbox": {"unknown": false, "horizontalSize": 11, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "gradient",
+      "image": {"from": [0, 0, 0], "kind": "hgradient", "to": [255, 255, 255]},
+      "width": 160,
+      "height": 90,
+      "fnv1a": "de02c7fd",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 9},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 5},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 25},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "none",
+      "image": {"kind": "random", "seed": 1},
+      "width": 101,
+      "height": 57,
+      "fnv1a": "d8eee1bb",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 101, 7, [0, 0, 0]], [0, 50, 101, 7, [0, 0, 0]], [0, 0, 0, 57, [0, 0, 0]], [101, 0, 0, 57, [0, 0, 0]]]
+      },
+      "width": 101,
+      "height": 57,
+      "fnv1a": "b44099b1",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 7, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 7, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 7, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "pillarbox",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 101, 0, [0, 0, 0]], [0, 57, 101, 0, [0, 0, 0]], [0, 0, 12, 57, [0, 0, 0]], [89, 0, 12, 57, [0, 0, 0]]]
+      },
+      "width": 101,
+      "height": 57,
+      "fnv1a": "d24b408d",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 12},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 12},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 12},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 12},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 12},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 12},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 12},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 12},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 12},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "windowbox",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 101, 5, [0, 0, 0]], [0, 52, 101, 5, [0, 0, 0]], [0, 0, 11, 57, [0, 0, 0]], [90, 0, 11, 57, [0, 0, 0]]]
+      },
+      "width": 101,
+      "height": 57,
+      "fnv1a": "68b3012f",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 5, "verticalSize": 11},
+          "classic": {"unknown": false, "horizontalSize": 5, "verticalSize": 11},
+          "osd": {"unknown": false, "horizontalSize": 5, "verticalSize": 11},
+          "letterbox": {"unknown": false, "horizontalSize": 5, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 5, "verticalSize": 11},
+          "classic": {"unknown": false, "horizontalSize": 5, "verticalSize": 11},
+          "osd": {"unknown": false, "horizontalSize": 5, "verticalSize": 11},
+          "letterbox": {"unknown": false, "horizontalSize": 5, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 5, "verticalSize": 11},
+          "classic": {"unknown": false, "horizontalSize": 5, "verticalSize": 11},
+          "osd": {"unknown": false, "horizontalSize": 5, "verticalSize": 11},
+          "letterbox": {"unknown": false, "horizontalSize": 5, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-near-black",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [
+          [0, 0, 101, 7, [10, 10, 10]],
+          [0, 50, 101, 7, [10, 10, 10]],
+          [0, 0, 0, 57, [10, 10, 10]],
+          [101, 0, 0, 57, [10, 10, 10]]
+        ]
+      },
+      "width": 101,
+      "height": 57,
+      "fnv1a": "9aa33b5d",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 7, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 7, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-dark-gray",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [
+          [0, 0, 101, 7, [30, 30, 30]],
+          [0, 50, 101, 7, [30, 30, 30]],
+          [0, 0, 0, 57, [30, 30, 30]],
+          [101, 0, 0, 57, [30, 30, 30]]
+        ]
+      },
+      "width": 101,
+      "height": 57,
+      "fnv1a": "232ef675",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 7, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 7, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-asymmetric",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 101, 8, [0, 0, 0]], [0, 55, 101, 2, [0, 0, 0]], [0, 0, 0, 57, [0, 0, 0]], [101, 0, 0, 57, [0, 0, 0]]]
+      },
+      "width": 101,
+      "height": 57,
+      "fnv1a": "616c8f2f",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 2, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 8, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 2, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 2, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 2, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 8, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 2, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 2, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 2, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 8, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 2, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 2, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-subtitle",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [[0, 0, 101, 9, [0, 0, 0]], [0, 48, 101, 9, [0, 0, 0]], [0, 0, 0, 57, [0, 0, 0]], [101, 0, 0, 57, [0, 0, 0]]]
+        },
+        "kind": "overlay",
+        "rects": [[34, 52, 33, 2, [255, 255, 255]]]
+      },
+      "width": 101,
+      "height": 57,
+      "fnv1a": "e1cf7871",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 3, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 9, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 3, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 9, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 3, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 9, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-logo-top-left",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [[0, 0, 101, 9, [0, 0, 0]], [0, 48, 101, 9, [0, 0, 0]], [0, 0, 0, 57, [0, 0, 0]], [101, 0, 0, 57, [0, 0, 0]]]
+        },
+        "kind": "overlay",
+        "rects": [[23, 1, 5, 3, [255, 255, 255]]]
+      },
+      "width": 101,
+      "height": 57,
+      "fnv1a": "e324d762",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 9, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "pillarbox-osd-left",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [[0, 0, 101, 0, [0, 0, 0]], [0, 57, 101, 0, [0, 0, 0]], [0, 0, 14, 57, [0, 0, 0]], [87, 0, 14, 57, [0, 0, 0]]]
+        },
+        "kind": "overlay",
+        "rects": [[0, 17, 7, 5, [255, 255, 255]]]
+      },
+      "width": 101,
+      "height": 57,
+      "fnv1a": "eaa77f5e",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 14},
+          "osd": {"unknown": false, "horizontalSize": 17, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 14},
+          "osd": {"unknown": false, "horizontalSize": 17, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 14},
+          "osd": {"unknown": false, "horizontalSize": 17, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "black",
+      "image": {"color": [0, 0, 0], "kind": "solid"},
+      "width": 101,
+      "height": 57,
+      "fnv1a": "72378667",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "black-with-dot",
+      "image": {"base": {"color": [0, 0, 0], "kind": "solid"}, "kind": "overlay", "rects": [[50, 28, 1, 1, [255, 255, 255]]]},
+      "width": 101,
+      "height": 57,
+      "fnv1a": "5792603c",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "dark-content",
+      "image": {"color": [12, 12, 12], "kind": "solid"},
+      "width": 101,
+      "height": 57,
+      "fnv1a": "a8feffcb",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "bright-corner",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [[0, 0, 101, 7, [0, 0, 0]], [0, 50, 101, 7, [0, 0, 0]], [0, 0, 12, 57, [0, 0, 0]], [89, 0, 12, 57, [0, 0, 0]]]
+        },
+        "kind": "overlay",
+        "rects": [[0, 0, 2, 2, [255, 255, 255]]]
+      },
+      "width": 101,
+      "height": 57,
+      "fnv1a": "27097306",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 7, "verticalSize": 12},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 7, "verticalSize": 12},
+          "letterbox": {"unknown": false, "horizontalSize": 7, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 7, "verticalSize": 12},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 7, "verticalSize": 12},
+          "letterbox": {"unknown": false, "horizontalSize": 7, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 7, "verticalSize": 12},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 7, "verticalSize": 12},
+          "letterbox": {"unknown": false, "horizontalSize": 7, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "gradient",
+      "image": {"from": [0, 0, 0], "kind": "hgradient", "to": [255, 255, 255]},
+      "width": 101,
+      "height": 57,
+      "fnv1a": "93ef0727",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 6},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 4},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 16},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "none",
+      "image": {"kind": "random", "seed": 1},
+      "width": 9,
+      "height": 7,
+      "fnv1a": "ea444d8e",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 9, 0, [0, 0, 0]], [0, 7, 9, 0, [0, 0, 0]], [0, 0, 0, 7, [0, 0, 0]], [9, 0, 0, 7, [0, 0, 0]]]
+      },
+      "width": 9,
+      "height": 7,
+      "fnv1a": "ea444d8e",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "pillarbox",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 9, 0, [0, 0, 0]], [0, 7, 9, 0, [0, 0, 0]], [0, 0, 1, 7, [0, 0, 0]], [8, 0, 1, 7, [0, 0, 0]]]
+      },
+      "width": 9,
+      "height": 7,
+      "fnv1a": "bf3111d5",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "windowbox",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 9, 0, [0, 0, 0]], [0, 7, 9, 0, [0, 0, 0]], [0, 0, 1, 7, [0, 0, 0]], [8, 0, 1, 7, [0, 0, 0]]]
+      },
+      "width": 9,
+      "height": 7,
+      "fnv1a": "bf3111d5",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-near-black",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 9, 0, [10, 10, 10]], [0, 7, 9, 0, [10, 10, 10]], [0, 0, 0, 7, [10, 10, 10]], [9, 0, 0, 7, [10, 10, 10]]]
+      },
+      "width": 9,
+      "height": 7,
+      "fnv1a": "ea444d8e",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-dark-gray",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 9, 0, [30, 30, 30]], [0, 7, 9, 0, [30, 30, 30]], [0, 0, 0, 7, [30, 30, 30]], [9, 0, 0, 7, [30, 30, 30]]]
+      },
+      "width": 9,
+      "height": 7,
+      "fnv1a": "ea444d8e",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-asymmetric",
+      "image": {
+        "base": {"kind": "random", "seed": 1},
+        "kind": "overlay",
+        "rects": [[0, 0, 9, 1, [0, 0, 0]], [0, 7, 9, 0, [0, 0, 0]], [0, 0, 0, 7, [0, 0, 0]], [9, 0, 0, 7, [0, 0, 0]]]
+      },
+      "width": 9,
+      "height": 7,
+      "fnv1a": "a15fc12b",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-subtitle",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [[0, 0, 9, 1, [0, 0, 0]], [0, 6, 9, 1, [0, 0, 0]], [0, 0, 0, 7, [0, 0, 0]], [9, 0, 0, 7, [0, 0, 0]]]
+        },
+        "kind": "overlay",
+        "rects": [[3, 7, 3, 1, [255, 255, 255]]]
+      },
+      "width": 9,
+      "height": 7,
+      "fnv1a": "a4b86a48",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "letterbox-logo-top-left",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [[0, 0, 9, 1, [0, 0, 0]], [0, 6, 9, 1, [0, 0, 0]], [0, 0, 0, 7, [0, 0, 0]], [9, 0, 0, 7, [0, 0, 0]]]
+        },
+        "kind": "overlay",
+        "rects": [[0, 1, 5, 3, [255, 255, 255]]]
+      },
+      "width": 9,
+      "height": 7,
+      "fnv1a": "af732939",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 1, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "pillarbox-osd-left",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [[0, 0, 9, 0, [0, 0, 0]], [0, 7, 9, 0, [0, 0, 0]], [0, 0, 1, 7, [0, 0, 0]], [8, 0, 1, 7, [0, 0, 0]]]
+        },
+        "kind": "overlay",
+        "rects": [[0, 0, 0, 5, [255, 255, 255]]]
+      },
+      "width": 9,
+      "height": 7,
+      "fnv1a": "bf3111d5",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "black",
+      "image": {"color": [0, 0, 0], "kind": "solid"},
+      "width": 9,
+      "height": 7,
+      "fnv1a": "3f680e2f",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "black-with-dot",
+      "image": {"base": {"color": [0, 0, 0], "kind": "solid"}, "kind": "overlay", "rects": [[4, 3, 1, 1, [255, 255, 255]]]},
+      "width": 9,
+      "height": 7,
+      "fnv1a": "8c40e112",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "dark-content",
+      "image": {"color": [12, 12, 12], "kind": "solid"},
+      "width": 9,
+      "height": 7,
+      "fnv1a": "7e931a2b",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "classic": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "osd": {"unknown": true, "horizontalSize": -1, "verticalSize": -1},
+          "letterbox": {"unknown": true, "horizontalSize": -1, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "bright-corner",
+      "image": {
+        "base": {
+          "base": {"kind": "random", "seed": 1},
+          "kind": "overlay",
+          "rects": [[0, 0, 9, 0, [0, 0, 0]], [0, 7, 9, 0, [0, 0, 0]], [0, 0, 1, 7, [0, 0, 0]], [8, 0, 1, 7, [0, 0, 0]]]
+        },
+        "kind": "overlay",
+        "rects": [[0, 0, 2, 2, [255, 255, 255]]]
+      },
+      "width": 9,
+      "height": 7,
+      "fnv1a": "d762cdea",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    },
+    {
+      "name": "gradient",
+      "image": {"from": [0, 0, 0], "kind": "hgradient", "to": [255, 255, 255]},
+      "width": 9,
+      "height": 7,
+      "fnv1a": "18f82fb7",
+      "results": [
+        {
+          "threshold": 0.05,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.03,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 1},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        },
+        {
+          "threshold": 0.15,
+          "default": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "classic": {"unknown": false, "horizontalSize": 0, "verticalSize": 2},
+          "osd": {"unknown": false, "horizontalSize": 0, "verticalSize": 0},
+          "letterbox": {"unknown": false, "horizontalSize": 0, "verticalSize": 0}
+        }
+      ]
+    }
+  ]
+}

@@ -4,8 +4,10 @@ The C# / .NET 10 port of the Overglow backend. The C++ code in `sources/` and `i
 implementation: behavior is ported from it file by file and compared with golden fixtures exported from it. It is
 deleted once this backend reaches parity.
 
-Status: **port step 1** (vertical slice). The React UI in `ui/` connects to it, a synthetic frame source drives the
+Status: **port step 2** (golden fixtures). The React UI in `ui/` connects to it, a synthetic frame source drives the
 LEDs through the real mapping and color pipeline, and the WLED, DDP and file drivers run on their own device threads.
+LED layout parsing, image to LED mapping, color processing and black border detection match fixtures exported from the
+C++ reference exactly.
 
 Portions of this code are ported from [HyperHDR](https://github.com/awawa-dev/HyperHDR) (MIT, copyright awawa-dev);
 the source file each part comes from is named in its doc comments.
@@ -47,7 +49,7 @@ The default admin password is `overglow` (as in the C++ build). Local clients ne
 
 ```
 src/
-  Overglow.Core       pure logic: LED layout, image->LED mapping, color processing (no I/O, no threads)
+  Overglow.Core       pure logic: LED layout, image->LED mapping, color processing, black borders (no I/O, no threads)
   Overglow.Capture    frame source abstraction, frame pacer, synthetic test source
   Overglow.Devices    LED device lifecycle (LedDeviceRunner) + drivers: wled, ddp, file
   Overglow.Settings   schema-validated settings store (JSON file), credential store
@@ -97,6 +99,7 @@ tests enforce it in Core, Devices and Engine):
 - buffers are sized when the LED count or frame size changes, not per frame;
 - `ImageToLedMap` precomputes pixel offsets per LED into flat arrays;
 - `ColorProcessor` precomputes its lookup tables and is immutable;
+- `BlackBorderDetector` samples a few lines of the frame in place; `BlackBorderProcessor` only keeps counters;
 - logging only through `[LoggerMessage]` methods and never per frame;
 - drivers send with preallocated packet buffers over connected UDP sockets (`Socket.Send(ReadOnlySpan<byte>)`).
 
@@ -137,20 +140,46 @@ before the controller's color order (so it is really red, green, blue on GRB str
 
 ## Golden fixtures
 
-`tests/fixtures/<area>/*.json` are picked up by the theories in `Overglow.Core.Tests`; files exported from the C++
-reference build use the same format and can simply be dropped in:
+`tests/fixtures/<area>/cpp-*.json` are exported from the C++ reference by the Qt tests in `tests/golden/` (ctest label
+`golden`): each one runs the real C++ code on deterministic inputs. By default ctest compares their output with the
+committed files, so it fails if the reference changes; `OVERGLOW_UPDATE_FIXTURES=1` rewrites them (then commit them):
 
-- `mapping/`: `{ frame: { width, height, rgb: "hex RGB24, row-major" }, leds: [...], mappingType, sparseProcessing,
-  expected: [[r, g, b] linear 0..1 per LED], tolerance }`
-- `color/`: `{ adjustment: { channelAdjustment entry }, step: "calibrate" | "process", cases: [{ input, expected }],
-  tolerance }`
-- `layouts/owner-168.json`: the owner's 168-LED layout.
+```powershell
+$env:OVERGLOW_UPDATE_FIXTURES = '1'; ctest --preset win-release -L golden; Remove-Item Env:OVERGLOW_UPDATE_FIXTURES
+```
+
+Input images are not stored but described by a small spec (`solid`, `hgradient`, `vgradient`, `quadrants`, `checker`,
+`random` (xorshift32), `overlay`, `hex`; see `tests/golden/TestImages.h`) that `Golden/TestImages.cs` rebuilds with the
+same integer math; each case carries an FNV-1a checksum of the pixels, checked first. Floats are written with the
+shortest text that reads back to the same float. `Golden/GoldenDiff` lists every mismatch (where, expected, actual,
+difference) up to 20 per failure.
+
+| Folder | C++ source | C# test | |
+|---|---|---|---|
+| `layouts/cpp-parsing.json` | `LedString` | `MappingGoldenTests` | parsed areas, grid size |
+| `mapping/` `{ leds, tolerance, cases: [{ image, width, height, fnv1a, mappingType, sparseProcessing, horizontalBorder, verticalBorder, expected }] }` | `ImageColorAveraging` | `MappingGoldenTests` | owner's 168 LEDs and 3 other layouts, 8 images, 3 sizes (+512x288, 7x5), both mapping types, sparse, borders |
+| `color/` `{ step: process \| calibrate, enabled, colorOrder, adjustment, tolerance, inputs, expected, expectedBytes }` | `InfiniteProcessing`, `LedDevice` rounding | `ColorGoldenTests` | owner's settings, 23 variations, 6 color orders, 4 calibration-only; 185 colors each |
+| `blackborder/cpp-detector.json` | `BlackBorderDetector` | `BlackBorderGoldenTests` | 15 pictures x 3 sizes x 3 thresholds x 4 modes |
+| `hdr/` | `DefaultLut`, `LutLoader`, `decodeBGRA` | `HdrGoldenTests` (smoke) | port step 3 |
+| `smoothing/` | the 6 interpolators, injected time line | `SmoothingGoldenTests` (smoke) | port step 5 |
+| `effects/` | the 10 kept effects | `EffectsGoldenTests` (smoke) | port step 5 |
+| `rgbw/` | `RGBW::rgb2rgbw`, `InfiniteColorEngineRgbw` | `RgbwGoldenTests` (smoke) | port step 6 |
+
+Tolerance is 0 for every exported fixture: the mapping sums integers and does the same float conversion and divisions
+as C++, and the color pipeline builds the same float tables (`powf` of the same C runtime) and runs the same float
+operations in the same order (no FMA contraction on either side). Hand-written fixtures (`hand-*.json`) state their own
+tolerance. The areas marked smoke only check that the fixtures load and that their inputs can be rebuilt; their
+comparison tests are skipped until the port step named in the skip reason.
 
 ## Known gaps and next steps
 
-- C++ fixture export (port step 2) to turn the hand-computed and self-test expectations into golden comparisons,
-  especially for qRound edge cases and the primaries calibration matrix (the C++ code multiplies by the transposed
-  target matrix; ported as is, worth confirming against the hardware).
+- The primaries calibration (`classic_config`) applies the transposed target matrix, as in C++ (confirmed by
+  `color/cpp-calibrate-matrix*.json`): pure red becomes (red.R, green.R, blue.R), while the 3D LUT mode maps pure red to
+  the red target. Ported as is; worth checking on the hardware before choosing one behavior.
+- `ColorAdjustment.FromJson` gives missing calibration colors their ideal value; the C++ code reads them as black. The
+  settings schema always stores all of them, so it only matters for hand-made settings.
+- Black borders: `BlackBorderProcessor` is ported but not wired into the pipeline yet (Engine), nor the `BLACKBORDER`
+  component switch.
 - Windows capture + HDR tone mapping, smoothing, effects, the remaining drivers and discovery, SQLite settings with
   HyperHDR database import.
 - Multiple controllers: `DeviceManager` already fans out to a list; the settings still describe one `device`.

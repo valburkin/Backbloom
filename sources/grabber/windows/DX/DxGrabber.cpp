@@ -44,6 +44,7 @@
 #include <QCoreApplication>
 
 #include <grabber/windows/DX/DxGrabber.h>
+#include <grabber/windows/DX/BgraDecoder.h>
 #include <grabber/windows/DX/VertexShaderHdr.h>
 #include <grabber/windows/DX/PixelShaderHdr.h>
 
@@ -53,51 +54,6 @@
 
 #define CHECK(hr) SUCCEEDED(hr)
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
-
-namespace
-{
-	// Scales down (takes every 'division' pixel) and converts a BGRA frame to RGB, optionally through the HDR tone mapping table
-	void decodeBGRA(Image<ColorRgb>& image, int targetSizeX, int targetSizeY,
-		int startX, int startY,
-		const uint8_t* source, int actualWidth, int actualHeight,
-		int division, const uint8_t* lutBuffer, int lineSize)
-	{
-		uint32_t	indexLut;
-		uint8_t		buffer[8];
-		size_t		divisionX = (size_t)division * 4;
-
-		if (lineSize == 0)
-			lineSize = actualWidth * 4;
-
-		for (int j = 0; j < targetSizeY; j++)
-		{
-			size_t lineSource = std::min(startY + j * division, actualHeight - 1);
-			uint8_t* dLine = (image.rawMem() + (size_t)j * targetSizeX * 3);
-			uint8_t* dLineEnd = dLine + (size_t)targetSizeX * 3;
-			const uint8_t* sLine = ((source + (lineSource * lineSize) + ((size_t)startX * 4)));
-
-			if (lutBuffer == nullptr)
-			{
-				sLine += 2;
-				while (dLine < dLineEnd)
-				{
-					*dLine++ = *sLine--;
-					*dLine++ = *sLine--;
-					*dLine++ = *sLine;
-					sLine += divisionX + 2;
-				}
-			}
-			else while (dLine < dLineEnd)
-			{
-				*((uint32_t*)&buffer) = *((const uint32_t*)sLine);
-				sLine += divisionX;
-				indexLut = LUT_INDEX(buffer[2], buffer[1], buffer[0]);
-				*((uint32_t*)dLine) = *((const uint32_t*)(&lutBuffer[indexLut]));
-				dLine += 3;
-			}
-		}
-	}
-}
 
 DxGrabber::DxGrabber(const QString& device, const QString& configurationPath)
 	: Grabber(configurationPath, "DX11_SYSTEM:" + device.left(14))

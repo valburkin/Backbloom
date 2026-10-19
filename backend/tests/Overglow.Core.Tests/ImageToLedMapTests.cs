@@ -10,35 +10,6 @@ public sealed class ImageToLedMapTests
 {
     private static float Linear(byte value) => Srgb.U8ToLinear16[value] / 65535.0f;
 
-    [Theory]
-    [MemberData(nameof(MappingFixtures))]
-    public void Golden_MatchesFixture(string fixture)
-    {
-        var f = Fixtures.Load(fixture);
-        var frame = Fixtures.ReadFrame(f["frame"]);
-        var layout = LedLayout.FromJson(f["leds"]);
-        var map = new ImageToLedMap(
-            layout,
-            LedMappingTypes.Parse(f["mappingType"]?.GetValue<string>()),
-            f["sparseProcessing"]?.GetValue<bool>() ?? false,
-            frame.Width,
-            frame.Height);
-        var expected = f["expected"]!.AsArray();
-        var tolerance = f["tolerance"]!.GetValue<float>();
-        var colors = new Vector3[layout.Count];
-
-        map.Process(frame.ReadOnlyPixels, colors);
-
-        Assert.Equal(expected.Count, colors.Length);
-        for (var i = 0; i < colors.Length; i++)
-        {
-            var e = Fixtures.ReadVector(expected[i]);
-            Assert.True(Vector3.Distance(e, colors[i]) <= tolerance, $"LED {i}: expected {e}, got {colors[i]}");
-        }
-    }
-
-    public static TheoryData<string> MappingFixtures() => Fixtures.All("mapping");
-
     [Fact]
     public void Process_SolidFrame_EveryLedGetsTheLinearColor()
     {

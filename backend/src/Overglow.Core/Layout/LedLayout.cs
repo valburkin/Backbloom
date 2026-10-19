@@ -30,8 +30,9 @@ public sealed class LedLayout
 
     /// <summary>
     /// Parses the <c>leds</c> setting: an array of <c>{hmin, hmax, vmin, vmax, group?, disabled?}</c>.
-    /// Like <c>LedString::createLedString</c>, missing numbers read as 0, a missing group as 0 and a missing
-    /// <c>disabled</c> as false; non-object entries become empty areas so LED indexes stay aligned.
+    /// Like <c>LedString::createLedString</c>, missing numbers read as 0, a missing or non-integer group as 0 and
+    /// anything but <c>true</c> in <c>disabled</c> as false; non-object entries become empty areas so LED indexes stay
+    /// aligned.
     /// </summary>
     public static LedLayout FromJson(JsonNode? leds)
     {
@@ -49,7 +50,7 @@ public sealed class LedLayout
                 ReadDouble(o, "hmax"),
                 ReadDouble(o, "vmin"),
                 ReadDouble(o, "vmax"),
-                (int)ReadDouble(o, "group"),
+                ReadInt(o, "group"),
                 ReadBool(o, "disabled")));
         }
 
@@ -111,6 +112,10 @@ public sealed class LedLayout
 
     private static double ReadDouble(JsonObject? o, string name) =>
         o?[name] is JsonValue v && v.TryGetValue(out double d) ? d : 0.0;
+
+    // QJsonValue::toInt(0): only integral numbers within the int range, anything else is 0
+    private static int ReadInt(JsonObject? o, string name) =>
+        o?[name] is JsonValue v && v.TryGetValue(out double d) && d == Math.Floor(d) && d >= int.MinValue && d <= int.MaxValue ? (int)d : 0;
 
     private static bool ReadBool(JsonObject? o, string name) =>
         o?[name] is JsonValue v && v.TryGetValue(out bool b) && b;

@@ -70,7 +70,9 @@ public sealed class ColorProcessor
             if (!identity)
             {
                 // The C++ code builds a matrix whose columns are the targets and then transposes it, so each target
-                // color becomes a row: out.R = dot(red target, color), and so on.
+                // color becomes a row: out.R = dot(red target, color), and so on. Pure red therefore becomes
+                // (red.R, green.R, blue.R), unlike the LUT mode below, which maps it to the red target
+                // (fixtures/color/cpp-calibrate-matrix*.json); kept as in C++ until checked on the hardware.
                 _calibration = CalibrationMode.Matrix;
                 _rowRed = adjustment.Red.ToVector();
                 _rowGreen = adjustment.Green.ToVector();
