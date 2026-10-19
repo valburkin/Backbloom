@@ -40,6 +40,39 @@
 
 using namespace hyperhdr;
 
+// Strictly validates the global "layout" setting (LayoutSpec envelope). Unlike the rest of the
+// configuration, an invalid layout is rejected instead of being silently auto-corrected.
+static bool validateLayoutSetting(const QJsonValue& layout, QString& error)
+{
+	if (!layout.isObject())
+	{
+		error = "layout must be an object";
+		return false;
+	}
+
+	Q_INIT_RESOURCE(resource);
+
+	QJsonObject layoutSchema;
+	try
+	{
+		layoutSchema = QJsonUtils::readSchema(":/schema-layout.json");
+	}
+	catch (const std::runtime_error& ex)
+	{
+		error = QString("could not load layout schema: %1").arg(ex.what());
+		return false;
+	}
+
+	QJsonSchemaChecker checker;
+	checker.setSchema(layoutSchema);
+	if (!checker.validate(layout.toObject()).first)
+	{
+		error = checker.getMessages().join("; ");
+		return false;
+	}
+	return true;
+}
+
 HyperAPI::HyperAPI(QString peerAddress, const LoggerName& log, bool localConnection, QObject* parent, bool noListener)
 	: CallbackAPI(log, localConnection, parent)
 {
@@ -798,7 +831,22 @@ void HyperAPI::handleConfigSetCommand(const QJsonObject& message, const QString&
 		QJsonObject config = message["config"].toObject();
 		if (BaseAPI::isHyperhdrEnabled())
 		{
-			if (BaseAPI::saveSettings(config))
+			const QString layoutKey = settings::typeToString(settings::type::LAYOUT);
+			QString layoutError;
+			if (config.contains(layoutKey) && !validateLayoutSetting(config[layoutKey], layoutError))
+			{
+				sendErrorReply("Invalid layout: " + layoutError, command, tan);
+				return;
+			}
+
+			// Merge a partial config onto the current one, so that a client sending only some
+			// top-level sections (e.g. just "layout") does not reset the others to defaults.
+			QJsonObject merged;
+			SAFE_CALL_0_RET(_hyperhdr.get(), getJsonConfig, QJsonObject, merged);
+			for (auto it = config.constBegin(); it != config.constEnd(); ++it)
+				merged[it.key()] = it.value();
+
+			if (BaseAPI::saveSettings(merged))
 			{
 				sendSuccessReply(command, tan);
 			}

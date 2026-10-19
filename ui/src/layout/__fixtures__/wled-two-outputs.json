@@ -1,0 +1,51 @@
+{
+  "info": {
+    "ver": "16.0.1",
+    "arch": "esp32",
+    "name": "WLED",
+    "mac": "000000000000"
+  },
+  "hw": {
+    "led": {
+      "total": 168,
+      "ins": [
+        {
+          "start": 0,
+          "len": 91,
+          "pin": [
+            16
+          ],
+          "order": 1,
+          "rev": false,
+          "skip": 0,
+          "type": 22,
+          "ref": false,
+          "rgbwm": 0,
+          "freq": 0,
+          "maxpwr": 6000,
+          "ledma": 100,
+          "drv": 0,
+          "text": ""
+        },
+        {
+          "start": 91,
+          "len": 77,
+          "pin": [
+            2
+          ],
+          "order": 1,
+          "rev": false,
+          "skip": 0,
+          "type": 22,
+          "ref": false,
+          "rgbwm": 0,
+          "freq": 0,
+          "maxpwr": 500,
+          "ledma": 100,
+          "drv": 0,
+          "text": ""
+        }
+      ]
+    }
+  }
+}

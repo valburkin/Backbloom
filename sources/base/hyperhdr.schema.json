@@ -106,6 +106,10 @@
 		"automaticToneMapping" :
 		{
 			"$ref": "schema-automaticToneMapping.json"
+		},
+		"layout" :
+		{
+			"$ref": "schema-layout.json"
 		}
 	},
 	"additionalProperties" : false
