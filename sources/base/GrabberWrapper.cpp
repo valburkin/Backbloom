@@ -44,8 +44,6 @@ GrabberWrapper::GrabberWrapper(const QString& grabberName)
 	, _log(grabberName)
 	, _configLoaded(false)
 	, _grabber(nullptr)
-	, _cecHdrStart(0)
-	, _cecHdrStop(0)
 	, _autoResume(false)
 	, _isPaused(false)
 	, _pausingModeEnabled(false)
@@ -55,7 +53,6 @@ GrabberWrapper::GrabberWrapper(const QString& grabberName)
 	qRegisterMetaType<Image<ColorRgb>>("Image<ColorRgb>");
 	connect(this, &GrabberWrapper::SignalNewVideoImage, GlobalSignals::getInstance(), &GlobalSignals::SignalNewVideoImage);
 	connect(GlobalSignals::getInstance(), &GlobalSignals::SignalRequestComponent, this, &GrabberWrapper::signalRequestSourceHandler);
-	connect(this, &GrabberWrapper::SignalCecKeyPressed, this, &GrabberWrapper::signalCecKeyPressedHandler);
 	connect(this, &GrabberWrapper::SignalInstancePauseChanged, this, &GrabberWrapper::signalInstancePauseChangedHandler);
 }
 
@@ -172,16 +169,6 @@ void GrabberWrapper::signalInstancePauseChangedHandler(int instance, bool isEnab
 	}
 }
 
-void GrabberWrapper::setCecStartStop(int cecHdrStart, int cecHdrStop)
-{
-	_cecHdrStart = cecHdrStart;
-	_cecHdrStop = cecHdrStop;
-
-	Debug(_log, "CEC keycode. Start: {:d}, stop: {:d}", _cecHdrStart, _cecHdrStop);
-
-	emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::COMP_CEC, -1, isCEC());
-}
-
 QJsonDocument GrabberWrapper::startCalibration()
 {
 	if (_grabber == nullptr)
@@ -204,26 +191,6 @@ QJsonDocument GrabberWrapper::getCalibrationInfo()
 		return QJsonDocument();
 
 	return _grabber->getCalibrationInfo();
-}
-
-void GrabberWrapper::signalCecKeyPressedHandler(int key)
-{
-	if (_grabber != nullptr)
-	{
-		if (key == _cecHdrStart && getHdrToneMappingEnabled() != 1)
-		{
-			setHdrToneMappingEnabled(1);
-		}
-		else if (key == _cecHdrStop && getHdrToneMappingEnabled() != 0)
-		{
-			setHdrToneMappingEnabled(0);
-		}
-	}
-}
-
-bool GrabberWrapper::isCEC()
-{
-	return (_cecHdrStart > 0) || (_cecHdrStop > 0);
 }
 
 void GrabberWrapper::capturingExceptionHandler(const char* err)
@@ -481,8 +448,6 @@ void GrabberWrapper::handleSettingsUpdate(settings::type type, const QJsonDocume
 
 			// device input
 			_grabber->setInput(obj["input"].toInt(-1));
-
-			setCecStartStop(obj["cecHdrStart"].toInt(0), obj["cecHdrStop"].toInt(0));
 
 			// device resolution
 			QString videoMode = obj["videoMode"].toString("0x0").toLower();

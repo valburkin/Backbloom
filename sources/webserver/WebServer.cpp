@@ -120,7 +120,6 @@ void WebServer::onServerStarted(quint16 port)
 	}
 #endif
 
-	emit stateChange(true);
 }
 
 void WebServer::handleSettingsUpdate(settings::type type, QJsonDocument config)
@@ -266,11 +265,6 @@ bool WebServer::portAvailable(quint16& port, const LoggerName& log)
 	return true;
 }
 
-void WebServer::setSsdpXmlDesc(const QString& desc)
-{
-	FileServer::setSsdpXmlDesc(desc);
-}
-
 void WebServer::onServerError(QString msg)
 {
 	Error(_log, "{:s}", (msg));
@@ -279,6 +273,5 @@ void WebServer::onServerError(QString msg)
 void WebServer::onServerStopped()
 {
 	Info(_log, "Stopped: {:s}", (_server->getServerName()));
-	emit stateChange(false);
 }
 

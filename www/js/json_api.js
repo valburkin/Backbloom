@@ -515,11 +515,10 @@ function BuildClearJson()
 var componentHdr = 
 `{
 	"command":"videomodehdr",
-	"HDR":{0},
-	"flatbuffers_user_lut_filename":"{1}"
+	"HDR":{0}
 }`;
  
-$('input[name="hdrModeState"], #flatbuffersUserLut').change(
+$('input[name="hdrModeState"]').change(
 	function(){
 		if ($("input[name='hdrModeState']:checked").val())
 		{
@@ -534,9 +533,7 @@ function BuildHdrJson()
 	});
 		
 	var state = $('input[name="hdrModeState"]:checked').val();	
-	var flatbufferUserLut = $('#flatbuffersUserLut').val();
-	var finJson = (flatbufferUserLut.length > 0) ? componentHdr.replace("{0}", state).replace("{1}", flatbufferUserLut) :
-													componentHdr.replace("{0},", state).replace('"flatbuffers_user_lut_filename":"{1}"', "");
+	var finJson = componentHdr.replace("{0}", state);
 	
 	$("#hdrMode_json").text(finJson);
 }

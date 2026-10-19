@@ -4,11 +4,6 @@ $(document).ready( function() {
 	var conf_editor = null;
 	var conf_editor_net = null;
 	var conf_editor_json = null;
-	var conf_editor_proto = null;
-	var conf_editor_fbs = null;
-	var conf_editor_bobl = null;
-	var conf_editor_forw = null;
-	var conf_editor_rawUdp = null;
 	var conf_editor_mqtt = null;
 	
 	{
@@ -23,27 +18,9 @@ $(document).ready( function() {
 		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_js_heading_title"), 'editor_container_jsonserver', 'btn_submit_jsonserver'));
 		$('#conf_cont').append(createHelpTable(window.schema.jsonServer.properties, $.i18n("edt_conf_js_heading_title")));
 
-		//flatbufserver
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_fbs_heading_title"), 'editor_container_fbserver', 'btn_submit_fbserver'));
-		$('#conf_cont').append(createHelpTable(window.schema.flatbufServer.properties, $.i18n("edt_conf_fbs_heading_title")));
-
 		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_mqtt_heading_title"), 'editor_container_mqtt', 'btn_submit_mqtt'));
 		$('#conf_cont').append(createHelpTable(window.schema.mqtt.properties, $.i18n("edt_conf_mqtt_heading_title")));
-		
-		if (window.serverInfo.hasPROTOBUF == 1)
-		{
-			//protoserver
-			$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_pbs_heading_title"), 'editor_container_protoserver', 'btn_submit_protoserver'));
-			$('#conf_cont').append(createHelpTable(window.schema.protoServer.properties, $.i18n("edt_conf_pbs_heading_title")));
-		}
 
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("general_comp_RAWUDPSERVER"), 'editor_container_rawUdpServer', 'btn_submit_rawUdpServer'));
-		$('#conf_cont').append(createHelpTable(window.schema.rawUdpServer.properties, $.i18n("general_comp_RAWUDPSERVER")));
-			
-		//forwarder
-			$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_fw_heading_title"), 'editor_container_forwarder', 'btn_submit_forwarder'));
-			$('#conf_cont').append(createHelpTable(window.schema.forwarder.properties, $.i18n("edt_conf_fw_heading_title")));
-		
 		//Reorder hardcoded token div at the end
 		var tocMoved = $("#tok_desc").detach();
 		$('#conf_cont').append(tocMoved);
@@ -90,20 +67,7 @@ $(document).ready( function() {
 		requestWriteConfig(conf_editor_json.getValue());
 	});
 
-	//flatbuffer
-	conf_editor_fbs = createJsonEditor('editor_container_fbserver', {
-		flatbufServer        : window.schema.flatbufServer
-	}, true, true);
-
-	conf_editor_fbs.on('change',function() {
-		conf_editor_fbs.validate().length ? $('#btn_submit_fbserver').attr('disabled', true) : $('#btn_submit_fbserver').attr('disabled', false);
-	});
-
-	$('#btn_submit_fbserver').off().on('click',function() {
-		requestWriteConfig(conf_editor_fbs.getValue());
-	});
-
-	//
+	//mqtt
 	conf_editor_mqtt = createJsonEditor('editor_container_mqtt', {
 		mqtt        : window.schema.mqtt
 	}, true, true);
@@ -116,65 +80,13 @@ $(document).ready( function() {
 		requestWriteConfig(conf_editor_mqtt.getValue());
 	});
 
-	if (window.serverInfo.hasPROTOBUF == 1)
-	{
-		//protobuffer
-		conf_editor_proto = createJsonEditor('editor_container_protoserver', {
-			protoServer        : window.schema.protoServer
-		}, true, true);
-
-		conf_editor_proto.on('change',function() {
-			conf_editor_proto.validate().length ? $('#btn_submit_protoserver').attr('disabled', true) : $('#btn_submit_protoserver').attr('disabled', false);
-		});
-
-		$('#btn_submit_protoserver').off().on('click',function() {
-			requestWriteConfig(conf_editor_proto.getValue());
-		});
-	}
-
-	conf_editor_rawUdp = createJsonEditor('editor_container_rawUdpServer', {
-		rawUdpServer     : window.schema.rawUdpServer
-	}, true, true);
-
-	conf_editor_rawUdp.on('change',function() {
-		conf_editor_rawUdp.validate().length ? $('#btn_submit_rawUdpServer').attr('disabled', true) : $('#btn_submit_rawUdpServer').attr('disabled', false);
-	});
-
-	$('#btn_submit_rawUdpServer').off().on('click',function() {
-		requestWriteConfig(conf_editor_rawUdp.getValue());
-	});
-
-	document.getElementById('editor_container_rawUdpServer').parentElement.firstElementChild.classList.add('is-instance');
-		
-		//forwarder
-		conf_editor_forw = createJsonEditor('editor_container_forwarder', {
-			forwarder          : window.schema.forwarder
-		}, true, true);
-
-		conf_editor_forw.on('change',function() {
-			conf_editor_forw.validate().length ? $('#btn_submit_forwarder').attr('disabled', true) : $('#btn_submit_forwarder').attr('disabled', false);
-		});
-
-		$('#btn_submit_forwarder').off().on('click',function() {
-			requestWriteConfig(conf_editor_forw.getValue());
-		});
-
 	//create introduction
 	if(window.showOptHelp)
 	{
 		createHint("intro", $.i18n('conf_webconfig_label_intro'), "editor_container");
 		createHint("intro", $.i18n('conf_network_net_intro'), "editor_container_net");
 		createHint("intro", $.i18n('conf_network_json_intro'), "editor_container_jsonserver");
-		createHint("intro", $.i18n('conf_network_fbs_intro'), "editor_container_fbserver");
 		createHint("intro", $.i18n('conf_network_mqtt_intro'), "editor_container_mqtt");
-		createHint("intro", $.i18n('edt_udp_raw_server'), "editor_container_rawUdpServer");
-		
-		if (window.serverInfo.hasPROTOBUF == 1)
-		{
-			createHint("intro", $.i18n('conf_network_proto_intro'), "editor_container_protoserver");
-		}
-		
-		createHint("intro", $.i18n('conf_network_forw_intro'), "editor_container_forwarder");
 		createHint("intro", $.i18n('conf_network_tok_intro'), "tok_desc_cont");
 	}
 

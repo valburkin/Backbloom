@@ -44,24 +44,6 @@ else
     echo "Warning: No systemd detected. Service management will be manual."
 fi
 
-# === SPI dla Raspberry Pi ===
-if [ $CPU_RPI -eq 1 ]; then
-    if [ -f "/boot/firmware/config.txt" ]; then
-        BOOT_DIR="/boot/firmware"
-    else
-        BOOT_DIR="/boot"
-    fi
-
-    if [ -f "$BOOT_DIR/config.txt" ]; then
-        SPIOK=`grep '^\dtparam=spi=on' "$BOOT_DIR/config.txt" | wc -l`
-        if [ $SPIOK -ne 1 ]; then
-            echo "Raspberry Pi found – enabling SPI in $BOOT_DIR/config.txt"
-            sed -i '$a dtparam=spi=on' "$BOOT_DIR/config.txt"
-            REBOOTMESSAGE="Restart Raspberry Pi – SPI has been enabled in $BOOT_DIR/config.txt"
-        fi
-    fi
-fi
-
 echo "${start_msg}"
 
 # === Komunikaty końcowe ===

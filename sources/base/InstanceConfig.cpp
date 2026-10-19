@@ -7,6 +7,12 @@
 #include <db/SettingsTable.h>
 #include <json-utils/jsonschema/QJsonUtils.h>
 #include <json-utils/jsonschema/QJsonSchemaChecker.h>
+#include <led-drivers/LedDeviceManufactory.h>
+
+#include <algorithm>
+
+// Settings types of features that were removed from this product (protobuf/flatbuffers servers, forwarder, raw UDP server, boblight)
+static const QStringList OBSOLETE_SETTINGS = { "protoServer", "flatbufServer", "forwarder", "rawUdpServer", "boblightServer" };
 
 QJsonObject	InstanceConfig::_schemaJson;
 QMutex		InstanceConfig::_lockerSettingsManager;
@@ -103,11 +109,21 @@ InstanceConfig::InstanceConfig(bool master, quint8 instanceIndex, QObject* paren
 			dbConfig[key] = doc.object();
 	}
 
+	// upgrade old databases first, so that the schema validation below only reports real problems
+	bool upgradeNeeded = upgradeDB(dbConfig);
+	upgradeNeeded |= removeUnsupportedFeatures(dbConfig);
+
+	// settings records of removed features (they are not part of dbConfig, so they are deleted from the table directly)
+	QStringList obsoleteRecords;
+	for (const auto& type : OBSOLETE_SETTINGS)
+		if (_sTable->anyRecordExist(type))
+			obsoleteRecords.append(type);
+	upgradeNeeded |= !obsoleteRecords.isEmpty();
+
 	// validate full dbconfig against schema, on error we need to rewrite entire table
 	QJsonSchemaChecker schemaChecker;
 	schemaChecker.setSchema(_schemaJson);
 	QPair<bool, bool> valid = schemaChecker.validate(dbConfig);
-	bool upgradeNeeded = upgradeDB(dbConfig);
 
 	if (!valid.second)
 	{
@@ -129,6 +145,14 @@ InstanceConfig::InstanceConfig(bool master, quint8 instanceIndex, QObject* paren
 				Warning(_log, "Could not create a backup");
 		}
 		Info(_log, "Upgrading...");
+		for (const auto& type : std::as_const(obsoleteRecords))
+		{
+			if (_sTable->purge(type))
+				Info(_log, "Removed the '{:s}' settings: the feature is not part of this version", (type));
+			else
+				Warning(_log, "Could not remove the obsolete '{:s}' settings", (type));
+		}
+
 		dbConfig = schemaChecker.getAutoCorrectedConfig(dbConfig);
 
 		for (auto& schemaError : schemaChecker.getMessages())
@@ -179,23 +203,15 @@ bool InstanceConfig::upgradeDB(QJsonObject& dbConfig)
 		}
 	}
 
+	// v3 removed the boblight server: its settings are deleted together with other removed features (OBSOLETE_SETTINGS)
 	if (version < 3)
 	{
-		if (_sTable->recordExist("boblightServer"))
-		{
-			_sTable->deleteSettingsRecordString("boblightServer");
-		}
 		version = 3;
 	}
 
+	// v4 renamed the 'awa_spi' LED driver: SPI drivers are no longer part of this product, see removeUnsupportedFeatures
 	if (version < 4)
 	{
-		auto deviceObject = dbConfig["device"].toObject();
-		if (deviceObject["type"] == "awa_spi")
-		{
-			deviceObject["type"] = "hyperspi";
-			dbConfig["device"] = deviceObject;
-		}
 		version = 4;
 	}
 
@@ -241,6 +257,63 @@ bool InstanceConfig::upgradeDB(QJsonObject& dbConfig)
 	dbConfig["general"] = generalObject;
 
 	return orgVersion != version;
+}
+
+// Databases created by full HyperHDR builds may refer to features that this product does not ship.
+// The DB version is global, but these settings are partly per instance, so the cleanup is content based
+// and runs for every instance (it is idempotent and also covers restored backups).
+bool InstanceConfig::removeUnsupportedFeatures(QJsonObject& dbConfig)
+{
+	bool changed = false;
+
+	// CEC support was removed
+	const std::list<std::pair<settings::type, QStringList>> obsoleteFields = {
+		{ settings::type::VIDEOCONTROL, { "cecControl" } },
+		{ settings::type::SYSTEMCONTROL, { "cecControl" } },
+		{ settings::type::VIDEOGRABBER, { "cecHdrStart", "cecHdrStop" } }
+	};
+	for (const auto& [type, fields] : obsoleteFields)
+	{
+		const QString key = settings::typeToString(type);
+		QJsonObject object = dbConfig[key].toObject();
+		bool modified = false;
+		for (const auto& field : fields)
+			if (object.contains(field))
+			{
+				object.remove(field);
+				modified = true;
+			}
+		if (modified)
+		{
+			Info(_log, "Removed the CEC options from the '{:s}' settings: CEC is not part of this version", (key));
+			dbConfig[key] = object;
+			changed = true;
+		}
+	}
+
+	// LED device: fall back to the 'file' driver (no physical output) if the configured driver is not available
+	const QString deviceKey = settings::typeToString(settings::type::DEVICE);
+	QJsonObject deviceObject = dbConfig[deviceKey].toObject();
+	const QString deviceType = deviceObject["type"].toString("file").toLower();
+	const auto& drivers = hyperhdr::leds::GET_ALL_LED_DEVICE(nullptr);
+
+	if (std::none_of(drivers.begin(), drivers.end(), [&deviceType](const auto& driver) { return driver.name == deviceType; }))
+	{
+		Warning(_log, "The LED device type '{:s}' is not supported by this version. The LED output has been switched to the 'file' device (no physical output). Please select a supported LED device in the LED hardware settings.", (deviceType));
+
+		QJsonObject fallback;
+		fallback["type"] = "file";
+		fallback["output"] = "/dev/null";
+		fallback["printTimeStamp"] = false;
+		for (const auto& key : { "colorOrder", "refreshTime" })
+			if (deviceObject.contains(key))
+				fallback[key] = deviceObject[key];
+
+		dbConfig[deviceKey] = fallback;
+		changed = true;
+	}
+
+	return changed;
 }
 
 InstanceConfig::~InstanceConfig()

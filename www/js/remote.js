@@ -208,18 +208,9 @@ $(document).ready(function()
 				case "VIDEOGRABBER":
 					owner = $.i18n('general_comp_VIDEOGRABBER') + ': <span class="small text-secondary">' + owner + '<span/>';
 					break;
-				case "FLATBUFSERVER":
-					owner = $.i18n('general_comp_FLATBUFSERVER');
-					break;
-				case "PROTOSERVER":
-					owner = $.i18n('general_comp_PROTOSERVER');
-					break;
-				case "RAWUDPSERVER":
-					owner = $.i18n('general_comp_RAWUDPSERVER');
-					break;					
 			}
 
-			if (duration && compId != "GRABBER" && compId != "FLATBUFSERVER" && compId != "PROTOSERVER")
+			if (duration && compId != "GRABBER")
 				owner += '<br/><span style="font-size:80%; color:grey;">' + $.i18n('remote_input_duration') + ' ' + duration.toFixed(0) + $.i18n('edt_append_s') + '</span>';
 
 			var btn = '<button id="srcBtn' + i + '" type="button" ' + btn_state + ' class="btn btn-' + btn_type + ' btn_input_selection mb-2" onclick="requestSetSource(' + priority + ');">' + btn_text + '</button>';
@@ -258,7 +249,7 @@ $(document).ready(function()
 
 		for (const comp of components)
 		{
-			if (comp.name === "ALL" || (comp.name === "FORWARDER" && window.serverInfo.currentInstance != 0))
+			if (comp.name === "ALL")
 				continue;
 
 			if (comp.name === "VIDEOGRABBER")

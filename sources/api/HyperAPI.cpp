@@ -27,7 +27,6 @@
 #include <base/SoundCapture.h>
 #include <base/ImageToLedManager.h>
 #include <base/AccessManager.h>
-#include <flatbuffers/server/FlatBuffersServer.h>
 #include <json-utils/jsonschema/QJsonUtils.h>
 #include <json-utils/jsonschema/QJsonSchemaChecker.h>
 #include <json-utils/JsonUtils.h>
@@ -246,10 +245,6 @@ void HyperAPI::initialize()
 
 	// pipe callbacks from subscriptions to parent
 	connect(this, &CallbackAPI::SignalCallbackToClient, this, &HyperAPI::SignalCallbackJsonMessage);
-
-	// notify hyperhdr about a jsonMessageForward
-	if (_hyperhdr != nullptr)
-		connect(this, &HyperAPI::SignalForwardJsonMessage, _hyperhdr.get(), &HyperHdrInstance::SignalForwardJsonMessage);
 }
 
 bool HyperAPI::handleInstanceSwitch(quint8 inst, bool /*forced*/)
@@ -264,7 +259,6 @@ bool HyperAPI::handleInstanceSwitch(quint8 inst, bool /*forced*/)
 
 void HyperAPI::handleColorCommand(const QJsonObject& message, const QString& command, int tan)
 {
-	emit SignalForwardJsonMessage(message);
 	int priority = message["priority"].toInt();
 	int duration = message["duration"].toInt(-1);
 	const QString origin = message["origin"].toString("JsonRpc") + "@" + _peerAddress;
@@ -283,8 +277,6 @@ void HyperAPI::handleColorCommand(const QJsonObject& message, const QString& com
 
 void HyperAPI::handleImageCommand(const QJsonObject& message, const QString& command, int tan)
 {
-	emit SignalForwardJsonMessage(message);
-
 	BaseAPI::ImageCmdData idata;
 	idata.priority = message["priority"].toInt();
 	idata.origin = message["origin"].toString("JsonRpc") + "@" + _peerAddress;
@@ -307,8 +299,6 @@ void HyperAPI::handleImageCommand(const QJsonObject& message, const QString& com
 
 void HyperAPI::handleEffectCommand(const QJsonObject& message, const QString& command, int tan)
 {
-	emit SignalForwardJsonMessage(message);
-
 	EffectCmdData dat;
 	dat.priority = message["priority"].toInt();
 	dat.duration = message["duration"].toInt(-1);
@@ -396,7 +386,7 @@ void HyperAPI::handleServerInfoCommand(const QJsonObject& message, const QString
 			// System Grabber Info //
 			/////////////////////////
 
-#if defined(ENABLE_DX) || defined(ENABLE_MAC_SYSTEM) || defined(ENABLE_X11) || defined(ENABLE_FRAMEBUFFER) || defined(ENABLE_AMLOGIC)
+#if defined(ENABLE_DX) || defined(ENABLE_MAC_SYSTEM) || defined(ENABLE_X11)
 
 			QJsonObject resultSGrabber;
 
@@ -468,18 +458,6 @@ void HyperAPI::handleServerInfoCommand(const QJsonObject& message, const QString
 			//     MISC    //
 			/////////////////
 
-#if defined(ENABLE_PROTOBUF)
-			info["hasPROTOBUF"] = 1;
-#else
-			info["hasPROTOBUF"] = 0;
-#endif
-
-#if defined(ENABLE_CEC)
-			info["hasCEC"] = 1;
-#else
-			info["hasCEC"] = 0;
-#endif
-
 			info["hostname"] = QHostInfo::localHostName();
 			info["lastError"] = Logger::getInstance()->getLastError();
 
@@ -511,7 +489,6 @@ void HyperAPI::handleServerInfoCommand(const QJsonObject& message, const QString
 
 void HyperAPI::handleClearCommand(const QJsonObject& message, const QString& command, int tan)
 {
-	emit SignalForwardJsonMessage(message);
 	int priority = message["priority"].toInt();
 	QString replyMsg;
 
@@ -523,9 +500,8 @@ void HyperAPI::handleClearCommand(const QJsonObject& message, const QString& com
 	sendSuccessReply(command, tan);
 }
 
-void HyperAPI::handleClearallCommand(const QJsonObject& message, const QString& command, int tan)
+void HyperAPI::handleClearallCommand(const QJsonObject& /*message*/, const QString& command, int tan)
 {
-	emit SignalForwardJsonMessage(message);
 	QString replyMsg;
 	BaseAPI::clearPriority(-1, replyMsg);
 	sendSuccessReply(command, tan);
@@ -1021,11 +997,6 @@ void HyperAPI::handleProcessingCommand(const QJsonObject& message, const QString
 
 void HyperAPI::handleVideoModeHdrCommand(const QJsonObject& message, const QString& command, int tan)
 {
-	if (message.contains("flatbuffers_user_lut_filename"))
-	{
-		BaseAPI::setFlatbufferUserLUT(message["flatbuffers_user_lut_filename"].toString(""));
-	}
-
 	BaseAPI::setVideoModeHdr(message["HDR"].toInt());
 	sendSuccessReply(command, tan);
 }

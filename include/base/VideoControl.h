@@ -21,7 +21,6 @@ public:
 	~VideoControl();
 
 	quint8 getCapturePriority();
-	bool isCEC();
 	void setUsbCaptureEnable(bool enable);
 
 private slots:
@@ -39,7 +38,6 @@ private:
 	quint8	_usbCaptPrio;
 	QString	_usbCaptName;
 	QTimer*	_usbInactiveTimer;
-	bool	_isCEC;
 
 	struct {
 		QMutex mutex;

@@ -49,6 +49,18 @@ bool SettingsTable::recordExist(const QString& type) const
 }
 
 ///
+/// @brief      Test if a record of the given type exists for any instance (or as a global setting)
+/// @param[in]  type           type of setting
+/// @return     true if found
+///
+bool SettingsTable::anyRecordExist(const QString& type) const
+{
+	VectorPair cond;
+	cond.append(CPair("type", type));
+	return recordExists(cond);
+}
+
+///
 /// @brief Get 'config' column of settings entry as QJsonDocument
 /// @param[in]  type   The settings type
 /// @return            The QJsonDocument
@@ -114,9 +126,8 @@ bool SettingsTable::isSettingGlobal(const QString& type) const
 	// list of global settings
 	QStringList list;
 	// server port services
-	list << settings::typeToString(settings::type::JSONSERVER) << settings::typeToString(settings::type::PROTOSERVER)
-		<< settings::typeToString(settings::type::FLATBUFSERVER) << settings::typeToString(settings::type::NETWORK)
-		<< settings::typeToString(settings::type::NETFORWARD) << settings::typeToString(settings::type::WEBSERVER)
+	list << settings::typeToString(settings::type::JSONSERVER) << settings::typeToString(settings::type::NETWORK)
+		<< settings::typeToString(settings::type::WEBSERVER)
 		<< settings::typeToString(settings::type::VIDEOGRABBER) << settings::typeToString(settings::type::SYSTEMGRABBER)
 		<< settings::typeToString(settings::type::LOGGER) << settings::typeToString(settings::type::GENERAL)
 		<< settings::typeToString(settings::type::SNDEFFECT) << settings::typeToString(settings::type::VIDEODETECTION)

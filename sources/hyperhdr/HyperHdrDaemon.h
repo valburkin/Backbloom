@@ -40,18 +40,6 @@
 	typedef QObject X11Wrapper;
 #endif
 
-#ifdef ENABLE_FRAMEBUFFER
-#include <grabber/linux/framebuffer/FrameBufWrapper.h>
-#else
-	typedef QObject FrameBufWrapper;
-#endif
-
-#ifdef ENABLE_AMLOGIC
-#include <grabber/linux/amlogic/AmlogicWrapper.h>
-#else
-	typedef QObject AmlogicWrapper;
-#endif
-
 #ifdef ENABLE_PIPEWIRE
 #include <grabber/linux/pipewire/PipewireWrapper.h>
 #else
@@ -77,12 +65,6 @@
 	typedef QObject DiscoveryWrapper;
 #endif
 
-#ifdef ENABLE_CEC
-	#include <cec/WrapperCEC.h>
-#else
-	typedef QObject WrapperCEC;
-#endif
-
 #if defined(ENABLE_SOUNDCAPWINDOWS)
 	#include <sound-capture/windows/SoundCaptureWindows.h>
 #elif defined(ENABLE_SOUNDCAPLINUX)
@@ -106,9 +88,6 @@ class SysTray;
 class JsonServer;
 class WebServer;
 class InstanceConfig;
-class SSDPHandler;
-class FlatBufferServer;
-class ProtoServer;
 class AccessManager;
 class NetOrigin;
 class VideoThread;
@@ -167,11 +146,9 @@ private:
 	std::shared_ptr<SoundCapture>  _soundCapture;
 	std::shared_ptr<PerformanceCounters> _performanceCounters;
 	std::shared_ptr<DiscoveryWrapper> _discoveryWrapper;
-	std::unique_ptr<QThread, std::function<void(QThread*)>> _flatProtoBuffersThread;
 	std::unique_ptr<QThread, std::function<void(QThread*)>> _networkThread;
 	std::unique_ptr<QThread, std::function<void (QThread*)>> _mqttThread;
 	std::unique_ptr<SuspendHandler> _suspendHandler;
-	std::unique_ptr<WrapperCEC>	_wrapperCEC;
 	std::unique_ptr<InstanceConfig> _instanceZeroConfig;
 
 	QString				_rootPath;

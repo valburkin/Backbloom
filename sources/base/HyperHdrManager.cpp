@@ -238,14 +238,6 @@ QJsonObject HyperHdrManager::getAverageColor(quint8 index)
 	return res;
 }
 
-void HyperHdrManager::setSignalStateByCEC(bool enable)
-{
-	for (const auto& instance : std::as_const(_runningInstances))
-	{
-		QUEUE_CALL_1(instance.get(), setSignalStateByCEC, bool, enable);
-	}
-}
-
 void HyperHdrManager::toggleStateAllInstances(bool pause)
 {
 	for (const auto& instance : std::as_const(_runningInstances))

@@ -30,6 +30,8 @@ signals:
 	void SignalInstanceSettingsChanged(settings::type type, QJsonDocument data);
 
 private:
+	bool removeUnsupportedFeatures(QJsonObject& dbConfig);
+
 	LoggerName		_log;
 	std::unique_ptr<SettingsTable> _sTable;
 	QJsonObject		_qconfig;

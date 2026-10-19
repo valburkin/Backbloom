@@ -777,12 +777,6 @@ $(document).ready(function()
 		var values_specific = {};
 		var isCurrentDevice = (window.serverConfig.device.type == ledType);
 		let selectedLedGroup = $(this.options[this.selectedIndex]).closest('optgroup').attr('data-group-id');
-		const spiOnWindowsAndMacOs= (window.sysInfo.system.productType == "windows" || window.sysInfo.system.productType == "macos") && selectedLedGroup == "leds_group_0_SPI";
-
-		if (spiOnWindowsAndMacOs)
-		{
-			delete specificOptions.properties.output.default;
-		}
 
 		conf_editor = createJsonEditor('editor_container',
 		{
@@ -811,11 +805,6 @@ $(document).ready(function()
 			if (key != "type" && key in generalOptions.properties) values_general[key] = window.serverConfig.device[key];
 		};
 		conf_editor.getEditor("root.generalOptions").setValue(values_general);
-
-		if (spiOnWindowsAndMacOs)
-		{
-			$("input[name='root[specificOptions][output]']").attr("placeholder", $.i18n("edt_dev_led_ftdi_select"));
-		}
 
 		if (isCurrentDevice)
 		{
@@ -876,7 +865,7 @@ $(document).ready(function()
 			});
 			$("input[name='root[specificOptions][useEntertainmentAPI]']").trigger("change");
 		}
-		else if ([ "cololight", "yeelight", "atmoorb", "home_assistant", "zigbee2mqtt", "lifx", "wiz"].includes(ledType))
+		else if ([ "yeelight", "home_assistant", "zigbee2mqtt", "lifx", "wiz"].includes(ledType))
 		{
 			const data = {
 				type: ledType
@@ -885,34 +874,23 @@ $(document).ready(function()
 			const wizardFn = 'startWizard' + ledType.charAt(0).toUpperCase() + ledType.slice(1);
 			changeWizard(data, wizardTitle, window[wizardFn]);
 		}
-		else if (["wled", "hyperk"].includes(ledType) || selectedLedGroup == "leds_group_0_SPI" || selectedLedGroup == "leds_group_3_serial" || selectedLedGroup == "leds_group_6_HID")
+		else if (ledType == "wled" || selectedLedGroup == "leds_group_3_serial" || selectedLedGroup == "leds_group_6_HID")
 		{					
 			let selectorControl = $("<select id=\"deviceListInstances\" />");
 			let targetControl = 'output';
 
 			selectorControl.addClass("form-select bg-warning").css('width', String(40)+'%');
 
-			if (["wled", "hyperk"].includes(ledType))
+			if (ledType == "wled")
 			{
 				requestLedDeviceDiscovery(ledType).then( (result) => deviceListRefresh(ledType, result, 'root.specificOptions.host',`select_${ledType}_intro`,`select_network_rescan`));
 				targetControl = 'host';
 			}
 			else if (selectedLedGroup == "leds_group_3_serial" || selectedLedGroup == "leds_group_6_HID")
 				requestLedDeviceDiscovery(ledType).then( (result) => deviceListRefresh(ledType, result, 'root.specificOptions.output','edt_dev_spec_outputPath_title'));
-			else if (selectedLedGroup == "leds_group_0_SPI")
-				requestLedDeviceDiscovery(ledType).then( (result) => deviceListRefresh(ledType, result, 'root.specificOptions.output', 'edt_dev_spec_spipath_title'));
 				
 			$(`input[name='root[specificOptions][${targetControl}]']`)[0].style.width = String(58) + "%";
 			$(`input[name='root[specificOptions][${targetControl}]']`)[0].parentElement.appendChild(selectorControl[0]);			
-		}
-
-		if (["wled", "hyperk", "ddp"].includes(ledType))
-		{
-			createHintH('callout-warning', $.i18n('about_hyperk'), 'btn_wiz_holder');
-		}
-
-		if (ledType == "ws2812spi" || ledType == "ws281x" || ledType == "sk6812spi") {
-			createHintH('callout-warning', $.i18n('edt_rpi_ws281x_driver'), 'btn_wiz_holder');
 		}
 
 		function changeWizard(data, hint, fn)

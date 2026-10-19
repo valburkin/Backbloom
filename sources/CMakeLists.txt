@@ -15,7 +15,6 @@ add_subdirectory(blackborder)
 add_subdirectory(commandline)
 add_subdirectory(db)
 add_subdirectory(effects)
-add_subdirectory(flatbuffers)
 add_subdirectory(grabber)
 add_subdirectory(hyperimage)
 add_subdirectory(image)
@@ -35,14 +34,6 @@ add_subdirectory(webserver)
 
 if(ENABLE_ZSTD)
 	add_subdirectory(utils-zstd)
-endif()
-
-if (ENABLE_PROTOBUF)
-	add_subdirectory(proto-nano-server)
-endif()
-
-if (ENABLE_CEC)
-	add_subdirectory(cec)
 endif()
 
 if(ENABLE_BONJOUR)

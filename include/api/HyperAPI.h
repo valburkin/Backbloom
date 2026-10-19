@@ -42,7 +42,6 @@ protected slots:
 
 signals:
 	void SignalCallbackBinaryImageMessage(Image<ColorRgb>);	
-	void SignalForwardJsonMessage(QJsonObject);
 	void SignalCallbackJsonMessage(QJsonObject);
 
 protected:

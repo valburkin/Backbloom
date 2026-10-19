@@ -21,8 +21,6 @@ public:
 
 	quint8 getCapturePriority();
 
-	bool isCEC();
-
 	void setSysCaptureEnable(bool enable);
 
 private slots:
@@ -39,5 +37,4 @@ private:
 	quint8	_sysCaptPrio;
 	QString	_sysCaptName;
 	QTimer*	_sysInactiveTimer;
-	bool	_isCEC;
 };

@@ -15,7 +15,6 @@ namespace settings {
 		COLOR,
 		DEVICE,
 		EFFECTS,
-		NETFORWARD,
 		GENERAL,
 		VIDEOGRABBER,
 		SYSTEMGRABBER,
@@ -29,9 +28,6 @@ namespace settings {
 		SYSTEMCONTROL,
 		VIDEODETECTION,
 		NETWORK,
-		FLATBUFSERVER,
-		RAWUDPSERVER,
-		PROTOSERVER,
 		MQTT,
 		AUTOTONEMAPPING,
 		LAYOUT,
@@ -49,7 +45,6 @@ namespace settings {
 		case type::COLOR:         return "color";
 		case type::DEVICE:        return "device";
 		case type::EFFECTS:       return "effects";
-		case type::NETFORWARD:    return "forwarder";
 		case type::GENERAL:       return "general";
 		case type::VIDEOGRABBER:  return "videoGrabber";
 		case type::SYSTEMGRABBER: return "systemGrabber";
@@ -63,9 +58,6 @@ namespace settings {
 		case type::SYSTEMCONTROL: return "systemControl";
 		case type::VIDEODETECTION:return "videoDetection";
 		case type::NETWORK:       return "network";
-		case type::FLATBUFSERVER: return "flatbufServer";
-		case type::RAWUDPSERVER:  return "rawUdpServer";
-		case type::PROTOSERVER:   return "protoServer";
 		case type::MQTT:          return "mqtt";
 		case type::AUTOTONEMAPPING: return "automaticToneMapping";
 		case type::LAYOUT:        return "layout";
@@ -82,7 +74,6 @@ namespace settings {
 		else if (type == "color")                return type::COLOR;
 		else if (type == "device")               return type::DEVICE;
 		else if (type == "effects")              return type::EFFECTS;
-		else if (type == "forwarder")            return type::NETFORWARD;
 		else if (type == "general")              return type::GENERAL;
 		else if (type == "videoGrabber")         return type::VIDEOGRABBER;
 		else if (type == "systemGrabber")        return type::SYSTEMGRABBER;
@@ -96,9 +87,6 @@ namespace settings {
 		else if (type == "systemControl")        return type::SYSTEMCONTROL;
 		else if (type == "videoDetection")       return type::VIDEODETECTION;
 		else if (type == "network")              return type::NETWORK;
-		else if (type == "flatbufServer")        return type::FLATBUFSERVER;
-		else if (type == "rawUdpServer")         return type::RAWUDPSERVER;
-		else if (type == "protoServer")          return type::PROTOSERVER;
 		else if (type == "mqtt")                 return type::MQTT;
 		else if (type == "automaticToneMapping") return type::AUTOTONEMAPPING;
 		else if (type == "layout")               return type::LAYOUT;

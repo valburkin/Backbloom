@@ -65,26 +65,6 @@
 			"required" : true,
 			"propertyOrder" : 23
 		},
-		"cecHdrStart" :
-		{
-			"type" : "integer",
-			"format": "stepper",
-			"title" : "edt_conf_stream_cec_hdr_start_title",
-			"minimum" : 0,
-			"default" : 0,
-			"required" : true,
-			"propertyOrder" : 25
-		},
-		"cecHdrStop" :
-		{
-			"type" : "integer",
-			"format": "stepper",
-			"title" : "edt_conf_stream_cec_hdr_stop_title",
-			"minimum" : 0,
-			"default" : 0,
-			"required" : true,
-			"propertyOrder" : 26
-		},		
 		"fpsSoftwareDecimation" :
 		{
 			"type" : "integer",

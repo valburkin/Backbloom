@@ -23,15 +23,6 @@
 			"maximum" : 253,
 			"default" : 240,
 			"propertyOrder" : 2
-		},
-		"cecControl" :
-		{
-			"type" : "boolean",
-			"format": "checkbox",
-			"required" : true,
-			"title" : "edt_conf_cec_control_title",
-			"default" : false,
-			"propertyOrder" : 3
 		}
 	},
 	"additionalProperties" : false

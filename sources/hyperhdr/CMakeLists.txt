@@ -23,9 +23,6 @@ target_link_libraries(hyperhdr
 	commandline
 	database
 	effects
-	flatbuffers-client
-	flatbuffers-parser
-	flatbuffers-server
 	hyperhdr-api
 	hyperhdr-base
 	hyperhdr-utils
@@ -36,7 +33,6 @@ target_link_libraries(hyperhdr
 	led-drivers
 	lut-calibrator
 	performance-counters
-	protobuf-nanopb
 	resources
 	infinite-engine
 	ssdp
@@ -66,10 +62,6 @@ if (USE_STATIC_QT_PLUGINS)
 	target_link_libraries(hyperhdr ${STATIC_QT_PLUGINS_LIBS})
 endif()
 
-if (ENABLE_PROTOBUF)
-	target_link_libraries(hyperhdr proto-nano-server)
-endif ()
-
 if (ENABLE_MQTT)
 	target_link_libraries(hyperhdr mqtt)
 endif ()
@@ -78,10 +70,6 @@ if (ENABLE_BONJOUR)
 	target_link_libraries(hyperhdr bonjour)
 endif ()
 
-if (ENABLE_CEC)
-	target_link_libraries(hyperhdr cechandler)
-endif ()
-		
 if (ENABLE_V4L2)
 	target_link_libraries(hyperhdr v4l2-grabber)
 endif ()
@@ -96,14 +84,6 @@ endif ()
 
 if (ENABLE_X11)
 	target_link_libraries(hyperhdr X11-grabber "${CMAKE_DL_LIBS}")
-endif ()
-
-if (ENABLE_FRAMEBUFFER)
-	target_link_libraries(hyperhdr framebuffer-grabber "${CMAKE_DL_LIBS}")
-endif ()
-
-if (ENABLE_AMLOGIC)
-	target_link_libraries(hyperhdr amlogic-grabber "${CMAKE_DL_LIBS}")
 endif ()
 
 if (ENABLE_PIPEWIRE)

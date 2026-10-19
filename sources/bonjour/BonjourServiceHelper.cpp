@@ -37,7 +37,6 @@ BonjourServiceHelper::BonjourServiceHelper(BonjourServiceRegister* parent, QStri
 	has_ipv4 = 0;
 	has_ipv6 = 0;
 	_scanService = (1 << DiscoveryRecord::Service::HyperHDR) |
-		(1 << DiscoveryRecord::Service::Hyperk) |
 		(1 << DiscoveryRecord::Service::WLED) |
 		(1 << DiscoveryRecord::Service::PhilipsHue) |
 		(1 << DiscoveryRecord::Service::HomeAssistant);
@@ -507,7 +506,6 @@ int BonjourServiceHelper::service_mdns(QString hostname, QString serviceName, in
 		if (_scanService != 0)
 		{
 			for (auto scanner :{ DiscoveryRecord::Service::HyperHDR,
-							DiscoveryRecord::Service::Hyperk,
 							DiscoveryRecord::Service::WLED,
 							DiscoveryRecord::Service::PhilipsHue,
 							DiscoveryRecord::Service::HomeAssistant })

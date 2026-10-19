@@ -42,7 +42,6 @@ SystemControl::SystemControl(HyperHdrInstance* hyperhdr)
 	, _sysCaptPrio(0)
 	, _sysCaptName()
 	, _sysInactiveTimer(new QTimer(this))
-	, _isCEC(false)
 {
 	// settings changes
 	connect(_hyperhdr, &HyperHdrInstance::SignalInstanceSettingsChanged, this, &SystemControl::handleSettingsUpdate);
@@ -69,11 +68,6 @@ SystemControl::~SystemControl()
 quint8 SystemControl::getCapturePriority()
 {
 	return _sysCaptPrio;
-}
-
-bool SystemControl::isCEC()
-{
-	return _isCEC;
 }
 
 void SystemControl::handleSysImage(const QString& name, const Image<ColorRgb>& image)
@@ -129,8 +123,6 @@ void SystemControl::handleSettingsUpdate(settings::type type, const QJsonDocumen
 		}
 
 		setSysCaptureEnable(obj["systemInstanceEnable"].toBool(false));
-		_isCEC = obj["cecControl"].toBool(false);
-		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::COMP_CEC, -int(_hyperhdr->getInstanceIndex()) - 2, _isCEC);
 	}
 }
 

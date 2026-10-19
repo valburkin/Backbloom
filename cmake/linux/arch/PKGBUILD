@@ -29,7 +29,6 @@ build() {
 
 package() {
     DESTDIR="$pkgdir" cmake --install build
-    rm -rf $pkgdir/usr/bin/flatc
     rm -rf $pkgdir/usr/cmake
     rm -rf $pkgdir/usr/include
     find "$pkgdir/usr/lib" -maxdepth 1 -mindepth 1 ! -name "hyperhdr" ! -name "systemd" -exec rm -rf {} +

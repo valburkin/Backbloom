@@ -25,7 +25,6 @@
 #include <base/SystemWrapper.h>
 #include <base/Muxer.h>
 #include <db/AuthTable.h>
-#include <flatbuffers/server/FlatBuffersServer.h>
 #include <json-utils/jsonschema/QJsonSchemaChecker.h>
 #include <utils/GlobalSignals.h>
 #include <base/GrabberHelper.h>
@@ -309,14 +308,6 @@ void BaseAPI::setLedMappingType(int type, hyperhdr::Components /*callerComp*/)
 void BaseAPI::setVideoModeHdr(int hdr, hyperhdr::Components /*callerComp*/)
 {
 	emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_HDR, -1, hdr);
-}
-
-void BaseAPI::setFlatbufferUserLUT(QString userLUTfile)
-{
-	QJsonObject obj;	
-	obj[BASEAPI_FLATBUFFER_USER_LUT_FILE] = userLUTfile;
-	QJsonDocument updateSettings(obj);
-	emit _instanceManager->SignalSettingsChanged(settings::type::FLATBUFSERVER, updateSettings);
 }
 
 bool BaseAPI::setEffect(const EffectCmdData& dat, hyperhdr::Components /*callerComp*/)

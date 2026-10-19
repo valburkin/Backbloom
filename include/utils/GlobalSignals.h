@@ -81,12 +81,6 @@ signals:
 
 	void SignalNewVideoImage(const QString& name, const Image<ColorRgb>& image);
 
-	void SignalClearGlobalInput(int priority, bool forceClearAll);
-
-	void SignalSetGlobalImage(int priority, const Image<ColorRgb>& image, int timeout_ms, hyperhdr::Components origin, QString clientDescription);
-
-	void SignalSetGlobalColor(int priority, const QVector<ColorRgb>& ledColor, int timeout_ms, hyperhdr::Components origin, QString clientDescription);
-
 	void SignalRequestComponent(hyperhdr::Components component, int hyperHdrInd, bool listen);
 
 	void SignalPerformanceNewReport(PerformanceReport pr);

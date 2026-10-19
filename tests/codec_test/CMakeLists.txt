@@ -27,13 +27,8 @@ set(CMAKE_AUTORCC ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Set build variables
-SET ( DEFAULT_PROTOBUF                    ON  )
-SET ( DEFAULT_WS281XPWM                   OFF )
-SET ( DEFAULT_SPI_FTDI                    ON  )
-SET ( DEFAULT_USE_SYSTEM_FLATBUFFERS_LIBS ON  )
 SET ( DEFAULT_USE_SYSTEM_MQTT_LIBS        OFF )
 SET ( DEFAULT_USE_SYSTEM_LUNASVG_LIBS     OFF )
-SET ( DEFAULT_USE_SYSTEM_NANOPB_LIBS      OFF )
 SET ( DEFAULT_USE_SYSTEM_STB_LIBS         OFF )
 SET ( DEFAULT_MF                          OFF )
 SET ( DEFAULT_DX                          OFF )
@@ -43,11 +38,8 @@ SET ( DEFAULT_V4L2                        OFF )
 SET ( DEFAULT_X11                         OFF )
 SET ( DEFAULT_PIPEWIRE                    OFF )
 SET ( DEFAULT_PIPEWIRE_EGL                OFF )
-SET ( DEFAULT_FRAMEBUFFER                 OFF )
-SET ( DEFAULT_AMLOGIC                     OFF )
 SET ( DEFAULT_SOUNDCAPWINDOWS             OFF )
 SET ( DEFAULT_SOUNDCAPMACOS               OFF )
-SET ( DEFAULT_CEC                         OFF )
 SET ( DEFAULT_BONJOUR                     ON  )
 SET ( DEFAULT_MQTT                        ON  )
 SET ( DEFAULT_STATIC_QT_PLUGINS           OFF )
@@ -139,16 +131,12 @@ IF ( ${CMAKE_SYSTEM} MATCHES "Linux" )
 	SET ( DEFAULT_SOUNDCAPLINUX ON )
 	SET ( DEFAULT_V4L2          ON )
 	SET ( DEFAULT_X11           ON )
-	SET ( DEFAULT_FRAMEBUFFER   ON )
 	SET ( DEFAULT_PIPEWIRE      ON )
-	SET ( DEFAULT_SPIDEV        ON )
 	message( STATUS "Debian version: ${DEBIAN_NAME_TAG}" )
 ELSEIF ( WIN32 )
 	SET ( DEFAULT_DX              ON  )
 	SET ( DEFAULT_MF              ON  )
 	SET ( DEFAULT_SOUNDCAPWINDOWS ON  )
-ELSE()
-	SET ( DEFAULT_SPIDEV      OFF )
 ENDIF()
 
 if ( NOT DEFINED PLATFORM )
@@ -162,18 +150,11 @@ if ( NOT DEFINED PLATFORM )
 		SET( PLATFORM "rpi")
 		
 
-		FILE( READ /proc/cpuinfo SYSTEM_CPUINFO )
-		STRING ( TOLOWER "${SYSTEM_CPUINFO}" SYSTEM_CPUINFO )
-		if ( "${SYSTEM_CPUINFO}" MATCHES "amlogic" AND ${CMAKE_SIZEOF_VOID_P} EQUAL 4 )
-			SET( PLATFORM "amlogic" )
-		elseif ( ("${SYSTEM_CPUINFO}" MATCHES "amlogic" OR "${SYSTEM_CPUINFO}" MATCHES "odroid-c2" OR "${SYSTEM_CPUINFO}" MATCHES "vero4k") AND ${CMAKE_SIZEOF_VOID_P} EQUAL 8 )
-			SET( PLATFORM "amlogic64" )		
-		endif()
 	endif()
 	if ( PLATFORM )
 		message( STATUS "PLATFORM is not defined, evaluated platform: ${PLATFORM}")
 	else()
-		message( FATAL_ERROR "PLATFORM is not defined and could not be evaluated. Set -DPLATFORM=<rpi|amlogic|amlogic64|linux|linux-dev|osx|osx-dev>")
+		message( FATAL_ERROR "PLATFORM is not defined and could not be evaluated. Set -DPLATFORM=<rpi|linux|linux-dev|osx|osx-dev|windows>")
 	endif()
 endif()
 
@@ -243,8 +224,6 @@ if ( "${PLATFORM}" MATCHES "osx" )
 	endif(CMAKE_OSX_HYPERHDR_DEPLOYMENT_TARGET)
 
 elseif ( "${PLATFORM}" MATCHES "rpi" )	
-	SET ( DEFAULT_WS281XPWM  ON  )
-	SET ( DEFAULT_CEC        ON  )
 	SET ( DEFAULT_SYSTRAY    OFF )
 	
 	# GL dispatcher
@@ -287,19 +266,8 @@ elseif ( "${PLATFORM}" MATCHES "rpi" )
 		message(STATUS "Platform variant: generic ARM")
 	endif()
 	
-elseif ( "${PLATFORM}" STREQUAL "amlogic" )
-	SET ( DEFAULT_AMLOGIC    ON )
-elseif ( "${PLATFORM}" STREQUAL "amlogic64" )
-	SET ( DEFAULT_AMLOGIC    ON )
-elseif ( "${PLATFORM}" MATCHES "linux" )
-	if ( "${PLATFORM}" STREQUAL "linux-dev" )
-		SET ( DEFAULT_AMLOGIC    ON)
-		SET ( DEFAULT_WS281XPWM  ON )
-	endif()
 elseif ( "${PLATFORM}" STREQUAL "imx6" )
 	
-elseif (WIN32)
-	SET ( DEFAULT_USE_SYSTEM_FLATBUFFERS_LIBS OFF )
 endif()
 
 STRING( TOUPPER "-DPLATFORM_${PLATFORM}" PLATFORM_DEFINE)
@@ -333,19 +301,6 @@ if (DEFAULT_POWER_MANAGEMENT OR DEFAULT_PIPEWIRE OR DEFAULT_SYSTRAY)
 	endif()
 endif()
 
-if (DEFAULT_FRAMEBUFFER)
-	include(CheckIncludeFile)
-	check_include_file("linux/fb.h" HAVE_FB)
-	if (NOT HAVE_FB)
-		if (NOT CMAKE_CROSSCOMPILING)
-			message( WARNING "<Linux/fb.h> not found. Disabling framebuffer grabber.")
-			SET ( DEFAULT_FRAMEBUFFER                     OFF )
-		else()
-			message( WARNING "<Linux/fb.h> not found. You may need to disable ENABLE_FRAMEBUFFER")
-		endif()
-	endif()
-endif()
-
 # Find OpenSSL
 find_package(OpenSSL)
 if (NOT OPENSSL_FOUND)
@@ -373,7 +328,6 @@ if (DEFAULT_PIPEWIRE)
 endif()
 
 if (CMAKE_CROSSCOMPILING)
-	set ( DEFAULT_USE_SYSTEM_FLATBUFFERS_LIBS OFF )
 	SET ( DEFAULT_SHARED_LIBS                 OFF )
 	set ( DEFAULT_EMBEDDED_WEB_RESOURCES      ON  )
 endif()
@@ -404,25 +358,10 @@ endfunction()
 
 message( STATUS "\n${CyanColor}LED DEVICES${ColorReset}")
 
-option(ENABLE_SPIDEV   "Enable the SPIDEV device" ${DEFAULT_SPIDEV} )
-colorMe("ENABLE_SPIDEV = " ${ENABLE_SPIDEV})
-
-option(ENABLE_SPI_FTDI  "Enable the SPI FTDI device" ${DEFAULT_SPI_FTDI} )
-colorMe("ENABLE_SPI_FTDI = " ${ENABLE_SPI_FTDI})
-
-option(ENABLE_WS281XPWM "Enable the WS281x-PWM device" ${DEFAULT_WS281XPWM} )
-colorMe("ENABLE_WS281XPWM = " ${ENABLE_WS281XPWM})
-
 message( STATUS "\n${CyanColor}SOFTWARE GRABBERS${ColorReset}")
 
 option(ENABLE_DX "Enable Windows DirectX 11 system grabber" ${DEFAULT_DX})
 colorMe("ENABLE_DX = " ${ENABLE_DX})
-
-option(ENABLE_FRAMEBUFFER "Enable the framebuffer Linux system grabber" ${DEFAULT_FRAMEBUFFER})
-colorMe("ENABLE_FRAMEBUFFER = " ${ENABLE_FRAMEBUFFER})
-
-option(ENABLE_AMLOGIC "Enable the Amlogic grabber" ${DEFAULT_AMLOGIC})
-colorMe("ENABLE_AMLOGIC = " ${ENABLE_AMLOGIC})
 
 option(ENABLE_MAC_SYSTEM "Enable macOS system grabber" ${DEFAULT_MAC_SYSTEM})
 colorMe("ENABLE_MAC_SYSTEM = " ${ENABLE_MAC_SYSTEM})
@@ -465,17 +404,11 @@ message( STATUS "\n${CyanColor}SERVICE SUPPORT${ColorReset}")
 option(ENABLE_BONJOUR "Enable the network discovery service" ${DEFAULT_BONJOUR} )
 colorMe("ENABLE_BONJOUR = " ${ENABLE_BONJOUR})
 
-option(ENABLE_CEC "Enable CEC" ${DEFAULT_CEC})
-colorMe("ENABLE_CEC = " ${ENABLE_CEC})
-
 option(ENABLE_MQTT "Enable MQTT" ${DEFAULT_MQTT})
 colorMe("ENABLE_MQTT = " ${ENABLE_MQTT})
 
 option(ENABLE_POWER_MANAGEMENT "Enable Power Management support" ${DEFAULT_POWER_MANAGEMENT})
 colorMe("ENABLE_POWER_MANAGEMENT = " ${ENABLE_POWER_MANAGEMENT})
-
-option(ENABLE_PROTOBUF "Enable PROTOBUF" ${DEFAULT_PROTOBUF})
-colorMe("ENABLE_PROTOBUF = " ${ENABLE_PROTOBUF})
 
 option(ENABLE_SYSTRAY "Enable SYSTRAY" ${DEFAULT_SYSTRAY})
 colorMe("ENABLE_SYSTRAY = " ${ENABLE_SYSTRAY})
@@ -499,14 +432,8 @@ colorMe("USE_CCACHE_CACHING = " ${USE_CCACHE_CACHING})
 option(USE_SYSTEM_MQTT_LIBS "Use system qmqtt libs" ${DEFAULT_USE_SYSTEM_MQTT_LIBS})
 colorMe("USE_SYSTEM_MQTT_LIBS = " ${USE_SYSTEM_MQTT_LIBS})
 
-option(USE_SYSTEM_FLATBUFFERS_LIBS "Use system flatbuffers libs" ${DEFAULT_USE_SYSTEM_FLATBUFFERS_LIBS})
-colorMe("USE_SYSTEM_FLATBUFFERS_LIBS = " ${USE_SYSTEM_FLATBUFFERS_LIBS})
-
 option(USE_SYSTEM_LUNASVG_LIBS "Use system lunasvg libs" ${DEFAULT_USE_SYSTEM_LUNASVG_LIBS})
 colorMe("USE_SYSTEM_LUNASVG_LIBS = " ${USE_SYSTEM_LUNASVG_LIBS})
-
-option(USE_SYSTEM_NANOPB_LIBS "Use system nanopb libs" ${DEFAULT_USE_SYSTEM_NANOPB_LIBS})
-colorMe("USE_SYSTEM_NANOPB_LIBS = " ${USE_SYSTEM_NANOPB_LIBS})
 
 option(USE_SYSTEM_STB_LIBS "Use system stb libs" ${DEFAULT_USE_SYSTEM_STB_LIBS})
 colorMe("USE_SYSTEM_STB_LIBS = " ${USE_SYSTEM_STB_LIBS})
@@ -527,8 +454,6 @@ message( STATUS "\n")
 
 # next part
 
-SET ( FLATBUFFERS_INSTALL_BIN_DIR ${CMAKE_BINARY_DIR}/flatbuf )
-SET ( FLATBUFFERS_INSTALL_LIB_DIR ${CMAKE_BINARY_DIR}/flatbuf )
 
 find_package(GitVersion)
 

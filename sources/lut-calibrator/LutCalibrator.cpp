@@ -375,12 +375,6 @@ void LutCalibrator::startHandler()
 		Debug(_log, "Using system grabber as a source<br/>Waiting for first captured test board..");
 		connect(GlobalSignals::getInstance(), &GlobalSignals::SignalNewSystemImage, this, &LutCalibrator::setSystemImage, Qt::ConnectionType::UniqueConnection);
 	}
-	else if (_defaultComp == hyperhdr::COMP_FLATBUFSERVER)
-	{
-		notifyCalibrationMessage("Using flatbuffers/protobuffers as a source<br/>Waiting for first captured test board..");
-		Debug(_log, "Using flatbuffers/protobuffers as a source<br/>Waiting for first captured test board..");
-		connect(GlobalSignals::getInstance(), &GlobalSignals::SignalSetGlobalImage, this, &LutCalibrator::signalSetGlobalImageHandler, Qt::ConnectionType::UniqueConnection);
-	}
 	else
 	{
 		error(QString("Cannot use '%1' as a video source for calibration").arg(hyperhdr::componentToString(_defaultComp)));
@@ -391,7 +385,6 @@ void LutCalibrator::stopHandler()
 {
 	disconnect(GlobalSignals::getInstance(), &GlobalSignals::SignalNewSystemImage, this, &LutCalibrator::setSystemImage);
 	disconnect(GlobalSignals::getInstance(), &GlobalSignals::SignalNewVideoImage, this, &LutCalibrator::setVideoImage);
-	disconnect(GlobalSignals::getInstance(), &GlobalSignals::SignalSetGlobalImage, this, &LutCalibrator::signalSetGlobalImageHandler);
 	_lut.releaseMemory();
 
 	if (_forcedExit)
@@ -403,10 +396,6 @@ void LutCalibrator::stopHandler()
 		{
 			emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_VIDEOGRABBER, -1, true);
 		}
-		if (_defaultComp == hyperhdr::COMP_FLATBUFSERVER)
-		{
-			emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_FLATBUFSERVER, -1, true);
-		}
 	}
 }
 
@@ -416,11 +405,6 @@ void LutCalibrator::setVideoImage(const QString& /*name*/, const Image<ColorRgb>
 }
 
 void LutCalibrator::setSystemImage(const QString& /*name*/, const Image<ColorRgb>& image)
-{
-	handleImage(image);
-}
-
-void LutCalibrator::signalSetGlobalImageHandler(int /*priority*/, const Image<ColorRgb>& image, int /*timeout_ms*/, hyperhdr::Components /*origin*/)
 {
 	handleImage(image);
 }
@@ -446,7 +430,7 @@ void LutCalibrator::handleImage(const Image<ColorRgb>& image)
 	auto pixelFormat = image.getOriginFormat();
 	if (pixelFormat != PixelFormat::NV12 && pixelFormat != PixelFormat::MJPEG && pixelFormat != PixelFormat::YUYV && pixelFormat != PixelFormat::P010)
 	{
-		error("Only NV12/MJPEG/YUYV/P010 video format for the USB grabber and NV12 for the flatbuffers source are supported for the LUT calibration.");
+		error("Only NV12/MJPEG/YUYV/P010 video format for the USB grabber is supported for the LUT calibration.");
 		return;
 	}
 	else if (pixelFormat == PixelFormat::P010)
@@ -1424,10 +1408,6 @@ void LutCalibrator::calibration()
 	{
 		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_VIDEOGRABBER, -1, true);	
 	}
-	if (_defaultComp == hyperhdr::COMP_FLATBUFSERVER)
-	{
-		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_FLATBUFSERVER, -1, true);
-	}
 }
 
 
@@ -1632,10 +1612,6 @@ void LutCalibrator::calibrate()
 	if (_defaultComp == hyperhdr::COMP_VIDEOGRABBER)
 	{
 		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_VIDEOGRABBER, -1, false);	
-	}
-	if (_defaultComp == hyperhdr::COMP_FLATBUFSERVER)
-	{
-		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_FLATBUFSERVER, -1, false);
 	}
 	
 	_capturedColors->finilizeBoard();

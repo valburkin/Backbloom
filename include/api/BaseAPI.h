@@ -77,7 +77,6 @@ protected:
 	void setColor(int priority, const std::vector<uint8_t>& ledColors, int timeout_ms = -1, const QString& origin = "API", hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
 	bool setComponentState(const QString& comp, bool& compState, QString& replyMsg, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
 	bool setEffect(const EffectCmdData& dat, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
-	void setFlatbufferUserLUT(QString userLUTfile);
 	bool setHyperhdrInstance(quint8 inst);
 	bool setImage(ImageCmdData& data, hyperhdr::Components comp, QString& replyMsg, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
 	void setLedMappingType(int type, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);

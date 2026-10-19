@@ -53,7 +53,6 @@
 #include "HyperhdrConfig.h"
 
 QString         FileServer::_baseUrl;
-QString         FileServer::_ssdpXmlDesc;
 
 FileServer::FileServer():
 	_log("WEBSERVER")
@@ -113,18 +112,6 @@ void FileServer::setBaseUrl(const QString& url)
 	_baseUrl = url;
 }
 
-void FileServer::setSsdpXmlDesc(const QString& desc)
-{
-	if (desc.isEmpty())
-	{
-		_ssdpXmlDesc.clear();
-	}
-	else
-	{
-		_ssdpXmlDesc = desc;
-	}
-}
-
 void FileServer::printErrorToReply(QtHttpReply* reply, QtHttpReply::StatusCode code, QString errorMessage)
 {
 	reply->setStatusCode(code);
@@ -151,12 +138,6 @@ void FileServer::onRequestNeedsReply(QtHttpRequest* request, QtHttpReply* reply)
 			{
 				reply->addHeader("Content-Type", "text/plain");
 				reply->appendRawData("alive");
-				return;
-			}
-			else if (uri_parts.at(0) == "description.xml" && !_ssdpXmlDesc.isEmpty())
-			{
-				reply->addHeader("Content-Type", "text/xml");
-				reply->appendRawData(_ssdpXmlDesc.toLocal8Bit());
 				return;
 			}
 		}

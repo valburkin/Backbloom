@@ -50,19 +50,9 @@
 #include <base/HyperHdrInstance.h>
 #include <base/GrabberWrapper.h>
 #include <base/GrabberHelper.h>
-#include <base/NetworkForwarder.h>
 
 #include <jsonserver/JsonServer.h>
 #include <webserver/WebServer.h>
-
-// Flatbuffer Server
-#include <flatbuffers/server/FlatBuffersServer.h>
-
-// ProtoNanoBuffer Server
-#include <proto-nano-server/ProtoServer.h>
-
-// ssdp
-#include <ssdp/SSDPHandler.h>
 
 // instance zero default configuration
 #include <base/InstanceConfig.h>
@@ -91,11 +81,9 @@ HyperHdrDaemon::HyperHdrDaemon(const QString& rootPath, QCoreApplication* parent
 	, _soundCapture(nullptr)
 	, _performanceCounters(nullptr)
 	, _discoveryWrapper(nullptr)
-	, _flatProtoBuffersThread(nullptr)
 	, _networkThread(nullptr)
 	, _mqttThread(nullptr)
 	, _suspendHandler(nullptr)
-	, _wrapperCEC(nullptr)
 	, _rootPath(rootPath)
 	, _params(params)
 	, _isGuiApp(isGuiApp)
@@ -177,13 +165,6 @@ HyperHdrDaemon::HyperHdrDaemon(const QString& rootPath, QCoreApplication* parent
 	#endif
 
 
-	// CEC wrapper
-	#ifdef ENABLE_CEC
-		_wrapperCEC = std::unique_ptr<WrapperCEC>(new WrapperCEC());
-		connect(_wrapperCEC.get(), &WrapperCEC::SignalStateChange, _instanceManager.get(), &HyperHdrManager::setSignalStateByCEC);
-		connect(GlobalSignals::getInstance(), &GlobalSignals::SignalRequestComponent, _wrapperCEC.get(), &WrapperCEC::sourceRequestHandler);
-	#endif
-
 	// spawn all Hyperhdr instances (non blocking)
 	settingsChangedHandler(settings::type::VIDEOGRABBER, getSetting(settings::type::VIDEOGRABBER));
 	settingsChangedHandler(settings::type::SYSTEMGRABBER, getSetting(settings::type::SYSTEMGRABBER));
@@ -240,11 +221,6 @@ void HyperHdrDaemon::instanceStateChangedHandler(InstanceState state, quint8 /*i
 				_videoGrabber->linker.acquire(1);
 			}
 
-			if (_flatProtoBuffersThread != nullptr && !_flatProtoBuffersThread->isRunning())
-			{
-				_flatProtoBuffersThread->start();
-			}
-
 			if (_mqttThread != nullptr && !_mqttThread->isRunning())
 			{
 				_mqttThread->start();
@@ -274,53 +250,47 @@ void HyperHdrDaemon::freeObjects()
 	disconnect(_instanceManager.get(), nullptr, nullptr, nullptr);
 	HyperHdrInstance::signalTerminateTriggered();
 
-	Info(_log, "Releasing SmartPointer: CEC [ 1/15]");
-	_wrapperCEC = nullptr;
-
-	Info(_log, "Releasing SmartPointer: SuspendHandler [ 2/15]");
+	Info(_log, "Releasing SmartPointer: SuspendHandler [ 1/13]");
 	#if defined(_WIN32) && defined(HAVE_POWER_MANAGEMENT)
 		if (QAbstractEventDispatcher::instance() != nullptr && _suspendHandler != nullptr)
 			QAbstractEventDispatcher::instance()->removeNativeEventFilter(_suspendHandler.get());
 	#endif
 	_suspendHandler = nullptr;
 
-	Info(_log, "Releasing SmartPointer: FlatBuffer/ProtoServer/Forwarder [ 3/15]");
-	_flatProtoBuffersThread = nullptr;
-
-	Info(_log, "Releasing SmartPointer: MQTT [ 4/15]");
+	Info(_log, "Releasing SmartPointer: MQTT [ 2/13]");
 	_mqttThread = nullptr;
 
-	Info(_log, "Releasing SmartPointer: WebServers/SSDP/JSonServer [ 5/15]");
+	Info(_log, "Releasing SmartPointer: WebServers/JSonServer [ 3/13]");
 	_networkThread = nullptr;
 
-	Info(_log, "Stopping: InstanceManager [ 6/15]");
+	Info(_log, "Stopping: InstanceManager [ 4/13]");
 	_instanceManager->stopAllonExit();
 
-	Info(_log, "Releasing SmartPointer: SoundGrabber [ 7/15]");
+	Info(_log, "Releasing SmartPointer: SoundGrabber [ 5/13]");
 	_soundCapture = nullptr;
 
-	Info(_log, "Releasing SmartPointer: BonjourBrowserWrapper [ 8/15]");
+	Info(_log, "Releasing SmartPointer: BonjourBrowserWrapper [ 6/13]");
 	_discoveryWrapper = nullptr;
 
-	Info(_log, "Releasing SmartPointer: VideoGrabber [ 9/15]");
+	Info(_log, "Releasing SmartPointer: VideoGrabber [ 7/13]");
 	_videoGrabber = nullptr;
 
-	Info(_log, "Releasing SmartPointer: SoftwareGrabber [10/15]");
+	Info(_log, "Releasing SmartPointer: SoftwareGrabber [ 8/13]");
 	_systemGrabber = nullptr;
 
-	Info(_log, "Releasing SmartPointer: InstanceZeroConfiguration [11/15]");
+	Info(_log, "Releasing SmartPointer: InstanceZeroConfiguration [ 9/13]");
 	_instanceZeroConfig = nullptr;
 
-	Info(_log, "Releasing SmartPointer: InstanceManager [12/15]");
+	Info(_log, "Releasing SmartPointer: InstanceManager [10/13]");
 	_instanceManager = nullptr;
 
-	Info(_log, "Releasing SmartPointer: AccessManager [13/15]");
+	Info(_log, "Releasing SmartPointer: AccessManager [11/13]");
 	_accessManager = nullptr;
 
-	Info(_log, "Releasing SmartPointer: PerformanceCounters [14/15]");
+	Info(_log, "Releasing SmartPointer: PerformanceCounters [12/13]");
 	_performanceCounters = nullptr;
 
-	Info(_log, "Releasing SmartPointer: NetOrigin [15/15]");
+	Info(_log, "Releasing SmartPointer: NetOrigin [13/13]");
 	_netOrigin = nullptr;
 
 	Info(_log, "Resources have been freed [finished]");
@@ -328,49 +298,6 @@ void HyperHdrDaemon::freeObjects()
 
 void HyperHdrDaemon::startNetworkServices()
 {
-	//////////////////////////////////////////
-	//		PROTO/FLATBUFFERS THREAD		//
-	//////////////////////////////////////////
-
-	QThread* _flatProtoThread = new QThread();
-	std::vector<QObject*> flatProtoThreadClients;
-
-	_flatProtoThread->setObjectName("FlatProtoThread");
-
-	FlatBuffersServer* _flatBufferServer = new FlatBuffersServer(_netOrigin, getSetting(settings::type::FLATBUFSERVER), _rootPath);
-	_flatBufferServer->moveToThread(_flatProtoThread);
-	flatProtoThreadClients.push_back(_flatBufferServer);
-	if (_videoGrabber == nullptr)
-	{
-		Warning(_log, "The USB grabber was disabled during build. FlatbufferServer now controlls the HDR state.");
-		connect(_flatBufferServer, &FlatBuffersServer::SignalSetNewComponentStateToAllInstances, _instanceManager.get(), &HyperHdrManager::SignalSetNewComponentStateToAllInstances);
-	}
-	connect(GlobalSignals::getInstance(), &GlobalSignals::SignalRequestComponent, _flatBufferServer, &FlatBuffersServer::signalRequestSourceHandler);
-	connect(_flatProtoThread, &QThread::started, _flatBufferServer, &FlatBuffersServer::initServer);
-	connect(_flatProtoThread, &QThread::finished, _flatBufferServer, &FlatBuffersServer::deleteLater);
-	connect(_instanceManager.get(), &HyperHdrManager::SignalSettingsChanged, _flatBufferServer, &FlatBuffersServer::handleSettingsUpdate);
-
-	NetworkForwarder* _networkForwarder = new NetworkForwarder();
-	_networkForwarder->moveToThread(_flatProtoThread);
-	connect(_flatProtoThread, &QThread::started, _networkForwarder, &NetworkForwarder::startedHandler);
-	connect(_flatProtoThread, &QThread::finished, _networkForwarder, &NetworkForwarder::deleteLater);
-	flatProtoThreadClients.push_back(_networkForwarder);
-
-#if defined(ENABLE_PROTOBUF)
-	ProtoServer* _protoServer = new ProtoServer(_netOrigin, getSetting(settings::type::PROTOSERVER));
-	_protoServer->moveToThread(_flatProtoThread);
-	flatProtoThreadClients.push_back(_protoServer);
-	connect(_flatProtoThread, &QThread::started, _protoServer, &ProtoServer::initServer);
-	connect(_flatProtoThread, &QThread::finished, _protoServer, &ProtoServer::deleteLater);
-	connect(_protoServer, &ProtoServer::SignalImportFromProto, _flatBufferServer, &FlatBuffersServer::SignalImportFromProto);
-	connect(_instanceManager.get(), &HyperHdrManager::SignalSettingsChanged, _protoServer, &ProtoServer::handleSettingsUpdate);
-#endif
-
-	_flatProtoBuffersThread = std::unique_ptr<QThread, std::function<void(QThread*)>>(
-		_flatProtoThread, [flatProtoThreadClients](QThread* protoThread) {
-			THREAD_MULTI_REMOVER(QString("FlatProtoBufferThread and children"), protoThread, flatProtoThreadClients);
-		});
-
 	/////////////////////////////////////////
 	//			NETWORK THREAD			   //
 	/////////////////////////////////////////
@@ -397,22 +324,6 @@ void HyperHdrDaemon::startNetworkServices()
 	connect(_netThread, &QThread::started, _sslWebserver, &WebServer::initServer);
 	connect(_netThread, &QThread::finished, _sslWebserver, &WebServer::deleteLater);
 	connect(_instanceManager.get(), &HyperHdrManager::SignalSettingsChanged, _sslWebserver, &WebServer::handleSettingsUpdate);
-
-	SSDPHandler* _ssdp = new SSDPHandler(
-		_accessManager->getID(),
-		getSetting(settings::type::FLATBUFSERVER).object()["port"].toInt(),
-		getSetting(settings::type::PROTOSERVER).object()["port"].toInt(),
-		getSetting(settings::type::JSONSERVER).object()["port"].toInt(),
-		getSetting(settings::type::WEBSERVER).object()["sslPort"].toInt(),
-		getSetting(settings::type::WEBSERVER).object()["port"].toInt(),
-		getSetting(settings::type::GENERAL).object()["name"].toString());
-	_ssdp->moveToThread(_netThread);
-	networkThreadClients.push_back(_ssdp);
-	connect(_ssdp, &SSDPHandler::newSsdpXmlDesc, _webserver, &WebServer::setSsdpXmlDesc);
-	connect(_netThread, &QThread::started, _ssdp, &SSDPHandler::initServer);
-	connect(_netThread, &QThread::finished, _ssdp, &SSDPHandler::deleteLater);
-	connect(_webserver, &WebServer::stateChange, _ssdp, &SSDPHandler::handleWebServerStateChange);
-	connect(_instanceManager.get(), &HyperHdrManager::SignalSettingsChanged, _ssdp, &SSDPHandler::handleSettingsUpdate);
 
 	_networkThread = std::unique_ptr<QThread, std::function<void(QThread*)>>(_netThread,
 		[networkThreadClients](QThread* networkThread) {
@@ -478,9 +389,6 @@ void HyperHdrDaemon::createVideoGrabberHelper(QJsonDocument config, QString devi
 		connect(_videoGrabber->thread(), &QThread::finished, videoGrabberInstance, &GrabberWrapper::deleteLater);
 		connect(_instanceManager.get(), &HyperHdrManager::SignalSettingsChanged, videoGrabberInstance, &GrabberWrapper::handleSettingsUpdate);
 		connect(_instanceManager.get(), &HyperHdrManager::SignalInstancePauseChanged, videoGrabberInstance, &T::SignalInstancePauseChanged);
-		#ifdef ENABLE_CEC
-			connect(_wrapperCEC.get(), &WrapperCEC::SignalKeyPressed, videoGrabberInstance, &GrabberWrapper::SignalCecKeyPressed);
-		#endif
 		videoGrabberInstance->GrabberWrapper::handleSettingsUpdate(settings::type::VIDEOGRABBER, config);
 		videoGrabberInstance->GrabberWrapper::handleSettingsUpdate(settings::type::VIDEODETECTION, videoDetection);
 		videoGrabberInstance->GrabberWrapper::handleSettingsUpdate(settings::type::AUTOTONEMAPPING, autoToneMapping);
@@ -512,19 +420,6 @@ void HyperHdrDaemon::createSoftwareGrabberHelper(QJsonDocument config, QString d
 		_systemGrabber->linker.release(1);
 		SystemWrapper* softwareGrabberInstance = nullptr;
 
-#if defined(ENABLE_AMLOGIC)
-	if (softwareGrabberInstance == nullptr)
-	{
-		auto candidate = new AmlogicWrapper(deviceName, _rootPath);
-		if (!candidate->isActivated(force))
-		{
-			Warning(_log, "The system doesn't support the amlogic system grabber");
-			candidate->deleteLater();
-		}
-		else
-			softwareGrabberInstance = candidate;
-	}
-#endif
 #if defined(ENABLE_DX)
 		if (softwareGrabberInstance == nullptr)
 		{
@@ -559,19 +454,6 @@ void HyperHdrDaemon::createSoftwareGrabberHelper(QJsonDocument config, QString d
 			if (!candidate->isActivated(force))
 			{
 				Warning(_log, "The system doesn't support the X11 system grabber");
-				candidate->deleteLater();
-			}
-			else
-				softwareGrabberInstance = candidate;
-		}
-#endif
-#if defined(ENABLE_FRAMEBUFFER)
-		if (softwareGrabberInstance == nullptr)
-		{
-			auto candidate = new FrameBufWrapper(deviceName, _rootPath);
-			if (!candidate->isActivated(force))
-			{
-				Warning(_log, "The system doesn't support the framebuffer system grabber");
 				candidate->deleteLater();
 			}
 			else
@@ -675,42 +557,38 @@ void HyperHdrDaemon::settingsChangedHandler(settings::type settingsType, const Q
 	if (settingsType == settings::type::VIDEOGRABBER && _videoGrabber == nullptr)
 	{
 		const QJsonObject& grabberConfig = config.object();
-		const QString deviceName = grabberConfig["device"].toString("auto");
+		[[maybe_unused]] const QString deviceName = grabberConfig["device"].toString("auto");
 
 #if defined(ENABLE_AVF)
 		if (_videoGrabber == nullptr)
 		{
 			createVideoGrabberHelper<AVFWrapper>(config, deviceName, _rootPath);
 		}
-#elif  !defined(ENABLE_MF) && !defined(ENABLE_V4L2)
-		Warning(_log, "The AVF grabber can not be instantiated, because it has been left out from the build");
 #endif
-
 
 #if defined(ENABLE_MF)
 		if (_videoGrabber == nullptr)
 		{
 			createVideoGrabberHelper<MFWrapper>(config, deviceName, _rootPath);
 		}
-#elif !defined(ENABLE_V4L2) && !defined(ENABLE_AVF)
-		Warning(_log, "The MF grabber can not be instantiated, because it has been left out from the build");
 #endif
 
-
-#if defined(ENABLE_V4L2)		
+#if defined(ENABLE_V4L2)
 		if (_videoGrabber == nullptr)
 		{
 			createVideoGrabberHelper<V4L2Wrapper>(config, deviceName, _rootPath);
 		}
-#elif !defined(ENABLE_MF) && !defined(ENABLE_AVF)
-		Warning(_log, "!The v4l2 grabber can not be instantiated, because it has been left out from the build");
+#endif
+
+#if !defined(ENABLE_AVF) && !defined(ENABLE_MF) && !defined(ENABLE_V4L2)
+		Info(_log, "Video capture devices (USB grabbers) are not supported by this build");
 #endif
 		
 	}
 
 	if (settingsType == settings::type::SYSTEMGRABBER && _systemGrabber == nullptr)
 	{
-		#if defined(ENABLE_DX) || defined(ENABLE_PIPEWIRE) || defined(ENABLE_X11) || defined(ENABLE_FRAMEBUFFER) || defined(ENABLE_MAC_SYSTEM) || defined(ENABLE_AMLOGIC)
+		#if defined(ENABLE_DX) || defined(ENABLE_PIPEWIRE) || defined(ENABLE_X11) || defined(ENABLE_MAC_SYSTEM)
 			const QJsonObject& grabberConfig = config.object();
 			const QString deviceName = grabberConfig["device"].toString("auto");
 			createSoftwareGrabberHelper(config, deviceName, _rootPath);

@@ -34,11 +34,6 @@ VideoBenchmark::VideoBenchmark(QObject *parent): QObject(parent),
 	_connected(false)
 {}
 
-void VideoBenchmark::signalSetGlobalImageHandler(int /*priority*/, const Image<ColorRgb>& image, int /*timeout_ms*/, hyperhdr::Components /*origin*/, QString /*clientDescription*/)
-{
-	newFrame(image);
-}
-
 
 void VideoBenchmark::signalNewVideoImageHandler(const QString& /*name*/, const Image<ColorRgb>& image)
 {
@@ -53,7 +48,6 @@ void VideoBenchmark::benchmarkCapture(int status, QString message)
 		{
 			_connected = true;
 			connect(GlobalSignals::getInstance(), &GlobalSignals::SignalNewVideoImage, this, &VideoBenchmark::signalNewVideoImageHandler, Qt::ConnectionType::UniqueConnection);
-			connect(GlobalSignals::getInstance(), &GlobalSignals::SignalSetGlobalImage, this, &VideoBenchmark::signalSetGlobalImageHandler, Qt::ConnectionType::UniqueConnection);
 		}
 		emit SignalBenchmarkUpdate(status, "pong");
 	}
@@ -66,7 +60,6 @@ void VideoBenchmark::benchmarkCapture(int status, QString message)
 		{
 			_connected = false;
 			disconnect(GlobalSignals::getInstance(), &GlobalSignals::SignalNewVideoImage, this, &VideoBenchmark::signalNewVideoImageHandler);
-			disconnect(GlobalSignals::getInstance(), &GlobalSignals::SignalSetGlobalImage, this, &VideoBenchmark::signalSetGlobalImageHandler);
 
 		}
 	}

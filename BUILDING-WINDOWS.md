@@ -20,12 +20,9 @@ Fetch the exact commits upstream `master` pins (the import matches upstream `mas
 cd C:\Code\HyperHDR\external
 $subs = @(
   @('core_mqtt',  'https://github.com/freertos/coreMQTT',        '04845c6a8e5f9cf2d232f1c6e80baeb81302e690'),
-  @('flatbuffers','https://github.com/google/flatbuffers',       '595bf0007ab1929570c7671f091313c8fc20644e'),
   @('linalg',     'https://github.com/sgorsten/linalg.git',      '4460f1f5b85ccc81ffcf49aa450d454db58ca90e'),
   @('lunasvg',    'https://github.com/sammycage/lunasvg.git',    '83c58df8103dc7dca423dfd824992af94d49bed6'),
   @('mdns',       'https://github.com/mjansson/mdns.git',        '1727be0602941a714cb6048a737f0584b1cebf3c'),
-  @('nanopb',     'https://github.com/nanopb/nanopb.git',        '6cfe48d6f1593f8fa5c0f90437f5e6522587745e'),
-  @('rpi_ws281x', 'https://github.com/jgarff/rpi_ws281x',        '22f2e35012704845d82e06d2fa2e10fbc810ecaa'),
   @('stb',        'https://github.com/nothings/stb.git',         'f7f20f39fe4f206c6f19e26ebfef7b261ee59ee4'),
   @('zstd',       'https://github.com/facebook/zstd.git',        '794ea1b0afca0f020f4e57b6732332231fb23c70')
 )
@@ -90,7 +87,8 @@ cmake --build build --config Release -- -nologo -v:m -maxcpucount
   set `$env:VCINSTALLDIR = 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\'` to also deploy the VC runtime),
   C4756 in `ColorSpace.cpp`, and C4701/C4996 in third-party code.
 - Optional installer: install NSIS and run `cmake --build build --config Release --target package`.
-- The build is configured with every Windows feature on (DX, Media Foundation, sound capture, HID, SPI-FTDI, Bonjour, MQTT, protobuf, systray, zstd, OpenSSL).
+- Windows product defaults: DirectX system grabber, sound capture, HID, Bonjour/mDNS, MQTT, power management, systray, zstd and OpenSSL are ON;
+  the Media Foundation capture-card (USB grabber) support is OFF (add `-DENABLE_MF=ON` to build it).
 
 ## 6. Run
 
@@ -119,7 +117,6 @@ os.makedirs(db_dir, exist_ok=True)
 db = sqlite3.connect(os.path.join(db_dir, "hyperhdr.db"))
 db.execute("CREATE TABLE IF NOT EXISTS settings (type TEXT, config TEXT, hyperhdr_instance INTEGER, updated_at TEXT)")
 rows = [("webConfig", {"port": 18090, "sslPort": 18092}, None), ("jsonServer", {"port": 29444}, None),
-        ("flatbufServer", {"enable": True, "port": 29400}, None), ("protoServer", {"enable": False, "port": 29445}, None),
         ("videoControl", {"videoInstanceEnable": False}, 0), ("systemControl", {"systemInstanceEnable": False}, 0),
         ("device", {"type": "file"}, 0)]
 for t, c, i in rows:  # global settings have hyperhdr_instance NULL, per-instance ones use the instance index

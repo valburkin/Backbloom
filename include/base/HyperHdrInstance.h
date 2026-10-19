@@ -31,13 +31,11 @@
 class Muxer;
 class ComponentController;
 class ImageToLedManager;
-class NetworkForwarder;
 class CoreInfiniteEngine;
 class EffectEngine;
 class InstanceConfig;
 class VideoControl;
 class SystemControl;
-class RawUdpServer;
 class LedDeviceWrapper;
 class Logger;
 class HyperHdrManager;
@@ -81,12 +79,9 @@ public slots:
 	void registerInput(int priority, hyperhdr::Components component, const QString& origin = "System", const QString& owner = "", unsigned smooth_cfg = 0);
 	void saveCalibration(QString saveData);
 	bool saveSettings(const QJsonObject& config, bool correct = false);
-	void setSignalStateByCEC(bool enable);
 	bool setInputLeds(int priority, const QVector<ColorRgb>& ledColors, int timeout_ms = -1, bool clearEffect = true);
 	void setInputImage(int priority, const Image<ColorRgb>& image, int64_t timeout_ms = -1, bool clearEffect = true);
-	void signalSetGlobalImageHandler(int priority, const Image<ColorRgb>& image, int timeout_ms, hyperhdr::Components origin, QString clientDescription);
 	void setColor(int priority, const QVector<ColorRgb>& ledColors, int timeout_ms = -1, const QString& origin = "System", bool clearEffects = true);
-	void signalSetGlobalColorHandler(int priority, const QVector<ColorRgb>& ledColor, int timeout_ms, hyperhdr::Components origin, QString clientDescription);
 	bool setInputInactive(quint8 priority);
 	void setLedMappingType(int mappingType);
 	void setNewComponentState(hyperhdr::Components component, bool state);
@@ -112,7 +107,6 @@ signals:
 	void SignalRequestComponent(hyperhdr::Components component, bool enabled);
 	void SignalImageToLedsMappingChanged(int mappingType);
 	void SignalInstanceImageUpdated(const Image<ColorRgb>& ret);
-	void SignalForwardJsonMessage(QJsonObject);
 	void SignalInstanceSettingsChanged(settings::type type, QJsonDocument data);
 	void SignalAdjustmentUpdated(QJsonArray newConfig);
 	void SignalFinalOutputColorsReady(SharedOutputColors nonlinearRgbColors);
@@ -143,7 +137,6 @@ private:
 	std::unique_ptr<EffectEngine> _effectEngine;
 	std::unique_ptr<VideoControl> _videoControl;
 	std::unique_ptr<SystemControl> _systemControl;
-	std::unique_ptr<RawUdpServer> _rawUdpServer;
 
 	LoggerName			_log;
 	int					_hwLedCount;

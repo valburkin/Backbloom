@@ -47,7 +47,6 @@
 #include <base/VideoControl.h>
 #include <base/SystemControl.h>
 #include <base/GrabberWrapper.h>
-#include <base/RawUdpServer.h>
 #include <base/ComponentController.h>
 #include <base/Muxer.h>
 #include <base/SoundCapture.h>
@@ -75,7 +74,6 @@ HyperHdrInstance::HyperHdrInstance(quint8 instance, bool disableOnStartup, QStri
 	, _effectEngine(nullptr)
 	, _videoControl(nullptr)
 	, _systemControl(nullptr)
-	, _rawUdpServer(nullptr)
 	, _log("")
 	, _hwLedCount()
 	, _ledGridSize()
@@ -96,23 +94,21 @@ HyperHdrInstance::~HyperHdrInstance()
 	if (_muxer != nullptr)
 		clear(-1, true);
 
-	Info(_log, "[ 1/9] Releasing HyperHDR{:d}->UdpServer...", _instIndex);
-	_rawUdpServer = nullptr;
-	Info(_log, "[ 2/9] Releasing HyperHDR{:d}->VideoControl...", _instIndex);
+	Info(_log, "[ 1/8] Releasing HyperHDR{:d}->VideoControl...", _instIndex);
 	_videoControl = nullptr;
-	Info(_log, "[ 3/9] Releasing HyperHDR{:d}->SystemControl...", _instIndex);
+	Info(_log, "[ 2/8] Releasing HyperHDR{:d}->SystemControl...", _instIndex);
 	_systemControl = nullptr;
-	Info(_log, "[ 4/9] Releasing HyperHDR{:d}->EffectEngine...", _instIndex);
+	Info(_log, "[ 3/8] Releasing HyperHDR{:d}->EffectEngine...", _instIndex);
 	_effectEngine = nullptr;
-	Info(_log, "[ 5/9] Releasing HyperHDR{:d}->InstanceConfiguration...", _instIndex);
+	Info(_log, "[ 4/8] Releasing HyperHDR{:d}->InstanceConfiguration...", _instIndex);
 	_instanceConfig = nullptr;
-	Info(_log, "[ 6/9] Releasing HyperHDR{:d}->LED driver wrapper...", _instIndex);
+	Info(_log, "[ 5/8] Releasing HyperHDR{:d}->LED driver wrapper...", _instIndex);
 	_ledDeviceWrapper = nullptr;
-	Info(_log, "[ 7/9] Releasing HyperHDR{:d}->InfiniteColorEngine...", _instIndex);
+	Info(_log, "[ 6/8] Releasing HyperHDR{:d}->InfiniteColorEngine...", _instIndex);
 	_infinite = nullptr;
-	Info(_log, "[ 8/9] Releasing HyperHDR{:d}->ComponentController...", _instIndex);
+	Info(_log, "[ 7/8] Releasing HyperHDR{:d}->ComponentController...", _instIndex);
 	_componentController = nullptr;
-	Info(_log, "[ 9/9] Releasing HyperHDR{:d}->Muxer...", _instIndex);
+	Info(_log, "[ 8/8] Releasing HyperHDR{:d}->Muxer...", _instIndex);
 	_muxer = nullptr;
 
 	_totalRunningCount--;
@@ -176,16 +172,8 @@ void HyperHdrInstance::start()
 
 	_systemControl = std::make_unique<SystemControl>(this);
 
-	// forwards global signals to the corresponding slots
-	connect(GlobalSignals::getInstance(), &GlobalSignals::SignalClearGlobalInput, this, &HyperHdrInstance::clear);
-	connect(GlobalSignals::getInstance(), &GlobalSignals::SignalSetGlobalColor, this, &HyperHdrInstance::signalSetGlobalColorHandler);
-	connect(GlobalSignals::getInstance(), &GlobalSignals::SignalSetGlobalImage, this, &HyperHdrInstance::signalSetGlobalImageHandler);
-
 	// if there is no startup / background effect and no sending capture interface we probably want to push once BLACK (as PrioMuxer won't emit a priority change)
 	update();
-
-	_rawUdpServer = std::make_unique<RawUdpServer>(this, getSetting(settings::type::RAWUDPSERVER));
-	connect(this, &HyperHdrInstance::SignalInstanceSettingsChanged, _rawUdpServer.get(), &RawUdpServer::handleSettingsUpdate);
 
 	// handle background effect
 	QUEUE_CALL_2(this, handleSettingsUpdate,
@@ -463,16 +451,6 @@ bool HyperHdrInstance::setInputLeds(int priority, const QVector<ColorRgb>& ledCo
 	return false;
 }
 
-void HyperHdrInstance::signalSetGlobalImageHandler(int priority, const Image<ColorRgb>& image, int timeout_ms, hyperhdr::Components origin, QString clientDescription)
-{
-	if (!_muxer->hasPriority(priority))
-	{
-		_muxer->registerInput(priority, origin, clientDescription);
-	}
-
-	setInputImage(priority, image, timeout_ms);
-}
-
 void HyperHdrInstance::setInputImage(int priority, const Image<ColorRgb>& image, int64_t timeout_ms, bool clearEffect)
 {
 	if (!_muxer->hasPriority(priority))
@@ -512,11 +490,6 @@ void HyperHdrInstance::setInputImage(int priority, const Image<ColorRgb>& image,
 bool HyperHdrInstance::setInputInactive(quint8 priority)
 {
 	return _muxer->setInputInactive(priority);
-}
-
-void HyperHdrInstance::signalSetGlobalColorHandler(int priority, const QVector<ColorRgb>& ledColor, int timeout_ms, hyperhdr::Components /*origin*/, QString clientDescription)
-{
-	setColor(priority, ledColor, timeout_ms, clientDescription, true);
 }
 
 void HyperHdrInstance::setColor(int priority, const QVector<ColorRgb>& ledColors, int timeout_ms, const QString& origin, bool clearEffects)
@@ -937,18 +910,6 @@ QJsonObject HyperHdrInstance::getJsonInfo(bool full)
 	info["imageToLedMappingType"] = ImageToLedManager::mappingTypeToStr(_imageProcessor->getLedMappingType());
 
 	return info;
-}
-
-void HyperHdrInstance::setSignalStateByCEC(bool enable)
-{
-	if (_systemControl != nullptr && _systemControl->isCEC())
-	{
-		_systemControl->setSysCaptureEnable(enable);
-	}
-	if (_videoControl != nullptr && _videoControl->isCEC())
-	{
-		_videoControl->setUsbCaptureEnable(enable);
-	}
 }
 
 int HyperHdrInstance::hasLedClock()

@@ -45,7 +45,6 @@ VideoControl::VideoControl(HyperHdrInstance* hyperhdr)
 	, _usbCaptPrio(0)
 	, _usbCaptName()
 	, _usbInactiveTimer(new QTimer(this))
-	, _isCEC(false)
 {
 	// settings changes
 	connect(_hyperhdr, &HyperHdrInstance::SignalInstanceSettingsChanged, this, &VideoControl::handleSettingsUpdate);
@@ -66,14 +65,8 @@ VideoControl::VideoControl(HyperHdrInstance* hyperhdr)
 VideoControl::~VideoControl()
 {
 	emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::COMP_VIDEOGRABBER, int(_hyperhdr->getInstanceIndex()), false);
-	emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::COMP_CEC, int(_hyperhdr->getInstanceIndex()), false);
 
 	std::cout << "VideoControl exits now" << std::endl;
-}
-
-bool VideoControl::isCEC()
-{
-	return _isCEC;
 }
 
 quint8 VideoControl::getCapturePriority()
@@ -158,8 +151,6 @@ void VideoControl::handleSettingsUpdate(settings::type type, const QJsonDocument
 		}
 
 		setUsbCaptureEnable(obj["videoInstanceEnable"].toBool(true));
-		_isCEC = obj["cecControl"].toBool(false);
-		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::COMP_CEC, int(_hyperhdr->getInstanceIndex()), _isCEC);
 	}
 }
 

@@ -9,6 +9,7 @@ public:
 	SettingsTable(quint8 instance);
 	bool createSettingsRecord(const QString& type, const QString& config) const;
 	bool recordExist(const QString& type) const;
+	bool anyRecordExist(const QString& type) const;
 	QJsonDocument getSettingsRecord(const QString& type) const;
 	QString getSettingsRecordString(const QString& type) const;
 	bool deleteSettingsRecordString(const QString& type) const;

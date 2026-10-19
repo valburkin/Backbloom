@@ -12,11 +12,9 @@ public:
 	virtual ~FileServer();
 
 	static void setBaseUrl(const QString& url);
-	static void setSsdpXmlDesc(const QString& desc);
 	void onRequestNeedsReply(QtHttpRequest* request, QtHttpReply* reply);
 
 private:
-	static QString			_ssdpXmlDesc;
 	static QString			_baseUrl;
 	QHash<QString, QString> _mimeDb;
 	LoggerName				_log;	

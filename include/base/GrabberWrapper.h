@@ -29,7 +29,6 @@ public:
 
 	~GrabberWrapper() override;
 
-	bool isCEC();	
 	bool getAutoResume();
 
 public slots:
@@ -54,13 +53,11 @@ signals:
 	///
 	void SignalNewVideoImage(const QString& name, const Image<ColorRgb>& image);
 	void SignalVideoStreamChanged(QString device, QString videoMode);
-	void SignalCecKeyPressed(int key);
 	void SignalInstancePauseChanged(int instance, bool isEnabled);
 	void SignalSetNewComponentStateToAllInstances(hyperhdr::Components component, bool enable);
 	void SignalSaveCalibration(QString saveData);
 
 public slots:
-	void signalCecKeyPressedHandler(int key);
 	int  getHdrToneMappingEnabled();
 	void setSignalThreshold(double redSignalThreshold, double greenSignalThreshold, double blueSignalThreshold, int noSignalCounterThreshold);
 	void setCropping(unsigned cropLeft, unsigned cropRight, unsigned cropTop, unsigned cropBottom);
@@ -76,7 +73,6 @@ public slots:
 
 protected:
 	void setHdrToneMappingEnabled(int mode);
-	void setCecStartStop(int cecHdrStart, int cecHdrStop);
 
 	QMap<Grabber::currentVideoModeInfo, QString> getVideoCurrentMode() const;
 	DetectionAutomatic::calibrationPoint parsePoint(int width, int height, QJsonObject element, bool& ok);
@@ -89,8 +85,6 @@ protected:
 
 	std::unique_ptr<Grabber> _grabber;
 
-	int			_cecHdrStart;
-	int			_cecHdrStop;
 	bool		_autoResume;
 	bool		_isPaused;
 	bool		_pausingModeEnabled;

@@ -14,13 +14,13 @@
 ```console
 sudo apt-get update
 
-sudo apt-get install build-essential cmake flatbuffers-compiler git libasound2-dev libdbus-1-dev libegl-dev libflatbuffers-dev libftdi1-dev libgl-dev libglvnd-dev liblzma-dev libpipewire-0.3-dev libssl-dev libturbojpeg0-dev libusb-1.0-0-dev libzstd-dev ninja-build patchelf pkg-config python3 qt6-serialport-dev qt6-base-dev unzip wget chrpath
+sudo apt-get install build-essential cmake git libasound2-dev libdbus-1-dev libegl-dev libgl-dev libglvnd-dev liblzma-dev libpipewire-0.3-dev libssl-dev libturbojpeg0-dev libzstd-dev ninja-build patchelf pkg-config python3 qt6-serialport-dev qt6-base-dev unzip wget chrpath
 ```
 
 ### Fedora
 
 ```console
-sudo dnf -y install alsa-lib-devel chrpath cmake dbus-devel fedora-packager flatbuffers-compiler flatbuffers-devel gcc gcc-c++ git libftdi-c++-devel libglvnd-devel libusb1-devel libzstd-devel mesa-libEGL-devel mesa-libGL-devel ninja-build openssl-devel pipewire-devel pkg-config qt6-qtbase-devel qt6-qtserialport-devel turbojpeg-devel unzip wget xz-devel chrpath
+sudo dnf -y install alsa-lib-devel chrpath cmake dbus-devel fedora-packager gcc gcc-c++ git libglvnd-devel libzstd-devel mesa-libEGL-devel mesa-libGL-devel ninja-build openssl-devel pipewire-devel pkg-config qt6-qtbase-devel qt6-qtserialport-devel turbojpeg-devel unzip wget xz-devel chrpath
 
 ```
 
@@ -29,7 +29,7 @@ sudo dnf -y install alsa-lib-devel chrpath cmake dbus-devel fedora-packager flat
 ```console
 sudo pacman -Syy
 
-sudo pacman -S alsa-lib base-devel bash binutils chrpath cmake dbus dpkg fakeroot flatbuffers freetds git libfbclient libftdi libglvnd libjpeg-turbo mariadb-libs mesa ninja openssl pipewire pkgfile postgresql-libs python qt6-base qt6-serialport unzip wayland wget xz chrpath
+sudo pacman -S alsa-lib base-devel bash binutils chrpath cmake dbus dpkg fakeroot freetds git libfbclient libglvnd libjpeg-turbo mariadb-libs mesa ninja openssl pipewire pkgfile postgresql-libs python qt6-base qt6-serialport unzip wayland wget xz chrpath
 ```
 
 ### Windows
@@ -155,18 +155,14 @@ Once you've done this, any change, even using the Github online editor, will imm
 Use -D prefix when configuring the build.
 
 * LED DEVICES  
-    * ENABLE_SPIDEV = ON | OFF, enables SPI LED devices on supported systems
-    * ENABLE_SPI_FTDI = ON | OFF, enables SPI libFTDI (FTDI for Windows) controller
-    * ENABLE_WS281XPWM = ON | OFF, enables WS281x LED library for RPi 1-4
+    * ENABLE_HID = ON | OFF, enables HID LED devices (Robobloq SyncLight)
   
 * SOFTWARE GRABBERS
     * ENABLE_DX = ON | OFF, enables the DirectX11 software grabber (Windows)
-    * ENABLE_FRAMEBUFFER = ON | OFF, enables the Framebuffer software grabber (Linux)
     * ENABLE_MAC_SYSTEM = ON | OFF, enables the macOS software grabber (macOS)
     * ENABLE_PIPEWIRE = ON | OFF, enables the Pipewire software grabber (Linux)
     * ENABLE_PIPEWIRE_EGL = ON | OFF, enables EGL for the Pipewire grabber (Linux)
     * ENABLE_X11 = ON | OFF, enables the X11 software grabber (Linux)
-    * ENABLE_AMLOGIC = ON | OFF, forces the Amlogic software grabber (Linux)
 
 * HARDWARE GRABBERS
     * ENABLE_AVF = ON | OFF, enables the AVF USB grabber support (macOS)
@@ -180,10 +176,8 @@ Use -D prefix when configuring the build.
 
 * SERVICE SUPPORT
     * ENABLE_BONJOUR = ON | OFF, enables mDNS (do not disable unless required)
-    * ENABLE_CEC = ON | OFF, enables the Kernel CEC support (Linux)
     * ENABLE_MQTT = ON | OFF, enables the MQTT support
     * ENABLE_POWER_MANAGEMENT = ON | OFF, enables sleep/wake up OS events support
-    * ENABLE_PROTOBUF = ON | OFF, enables Proto-Buffer server
     * ENABLE_SYSTRAY = ON | OFF, enables the systray-widget
     * ENABLE_ZSTD = ON | OFF, enables ZSTD support for LUT decompression
 
@@ -192,9 +186,7 @@ Use -D prefix when configuring the build.
     * USE_EMBEDDED_WEB_RESOURCES = ON | OFF, embed web content into the app
     * USE_PRECOMPILED_HEADERS = ON | OFF, use pre-compiled headers when building
     * USE_CCACHE_CACHING = ON | OFF, enable CCache support if available
-    * USE_SYSTEM_FLATBUFFERS_LIBS = ON | OFF, prefer system Flatbuffers libs
     * USE_SYSTEM_LUNASVG_LIBS = ON | OFF, prefer system lunasvg libs
-    * USE_SYSTEM_NANOPB_LIBS = ON | OFF, prefer system nanopb libs
     * USE_SYSTEM_STB_LIBS = ON | OFF, prefer system stb libs
     * USE_STATIC_QT_PLUGINS = ON | OFF, embed static QT-plugins into the app
     * USE_STANDARD_INSTALLER_NAME = ON | OFF, use standard Linux package naming

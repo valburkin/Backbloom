@@ -201,7 +201,7 @@ void Muxer::registerInput(int priority, hyperhdr::Components component, const QS
 		return;
 	}
 
-	if (reusedInput && component != hyperhdr::Components::COMP_FLATBUFSERVER)
+	if (reusedInput)
 	{
 		emit SignalTimeRunner_Internal();
 	}

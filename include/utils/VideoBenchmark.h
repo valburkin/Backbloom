@@ -47,7 +47,6 @@ public:
 	VideoBenchmark(QObject* parent);
 
 public slots:
-	void signalSetGlobalImageHandler(int priority, const Image<ColorRgb>& image, int timeout_ms, hyperhdr::Components origin, QString clientDescription);
 	void signalNewVideoImageHandler(const QString& name, const Image<ColorRgb>& image);
 	void benchmarkCapture(int status, QString message);
 	void newFrame(const Image<ColorRgb>& image);

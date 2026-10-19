@@ -47,25 +47,9 @@
 		{
 			"$ref": "schema-soundEffect.json"
 		},
-		"forwarder" :
-		{
-			"$ref": "schema-forwarder.json"
-		},
 		"jsonServer" :
 		{
 			"$ref": "schema-jsonServer.json"
-		},
-		"flatbufServer":
-		{
-			"$ref": "schema-flatbufServer.json"
-		},
-		"rawUdpServer":
-		{
-			"$ref": "schema-rawUdpServer.json"
-		},
-		"protoServer" :
-		{
-			"$ref": "schema-protoServer.json"
 		},
 		"webConfig" :
 		{

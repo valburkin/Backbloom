@@ -24,37 +24,6 @@ IF ( HAVE_SERIAL_LED )
 	FILE ( GLOB Leddevice_SERIAL_SOURCES "${CURRENT_HEADER_DIR}/serial/*.h" "${CURRENT_SOURCE_DIR}/serial/*.cpp")
 endif()
 
-if (UNIX AND NOT APPLE)
-	FILE ( GLOB Leddevice_PWM_SOURCES "${CURRENT_HEADER_DIR}/pwm/rpi_pio/*.h" "${CURRENT_SOURCE_DIR}/pwm/rpi_pio/*.cpp")
-	FILE ( GLOB Leddevice_rpi_blaster "${CURRENT_HEADER_DIR}/pwm/pi-blaster/*.h" "${CURRENT_SOURCE_DIR}/pwm/pi-blaster/*.cpp")
-	list( APPEND Leddevice_PWM_SOURCES ${Leddevice_rpi_blaster})
-endif()
-
-if ( ENABLE_SPIDEV OR ENABLE_SPI_FTDI )
-	FILE ( GLOB Leddevice_SPI_SOURCES "${CURRENT_HEADER_DIR}/spi/DriverSpi*.h" "${CURRENT_HEADER_DIR}/spi/ProviderSpiInterface.h" "${CURRENT_SOURCE_DIR}/spi/DriverSpi*.cpp" "${CURRENT_HEADER_DIR}/spi/ProviderSpi.h" "${CURRENT_SOURCE_DIR}/spi/ProviderSpi.cpp")
-endif()
-
-if ( ENABLE_SPIDEV )
-	FILE ( GLOB Leddevice_ProviderSpiGeneric "${CURRENT_HEADER_DIR}/spi/ProviderSpiGeneric.h" "${CURRENT_SOURCE_DIR}/spi/ProviderSpiGeneric.cpp")
-	list( APPEND Leddevice_SPI_SOURCES ${Leddevice_ProviderSpiGeneric})
-endif()
-
-if ( ENABLE_SPI_FTDI )
-	if(WIN32)
-		FILE ( GLOB Leddevice_ProviderSpiFtdi "${CURRENT_HEADER_DIR}/spi/ProviderSpiFtdi.h" "${CURRENT_HEADER_DIR}/spi/ftdi/ftd2xx.h" "${CURRENT_SOURCE_DIR}/spi/ProviderSpiFtdi.cpp")
-		list( APPEND Leddevice_SPI_SOURCES ${Leddevice_ProviderSpiFtdi})
-	else()
-		FILE ( GLOB Leddevice_ProviderSpiLibFtdi "${CURRENT_HEADER_DIR}/spi/ProviderSpiLibFtdi.h" "${CURRENT_HEADER_DIR}/spi/ftdi/ftdi.h" "${CURRENT_HEADER_DIR}/spi/ftdi/libusb.h" "${CURRENT_SOURCE_DIR}/spi/ProviderSpiLibFtdi.cpp")
-		list( APPEND Leddevice_SPI_SOURCES ${Leddevice_ProviderSpiLibFtdi})
-	endif(WIN32)
-endif()
-
-if ( ENABLE_WS281XPWM )
-	include_directories(../../external/rpi_ws281x)
-	FILE ( GLOB Leddevice_rpi_ws281x "${CURRENT_HEADER_DIR}/pwm/rpi_ws281x/*.h" "${CURRENT_SOURCE_DIR}/pwm/rpi_ws281x/*.cpp")
-	list( APPEND Leddevice_PWM_SOURCES ${Leddevice_rpi_ws281x})
-endif()
-
 IF ( ENABLE_HID )	
 	FILE ( GLOB Leddevice_HID_SOURCES "${CURRENT_HEADER_DIR}/hid/*.h" "${CURRENT_SOURCE_DIR}/hid/*.cpp")
 endif()
@@ -65,8 +34,6 @@ SET( Leddevice_SOURCES
 	${Leddevice_SOURCES}
 	${LedDevice_RESOURCES}
 	${Leddevice_SERIAL_SOURCES}
-	${Leddevice_SPI_SOURCES}
-	${Leddevice_PWM_SOURCES}
 	${Leddevice_HID_SOURCES}
 )
 
@@ -84,10 +51,6 @@ endif()
 
 if(WIN32)
 	target_link_libraries(led-drivers ws2_32 hid setupapi)
-endif()
-
-if(ENABLE_WS281XPWM)
-	target_link_libraries(led-drivers ws2811)
 endif()
 
 if (USE_STATIC_QT_PLUGINS)

@@ -82,7 +82,6 @@ public slots:
 	void stopHandler();
 	void setVideoImage(const QString& name, const Image<ColorRgb>& image);
 	void setSystemImage(const QString& name, const Image<ColorRgb>& image);
-	void signalSetGlobalImageHandler(int priority, const Image<ColorRgb>& image, int timeout_ms, hyperhdr::Components origin);
 	void calibrate();
 	void cancelCalibrationSafe();
 	void notifyCalibrationMessage(QString message, bool started = false);

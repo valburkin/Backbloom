@@ -14,7 +14,7 @@ ComponentController::ComponentController(HyperHdrInstance* hyperhdr, bool disabl
 {
 	// init all comps to false
 	QVector<hyperhdr::Components> vect;
-	vect << COMP_ALL << COMP_HDR << COMP_SMOOTHING << COMP_BLACKBORDER << COMP_FORWARDER;
+	vect << COMP_ALL << COMP_HDR << COMP_SMOOTHING << COMP_BLACKBORDER;
 
 	vect << COMP_VIDEOGRABBER << COMP_SYSTEMGRABBER << COMP_LEDDEVICE;
 	for (auto e : vect)

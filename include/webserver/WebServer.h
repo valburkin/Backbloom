@@ -36,7 +36,6 @@ public:
 	static bool	portAvailable(quint16& port, const LoggerName& log);
 
 signals:
-	void stateChange(bool newState);
 	void portChanged(quint16 port);
 
 public slots:
@@ -45,7 +44,6 @@ public slots:
 	void onServerStarted(quint16 port);
 	void onServerError(QString msg);
 	void handleSettingsUpdate(settings::type type, QJsonDocument config);
-	void setSsdpXmlDesc(const QString& desc);
 	void onInitRequestNeedsReply(QtHttpRequest* request, QtHttpReply* reply);
 
 	quint16 getPort() const { return _port; }

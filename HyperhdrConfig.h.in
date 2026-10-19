@@ -9,17 +9,8 @@
 // support for static QT plugins
 #cmakedefine USE_STATIC_QT_PLUGINS
 
-// cec support
-#cmakedefine ENABLE_CEC
-
 // directx grabber
 #cmakedefine ENABLE_DX
-
-// framebuffer linux system grabber
-#cmakedefine ENABLE_FRAMEBUFFER
-
-// amlogic system grabber
-#cmakedefine ENABLE_AMLOGIC
 
 // macOs system grabber
 #cmakedefine ENABLE_MAC_SYSTEM
@@ -51,15 +42,6 @@
 // Define to enable the WMF grabber
 #cmakedefine ENABLE_MF
 
-// Define to enable the spi-device
-#cmakedefine ENABLE_SPIDEV
-
-// Define to enable the spi-ftdi-device
-#cmakedefine ENABLE_SPI_FTDI
-
-// Define to enable the ws281x-pwm-via-dma-device using jgarff's library
-#cmakedefine ENABLE_WS281XPWM
-
 // Define to enable HID devices
 #cmakedefine ENABLE_HID
 
@@ -77,15 +59,6 @@
 
 // Define to enable zstd
 #cmakedefine ENABLE_ZSTD
-
-// Define to enable protobuf
-#cmakedefine ENABLE_PROTOBUF
-
-// Define to enable system flatbuffers
-#cmakedefine USE_SYSTEM_FLATBUFFERS_LIBS
-
-// Define to enable system mbedtls
-#cmakedefine USE_SYSTEM_MBEDTLS_LIBS
 
 #cmakedefine ENABLE_POWER_MANAGEMENT
 

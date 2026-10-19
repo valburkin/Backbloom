@@ -12,11 +12,7 @@
 		<file alias="schema-foregroundEffect.json">schema/schema-foregroundEffect.json</file>
 		<file alias="schema-backgroundEffect.json">schema/schema-backgroundEffect.json</file>
 		<file alias="schema-soundEffect.json">schema/schema-soundEffect.json</file>
-		<file alias="schema-forwarder.json">schema/schema-forwarder.json</file>
 		<file alias="schema-jsonServer.json">schema/schema-jsonServer.json</file>
-		<file alias="schema-flatbufServer.json">schema/schema-flatbufServer.json</file>
-		<file alias="schema-rawUdpServer.json">schema/schema-rawUdpServer.json</file>
-		<file alias="schema-protoServer.json">schema/schema-protoServer.json</file>
 		<file alias="schema-webConfig.json">schema/schema-webConfig.json</file>
 		<file alias="schema-effects.json">schema/schema-effects.json</file>
 		<file alias="schema-ledConfig.json">schema/schema-ledConfig.json</file>

@@ -48,7 +48,6 @@ public slots:
 
 	void setSmoothing(int time);
 
-	void setSignalStateByCEC(bool enable);
 
 	const QJsonObject getBackup();
 
