@@ -9,14 +9,14 @@
 #include <utils/settings.h>
 #include <utils/Components.h>
 
-class HyperHdrInstance;
+class LightingInstance;
 
 class SystemControl : public QObject
 {
 	Q_OBJECT
 
 public:
-	SystemControl(HyperHdrInstance* hyperhdr);
+	SystemControl(LightingInstance* lightingInstance);
 	~SystemControl();
 
 	quint8 getCapturePriority();
@@ -24,13 +24,13 @@ public:
 	void setSysCaptureEnable(bool enable);
 
 private slots:
-	void handleCompStateChangeRequest(hyperhdr::Components component, bool enable);
+	void handleCompStateChangeRequest(overglow::Components component, bool enable);
 	void handleSettingsUpdate(settings::type type, const QJsonDocument& config);
 	void handleSysImage(const QString& name, const Image<ColorRgb>& image);
 	void setSysInactive();
 
 private:
-	HyperHdrInstance* _hyperhdr;
+	LightingInstance* _instance;
 
 	bool	_sysCaptEnabled;
 	bool	_alive;

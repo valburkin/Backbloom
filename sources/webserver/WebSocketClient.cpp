@@ -7,7 +7,7 @@
 #include <QCryptographicHash>
 #include <QJsonObject>
 
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <api/HyperAPI.h>
 #include <utils/FrameDecoder.h>
 #include <utils-image/utils-image.h>

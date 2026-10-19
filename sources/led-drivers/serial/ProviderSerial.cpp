@@ -1,4 +1,4 @@
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 
 #ifdef ENABLE_BONJOUR
 	#include <bonjour/DiscoveryWrapper.h>	

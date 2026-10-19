@@ -38,12 +38,12 @@
 	#include <QMetaType>
 	#include <QDebug>
 	#define QT_METATYPE_CHECK_INTERNAL(ptype, method, n) \
-		if (!QMetaType::fromName(#ptype).isValid()) qCritical("HyperHDR Safety Warning: Type '%s' used in method '%s' (arg %d) is NOT registered! Queued calls will fail.", #ptype, #method, n);
+		if (!QMetaType::fromName(#ptype).isValid()) qCritical("Overglow Safety Warning: Type '%s' used in method '%s' (arg %d) is NOT registered! Queued calls will fail.", #ptype, #method, n);
 #else
 	#define QT_METATYPE_CHECK_INTERNAL(ptype, method, n)
 #endif
 
-namespace hyperhdr::macros {
+namespace overglow::macros {
 	inline void SAFE_CALL_TEST_FUN() {};
 
 	template <size_t I, typename MethodPtr> struct SafeSlotArg;
@@ -69,17 +69,17 @@ namespace hyperhdr::macros {
 
 #define SCHK_ARG(n, target, method, ptype, pvalue) \
 { \
-	static_assert(std::same_as<typename hyperhdr::macros::SafeSlotArg<n, decltype(&std::remove_pointer_t<decltype(target)>::method)>::T, ptype>, "Parameter " #n " type mismatch for Qt slot: " #method); \
+	static_assert(std::same_as<typename overglow::macros::SafeSlotArg<n, decltype(&std::remove_pointer_t<decltype(target)>::method)>::T, ptype>, "Parameter " #n " type mismatch for Qt slot: " #method); \
 	static_assert(std::convertible_to<std::remove_cvref_t<decltype(pvalue)>, ptype>, "The value passed as parameter " #n " does not match the declared type: " #ptype); \
 	QT_METATYPE_CHECK_INTERNAL(ptype, method, n) \
 }
 
 #define SCHK_RET(target, method, rtype) \
-    static_assert(std::same_as<typename hyperhdr::macros::SafeSlotRet<decltype(&std::remove_pointer_t<decltype(target)>::method)>::Type, rtype>, "Return type mismatch for Qt slot: " #method)
+    static_assert(std::same_as<typename overglow::macros::SafeSlotRet<decltype(&std::remove_pointer_t<decltype(target)>::method)>::Type, rtype>, "Return type mismatch for Qt slot: " #method)
 
 #define SAFE_CALL_0_RET(target, method, returnType, result, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_RET(target, method, returnType); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::BlockingQueuedConnection, Q_RETURN_ARG(returnType, result)); \
@@ -89,7 +89,7 @@ namespace hyperhdr::macros {
 
 #define SAFE_CALL_1_RET(target, method, returnType, result, p1type, p1value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_RET(target, method, returnType); \
 	SCHK_ARG(0, target, method, p1type, p1value); \
 	if (target->thread() != QThread::currentThread()) \
@@ -100,7 +100,7 @@ namespace hyperhdr::macros {
 
 #define SAFE_CALL_2_RET(target, method, returnType, result, p1type, p1value, p2type, p2value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_RET(target, method, returnType); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); \
 	if (target->thread() != QThread::currentThread()) \
@@ -111,7 +111,7 @@ namespace hyperhdr::macros {
 
 #define SAFE_CALL_3_RET(target, method, returnType, result, p1type, p1value, p2type, p2value, p3type, p3value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_RET(target, method, returnType); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); SCHK_ARG(2, target, method, p3type, p3value); \
 	if (target->thread() != QThread::currentThread()) \
@@ -122,7 +122,7 @@ namespace hyperhdr::macros {
 
 #define SAFE_CALL_4_RET(target, method, returnType, result, p1type, p1value, p2type, p2value, p3type, p3value, p4type, p4value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_RET(target, method, returnType); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); SCHK_ARG(2, target, method, p3type, p3value); SCHK_ARG(3, target, method, p4type, p4value); \
 	if (target->thread() != QThread::currentThread()) \
@@ -133,7 +133,7 @@ namespace hyperhdr::macros {
 
 #define QUEUE_CALL_0(target, method, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	if (true) \
 		QMetaObject::invokeMethod(target, #method, Qt::QueuedConnection); \
 	else \
@@ -142,7 +142,7 @@ namespace hyperhdr::macros {
 
 #define QUEUE_CALL_1(target, method, p1type, p1value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); \
 	if (true) \
 		QMetaObject::invokeMethod(target, #method, Qt::QueuedConnection, Q_ARG(p1type, p1value)); \
@@ -152,7 +152,7 @@ namespace hyperhdr::macros {
 
 #define QUEUE_CALL_2(target, method, p1type, p1value, p2type, p2value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); \
 	if (true) \
 		QMetaObject::invokeMethod(target, #method, Qt::QueuedConnection, Q_ARG(p1type, p1value), Q_ARG(p2type, p2value)); \
@@ -162,7 +162,7 @@ namespace hyperhdr::macros {
 
 #define QUEUE_CALL_3(target, method, p1type, p1value, p2type, p2value, p3type, p3value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); SCHK_ARG(2, target, method, p3type, p3value); \
 	if (true) \
 		QMetaObject::invokeMethod(target, #method, Qt::QueuedConnection, Q_ARG(p1type, p1value), Q_ARG(p2type, p2value), Q_ARG(p3type, p3value)); \
@@ -172,7 +172,7 @@ namespace hyperhdr::macros {
 
 #define QUEUE_CALL_4(target, method, p1type, p1value, p2type, p2value, p3type, p3value, p4type, p4value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); SCHK_ARG(2, target, method, p3type, p3value); SCHK_ARG(3, target, method, p4type, p4value); \
 	if (true) \
 		QMetaObject::invokeMethod(target, #method, Qt::QueuedConnection, Q_ARG(p1type, p1value), Q_ARG(p2type, p2value), Q_ARG(p3type, p3value), Q_ARG(p4type, p4value)); \
@@ -182,7 +182,7 @@ namespace hyperhdr::macros {
 
 #define QUEUE_CALL_5(target, method, p1type, p1value, p2type, p2value, p3type, p3value, p4type, p4value, p5type, p5value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); SCHK_ARG(2, target, method, p3type, p3value); SCHK_ARG(3, target, method, p4type, p4value); SCHK_ARG(4, target, method, p5type, p5value); \
 	if (true) \
 		QMetaObject::invokeMethod(target, #method, Qt::QueuedConnection, Q_ARG(p1type, p1value), Q_ARG(p2type, p2value), Q_ARG(p3type, p3value), Q_ARG(p4type, p4value), Q_ARG(p5type, p5value)); \
@@ -192,7 +192,7 @@ namespace hyperhdr::macros {
 
 #define BLOCK_CALL_0(target, method, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::BlockingQueuedConnection); \
 	else \
@@ -201,7 +201,7 @@ namespace hyperhdr::macros {
 
 #define BLOCK_CALL_1(target, method, p1type, p1value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::BlockingQueuedConnection, Q_ARG(p1type, p1value)); \
@@ -211,7 +211,7 @@ namespace hyperhdr::macros {
 
 #define BLOCK_CALL_2(target, method, p1type, p1value, p2type, p2value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::BlockingQueuedConnection, Q_ARG(p1type, p1value), Q_ARG(p2type, p2value)); \
@@ -221,7 +221,7 @@ namespace hyperhdr::macros {
 
 #define BLOCK_CALL_3(target, method, p1type, p1value, p2type, p2value, p3type, p3value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); SCHK_ARG(2, target, method, p3type, p3value); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::BlockingQueuedConnection, Q_ARG(p1type, p1value), Q_ARG(p2type, p2value), Q_ARG(p3type, p3value)); \
@@ -231,7 +231,7 @@ namespace hyperhdr::macros {
 
 #define BLOCK_CALL_4(target, method, p1type, p1value, p2type, p2value, p3type, p3value, p4type, p4value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); SCHK_ARG(2, target, method, p3type, p3value); SCHK_ARG(3, target, method, p4type, p4value); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::BlockingQueuedConnection, Q_ARG(p1type, p1value), Q_ARG(p2type, p2value), Q_ARG(p3type, p3value), Q_ARG(p4type, p4value)); \
@@ -241,7 +241,7 @@ namespace hyperhdr::macros {
 
 #define BLOCK_CALL_5(target, method, p1type, p1value, p2type, p2value, p3type, p3value, p4type, p4value, p5type, p5value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); SCHK_ARG(2, target, method, p3type, p3value); SCHK_ARG(3, target, method, p4type, p4value); SCHK_ARG(4, target, method, p5type, p5value); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::BlockingQueuedConnection, Q_ARG(p1type, p1value), Q_ARG(p2type, p2value), Q_ARG(p3type, p3value), Q_ARG(p4type, p4value), Q_ARG(p5type, p5value)); \
@@ -251,7 +251,7 @@ namespace hyperhdr::macros {
 
 #define AUTO_CALL_0(target, method, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::QueuedConnection); \
 	else \
@@ -260,7 +260,7 @@ namespace hyperhdr::macros {
 
 #define AUTO_CALL_1(target, method, p1type, p1value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::QueuedConnection, Q_ARG(p1type, p1value)); \
@@ -270,7 +270,7 @@ namespace hyperhdr::macros {
 
 #define AUTO_CALL_2(target, method, p1type, p1value, p2type, p2value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::QueuedConnection, Q_ARG(p1type, p1value), Q_ARG(p2type, p2value)); \
@@ -280,7 +280,7 @@ namespace hyperhdr::macros {
 
 #define AUTO_CALL_3(target, method, p1type, p1value, p2type, p2value, p3type, p3value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); SCHK_ARG(2, target, method, p3type, p3value); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::QueuedConnection, Q_ARG(p1type, p1value), Q_ARG(p2type, p2value), Q_ARG(p3type, p3value)); \
@@ -290,7 +290,7 @@ namespace hyperhdr::macros {
 
 #define AUTO_CALL_4(target, method, p1type, p1value, p2type, p2value, p3type, p3value, p4type, p4value, ...) \
 { \
-	hyperhdr::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
+	overglow::macros::SAFE_CALL_TEST_FUN(__VA_ARGS__); \
 	SCHK_ARG(0, target, method, p1type, p1value); SCHK_ARG(1, target, method, p2type, p2value); SCHK_ARG(2, target, method, p3type, p3value); SCHK_ARG(3, target, method, p4type, p4value); \
 	if (target->thread() != QThread::currentThread()) \
 		QMetaObject::invokeMethod(target, #method, Qt::QueuedConnection, Q_ARG(p1type, p1value), Q_ARG(p2type, p2value), Q_ARG(p3type, p3value), Q_ARG(p4type, p4value)); \
@@ -298,7 +298,7 @@ namespace hyperhdr::macros {
 		target->method(p1value, p2value, p3value, p4value); \
 }
 
-namespace hyperhdr {
+namespace overglow {
 	void THREAD_REMOVER(QString message, QThread* parentThread, QObject* client);
 	void THREAD_MULTI_REMOVER(QString message, QThread* parentThread, std::vector<QObject*> clients);
 	void SMARTPOINTER_MESSAGE(QString message);

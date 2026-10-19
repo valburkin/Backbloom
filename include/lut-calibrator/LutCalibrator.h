@@ -68,7 +68,7 @@ class LutCalibrator : public QObject
 	Q_OBJECT
 
 public:
-	LutCalibrator(QString rootpath, hyperhdr::Components defaultComp, bool debug, bool lchCorrection);
+	LutCalibrator(QString rootpath, overglow::Components defaultComp, bool debug, bool lchCorrection);
 	~LutCalibrator();
 	static void sendReport(const LoggerName& _log, QString report);
 	static QString CreateLutFile(const LoggerName& _log, QString _rootPath, BestResult* bestResult, std::vector<std::vector<std::vector<CapturedColor>>>* all);
@@ -106,6 +106,6 @@ private:
 	QString _rootPath;
 	bool	_debug;
 	bool	_lchCorrection;
-	hyperhdr::Components _defaultComp;
+	overglow::Components _defaultComp;
 	std::atomic<bool> _forcedExit;
 };

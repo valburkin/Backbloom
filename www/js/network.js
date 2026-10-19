@@ -7,18 +7,18 @@ $(document).ready( function() {
 	var conf_editor_mqtt = null;
 	
 	{
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/general_settings.svg" width="18" height="18" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_webc_heading_title"), 'editor_container', 'btn_submit_www'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/general_settings.svg" width="18" height="18" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_webc_heading_title"), 'editor_container', 'btn_submit_www'));
 		$('#conf_cont').append(createHelpTable(window.schema.webConfig.properties, $.i18n("edt_conf_webc_heading_title")));
 		
 		//network
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_net_heading_title"), 'editor_container_net', 'btn_submit_net'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_net_heading_title"), 'editor_container_net', 'btn_submit_net'));
 		$('#conf_cont').append(createHelpTable(window.schema.network.properties, $.i18n("edt_conf_net_heading_title")));
 
 		//jsonserver
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_js_heading_title"), 'editor_container_jsonserver', 'btn_submit_jsonserver'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_js_heading_title"), 'editor_container_jsonserver', 'btn_submit_jsonserver'));
 		$('#conf_cont').append(createHelpTable(window.schema.jsonServer.properties, $.i18n("edt_conf_js_heading_title")));
 
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_mqtt_heading_title"), 'editor_container_mqtt', 'btn_submit_mqtt'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/network_services.svg" width="18" height="18" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_mqtt_heading_title"), 'editor_container_mqtt', 'btn_submit_mqtt'));
 		$('#conf_cont').append(createHelpTable(window.schema.mqtt.properties, $.i18n("edt_conf_mqtt_heading_title")));
 
 		//Reorder hardcoded token div at the end
@@ -130,7 +130,7 @@ $(document).ready( function() {
 		else
 		$('#tok_chars_needed').html("<br />")
 	});
-	$(window.hyperhdr).off("cmd-authorize-createToken").on("cmd-authorize-createToken", function(event) {
+	$(window.serverEvents).off("cmd-authorize-createToken").on("cmd-authorize-createToken", function(event) {
 		var val = event.response.info;
 		showInfoDialog("newToken",$.i18n('conf_network_tok_diaTitle'),$.i18n('conf_network_tok_diaMsg')+'<br><div style="font-weight:bold">'+val.token+'</div>')
 		tokenList.push(val)

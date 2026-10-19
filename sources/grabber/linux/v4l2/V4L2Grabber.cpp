@@ -47,7 +47,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <grabber/GrabberWorker.h>
 #include <utils/GlobalSignals.h>
 
@@ -76,7 +76,7 @@ namespace
 	#define V4L2_PIX_FMT_P010    v4l2_fourcc('P', '0', '1', '0')
 #endif
 
-static const V4L2Grabber::HyperHdrFormat supportedFormats[] =
+static const V4L2Grabber::SupportedFormat supportedFormats[] =
 {
 	{ V4L2_PIX_FMT_YUYV,   PixelFormat::YUYV },
 	{ V4L2_PIX_FMT_UYVY,   PixelFormat::UYVY },
@@ -129,7 +129,7 @@ void V4L2Grabber::loadLutFile(PixelFormat color, bool silent)
 	// load lut table
 	QString fileName1 = QString("%1%2").arg(_configurationPath).arg("/lut_lin_tables.3d");
 	QString fileName2 = QString("%1%2").arg(GetSharedLut()).arg("/lut_lin_tables.3d");
-	QString fileName3 = QString("/usr/share/hyperhdr/lut/lut_lin_tables.3d");
+	QString fileName3 = QString("/usr/share/overglow/lut/lut_lin_tables.3d");
 
 	Grabber::loadLutFile((!silent) ? _log : nullptr, color, QList<QString>{fileName1, fileName2, fileName3});
 }
@@ -155,7 +155,7 @@ void V4L2Grabber::setHdrToneMappingEnabled(int mode)
 				loadLutFile(PixelFormat::RGB24);
 			_V4L2WorkerManager.Start();
 		}
-		emit SignalSetNewComponentStateToAllInstances(hyperhdr::Components::COMP_HDR, (mode != 0));
+		emit SignalSetNewComponentStateToAllInstances(overglow::Components::COMP_HDR, (mode != 0));
 	}
 	else
 		Debug(_log, "setHdrToneMappingMode nothing changed: {:s}", (mode == 0) ? "Disabled" : "Enabled");
@@ -567,7 +567,7 @@ void V4L2Grabber::enumerateV4L2devices(bool silent)
 			// UTV007 workaround
 			if (properties.valid.empty() && realName.indexOf("usbtv ", 0, Qt::CaseInsensitive) == 0)
 			{
-				Warning(_log, "To have proper colors when using UTV007 grabber, you may need to add 'sudo systemctl stop hyperhdr@pi && v4l2-ctl -s pal-B && sudo systemctl start hyperhdr@pi' to /etc/rc.local or run it manually to set the PAL standard");
+				Warning(_log, "To have proper colors when using UTV007 grabber, you may need to add 'sudo systemctl stop overglow@pi && v4l2-ctl -s pal-B && sudo systemctl start overglow@pi' to /etc/rc.local or run it manually to set the PAL standard");
 				for (int input = 0; input < properties.inputs.size(); input++)
 				{
 					{ DevicePropertiesItem diL; diL.x = 320; diL.y = 240; diL.fps = 30; diL.pf = identifyFormat(V4L2_PIX_FMT_YUYV); diL.v4l2PixelFormat = V4L2_PIX_FMT_YUYV; diL.input = input; properties.valid.append(diL); }
@@ -1217,7 +1217,7 @@ bool V4L2Grabber::process_image(v4l2_buffer* buf, const void* frameImageBuffer, 
 				QString access = (frameStat.directAccess) ? " (direct)" : "";
 				if (diff >= 59000 && diff <= 65000)
 					emit GlobalSignals::getInstance()->SignalPerformanceNewReport(
-					PerformanceReport(hyperhdr::PerformanceReportType::VIDEO_GRABBER, frameStat.token, this->_actualDeviceName + access, total / qMax(diff / 1000.0, 1.0), av, frameStat.goodFrame, frameStat.badFrame));
+					PerformanceReport(overglow::PerformanceReportType::VIDEO_GRABBER, frameStat.token, this->_actualDeviceName + access, total / qMax(diff / 1000.0, 1.0), av, frameStat.goodFrame, frameStat.badFrame));
 
 				resetCounter(now);
 
@@ -1299,7 +1299,7 @@ void V4L2Grabber::newWorkerFrameErrorHandler(unsigned int workerIndex, QString e
 	frameStat.badFrame++;
 	if (error.indexOf(QString(UNSUPPORTED_DECODER)) == 0)
 	{
-		Error(_log, "Unsupported MJPEG/YUV format. Please contact HyperHDR developers! (info: {:s})", (error));
+		Error(_log, "Unsupported MJPEG/YUV format. Please contact Overglow developers! (info: {:s})", (error));
 	}
 
 	// get next frame

@@ -31,12 +31,12 @@
 
 #include <base/SystemControl.h>
 #include <base/SystemWrapper.h>
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <utils/GlobalSignals.h>
 
-SystemControl::SystemControl(HyperHdrInstance* hyperhdr)
-	: QObject(hyperhdr)
-	, _hyperhdr(hyperhdr)
+SystemControl::SystemControl(LightingInstance* lightingInstance)
+	: QObject(lightingInstance)
+	, _instance(lightingInstance)
 	, _sysCaptEnabled(false)
 	, _alive(false)
 	, _sysCaptPrio(0)
@@ -44,23 +44,23 @@ SystemControl::SystemControl(HyperHdrInstance* hyperhdr)
 	, _sysInactiveTimer(new QTimer(this))
 {
 	// settings changes
-	connect(_hyperhdr, &HyperHdrInstance::SignalInstanceSettingsChanged, this, &SystemControl::handleSettingsUpdate);
+	connect(_instance, &LightingInstance::SignalInstanceSettingsChanged, this, &SystemControl::handleSettingsUpdate);
 
 	// comp changes
-	connect(_hyperhdr, &HyperHdrInstance::SignalRequestComponent, this, &SystemControl::handleCompStateChangeRequest);
+	connect(_instance, &LightingInstance::SignalRequestComponent, this, &SystemControl::handleCompStateChangeRequest);
 
 	// inactive timer system grabber
 	connect(_sysInactiveTimer, &QTimer::timeout, this, &SystemControl::setSysInactive);
 	_sysInactiveTimer->setInterval(800);
 
 	// init
-	QJsonDocument settings = _hyperhdr->getSetting(settings::type::SYSTEMCONTROL);
+	QJsonDocument settings = _instance->getSetting(settings::type::SYSTEMCONTROL);
 	QUEUE_CALL_2(this, handleSettingsUpdate, settings::type, settings::type::SYSTEMCONTROL, QJsonDocument, settings);
 }
 
 SystemControl::~SystemControl()
 {
-	emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::COMP_SYSTEMGRABBER, int(_hyperhdr->getInstanceIndex()), false);
+	emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::COMP_SYSTEMGRABBER, int(_instance->getInstanceIndex()), false);
 
 	std::cout << "SystemControl exits now" << std::endl;
 }
@@ -78,7 +78,7 @@ void SystemControl::handleSysImage(const QString& name, const Image<ColorRgb>& i
 	if (_sysCaptName != name)
 	{
 		_sysCaptName = name;
-		_hyperhdr->registerInput(_sysCaptPrio, hyperhdr::COMP_SYSTEMGRABBER, "System", _sysCaptName);
+		_instance->registerInput(_sysCaptPrio, overglow::COMP_SYSTEMGRABBER, "System", _sysCaptName);
 	}
 
 	_alive = true;
@@ -86,7 +86,7 @@ void SystemControl::handleSysImage(const QString& name, const Image<ColorRgb>& i
 	if (!_sysInactiveTimer->isActive() && _sysInactiveTimer->remainingTime() < 0)
 		_sysInactiveTimer->start();
 
-	_hyperhdr->setInputImage(_sysCaptPrio, image);
+	_instance->setInputImage(_sysCaptPrio, image);
 }
 
 void SystemControl::setSysCaptureEnable(bool enable)
@@ -95,19 +95,19 @@ void SystemControl::setSysCaptureEnable(bool enable)
 	{
 		if (enable)
 		{
-			_hyperhdr->registerInput(_sysCaptPrio, hyperhdr::COMP_SYSTEMGRABBER, "System", _sysCaptName);
+			_instance->registerInput(_sysCaptPrio, overglow::COMP_SYSTEMGRABBER, "System", _sysCaptName);
 			connect(GlobalSignals::getInstance(), &GlobalSignals::SignalNewSystemImage, this, &SystemControl::handleSysImage, Qt::UniqueConnection);
 		}
 		else
 		{
 			disconnect(GlobalSignals::getInstance(), &GlobalSignals::SignalNewSystemImage, this, &SystemControl::handleSysImage);
-			_hyperhdr->clear(_sysCaptPrio);
+			_instance->clear(_sysCaptPrio);
 			_sysInactiveTimer->stop();
 		}
 
 		_sysCaptEnabled = enable;
-		_hyperhdr->setNewComponentState(hyperhdr::COMP_SYSTEMGRABBER, enable);
-		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::COMP_SYSTEMGRABBER, int(_hyperhdr->getInstanceIndex()), enable);
+		_instance->setNewComponentState(overglow::COMP_SYSTEMGRABBER, enable);
+		emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::COMP_SYSTEMGRABBER, int(_instance->getInstanceIndex()), enable);
 	}
 }
 
@@ -126,9 +126,9 @@ void SystemControl::handleSettingsUpdate(settings::type type, const QJsonDocumen
 	}
 }
 
-void SystemControl::handleCompStateChangeRequest(hyperhdr::Components component, bool enable)
+void SystemControl::handleCompStateChangeRequest(overglow::Components component, bool enable)
 {
-	if (component == hyperhdr::COMP_SYSTEMGRABBER)
+	if (component == overglow::COMP_SYSTEMGRABBER)
 	{
 		setSysCaptureEnable(enable);
 	}
@@ -137,7 +137,7 @@ void SystemControl::handleCompStateChangeRequest(hyperhdr::Components component,
 void SystemControl::setSysInactive()
 {
 	if (!_alive)
-		_hyperhdr->setInputInactive(_sysCaptPrio);
+		_instance->setInputInactive(_sysCaptPrio);
 
 	_alive = false;
 }

@@ -48,4 +48,4 @@ EffectDefinition Animation_SwirlFast::getDefinition()
 	return ed;
 }
 
-bool Animation_SwirlFast::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_SwirlFast::getDefinition());
+bool Animation_SwirlFast::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_SwirlFast::getDefinition());

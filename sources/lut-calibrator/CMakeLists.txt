@@ -15,5 +15,5 @@ target_link_libraries(lut-calibrator
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
-	target_precompile_headers(lut-calibrator REUSE_FROM precompiled_hyperhdr_headers)
+	target_precompile_headers(lut-calibrator REUSE_FROM precompiled_headers)
 endif()

@@ -27,7 +27,7 @@
 
 #include <QMetaType>
 #include <grabber/osx/AVF/AVFWrapper.h>
-#include <base/HyperHdrManager.h>
+#include <base/InstanceManager.h>
 #include <utils/GlobalSignals.h>
 
 

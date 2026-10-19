@@ -7,17 +7,17 @@ FILE ( GLOB_RECURSE Api_SOURCES "${CURRENT_HEADER_DIR}/*.h"  "${CURRENT_SOURCE_D
 
 qt_add_resources(Api_RESOURCES ${CURRENT_SOURCE_DIR}/JSONRPC_schemas.qrc )
 
-add_library(hyperhdr-api OBJECT
+add_library(api OBJECT
 	${Api_SOURCES}
 	${Api_RESOURCES}
 )
 
-target_link_libraries(hyperhdr-api
+target_link_libraries(api
 	Qt${Qt_VERSION}::Core
 	Qt${Qt_VERSION}::Network
 	linalg
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
-	target_precompile_headers(hyperhdr-api REUSE_FROM precompiled_hyperhdr_headers)
+	target_precompile_headers(api REUSE_FROM precompiled_headers)
 endif()

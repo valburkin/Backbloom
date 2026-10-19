@@ -31,7 +31,7 @@
 
 #include <effects/EffectManufactory.h>
 
-namespace hyperhdr::effects {
+namespace overglow::effects {
 
 	const std::list<EffectDefinition>& GET_ALL_EFFECTS(const EffectDefinition* ed)
 	{

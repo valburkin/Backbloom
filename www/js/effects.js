@@ -9,17 +9,17 @@ $(document).ready( function() {
 	
 	{
 		//foreground effect
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/effects_startup_effect.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_fge_heading_title"), 'editor_container_foregroundEffect', 'btn_submit_foregroundEffect'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/effects_startup_effect.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_fge_heading_title"), 'editor_container_foregroundEffect', 'btn_submit_foregroundEffect'));
 		$('#conf_cont').append(createHelpTable(window.schema.foregroundEffect.properties, $.i18n("edt_conf_fge_heading_title")));
 
 		//background effect
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/effects_background_effect.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_bge_heading_title"), 'editor_container_backgroundEffect', 'btn_submit_backgroundEffect'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/effects_background_effect.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_bge_heading_title"), 'editor_container_backgroundEffect', 'btn_submit_backgroundEffect'));
 		$('#conf_cont').append(createHelpTable(window.schema.backgroundEffect.properties, $.i18n("edt_conf_bge_heading_title")));		
 		
 		if (isSound)
 		{
 			//sound effect
-			$('#conf_cont').append(createOptPanel('<svg data-src="svg/effects_sound_device.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_sound_heading_title"), 'editor_container_soundEffect', 'btn_submit_soundEffect'));
+			$('#conf_cont').append(createOptPanel('<svg data-src="svg/effects_sound_device.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_sound_heading_title"), 'editor_container_soundEffect', 'btn_submit_soundEffect'));
 			$('#conf_cont').append(createHelpTable(window.schema.soundEffect.properties, $.i18n("edt_conf_sound_heading_title")));
 		}
 	}

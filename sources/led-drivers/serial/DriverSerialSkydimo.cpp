@@ -72,4 +72,4 @@ LedDevice* DriverSerialSkydimo::construct(const QJsonObject& deviceConfig)
 	return new DriverSerialSkydimo(deviceConfig);
 }
 
-bool DriverSerialSkydimo::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("skydimo", "leds_group_3_serial", DriverSerialSkydimo::construct);
+bool DriverSerialSkydimo::isRegistered = overglow::leds::REGISTER_LED_DEVICE("skydimo", "leds_group_3_serial", DriverSerialSkydimo::construct);

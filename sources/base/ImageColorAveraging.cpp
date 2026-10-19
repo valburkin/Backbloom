@@ -35,7 +35,7 @@
 
 #define push_back_index(list, index) list.push_back((index) * 3)
 
-using namespace hyperhdr;
+using namespace overglow;
 using namespace linalg::aliases;
 
 ImageColorAveraging::ImageColorAveraging(

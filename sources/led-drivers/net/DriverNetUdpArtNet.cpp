@@ -212,4 +212,4 @@ LedDevice* DriverNetUdpArtNet::construct(const QJsonObject& deviceConfig)
 	return new DriverNetUdpArtNet(deviceConfig);
 }
 
-bool DriverNetUdpArtNet::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("udpartnet", "leds_group_2_network", DriverNetUdpArtNet::construct);
+bool DriverNetUdpArtNet::isRegistered = overglow::leds::REGISTER_LED_DEVICE("udpartnet", "leds_group_2_network", DriverNetUdpArtNet::construct);

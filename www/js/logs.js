@@ -46,11 +46,11 @@ $(document).ready(function() {
 		CopyToClipboard(copyText);
 	});	
 	
-	$(window.hyperhdr).unbind("cmd-logging-update");
+	$(window.serverEvents).unbind("cmd-logging-update");
 	$("#logmessages").empty();
 	requestLoggingStart();
 
-	$(window.hyperhdr).on("cmd-logging-update",
+	$(window.serverEvents).on("cmd-logging-update",
 		function(event)
 		{
 			messages = (event.response.result.messages);				

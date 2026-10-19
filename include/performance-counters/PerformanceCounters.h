@@ -11,7 +11,7 @@
 
 #include <utils/Logger.h>
 
-namespace hyperhdr
+namespace overglow
 {
 	enum PerformanceReportType { VIDEO_GRABBER = 1, INSTANCE = 2, LED = 3, CPU_USAGE = 4, RAM_USAGE = 5, CPU_TEMPERATURE = 6, SYSTEM_UNDERVOLTAGE = 7, UNKNOWN = 8 };
 }
@@ -64,7 +64,7 @@ public:
 private slots:
 
 	void signalPerformanceNewReportHandler(const PerformanceReport& pr);
-	void signalPerformanceStateChangedHandler(bool state, hyperhdr::PerformanceReportType type, int id, QString name = "");
+	void signalPerformanceStateChangedHandler(bool state, overglow::PerformanceReportType type, int id, QString name = "");
 	
 
 public slots:

@@ -27,7 +27,7 @@
 
 #include <QMetaType>
 #include <grabber/windows/MF/MFWrapper.h>
-#include <base/HyperHdrManager.h>
+#include <base/InstanceManager.h>
 #include <utils/GlobalSignals.h>
 
 

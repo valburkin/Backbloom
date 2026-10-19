@@ -38,7 +38,7 @@
 #include <iostream>
 #include <db/SQLite.h>
 
-#include <HyperhdrConfig.h> // Required to determine the cmake options
+#include <OverglowConfig.h> // Required to determine the cmake options
 
 QFileInfo DBManager::_databaseName;
 QThreadStorage<SqlDatabase*> DBManager::_databasePool;
@@ -484,7 +484,7 @@ QJsonObject DBManager::getBackup()
 	QJsonObject backup;
 	SqlDatabase* idb = getDB();
 	QStringList instanceKeys({ "enabled", "friendly_name", "instance" });
-	QStringList settingsKeys({ "config", "hyperhdr_instance", "type" });
+	QStringList settingsKeys({ "config", SETTINGS_INSTANCE_COLUMN, "type" });
 
 	bool rm = _readonlyMode;
 
@@ -553,7 +553,7 @@ QJsonObject DBManager::getBackup()
 			allSettings.append(entry);
 	}
 
-	backup["version"] = CURRENT_HYPERHDR_DB_EXPORT_VERSION;
+	backup["version"] = CURRENT_DB_EXPORT_VERSION;
 	backup["instances"] = allInstances;
 	backup["settings"] = allSettings;
 
@@ -633,6 +633,14 @@ QString DBManager::restoreBackup(const QJsonObject& backupData)
 				QStringList headers, placeholder;
 				QVariantList values;
 				QJsonObject obj = value.toObject();
+
+				// legacy HyperHDR backups use a different name for the instance column
+				if (obj.contains("hyperhdr_instance"))
+				{
+					if (!obj.contains(SETTINGS_INSTANCE_COLUMN))
+						obj[SETTINGS_INSTANCE_COLUMN] = obj.value("hyperhdr_instance");
+					obj.remove("hyperhdr_instance");
+				}
 
 				foreach(const QString & key, obj.keys())
 				{

@@ -32,12 +32,12 @@
 	#include <QFileInfo>
 #endif
 
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 #include <base/GrabberWrapper.h>
 #include <base/Grabber.h>
 #include <utils/GlobalSignals.h>
-#include <base/HyperHdrInstance.h>
-#include <base/HyperHdrManager.h>
+#include <base/LightingInstance.h>
+#include <base/InstanceManager.h>
 
 GrabberWrapper::GrabberWrapper(const QString& grabberName)
 	: _grabberName(grabberName)
@@ -56,16 +56,16 @@ GrabberWrapper::GrabberWrapper(const QString& grabberName)
 	connect(this, &GrabberWrapper::SignalInstancePauseChanged, this, &GrabberWrapper::signalInstancePauseChangedHandler);
 }
 
-void GrabberWrapper::signalRequestSourceHandler(hyperhdr::Components component, int instanceIndex, bool listen)
+void GrabberWrapper::signalRequestSourceHandler(overglow::Components component, int instanceIndex, bool listen)
 {
-	if (component == hyperhdr::Components::COMP_HDR)
+	if (component == overglow::Components::COMP_HDR)
 	{
 		if (instanceIndex >= 0)
-			emit SignalSetNewComponentStateToAllInstances(hyperhdr::Components::COMP_HDR, _grabber->getHdrToneMappingEnabled());
+			emit SignalSetNewComponentStateToAllInstances(overglow::Components::COMP_HDR, _grabber->getHdrToneMappingEnabled());
 		else
 			setHdrToneMappingEnabled(listen);
 	}
-	else if (component == hyperhdr::Components::COMP_VIDEOGRABBER)
+	else if (component == overglow::Components::COMP_VIDEOGRABBER)
 	{
 		if (instanceIndex >= 0)
 		{
@@ -150,7 +150,7 @@ void GrabberWrapper::signalInstancePauseChangedHandler(int instance, bool isEnab
 						Warning(_log, "LEDs are off and you have enabled the pausing feature for the USB grabber. Pausing the video grabber now.");
 						auto _running_clients_copy = _running_clients;
 						_running_clients.clear();
-						signalRequestSourceHandler(hyperhdr::Components::COMP_VIDEOGRABBER, -1, false);
+						signalRequestSourceHandler(overglow::Components::COMP_VIDEOGRABBER, -1, false);
 						_running_clients = _running_clients_copy;
 						_isPaused = true;
 					}
@@ -160,7 +160,7 @@ void GrabberWrapper::signalInstancePauseChangedHandler(int instance, bool isEnab
 					if (_isPaused)
 					{
 						Warning(_log, "LEDs are on. Resuming the video grabber now.");
-						signalRequestSourceHandler(hyperhdr::Components::COMP_VIDEOGRABBER, -1, true);
+						signalRequestSourceHandler(overglow::Components::COMP_VIDEOGRABBER, -1, true);
 						_isPaused = false;
 					}
 				}

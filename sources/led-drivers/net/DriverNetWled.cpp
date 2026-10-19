@@ -1,6 +1,6 @@
-// Local-HyperHDR includes
+// Local-Overglow includes
 #include <led-drivers/net/DriverNetWled.h>
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 #include <QString>
 #ifdef ENABLE_BONJOUR
 	#include <bonjour/DiscoveryWrapper.h>
@@ -159,7 +159,7 @@ bool DriverNetWled::powerOn()
 				Error(_log, "Serious warning: the power limiter in WLED is set which may lead to unexpected side effects. Use the right cabling & power supply with the appropriate power, not this half-measure.");
 
 			if (_ledCount != ledsNumber)
-				Warning(_log, "The number of LEDs defined in HyperHDR ({:d}) is different from that defined in WLED ({:d})", _ledCount, ledsNumber);
+				Warning(_log, "The number of LEDs defined in Overglow ({:d}) is different from that defined in WLED ({:d})", _ledCount, ledsNumber);
 			
 			_customInfo = QString("  %1%").arg(quality);
 
@@ -229,7 +229,7 @@ QJsonObject DriverNetWled::discover(const QJsonObject& /*params*/)
 		}
 	}
 #else
-	Error(_log, "The Network Discovery Service was mysteriously disabled while the maintenair was compiling this version of HyperHDR");
+	Error(_log, "The Network Discovery Service was mysteriously disabled while the maintenair was compiling this version of Overglow");
 #endif	
 
 	devicesDiscovered.insert("devices", deviceList);
@@ -284,4 +284,4 @@ LedDevice* DriverNetWled::construct(const QJsonObject& deviceConfig)
 	return new DriverNetWled(deviceConfig);
 }
 
-bool DriverNetWled::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("wled", "leds_group_2_network", DriverNetWled::construct);
+bool DriverNetWled::isRegistered = overglow::leds::REGISTER_LED_DEVICE("wled", "leds_group_2_network", DriverNetWled::construct);

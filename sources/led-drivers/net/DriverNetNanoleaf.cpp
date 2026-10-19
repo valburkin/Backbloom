@@ -1,4 +1,4 @@
-// Local-HyperHDR includes
+// Local-Overglow includes
 #include <led-drivers/net/DriverNetNanoleaf.h>
 #include <ssdp/SSDPDiscover.h>
 
@@ -596,4 +596,4 @@ LedDevice* DriverNetNanoleaf::construct(const QJsonObject& deviceConfig)
 	return new DriverNetNanoleaf(deviceConfig);
 }
 
-bool DriverNetNanoleaf::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("nanoleaf", "leds_group_2_network", DriverNetNanoleaf::construct);
+bool DriverNetNanoleaf::isRegistered = overglow::leds::REGISTER_LED_DEVICE("nanoleaf", "leds_group_2_network", DriverNetNanoleaf::construct);

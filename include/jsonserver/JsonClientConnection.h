@@ -10,7 +10,7 @@
 
 class HyperAPI;
 class QTcpSocket;
-class HyperHdrManager;
+class InstanceManager;
 
 class JsonClientConnection : public QObject
 {

@@ -2,23 +2,23 @@ macro(InstallerLinux TARGET)
     include(GNUInstallDirs)
 
     if (EXISTS ${TARGET_FILE})
-        # Podstawowe pliki licencji
-        install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION "${CMAKE_INSTALL_DATADIR}/hyperhdr" COMPONENT "HyperHDR")
-        install(FILES "${PROJECT_SOURCE_DIR}/3RD_PARTY_LICENSES" DESTINATION "${CMAKE_INSTALL_DATADIR}/hyperhdr" COMPONENT "HyperHDR")
+        # License files
+        install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION "${CMAKE_INSTALL_DATADIR}/overglow" COMPONENT "Overglow")
+        install(FILES "${PROJECT_SOURCE_DIR}/3RD_PARTY_LICENSES" DESTINATION "${CMAKE_INSTALL_DATADIR}/overglow" COMPONENT "Overglow")
 
-        # Binarka główna
-        install(TARGETS hyperhdr DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT "HyperHDR")
+        # Main binary
+        install(TARGETS overglow DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT "Overglow")
         
-        # Plik serwisu (jako szablony dla postinst)
-        install(FILES ${CMAKE_SOURCE_DIR}/cmake/linux/service/hyperhdr@.service DESTINATION "/usr/lib/systemd/system" COMPONENT "HyperHDR")
+        # Service file (template used by postinst)
+        install(FILES ${CMAKE_SOURCE_DIR}/cmake/linux/service/overglow@.service DESTINATION "/usr/lib/systemd/system" COMPONENT "Overglow")
 
-        # Ikony i plik .desktop (Zgodne z FHS, np. /usr/share/applications i /usr/share/icons)
-        install(FILES ${CMAKE_SOURCE_DIR}/cmake/linux/resources/hyperhdr-icon-32px.png 
-                DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/32x32/apps" RENAME "hyperhdr.png" COMPONENT "HyperHDR")
-        install(FILES ${CMAKE_SOURCE_DIR}/cmake/linux/resources/hyperhdr_128.png 
-                DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps" RENAME "hyperhdr.png" COMPONENT "HyperHDR")
-        install(FILES ${CMAKE_SOURCE_DIR}/cmake/linux/resources/hyperhdr.desktop 
-                DESTINATION "${CMAKE_INSTALL_DATADIR}/applications" COMPONENT "HyperHDR")
+        # Icons and the .desktop file (FHS layout, e.g. /usr/share/applications and /usr/share/icons)
+        install(FILES ${CMAKE_SOURCE_DIR}/branding/png/overglow-32.png 
+                DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/32x32/apps" RENAME "overglow.png" COMPONENT "Overglow")
+        install(FILES ${CMAKE_SOURCE_DIR}/branding/png/overglow-128.png 
+                DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps" RENAME "overglow.png" COMPONENT "Overglow")
+        install(FILES ${CMAKE_SOURCE_DIR}/cmake/linux/resources/overglow.desktop 
+                DESTINATION "${CMAKE_INSTALL_DATADIR}/applications" COMPONENT "Overglow")
 
         # Web resources
         if (NOT USE_EMBEDDED_WEB_RESOURCES)
@@ -26,10 +26,10 @@ macro(InstallerLinux TARGET)
                 message(FATAL_ERROR "Could not find compiled resources for the web server. Consider using USE_EMBEDDED_WEB_RESOURCES option" )
             endif()
             get_target_property(webserver-resources-path webserver-resources OUTPUT_FILE)
-            install(FILES ${webserver-resources-path} DESTINATION "${CMAKE_INSTALL_DATADIR}/hyperhdr/web" COMPONENT "HyperHDR" )
+            install(FILES ${webserver-resources-path} DESTINATION "${CMAKE_INSTALL_DATADIR}/overglow/web" COMPONENT "Overglow" )
         endif()
 
-        # Optymalizacja: Pętla dla naszych wewnętrznych bibliotek, customizowanej wersji sqlite lub jesli ich nie ma w publicznym repo
+        # Our internal shared libraries and the customized sqlite build
         set(CUSTOM_INTERNAL_LIBS smart-x11 smart-pipewire utils-image utils-zstd systray-widget sqlite3 )
         foreach(custom_lib ${CUSTOM_INTERNAL_LIBS})
             if (TARGET ${custom_lib})
@@ -38,12 +38,12 @@ macro(InstallerLinux TARGET)
                     if (ENABLE_DEPENDENCY_PACKAGING)
                         set_target_properties(${custom_lib} PROPERTIES INSTALL_RPATH "\$ORIGIN/external" )
                     endif()
-                    install(TARGETS ${custom_lib} DESTINATION "${CMAKE_INSTALL_LIBDIR}/hyperhdr" COMPONENT "HyperHDR")
+                    install(TARGETS ${custom_lib} DESTINATION "${CMAKE_INSTALL_LIBDIR}/overglow" COMPONENT "Overglow")
                 endif()
             endif()
         endforeach()
 
-        # Pakowanie opcjonalnych zależności
+        # Optional dependency bundling
         if (ENABLE_DEPENDENCY_PACKAGING)
             set(PREREQUISITE_LIBS "")
 
@@ -76,11 +76,11 @@ macro(InstallerLinux TARGET)
                 execute_process(COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_INSTALL_PLUGINS OUTPUT_VARIABLE QT_PLUGINS_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
             endif()
                     
-            # Install CODE dla zależności
-            install(CODE "set(TARGET_FILE \"${TARGET_FILE}\")" COMPONENT "HyperHDR")
-            install(CODE "set(PREREQUISITE_LIBS \"${PREREQUISITE_LIBS}\")" COMPONENT "HyperHDR")
-            install(CODE "set(QT_PLUGINS_DIR \"${QT_PLUGINS_DIR}\")" COMPONENT "HyperHDR")
-            install(CODE "set(DEST_DIR \"${CMAKE_INSTALL_LIBDIR}/hyperhdr/external\")" COMPONENT "HyperHDR")
+            # Install CODE for the dependencies
+            install(CODE "set(TARGET_FILE \"${TARGET_FILE}\")" COMPONENT "Overglow")
+            install(CODE "set(PREREQUISITE_LIBS \"${PREREQUISITE_LIBS}\")" COMPONENT "Overglow")
+            install(CODE "set(QT_PLUGINS_DIR \"${QT_PLUGINS_DIR}\")" COMPONENT "Overglow")
+            install(CODE "set(DEST_DIR \"${CMAKE_INSTALL_LIBDIR}/overglow/external\")" COMPONENT "Overglow")
 
             install(CODE [[
                 set(SYSTEM_LIBS_SKIP
@@ -103,7 +103,7 @@ macro(InstallerLinux TARGET)
                     file(GET_RUNTIME_DEPENDENCIES RESOLVED_DEPENDENCIES_VAR DEPENDENCIES EXECUTABLES ${TARGET_FILE})
                 endif()
 
-                # Kopiowanie pluginów QT do lib/hyperhdr/external/plugins
+                # Copy Qt plugins to lib/overglow/external/plugins
                 foreach(PLUGIN "tls")
                     if(EXISTS ${QT_PLUGINS_DIR}/${PLUGIN})
                         file(GLOB files "${QT_PLUGINS_DIR}/${PLUGIN}/*openssl*")
@@ -139,12 +139,12 @@ macro(InstallerLinux TARGET)
                     endif()
                 endforeach()        
 
-                # Kopiowanie i ew. patchowanie RPATH z zachowaniem nowych ścieżek FHS
+                # Copy the libraries and patch RPATH where needed (FHS paths)
                 foreach(PREREQUISITE_LIB IN LISTS PREREQUISITE_LIBS)
-                    # 1. Instalacja pliku bezpośrednio do katalogu docelowego
+                    # 1. Install the file directly into the destination folder
                     file(INSTALL FILES "${PREREQUISITE_LIB}" DESTINATION "${CMAKE_INSTALL_PREFIX}/${DEST_DIR}" TYPE SHARED_LIBRARY)
                     message("Installing: ${PREREQUISITE_LIB} to ${CMAKE_INSTALL_PREFIX}/${DEST_DIR}")
-                    # 2. Sprawdzenie, czy plik nie jest dowiązaniem i czy to libproxy / libpxbackend
+                    # 2. Patch it when it is not a symlink and it is libproxy / libpxbackend
                     if(NOT IS_SYMLINK "${PREREQUISITE_LIB}" AND "${PREREQUISITE_LIB}" MATCHES "libproxy|libpxbackend")
                         get_filename_component(FILENAME "${PREREQUISITE_LIB}" NAME)
                         set(INSTALLED_FILE "${CMAKE_INSTALL_PREFIX}/${DEST_DIR}/${FILENAME}")
@@ -152,7 +152,7 @@ macro(InstallerLinux TARGET)
                         execute_process(COMMAND chrpath -d "${INSTALLED_FILE}" OUTPUT_VARIABLE outputResult)
                     endif()
                 endforeach()     
-            ]] COMPONENT "HyperHDR")
+            ]] COMPONENT "Overglow")
         endif()
     else()
         add_custom_command(

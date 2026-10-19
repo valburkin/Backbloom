@@ -1375,4 +1375,4 @@ LedDevice* DriverNetYeelight::construct(const QJsonObject& deviceConfig)
 	return new DriverNetYeelight(deviceConfig);
 }
 
-bool DriverNetYeelight::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("yeelight", "leds_group_2_network", DriverNetYeelight::construct);
+bool DriverNetYeelight::isRegistered = overglow::leds::REGISTER_LED_DEVICE("yeelight", "leds_group_2_network", DriverNetYeelight::construct);

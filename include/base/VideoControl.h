@@ -10,28 +10,28 @@
 #include <utils/settings.h>
 #include <utils/Components.h>
 
-class HyperHdrInstance;
+class LightingInstance;
 
 class VideoControl : public QObject
 {
 	Q_OBJECT
 
 public:
-	VideoControl(HyperHdrInstance* hyperhdr);
+	VideoControl(LightingInstance* lightingInstance);
 	~VideoControl();
 
 	quint8 getCapturePriority();
 	void setUsbCaptureEnable(bool enable);
 
 private slots:
-	void handleCompStateChangeRequest(hyperhdr::Components component, bool enable);
+	void handleCompStateChangeRequest(overglow::Components component, bool enable);
 	void handleSettingsUpdate(settings::type type, const QJsonDocument& config);
 	void handleUsbImage();
 	void handleIncomingUsbImage(const QString& name, const Image<ColorRgb>& image);
 	void setUsbInactive();
 
 private:
-	HyperHdrInstance* _hyperhdr;
+	LightingInstance* _instance;
 
 	bool	_usbCaptEnabled;
 	bool	_alive;

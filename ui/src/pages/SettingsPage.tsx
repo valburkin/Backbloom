@@ -32,7 +32,14 @@ export function SettingsPage() {
             <code className="font-mono text-[13px] text-ink-muted">{backend.url}</code>
           </Row>
           <Row label="Access">{auth === 'admin' ? 'Signed in' : auth === 'readOnly' ? 'View only' : '—'}</Row>
-          <Row label="Service version">{sysInfo?.hyperhdr?.version ?? '—'}</Row>
+          <Row label="Service version">{sysInfo?.overglow?.version ?? '—'}</Row>
+          {sysInfo?.overglow?.supportUrl ? (
+            <Row label="Support">
+              <a className="underline underline-offset-2" href={sysInfo.overglow.supportUrl} target="_blank" rel="noreferrer">
+                {sysInfo.overglow.supportUrl}
+              </a>
+            </Row>
+          ) : null}
           <Row label="Computer">{sysInfo?.system?.prettyName ?? sysInfo?.system?.hostName ?? '—'}</Row>
           <Row label="Light groups">{instances.map((i) => `${i.friendly_name}${i.running ? '' : ' (stopped)'}`).join(', ') || '—'}</Row>
           <div className="mt-4 flex justify-end">

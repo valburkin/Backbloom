@@ -2,7 +2,7 @@
 
 #include <utils/DefaultSignalHandler.h>
 #include <utils/Logger.h>
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 
 #include <cctype>
 #include <csignal>
@@ -126,7 +126,7 @@ namespace DefaultSignalHandler
 		}
 
 		write_to_stderr("\n");
-		write_to_stderr("HyperHDR caught signal :");
+		write_to_stderr("Overglow caught signal :");
 		write_to_stderr(name);
 		write_to_stderr("\n");
 
@@ -152,7 +152,7 @@ namespace DefaultSignalHandler
 			/* If the signal_handler is hit before the event loop is started,
 			 * following call will do nothing. So we queue the call. */
 
-			HyperHdrInstance::signalTerminateTriggered();
+			LightingInstance::signalTerminateTriggered();
 
 			QUEUE_CALL_0(qApp, quit);
 

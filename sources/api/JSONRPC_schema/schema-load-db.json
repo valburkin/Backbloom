@@ -31,6 +31,7 @@
 						"type":"object",
 						"properties": {						
 							"config":            { "type" : "string"  },
+							"instance":          { "type" : "integer" },
 							"hyperhdr_instance": { "type" : "integer" },
 							"type":              { "type" : "string"  }
 						}
@@ -40,7 +41,7 @@
 				"version": {
 					"type" : "string",
 					"required" : true,
-					"enum" : ["HyperHDR_export_format_v17", "HyperHDR_export_format_v20"]
+					"enum" : ["Overglow_export_format_v1", "HyperHDR_export_format_v17", "HyperHDR_export_format_v20"]
 				}
 			}
 		}

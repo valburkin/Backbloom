@@ -17,7 +17,7 @@ class QtHttpRequest;
 class QtHttpReply;
 class QtHttpClientWrapper;
 class NetOrigin;
-class HyperHdrManager;
+class InstanceManager;
 
 class QtHttpServerWrapper : public QTcpServer
 {

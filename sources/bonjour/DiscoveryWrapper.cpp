@@ -106,14 +106,14 @@ QList<DiscoveryRecord> DiscoveryWrapper::getWLED()
 	return _wledDevices;
 }
 
-QList<DiscoveryRecord> DiscoveryWrapper::getHyperHDRServices()
+QList<DiscoveryRecord> DiscoveryWrapper::getPeerInstances()
 {
-	return _hyperhdrSessions;
+	return _peerInstances;
 }
 
 QList<DiscoveryRecord> DiscoveryWrapper::getAllServices()
 {
-	return _hyperhdrSessions + _esp32s2Devices + _espDevices + _hueDevices + _homeAssistantDevices + _picoDevices + _wledDevices;
+	return _peerInstances + _esp32s2Devices + _espDevices + _hueDevices + _homeAssistantDevices + _picoDevices + _wledDevices;
 }
 
 void DiscoveryWrapper::requestServicesScan()
@@ -124,8 +124,8 @@ void DiscoveryWrapper::requestServicesScan()
 	emit GlobalSignals::getInstance()->SignalDiscoveryRequestToScan(DiscoveryRecord::Service::PhilipsHue);
 	cleanUp(_homeAssistantDevices);
 	emit GlobalSignals::getInstance()->SignalDiscoveryRequestToScan(DiscoveryRecord::Service::HomeAssistant);
-	cleanUp(_hyperhdrSessions);
-	emit GlobalSignals::getInstance()->SignalDiscoveryRequestToScan(DiscoveryRecord::Service::HyperHDR);
+	cleanUp(_peerInstances);
+	emit GlobalSignals::getInstance()->SignalDiscoveryRequestToScan(DiscoveryRecord::Service::PeerInstance);
 
 	cleanUp(_esp32s2Devices);
 	cleanUp(_espDevices);
@@ -177,8 +177,8 @@ void DiscoveryWrapper::gotMessage(QList<DiscoveryRecord>& target, const Discover
 
 void DiscoveryWrapper::signalDiscoveryEventHandler(const DiscoveryRecord& message)
 {
-	if (message.type == DiscoveryRecord::Service::HyperHDR)
-		gotMessage(_hyperhdrSessions, message);
+	if (message.type == DiscoveryRecord::Service::PeerInstance)
+		gotMessage(_peerInstances, message);
 	else if (message.type == DiscoveryRecord::Service::WLED)
 		gotMessage(_wledDevices, message);
 	else if (message.type == DiscoveryRecord::Service::PhilipsHue)
@@ -202,7 +202,7 @@ void DiscoveryWrapper::signalDiscoveryRequestToScanHandler(DiscoveryRecord::Serv
 			QJsonObject deviceConfig;
 			deviceConfig["type"] = "adalight";
 
-			_serialDevice = std::unique_ptr<LedDevice>(hyperhdr::leds::CONSTRUCT_LED_DEVICE(deviceConfig));
+			_serialDevice = std::unique_ptr<LedDevice>(overglow::leds::CONSTRUCT_LED_DEVICE(deviceConfig));
 		}
 		QJsonObject params;
 		QJsonObject devicesDiscovered = _serialDevice->discover(params);		

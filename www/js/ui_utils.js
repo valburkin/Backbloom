@@ -47,7 +47,7 @@ function loadContent(event, forceRefresh)
 
 	var lastSelectedInstance = getStorage('lastSelectedInstance', false);
 
-	if (lastSelectedInstance && (lastSelectedInstance != window.currentHyperHdrInstance))
+	if (lastSelectedInstance && (lastSelectedInstance != window.currentLightingInstance))
 		if ((typeof lastSelectedInstance !== 'undefined') && 
 			(typeof window.serverInfo.instance[lastSelectedInstance] !== 'undefined') &&
 			 typeof(window.serverInfo.instance[lastSelectedInstance].running) !== 'undefined' && window.serverInfo.instance[lastSelectedInstance].running)
@@ -99,27 +99,27 @@ function loadContent(event, forceRefresh)
 	}
 }
 
-function updateHyperhdrInstanceListing()
+function updateInstanceListing()
 {
 	let hasItems = false;
 	let data = window.serverInfo.instance.filter(entry => entry.running);
-	$('#hyperhdr_instances_list').html("");
+	$('#instances_list').html("");
 
 	if (data.length > 1)
 	{
 		hasItems = true;
 		for(var key in data)
 		{
-			var currInstMarker = (data[key].instance == window.currentHyperHdrInstance) ? 'data-src="svg/instances_top_menu_indicator.svg"' : '';
-			var currInstMarkerBackground = (data[key].instance == window.currentHyperHdrInstance) ? 'text-success' : 'instance-unselected-marker';
-			var currTextMarker = (data[key].instance == window.currentHyperHdrInstance) ? "my-text-success" : "";
+			var currInstMarker = (data[key].instance == window.currentLightingInstance) ? 'data-src="svg/instances_top_menu_indicator.svg"' : '';
+			var currInstMarkerBackground = (data[key].instance == window.currentLightingInstance) ? 'text-success' : 'instance-unselected-marker';
+			var currTextMarker = (data[key].instance == window.currentLightingInstance) ? "my-text-success" : "";
 		
 			var myName = data[key].friendly_name;
 		
 			if (myName.length>20)
 				myName = myName.slice(0,17) + '...';
 		
-			var html = `<li id="hyperhdrinstance_${data[key].instance}"><a>`+
+			var html = `<li id="instance_item_${data[key].instance}"><a>`+
 							'<div class="d-flex" style="cursor: pointer;">'+							
 								`<div class="flex ps-2 pe-1 ${currInstMarkerBackground}">`+
 									`<svg xmlns="http://www.w3.org/2000/svg" ${currInstMarker} width="16" height="16" fill="currentColor" style="position: relative;top: -2px;"></svg>`+
@@ -133,50 +133,50 @@ function updateHyperhdrInstanceListing()
 			if(data.length-1 > key)
 				html += '<li class="dropdown-divider"></li>';
 
-			$('#hyperhdr_instances_list').append(html);
+			$('#instances_list').append(html);
 
-			$('#hyperhdrinstance_'+data[key].instance).off().on("click",function(e){
+			$('#instance_item_'+data[key].instance).off().on("click",function(e){
 				instanceSwitch(e.currentTarget.id.split("_")[1]);
 			});
 		}
 	}
 
-	let hyperHDRs = window.serverInfo.sessions;
-	if (hyperHDRs != null && hyperHDRs.length > 0)
+	let peers = window.serverInfo.sessions;
+	if (peers != null && peers.length > 0)
 	{
-		for(var i = 0; i< hyperHDRs.length; i++)
-			if(hyperHDRs[i].name == "HyperHDR")
+		for(var i = 0; i< peers.length; i++)
+			if(peers[i].name == "Overglow")
 			{				
 				if (i == 0)
 				{
 					if (hasItems)
-						$('#hyperhdr_instances_list').append('<li class="dropdown-divider bg-info" style="border-top-width:2px;"></li>');
+						$('#instances_list').append('<li class="dropdown-divider bg-info" style="border-top-width:2px;"></li>');
 				}
 				else if (hasItems)
-					$('#hyperhdr_instances_list').append('<li class="dropdown-divider bg-info"></li>');
+					$('#instances_list').append('<li class="dropdown-divider bg-info"></li>');
 				
 
-				var hostName = hyperHDRs[i].host;
+				var hostName = peers[i].host;
 
 				if (hostName.length > 0)
 				{
 					hostName = hostName.replace(/"/g, "'");
 				}
 
-				var html = `<li id="remote_hyperhdrinstance_${i}" class="text-info" data-toggle="tooltip" data-placement="right" title="${hostName}"><a>`+
+				var html = `<li id="remote_instance_item_${i}" class="text-info" data-toggle="tooltip" data-placement="right" title="${hostName}"><a>`+
 						'<div class="d-flex" style="cursor: pointer;">'+							
 							`<div class="flex ps-2 pe-1">`+
 								`<svg xmlns="http://www.w3.org/2000/svg" data-src="svg/button_link.svg" width="16" height="16" fill="currentColor" style="position: relative;top: -2px;"></svg>`+
 							'</div>'+
 							`<div class="flex pe-2">`+
-								`<span class="h-100" style="display: inline-flex; align-items: center;">${hyperHDRs[i].address}:${hyperHDRs[i].port}</span>`+
+								`<span class="h-100" style="display: inline-flex; align-items: center;">${peers[i].address}:${peers[i].port}</span>`+
 							'</div>'+
 						'</div>'+
 					'</a></li>';
-				$('#hyperhdr_instances_list').append(html);
+				$('#instances_list').append(html);
 
-				const destAddress = `http://${hyperHDRs[i].address}:${hyperHDRs[i].port}`;
-				$(`#remote_hyperhdrinstance_${i}`).off().on("click",function(e){
+				const destAddress = `http://${peers[i].address}:${peers[i].port}`;
+				$(`#remote_instance_item_${i}`).off().on("click",function(e){
 					$("#loading_overlay").addClass("overlay");
 					window.location.href = destAddress;
 				});
@@ -193,7 +193,7 @@ function updateHyperhdrInstanceListing()
 	else
 	{
 		$('#btn_hypinstanceswitch').addClass('disabled');
-		$('#hyperhdr_instances_list').removeClass('show');
+		$('#instances_list').removeClass('show');
 	}
 }
 
@@ -219,7 +219,7 @@ function initLanguageSelection()
 	// Resolve text for language code
 	var langText = 'Please Select';
 
-	//Test, if language is supported by hyperhdr
+	//Test, if language is supported
 	var langIdx = availLang.indexOf(langLocale);
 	if ( langIdx > -1 )
 	{
@@ -227,7 +227,7 @@ function initLanguageSelection()
 	}
 	else
 	{
-		// If language is not supported by hyperhdr, try fallback language
+		// If language is not supported, try fallback language
 		langLocale = $.i18n().options.fallbackLocale.substring(0,2);	
 		langIdx = availLang.indexOf(langLocale);
 		if ( langIdx > -1 )
@@ -250,7 +250,7 @@ function initLanguageSelection()
 			switchLang(sendId);
 		});
 		
-		var ilink = `<svg ${(i == langIdx) ? 'data-src="svg/main_menu_lang_selected.svg"' : ''} fill="currentColor" class="svg4hyperhdr"></svg>`;		
+		var ilink = `<svg ${(i == langIdx) ? 'data-src="svg/main_menu_lang_selected.svg"' : ''} fill="currentColor" class="svg-icon"></svg>`;		
 		var item = $('<p>');
 		item.html(availLangText[i]); 
 		
@@ -267,10 +267,10 @@ function instanceSwitch(inst)
 	if (window.serverInfo == null || window.serverInfo.currentInstance != inst)
 		requestInstanceSwitch(inst);
 
-	window.currentHyperHdrInstance = inst;
-	window.currentHyperHdrInstanceName = getInstanceNameByIndex(inst);
+	window.currentLightingInstance = inst;
+	window.currentLightingInstanceName = getInstanceNameByIndex(inst);
 	setStorage('lastSelectedInstance', inst, false)
-	updateHyperhdrInstanceListing();
+	updateInstanceListing();
 }
 
 function loadContentTo(containerId, fileName)
@@ -327,7 +327,7 @@ function showInfoDialog(type,header,message)
 	let masterControl = $('#new_modal_dialog');
 
 	headerControl.removeClass();
-	headerControl.addClass("modal-header modal-hyperhdr-header");
+	headerControl.addClass("modal-header modal-app-header");
 	masterControl.removeClass();
 	masterControl.addClass("modal fade");	
 
@@ -340,7 +340,7 @@ function showInfoDialog(type,header,message)
 		if (type=="error")
 		{
 			if (header == "") header = $.i18n('infoDialog_general_error_title');
-			headerControl.addClass("modal-hyperhdr-header-danger");
+			headerControl.addClass("modal-app-header-danger");
 			selectedButton = 'btn-danger';
 			selectedIcon = 'modal-icon-error';
 			selectedSvg = "message_error.svg";
@@ -349,7 +349,7 @@ function showInfoDialog(type,header,message)
 		else if (type=="warning" || type == "confirm")
 		{
 			if (header == "") header = $.i18n('infoDialog_general_warning_title');
-			headerControl.addClass("modal-hyperhdr-header-warning");
+			headerControl.addClass("modal-app-header-warning");
 			selectedButton = 'btn-warning';
 			selectedIcon = 'modal-icon-warning';
 			selectedSvg = "message_warning.svg";
@@ -358,7 +358,7 @@ function showInfoDialog(type,header,message)
 		else if (type=="success")
 		{
 			if (header == "") header = $.i18n('infoDialog_general_success_title');
-			headerControl.addClass("modal-hyperhdr-header-success");
+			headerControl.addClass("modal-app-header-success");
 			selectedButton = 'btn-success';
 			selectedIcon = 'modal-icon-check';
 			selectedSvg = "message_success.svg";
@@ -368,61 +368,61 @@ function showInfoDialog(type,header,message)
 
 		if (message.length > 120)
 			masterControl.addClass("modal-lg");
-		masterControl.addClass("modal-hyperhdr-danger-warning-success");	
+		masterControl.addClass("modal-app-danger-warning-success");	
 
 		$('#new_modal_dialog_title').html('<h4 class="text-center">'+ header +'</h4>');
 		$('#new_modal_dialog_body').html('<div style="align-items: center; display: flex;">'+
 											`<div style="position: relative; left: 0px; ">`+
-												`<svg data-src="svg/${selectedSvg}" fill="currentColor" class="svg4hyperhdr ${selectedIcon}" style="position:static;"></svg>`+
+												`<svg data-src="svg/${selectedSvg}" fill="currentColor" class="svg-icon ${selectedIcon}" style="position:static;"></svg>`+
 											'</div>'+
 											'<h5 class="ps-3">'+ message +'</h5>'+											
 										 '</div>');
 
 		if (type == "confirm")
 		{
-			$('#new_modal_dialog_footer').html('<button type="button" id="id_btn_confirm" class="btn btn-warning" data-bs-dismiss="modal"><svg data-src="svg/button_save.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+$.i18n('general_btn_yes')+'</button>');
-			$('#new_modal_dialog_footer').append('<button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_cancel.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+$.i18n('general_btn_cancel')+'</button>');
+			$('#new_modal_dialog_footer').html('<button type="button" id="id_btn_confirm" class="btn btn-warning" data-bs-dismiss="modal"><svg data-src="svg/button_save.svg" fill="currentColor" class="svg-icon"></svg>'+$.i18n('general_btn_yes')+'</button>');
+			$('#new_modal_dialog_footer').append('<button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_cancel.svg" fill="currentColor" class="svg-icon"></svg>'+$.i18n('general_btn_cancel')+'</button>');
 		}
 		else
-			$('#new_modal_dialog_footer').html(`<button type="button" class="btn ${selectedButton}" data-bs-dismiss="modal" data-bs-target="#new_modal_dialog"><svg data-src="svg/button_continue.svg" fill="currentColor" class="svg4hyperhdr"></svg>`+selectedButtonText+'</button>');
+			$('#new_modal_dialog_footer').html(`<button type="button" class="btn ${selectedButton}" data-bs-dismiss="modal" data-bs-target="#new_modal_dialog"><svg data-src="svg/button_continue.svg" fill="currentColor" class="svg-icon"></svg>`+selectedButtonText+'</button>');
 	}
 	else if (type == "deleteInstance")
 	{
-		$('#new_modal_dialog_title').html('<h4><svg data-src="svg/button_delete.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+ header +'</h4>');
+		$('#new_modal_dialog_title').html('<h4><svg data-src="svg/button_delete.svg" fill="currentColor" class="svg-icon"></svg>'+ header +'</h4>');
 		$('#new_modal_dialog_body').html('<div class="mb-3">'+ message +'</div>');
-		$('#new_modal_dialog_footer').html('<button type="button" id="id_btn_yes" class="btn btn-warning" data-bs-dismiss="modal" data-bs-target="#new_modal_dialog"><svg data-src="svg/button_save.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+$.i18n('general_btn_yes')+'</button>');
-		$('#new_modal_dialog_footer').append('<button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_cancel.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+$.i18n('general_btn_cancel')+'</button>');
+		$('#new_modal_dialog_footer').html('<button type="button" id="id_btn_yes" class="btn btn-warning" data-bs-dismiss="modal" data-bs-target="#new_modal_dialog"><svg data-src="svg/button_save.svg" fill="currentColor" class="svg-icon"></svg>'+$.i18n('general_btn_yes')+'</button>');
+		$('#new_modal_dialog_footer').append('<button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_cancel.svg" fill="currentColor" class="svg-icon"></svg>'+$.i18n('general_btn_cancel')+'</button>');
 	}
 	else if (type == "renameInstance")
 	{
-		$('#new_modal_dialog_title').html('<h4><svg data-src="svg/button_edit.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+$.i18n('general_btn_rename')+'</h4>');
+		$('#new_modal_dialog_title').html('<h4><svg data-src="svg/button_edit.svg" fill="currentColor" class="svg-icon"></svg>'+$.i18n('general_btn_rename')+'</h4>');
 		$('#new_modal_dialog_body').html('<div class="mb-3"><label class="form-label required">'+ header +'</label><input  id="renameInstance_name" type="text" class="form-control"></div>');
-		$('#new_modal_dialog_footer').html('<button type="button" id="id_btn_ok" class="btn btn-success" data-bs-dismiss="modal" data-bs-target="#new_modal_dialog" disabled><svg data-src="svg/button_save.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+$.i18n('general_btn_ok')+'</button>');
-		$('#new_modal_dialog_footer').append('<button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_cancel.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+$.i18n('general_btn_cancel')+'</button>');
+		$('#new_modal_dialog_footer').html('<button type="button" id="id_btn_ok" class="btn btn-success" data-bs-dismiss="modal" data-bs-target="#new_modal_dialog" disabled><svg data-src="svg/button_save.svg" fill="currentColor" class="svg-icon"></svg>'+$.i18n('general_btn_ok')+'</button>');
+		$('#new_modal_dialog_footer').append('<button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_cancel.svg" fill="currentColor" class="svg-icon"></svg>'+$.i18n('general_btn_cancel')+'</button>');
 	}
 	else if (type == "changePassword")
 	{
-		$('#new_modal_dialog_title').html('<h4><svg data-src="svg/change_password.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+header+'</h4>');
+		$('#new_modal_dialog_title').html('<h4><svg data-src="svg/change_password.svg" fill="currentColor" class="svg-icon"></svg>'+header+'</h4>');
 		$('#new_modal_dialog_body').html('<div class="mb-3"><label class="form-label required">'+$.i18n('modal_old_password')+'</label><input  id="oldPw" type="text" class="form-control"></div>');
 		$('#new_modal_dialog_body').append('<div class="mb-3"><label class="form-label required">'+$.i18n('modal_new_password')+'</label><input  id="newPw" type="text" class="form-control"></div>');
-		$('#new_modal_dialog_footer').html('<button type="button" id="id_btn_ok" class="btn btn-success" data-bs-dismiss="modal" data-bs-target="#new_modal_dialog" disabled><svg data-src="svg/button_save.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+$.i18n('general_btn_ok')+'</button>');
-		$('#new_modal_dialog_footer').append('<button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_cancel.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+$.i18n('general_btn_cancel')+'</button>');
+		$('#new_modal_dialog_footer').html('<button type="button" id="id_btn_ok" class="btn btn-success" data-bs-dismiss="modal" data-bs-target="#new_modal_dialog" disabled><svg data-src="svg/button_save.svg" fill="currentColor" class="svg-icon"></svg>'+$.i18n('general_btn_ok')+'</button>');
+		$('#new_modal_dialog_footer').append('<button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_cancel.svg" fill="currentColor" class="svg-icon"></svg>'+$.i18n('general_btn_cancel')+'</button>');
 	}
 	else if (type == "checklist")
 	{
-		$('#id_body').html('<img style="margin-bottom:20px" src="img/hyperhdr/hyperhdrlogo.png" alt="Redefine ambient light!">');
+		$('#id_body').html('<img style="margin-bottom:20px" src="img/brand/logo.png" alt="Overglow">');
 		$('#id_body').append('<h4 style="font-weight:bold;text-transform:uppercase;">'+$.i18n('infoDialog_checklist_title')+'</h4>');
 		$('#id_body').append(header);
 		$('#id_footer').html('<button type="button" class="btn btn-primary" data-bs-dismiss="modal">'+$.i18n('general_btn_ok')+'</button>');
 	}
 	else if (type == "newToken")
 	{
-		$('#id_body').html('<img style="margin-bottom:20px" src="img/hyperhdr/hyperhdrlogo.png" alt="Redefine ambient light!">');
+		$('#id_body').html('<img style="margin-bottom:20px" src="img/brand/logo.png" alt="Overglow">');
 		$('#id_footer').html('<button type="button" class="btn btn-primary" data-bs-dismiss="modal">'+$.i18n('general_btn_ok')+'</button>');
 	}
 	else if (type == "grantToken")
 	{
-		$('#id_body').html('<img style="margin-bottom:20px" src="img/hyperhdr/hyperhdrlogo.png" alt="Redefine ambient light!">');
+		$('#id_body').html('<img style="margin-bottom:20px" src="img/brand/logo.png" alt="Overglow">');
 		$('#id_footer').html('<button type="button" class="btn btn-primary" data-bs-dismiss="modal" id="tok_grant_acc">'+$.i18n('general_btn_grantAccess')+'</button>');
 		$('#id_footer').append('<button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="tok_deny_acc">'+$.i18n('general_btn_denyAccess')+'</button>');
 	}
@@ -468,7 +468,7 @@ function createHint(type, text, container, buttonid, buttontxt)
 	}
 	else if(type == "wizard")
 	{
-		fe = '<svg data-src="svg/wizard.svg" fill="currentColor" class="svg4hyperhdr"></svg>';
+		fe = '<svg data-src="svg/wizard.svg" fill="currentColor" class="svg-icon"></svg>';
 		tclass = "wizard-hint";
 	}
 
@@ -582,7 +582,7 @@ function createJsonEditor(container, schema, setconfig, usePanel, arrayre = unde
 	
 	var editor = new JSONEditor(targetPlace,
 	{
-		theme: 'bootstrap5hyperhdr',
+		theme: 'bootstrap5custom',
 		disable_collapse: 'true',
 		disable_edit_json: true,
 		disable_properties: true,
@@ -684,8 +684,8 @@ function showNotification(type, message, title="", addhtml="")
 	let alertId = 'alert_' + Date.now();
 	let progressId = 'progress_' + alertId;
 	let code = `<div id="${alertId}" class="alert alert-dismissible fade show mt-2 pe-1 pb-1 parentAlert" role="alert">
-		<div class="notIcon hyperhdr-vcenter">
-			<svg data-src="svg/notification_warning.svg" style="width:2em;padding-bottom: 15px;" fill="currentColor" class="svg4hyperhdr hidden-xs me-0"></svg>
+		<div class="notIcon app-vcenter">
+			<svg data-src="svg/notification_warning.svg" style="width:2em;padding-bottom: 15px;" fill="currentColor" class="svg-icon hidden-xs me-0"></svg>
 		</div><div class="alertProgress alertProgressAnim" style="height:0%;z-index:1;"></div><div class="alertProgress bg-secondary h-100" style="z-index:0;"></div>
 		<h5><b>${title}</b></h5><hr/>${message}${addhtml}	
 		<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>					
@@ -864,12 +864,12 @@ function createOptPanel(phicon, phead, bodyid, footerid)
 	var saveBtn = document.createElement('button');
 	saveBtn.className = "btn btn-primary";
 	saveBtn.setAttribute("id", footerid);
-	saveBtn.innerHTML = '<svg data-src="svg/button_save.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+$.i18n('general_button_savesettings');
+	saveBtn.innerHTML = '<svg data-src="svg/button_save.svg" fill="currentColor" class="svg-icon"></svg>'+$.i18n('general_button_savesettings');
 
 	const helpBtn = document.createElement('button');
 	helpBtn.className = "btn btn-warning btn-warning-noset";
 	helpBtn.style.cssFloat = "left";
-	helpBtn.innerHTML = '<svg data-src="svg/button_help.svg" fill="currentColor" class="svg4hyperhdr"></svg>'+$.i18n('panel_help_button');
+	helpBtn.innerHTML = '<svg data-src="svg/button_help.svg" fill="currentColor" class="svg-icon"></svg>'+$.i18n('panel_help_button');
 	helpBtn.addEventListener("click", function() 
 		{
 			var clientObj = helpBtn.parentElement.parentElement.parentElement.parentElement;
@@ -945,7 +945,7 @@ function createHelpTable(list, phead){
 	
 	list = sortProperties(list);
 
-	phead = '<svg data-src="svg/help_table_icon.svg" fill="#FFE810" class="svg4hyperhdr"></svg>' +phead + ' '+$.i18n("conf_helptable_expl");
+	phead = '<svg data-src="svg/help_table_icon.svg" fill="#FFE810" class="svg-icon"></svg>' +phead + ' '+$.i18n("conf_helptable_expl");
 
 	table.className = 'table table-hover borderless';
 
@@ -1098,43 +1098,6 @@ function performTranslation()
 function encode_utf8(s)
 {
 	return unescape(encodeURIComponent(s));
-}
-
-function getReleases(callback)
-{
-	$.ajax({
-	    url: window.gitHubReleaseApiUrl,
-	    method: 'get',
-	    error: function(XMLHttpRequest, textStatus, errorThrown)
-			{
-					callback(false);
-	    },
-	    success: function(releases)
-			{
-				window.gitHubVersionList = releases;
-
-				var highestRelease = {
-					tag_name: '0.0.0.0'
-				};
-
-				for(var i in releases) {
-					if(releases[i].draft)
-						continue;
-
-					//if(!releases[i].tag_name.includes('alpha') && !releases[i].tag_name.includes('beta'))
-					{
-						if (compareHyperHdrVersion(releases[i].tag_name, highestRelease.tag_name))
-							highestRelease = releases[i];
-					}
-				}
-
-				window.latestVersion = highestRelease;
-
-
-				callback(true);
-
-			}
-	});
 }
 
 function handleDarkMode()

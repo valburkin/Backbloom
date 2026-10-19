@@ -12,5 +12,5 @@ target_link_libraries(grabber-DX
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
-	target_precompile_headers(grabber-DX REUSE_FROM precompiled_hyperhdr_headers)
+	target_precompile_headers(grabber-DX REUSE_FROM precompiled_headers)
 endif()

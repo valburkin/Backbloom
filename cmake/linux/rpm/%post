@@ -1,6 +1,6 @@
 #!/bin/sh
 
-echo "Finalizing HyperHDR setup"
+echo "Finalizing Overglow setup"
 
 # === Podstawowe informacje systemowe ===
 # Alternatywa dla hostname -I (Fedora często nie ma tego preinstalowanego w tej formie)
@@ -21,7 +21,7 @@ if grep -m1 systemd /proc/1/comm > /dev/null; then
     if [ -z "${DISPLAY}" ]; then
         echo "Init daemon: systemd (service is enabled by default for console systems)"
         ENABLE_SERVICE=1
-        STARTUP_MSG="HyperHDR is installed as a service and starts automatically"
+        STARTUP_MSG="Overglow is installed as a service and starts automatically"
     else
         echo "Init daemon: GUI detected (service is NOT enabled by default)"
         ENABLE_SERVICE=0
@@ -31,8 +31,8 @@ if grep -m1 systemd /proc/1/comm > /dev/null; then
     systemctl daemon-reload
 
     if [ $ENABLE_SERVICE -eq 1 ]; then
-        systemctl enable --now "hyperhdr@${FOUND_USR}.service" 2>/dev/null || true
-        start_msg="systemctl start hyperhdr for user ${FOUND_USR}"
+        systemctl enable --now "overglow@${FOUND_USR}.service" 2>/dev/null || true
+        start_msg="systemctl start overglow for user ${FOUND_USR}"
     fi
 else
     echo "Warning: No systemd detected. Service management will be manual."
@@ -42,23 +42,20 @@ echo "${start_msg}"
 
 # === Komunikaty końcowe ===
 printf "\n +-----------------------------------------------------------------------+"
-printf "\n |                  HyperHDR has been installed/updated!                 |"
+printf "\n |                  Overglow has been installed/updated!                 |"
 printf "\n +-----------------------------------------------------------------------+"
 printf "\n |  For configuration, visit with your browser: %%13s:%%s       |" "$NET_IP" "8090"
 printf "\n |  If already used by another service try: %%13s:%%s           |" "$NET_IP" "8091"
-printf "\n |  Start the service: sudo systemctl start hyperhdr@%%-12s        |" "$FOUND_USR"
-printf "\n |  Stop the service: sudo systemctl stop hyperhdr@%%-12s          |" "$FOUND_USR"
-printf "\n |  Troubleshooting? Run HyperHDR manually: /usr/bin/hyperhdr            |"
+printf "\n |  Start the service: sudo systemctl start overglow@%%-12s        |" "$FOUND_USR"
+printf "\n |  Stop the service: sudo systemctl stop overglow@%%-12s          |" "$FOUND_USR"
+printf "\n |  Troubleshooting? Run Overglow manually: /usr/bin/overglow            |"
 printf "\n +-----------------------------------------------------------------------+"
 case "$STARTUP_MSG" in 
-  *"HyperHDR is installed as a service"*)
+  *"Overglow is installed as a service"*)
     printf "\n |  %%-67s  |" "$STARTUP_MSG";;
   *) printf "\n |  %%-67s  |" "$STARTUP_MSG"
 esac
 [ -z "$REBOOTMESSAGE" ] || printf "\n |  %%-67s  |" "$REBOOTMESSAGE"
-printf "\n +-----------------------------------------------------------------------+"
-printf "\n |  Webpage: https://hyperhdr.eu                                         |"
-printf "\n |  GitHub: https://github.com/awawa-dev/HyperHDR                        |"
 printf "\n +-----------------------------------------------------------------------+\n"
 
 exit 0

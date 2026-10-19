@@ -16,7 +16,7 @@ if (${MACOS_MAJOR_VERSION} GREATER_EQUAL "14")
 endif()
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
-	target_precompile_headers(AVF-grabber REUSE_FROM precompiled_hyperhdr_headers)
+	target_precompile_headers(AVF-grabber REUSE_FROM precompiled_headers)
 endif()
 
 if(APPLE)

@@ -27,7 +27,7 @@
 
 #include <utils/Macros.h>
 
-void hyperhdr::THREAD_REMOVER(QString message, QThread* parentThread, QObject* client)
+void overglow::THREAD_REMOVER(QString message, QThread* parentThread, QObject* client)
 {
 	SMARTPOINTER_MESSAGE(message);
 	if (parentThread->isRunning())
@@ -42,7 +42,7 @@ void hyperhdr::THREAD_REMOVER(QString message, QThread* parentThread, QObject* c
 	delete parentThread;
 }
 
-void hyperhdr::THREAD_MULTI_REMOVER(QString message, QThread* parentThread, std::vector<QObject*> clients)
+void overglow::THREAD_MULTI_REMOVER(QString message, QThread* parentThread, std::vector<QObject*> clients)
 {	
 	SMARTPOINTER_MESSAGE(message);
 	if (parentThread->isRunning())
@@ -57,7 +57,7 @@ void hyperhdr::THREAD_MULTI_REMOVER(QString message, QThread* parentThread, std:
 	delete parentThread;
 }
 
-void hyperhdr::SMARTPOINTER_MESSAGE(QString message)
+void overglow::SMARTPOINTER_MESSAGE(QString message)
 {
 	auto messageChar = message.toUtf8();
 	printf("SmartPointer is removing: %s\n", messageChar.constData());

@@ -17,7 +17,7 @@
 #endif
 
 
-class HyperHdrInstance;
+class LightingInstance;
 class ComponentRegister;
 class BonjourBrowserWrapper;
 class PriorityMuxer;
@@ -48,11 +48,11 @@ protected slots:
 	virtual void handlerInstanceImageUpdated(const Image<ColorRgb>& image) = 0;
 
 private slots:
-	void componentStateHandler(hyperhdr::Components comp, bool state);
+	void componentStateHandler(overglow::Components comp, bool state);
 	void priorityUpdateHandler();
 	void imageToLedsMappingChangeHandler(int mappingType);
 	void signalAdjustmentUpdatedHandler(QJsonArray newConfig);
-	void videoModeHdrChangeHandler(hyperhdr::Components component, bool enable);
+	void videoModeHdrChangeHandler(overglow::Components component, bool enable);
 	void videoStreamChangedHandler(QString device, QString videoMode);
 	void settingsChangeHandler(settings::type type, const QJsonDocument& data);
 	void ledsConfigChangeHandler(settings::type type, const QJsonDocument& data);

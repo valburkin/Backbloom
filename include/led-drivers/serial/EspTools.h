@@ -44,7 +44,7 @@ public:
 
 		if ((serialPortInfo.productIdentifier() == 0xa || serialPortInfo.productIdentifier() == 0x9) && serialPortInfo.vendorIdentifier() == 0x2e8a)
 		{
-			Warning(_log, "Detected RP2040/RP2350 type board. HyperHDR skips the reset. State: {:d}, {:d}",
+			Warning(_log, "Detected RP2040/RP2350 type board. Overglow skips the reset. State: {:d}, {:d}",
 				_serialPort->isDataTerminalReady(), _serialPort->isRequestToSend());
 
 			_serialPort->setDataTerminalReady(true);
@@ -55,7 +55,7 @@ public:
 		}
 		else if (serialPortInfo.productIdentifier() == 0x80c2 && serialPortInfo.vendorIdentifier() == 0x303a)
 		{
-			Warning(_log, "Detected ESP32-S2 lolin mini type board. HyperHDR skips the reset. State: {:d}, {:d}",
+			Warning(_log, "Detected ESP32-S2 lolin mini type board. Overglow skips the reset. State: {:d}, {:d}",
 				_serialPort->isDataTerminalReady(), _serialPort->isRequestToSend());
 
 			_serialPort->write((char*)comBuffer, sizeof(comBuffer));
@@ -66,7 +66,7 @@ public:
 		}
 		else if (serialPortInfo.productIdentifier() == 0x3483 && serialPortInfo.vendorIdentifier() == 0x1106)
 		{
-			Warning(_log, "Enabling the Rpi4 udev bug workaround. The serial device is incorrectly identified by the OS and HyperHDR skips the reset. State: {:d}, {:d}",
+			Warning(_log, "Enabling the Rpi4 udev bug workaround. The serial device is incorrectly identified by the OS and Overglow skips the reset. State: {:d}, {:d}",
 				_serialPort->isDataTerminalReady(), _serialPort->isRequestToSend());
 
 			_serialPort->write((char*)comBuffer, sizeof(comBuffer));
@@ -77,7 +77,7 @@ public:
 		}
 		else if (_forceSerialDetection)
 		{
-			Warning(_log, "Force ESP/Pico detection override enabled. HyperHDR skips the reset. State: {:d}, {:d}",
+			Warning(_log, "Force ESP/Pico detection override enabled. Overglow skips the reset. State: {:d}, {:d}",
 				_serialPort->isDataTerminalReady(), _serialPort->isRequestToSend());
 
 			_serialPort->write((char*)comBuffer, sizeof(comBuffer));

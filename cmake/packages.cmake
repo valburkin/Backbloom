@@ -53,28 +53,28 @@ endif()
 # Apply to all packages, some of these can be overwritten with generator specific content
 # https://cmake.org/cmake/help/v3.5/module/CPack.html
 
-SET ( CPACK_PACKAGE_NAME "HyperHDR" )
-SET ( CPACK_PACKAGE_DESCRIPTION_SUMMARY "HyperHDR is an open source ambient light implementation" )
+SET ( CPACK_PACKAGE_NAME "Overglow" )
+SET ( CPACK_PACKAGE_DESCRIPTION_SUMMARY "Overglow ambient lighting for TVs and monitors" )
 SET ( CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/README.md" )
-SET ( CPACK_PACKAGE_FILE_NAME "HyperHDR-${HYPERHDR_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+SET ( CPACK_PACKAGE_FILE_NAME "Overglow-${OVERGLOW_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
 
-SET ( CPACK_PACKAGE_CONTACT "see_me_at@hyperhdr.eu")
-SET ( CPACK_PACKAGE_VENDOR "HyperHDR")
-SET ( CPACK_PACKAGE_EXECUTABLES "hyperhdr;HyperHDR" )
-SET ( CPACK_PACKAGE_INSTALL_DIRECTORY "HyperHDR" )
-SET ( CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/cmake/linux/resources/hyperhdr-icon-32px.png")
+SET ( CPACK_PACKAGE_CONTACT "Overglow")
+SET ( CPACK_PACKAGE_VENDOR "Overglow")
+SET ( CPACK_PACKAGE_EXECUTABLES "overglow;Overglow" )
+SET ( CPACK_PACKAGE_INSTALL_DIRECTORY "Overglow" )
+SET ( CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/branding/png/overglow-32.png")
 
-SET ( CPACK_PACKAGE_VERSION_MAJOR "${HYPERHDR_VERSION_MAJOR}")
-SET ( CPACK_PACKAGE_VERSION_MINOR "${HYPERHDR_VERSION_MINOR}")
-SET ( CPACK_PACKAGE_VERSION_PATCH "${HYPERHDR_VERSION_PATCH}")
+SET ( CPACK_PACKAGE_VERSION_MAJOR "${OVERGLOW_VERSION_MAJOR}")
+SET ( CPACK_PACKAGE_VERSION_MINOR "${OVERGLOW_VERSION_MINOR}")
+SET ( CPACK_PACKAGE_VERSION_PATCH "${OVERGLOW_VERSION_PATCH}")
 
 if(USE_STANDARD_INSTALLER_NAME AND UNIX AND NOT APPLE)
-	string(REPLACE "-alpha." "alpha" COMPAT_VERSION "${HYPERHDR_VERSION}")
+	string(REPLACE "-alpha." "alpha" COMPAT_VERSION "${OVERGLOW_VERSION}")
 	string(REPLACE "-beta." "beta" COMPAT_VERSION "${COMPAT_VERSION}")
-	string(REPLACE "." ";" HYPERHDR_VERSION_LIST ${COMPAT_VERSION})
-	list(LENGTH HYPERHDR_VERSION_LIST HYPERHDR_VERSION_LIST_LEN)
-	if (HYPERHDR_VERSION_LIST_LEN EQUAL 3)
-		list(GET HYPERHDR_VERSION_LIST 2 H_ELEM_2)
+	string(REPLACE "." ";" VERSION_LIST ${COMPAT_VERSION})
+	list(LENGTH VERSION_LIST VERSION_LIST_LEN)
+	if (VERSION_LIST_LEN EQUAL 3)
+		list(GET VERSION_LIST 2 H_ELEM_2)
 		string(REPLACE "alpha" "~${DEBIAN_NAME_TAG}~alpha" H_ELEM_2a "${H_ELEM_2}")
 		string(REPLACE "beta" "~${DEBIAN_NAME_TAG}~beta" H_ELEM_2b "${H_ELEM_2a}")
 		SET(CPACK_PACKAGE_VERSION_PATCH "${H_ELEM_2b}")
@@ -82,26 +82,26 @@ if(USE_STANDARD_INSTALLER_NAME AND UNIX AND NOT APPLE)
 		if (foundTag EQUAL -1)
 			string(CONCAT CPACK_PACKAGE_VERSION_PATCH "${CPACK_PACKAGE_VERSION_PATCH}" "~${DEBIAN_NAME_TAG}")
 		endif()
-		SET ( CPACK_PACKAGE_FILE_NAME "HyperHDR-${HYPERHDR_VERSION_MAJOR}.${HYPERHDR_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}-${CMAKE_SYSTEM_PROCESSOR}")
+		SET ( CPACK_PACKAGE_FILE_NAME "Overglow-${OVERGLOW_VERSION_MAJOR}.${OVERGLOW_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}-${CMAKE_SYSTEM_PROCESSOR}")
 		message("Package name: ${CPACK_PACKAGE_FILE_NAME}" )
 	endif()	
 endif()
 
 if ( APPLE )
 	SET ( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/cmake/osx/LICENSE" )
-	SET ( CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_SOURCE_DIR}/cmake/osx/background.png" )
+	SET ( CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_SOURCE_DIR}/branding/installer/dmg-background.png" )
 	SET ( CPACK_DMG_DS_STORE_SETUP_SCRIPT "${CMAKE_SOURCE_DIR}/cmake/osx/autorun.scpt" )
 ELSE()
 	SET ( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE" )
 ENDIF()
 
-SET ( CPACK_PACKAGE_EXECUTABLES "hyperhdr;HyperHDR" )
-SET ( CPACK_CREATE_DESKTOP_LINKS "hyperhdr;HyperHDR" )
+SET ( CPACK_PACKAGE_EXECUTABLES "overglow;Overglow" )
+SET ( CPACK_CREATE_DESKTOP_LINKS "overglow;Overglow" )
 SET ( CPACK_ARCHIVE_THREADS 0 )
 
 # Define the install prefix path for cpack
 IF ( UNIX )
-	#SET ( CPACK_PACKAGING_INSTALL_PREFIX "share/hyperhdr")
+	#SET ( CPACK_PACKAGING_INSTALL_PREFIX "share/overglow")
 ENDIF()
 
 # Specific CPack Package Generators
@@ -143,17 +143,17 @@ if ( UNIX AND NOT APPLE )
 	if(NOT ENABLE_DEPENDENCY_PACKAGING)
 		message("Adding system runtime dependencies (ENABLE_DEPENDENCY_PACKAGING=OFF)")
 
-		set(HYPERHDR_DEB_RUNTIME_DEPS
+		set(DEB_RUNTIME_DEPS
 			"libasound2 | libasound2t64, libegl1, libgl1, libglvnd0, libglx0, liblzma5, libpipewire-0.3-0, libssl3 | libssl3t64 | libssl1.1, libturbojpeg0, libzstd1, libqt6core6, libqt6network6, libqt6serialport6"
 		)
 
-		string(CONCAT CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, ${HYPERHDR_DEB_RUNTIME_DEPS}")
+		string(CONCAT CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, ${DEB_RUNTIME_DEPS}")
 
-		set(HYPERHDR_RPM_RUNTIME_DEPS
+		set(RPM_RUNTIME_DEPS
 			"alsa-lib, libglvnd, mesa-libEGL, mesa-libGL, libzstd, openssl-libs, pipewire-libs, qt6-qtbase, qt6-qtserialport, turbojpeg, xz-libs, hicolor-icon-theme"
 		)
 
-		string(CONCAT CPACK_RPM_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}, ${HYPERHDR_RPM_RUNTIME_DEPS}")
+		string(CONCAT CPACK_RPM_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}, ${RPM_RUNTIME_DEPS}")
 	endif()
 
 	message("DEB deps: ${CPACK_DEBIAN_PACKAGE_DEPENDS}")
@@ -172,9 +172,9 @@ if ( APPLE )
 	SET ( CPACK_DMG_FORMAT "ULMO" )
 	
 	unset(CPACK_PACKAGE_ICON)
-	set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/cmake/osx/Hyperhdr.icns")
+	set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/branding/overglow.icns")
 
-	set(BUNDLE_SHORT_VERSION "${HYPERHDR_VERSION_MAJOR}.${HYPERHDR_VERSION_MINOR}.${HYPERHDR_VERSION_PATCH}")
+	set(BUNDLE_SHORT_VERSION "${OVERGLOW_VERSION_MAJOR}.${OVERGLOW_VERSION_MINOR}.${OVERGLOW_VERSION_PATCH}")
 
 	configure_file(
 		${CMAKE_SOURCE_DIR}/cmake/osx/Info.plist.in
@@ -182,14 +182,14 @@ if ( APPLE )
 		@ONLY
 	)
 	
-	set_target_properties(hyperhdr PROPERTIES
+	set_target_properties(overglow PROPERTIES
 	  MACOSX_BUNDLE TRUE
 	  MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_BINARY_DIR}/Info.plist
 	  XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "YES"
 	  XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "-"
-	  MACOSX_BUNDLE_COPYRIGHT "awawa-dev"
-	  MACOSX_BUNDLE_BUNDLE_VERSION ${HYPERHDR_VERSION}
-	  MACOSX_BUNDLE_ICON_FILE "Hyperhdr.icns"
+	  MACOSX_BUNDLE_COPYRIGHT "MIT License, (c) awawa-dev and Overglow contributors"
+	  MACOSX_BUNDLE_BUNDLE_VERSION ${OVERGLOW_VERSION}
+	  MACOSX_BUNDLE_ICON_FILE "overglow.icns"
 	)
 endif()
 
@@ -201,9 +201,9 @@ if(WIN32)
 	file(TO_NATIVE_PATH ${CPACK_PACKAGE_ICON} CPACK_PACKAGE_ICON)
 	STRING(REGEX REPLACE "\\\\" "\\\\\\\\" CPACK_PACKAGE_ICON ${CPACK_PACKAGE_ICON})
 endif()
-file(TO_NATIVE_PATH "${CMAKE_SOURCE_DIR}/cmake/windows/installer.ico" NSIS_HYP_ICO)
-file(TO_NATIVE_PATH "${CMAKE_SOURCE_DIR}/cmake/windows/hyperhdr-logo.bmp" NSIS_HYP_LOGO_HORI)
-file(TO_NATIVE_PATH "${CMAKE_SOURCE_DIR}/cmake/windows/hyperhdr-logo-vert.bmp" NSIS_HYP_LOGO_VERT)
+file(TO_NATIVE_PATH "${CMAKE_SOURCE_DIR}/branding/overglow.ico" NSIS_HYP_ICO)
+file(TO_NATIVE_PATH "${CMAKE_SOURCE_DIR}/branding/installer/header.bmp" NSIS_HYP_LOGO_HORI)
+file(TO_NATIVE_PATH "${CMAKE_SOURCE_DIR}/branding/installer/welcome.bmp" NSIS_HYP_LOGO_VERT)
 STRING(REGEX REPLACE "\\\\" "\\\\\\\\" NSIS_HYP_ICO "${NSIS_HYP_ICO}")
 STRING(REGEX REPLACE "\\\\" "\\\\\\\\" NSIS_HYP_LOGO_VERT "${NSIS_HYP_LOGO_VERT}")
 STRING(REGEX REPLACE "\\\\" "\\\\\\\\" NSIS_HYP_LOGO_HORI "${NSIS_HYP_LOGO_HORI}")
@@ -218,18 +218,20 @@ SET ( CPACK_NSIS_MUI_ICON ${NSIS_HYP_ICO})
 SET ( CPACK_NSIS_MUI_UNIICON ${NSIS_HYP_ICO})
 SET ( CPACK_NSIS_MUI_HEADERIMAGE ${NSIS_HYP_LOGO_HORI} )
 SET ( CPACK_NSIS_MUI_WELCOMEFINISHPAGE_BITMAP ${NSIS_HYP_LOGO_VERT})
-SET ( CPACK_NSIS_DISPLAY_NAME "HyperHDR Ambient Light")
-SET ( CPACK_NSIS_PACKAGE_NAME "HyperHDR" )
-SET ( CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\hyperhdr.exe")
-SET ( CPACK_NSIS_HELP_LINK "http://www.hyperhdr.eu/")
-SET ( CPACK_NSIS_URL_INFO_ABOUT "https://github.com/awawa-dev/HyperHDR")
-SET ( CPACK_NSIS_MUI_FINISHPAGE_RUN "hyperhdr.exe")
-SET ( CPACK_NSIS_BRANDING_TEXT "HyperHDR-${HYPERHDR_VERSION}")
+SET ( CPACK_NSIS_DISPLAY_NAME "Overglow Ambient Light")
+SET ( CPACK_NSIS_PACKAGE_NAME "Overglow" )
+SET ( CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\overglow.exe")
+if (OVERGLOW_SUPPORT_URL)
+	SET ( CPACK_NSIS_HELP_LINK "${OVERGLOW_SUPPORT_URL}")
+	SET ( CPACK_NSIS_URL_INFO_ABOUT "${OVERGLOW_SUPPORT_URL}")
+endif()
+SET ( CPACK_NSIS_MUI_FINISHPAGE_RUN "overglow.exe")
+SET ( CPACK_NSIS_BRANDING_TEXT "Overglow-${OVERGLOW_VERSION}")
 # custom nsis plugin directory
 SET ( CPACK_NSIS_EXTRA_DEFS "!addplugindir ${CMAKE_SOURCE_DIR}/cmake/windows/plugins")
-# additional hyperhdr startmenu link, won't be created if the user disables startmenu links
-SET ( CPACK_NSIS_CREATE_ICONS_EXTRA "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\HyperHDR (Console).lnk' '$INSTDIR\\\\bin\\\\hyperhdr.exe' '-d -c'")
-SET ( CPACK_NSIS_DELETE_ICONS_EXTRA "Delete '$SMPROGRAMS\\\\$MUI_TEMP\\\\HyperHDR (Console).lnk'")
+# additional overglow startmenu link, won't be created if the user disables startmenu links
+SET ( CPACK_NSIS_CREATE_ICONS_EXTRA "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Overglow (Console).lnk' '$INSTDIR\\\\bin\\\\overglow.exe' '-d -c'")
+SET ( CPACK_NSIS_DELETE_ICONS_EXTRA "Delete '$SMPROGRAMS\\\\$MUI_TEMP\\\\Overglow (Console).lnk'")
 
 
 
@@ -239,7 +241,7 @@ SET ( CPACK_NSIS_DELETE_ICONS_EXTRA "Delete '$SMPROGRAMS\\\\$MUI_TEMP\\\\HyperHD
 # and https://cmake.org/cmake/help/latest/module/CPackComponent.html
 SET ( CPACK_COMPONENTS_GROUPING "ALL_COMPONENTS_IN_ONE")
 # Components base
-SET ( CPACK_COMPONENTS_ALL "HyperHDR" )
+SET ( CPACK_COMPONENTS_ALL "Overglow" )
 
 SET ( CPACK_ARCHIVE_COMPONENT_INSTALL ON )
 SET ( CPACK_DEB_COMPONENT_INSTALL ON )
@@ -252,12 +254,12 @@ INCLUDE ( CPack )
 
 cpack_add_install_type(Full DISPLAY_NAME "Full")
 cpack_add_install_type(Min DISPLAY_NAME "Minimal")
-cpack_add_component_group(Runtime EXPANDED DESCRIPTION "HyperHdr runtime")
+cpack_add_component_group(Runtime EXPANDED DESCRIPTION "Overglow runtime")
 
 # Components base
-cpack_add_component(HyperHDR
-	DISPLAY_NAME "HyperHDR"
-	DESCRIPTION "HyperHDR runtime"
+cpack_add_component(Overglow
+	DISPLAY_NAME "Overglow"
+	DESCRIPTION "Overglow runtime"
 	INSTALL_TYPES Full Min
 	GROUP Runtime
 	REQUIRED

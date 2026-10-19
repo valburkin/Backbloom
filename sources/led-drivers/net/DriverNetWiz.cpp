@@ -310,4 +310,4 @@ LedDevice* DriverNetWiz::construct(const QJsonObject& deviceConfig)
 	return new DriverNetWiz(deviceConfig);
 }
 
-bool DriverNetWiz::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("wiz", "leds_group_2_network", DriverNetWiz::construct);
+bool DriverNetWiz::isRegistered = overglow::leds::REGISTER_LED_DEVICE("wiz", "leds_group_2_network", DriverNetWiz::construct);

@@ -16,7 +16,7 @@
 #include <grabber/linux/pipewire/smartPipewire.h>
 #include <linux/types.h>
 #include <sys/mman.h>
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 #include <memory>
 #include <atomic>
 #include <array>

@@ -277,7 +277,7 @@ namespace
 		bool appendSniValue(DBusMessageIter& iter, std::string_view name) const
 		{
 			if (name == "Category") return appendVariant(iter, QStringLiteral("ApplicationStatus"));
-			if (name == "Id" || name == "Title") return appendVariant(iter, QStringLiteral("HyperHDR"));
+			if (name == "Id" || name == "Title") return appendVariant(iter, QStringLiteral("Overglow"));
 			if (name == "Status") return appendVariant(iter, QStringLiteral("Active"));
 			if (name == "WindowId") return appendVariant(iter, 0);
 			if (name == "IconThemePath") return appendVariant(iter, QStringLiteral(""));

@@ -2,7 +2,7 @@
 #include <stdexcept>
 
 // project includes
-#include "HyperhdrConfig.h"
+#include "OverglowConfig.h"
 #include <jsonserver/JsonServer.h>
 #include <jsonserver/JsonClientConnection.h>
 

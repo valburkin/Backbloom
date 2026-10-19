@@ -29,7 +29,7 @@ $(document).ready( function(){
 	
 	resetData();
 	
-	$(window.hyperhdr).off("cmd-benchmark-update").on("cmd-benchmark-update", function(event)
+	$(window.serverEvents).off("cmd-benchmark-update").on("cmd-benchmark-update", function(event)
 	{
 		handleMessage(event);
 	});

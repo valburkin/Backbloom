@@ -10,7 +10,7 @@
 	#include <QVector>
 #endif
 
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <effects/EffectDefinition.h>
 #include <effects/ActiveEffectDefinition.h>
 #include <utils/Logger.h>
@@ -23,7 +23,7 @@ class EffectEngine : public QObject
 	Q_OBJECT
 
 public:
-	EffectEngine(HyperHdrInstance* hyperhdr);
+	EffectEngine(LightingInstance* lightingInstance);
 	~EffectEngine() override;
 
 public slots:
@@ -43,7 +43,7 @@ private:
 	int runEffectScript(const QString& name, int priority, int timeout, const QString& origin);
 	void createSmoothingConfigs();
 
-	HyperHdrInstance* _hyperInstance;
+	LightingInstance* _hyperInstance;
 	std::list<EffectDefinition> _availableEffects;
 	std::list<std::unique_ptr<Effect, void(*)(Effect*)>> _activeEffects;
 

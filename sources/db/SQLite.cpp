@@ -67,7 +67,7 @@ bool SqlDatabase::open()
 		static QMutex locker;
 		QMutexLocker lockThis(&locker);
 
-		const QString sharedDB = "file:hyperhdr?mode=memory&cache=shared";
+		const QString sharedDB = "file:overglow?mode=memory&cache=shared";
 		const QByteArray& textSharedDB = sharedDB.toUtf8().constData();
 
 		result = sqlite3_open(textSharedDB, &_handle) == SQLITE_OK;

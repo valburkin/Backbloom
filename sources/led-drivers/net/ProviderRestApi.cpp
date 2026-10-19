@@ -25,7 +25,7 @@
 *  SOFTWARE.
  */
 
-// Local-HyperHDR includes
+// Local-Overglow includes
 #include <led-drivers/net/ProviderRestApi.h>
 #include <led-drivers/LedDevice.h>
 
@@ -225,7 +225,7 @@ std::shared_ptr<QThread> NetworkHelper::threadFactory()
 	if (!result)
 	{
 		result = std::shared_ptr<QThread>(new QThread(), [](QThread* thread) {
-			hyperhdr::THREAD_REMOVER(QString("NetworkHelperThread"), thread, nullptr);
+			overglow::THREAD_REMOVER(QString("NetworkHelperThread"), thread, nullptr);
 		});
 		result->start();
 		persist = result;

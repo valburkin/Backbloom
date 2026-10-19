@@ -31,7 +31,7 @@ export interface EditorContextValue {
 }
 
 const Ctx = createContext<EditorContextValue | null>(null);
-const ASPECT_KEY = 'ambient.aspect';
+const ASPECT_KEY = 'overglow.aspect';
 
 function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);

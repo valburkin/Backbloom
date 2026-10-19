@@ -1,5 +1,5 @@
 <RCC>
 	<qresource prefix="/">
-		${HYPERHDR_WEBCONFIG_RES}
+		${WEBCONFIG_RESOURCE_ENTRIES}
 	</qresource>
 </RCC>

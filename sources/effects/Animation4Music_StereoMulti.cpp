@@ -91,4 +91,4 @@ bool Animation4Music_StereoMulti::getImage(Image<ColorRgb>& newImage)
 	return true;
 };
 
-bool Animation4Music_StereoMulti::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation4Music_StereoMulti::getDefinition());
+bool Animation4Music_StereoMulti::isRegistered = overglow::effects::REGISTER_EFFECT(Animation4Music_StereoMulti::getDefinition());

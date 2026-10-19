@@ -40,5 +40,5 @@ HeaderFilterRegex: '^(?!.*(autogen|mocs_|qrc_|/external/|_deps/)).*'
 #
 #ExtraArgs:
 #  - "-include"
-#  - "include/precompiled_hyperhdr_headers/AllHeaders_pch.h"
+#  - "include/precompiled_headers/AllHeaders_pch.h"
 #  - "-DPCH_ENABLED"

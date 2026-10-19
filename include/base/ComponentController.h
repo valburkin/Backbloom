@@ -8,34 +8,34 @@
 #include <utils/Logger.h>
 #include <utils/Components.h>
 
-class HyperHdrInstance;
+class LightingInstance;
 
 class ComponentController : public QObject
 {
 	Q_OBJECT
 
 public:
-    ComponentController(HyperHdrInstance* hyperhdr, bool disableOnStartup);
+    ComponentController(LightingInstance* lightingInstance, bool disableOnStartup);
     virtual ~ComponentController();
 
-	int isComponentEnabled(hyperhdr::Components comp) const;
-	const std::map<hyperhdr::Components, bool>& getComponentsState() const;
+	int isComponentEnabled(overglow::Components comp) const;
+	const std::map<overglow::Components, bool>& getComponentsState() const;
 
 signals:
-	void SignalComponentStateChanged(hyperhdr::Components comp, bool state);
-	void SignalRequestComponent(hyperhdr::Components component, bool enabled);
+	void SignalComponentStateChanged(overglow::Components comp, bool state);
+	void SignalRequestComponent(overglow::Components component, bool enabled);
 
 public slots:
-	void setNewComponentState(hyperhdr::Components comp, bool activated);
+	void setNewComponentState(overglow::Components comp, bool activated);
 	void turnGrabbers(bool activated, bool includingSystemGrabber, bool includingVideoGrabber);
 
 private slots:
-	void handleCompStateChangeRequest(hyperhdr::Components comps, bool activated);
+	void handleCompStateChangeRequest(overglow::Components comps, bool activated);
 
 private:
 	LoggerName _log;
-	std::map<hyperhdr::Components, bool> _componentStates;
-	std::map<hyperhdr::Components, bool> _prevComponentStates;
-	std::map<hyperhdr::Components, bool> _prevGrabbers;
+	std::map<overglow::Components, bool> _componentStates;
+	std::map<overglow::Components, bool> _prevComponentStates;
+	std::map<overglow::Components, bool> _prevGrabbers;
 	bool _disableOnStartup;
 };

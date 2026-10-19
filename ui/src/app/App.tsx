@@ -58,7 +58,7 @@ function Shell() {
       <nav aria-label="Main" className="flex w-[72px] shrink-0 flex-col border-r border-line bg-surface/60 px-3 py-4 xl:w-56">
         <div className="mb-6 flex items-center gap-2.5 px-1.5">
           <Logo />
-          <span className="hidden text-[15px] font-semibold tracking-tight xl:inline">Ambient</span>
+          <span className="hidden text-[15px] font-semibold tracking-tight xl:inline">Overglow</span>
         </div>
         <ul className="flex flex-col gap-1">
           {NAV.map((n) => {

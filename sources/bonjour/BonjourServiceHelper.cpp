@@ -8,7 +8,7 @@
 #include <mdns.h>
 
 #include <utils/Logger.h>
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 
 #include <cerrno>
 #include <csignal>
@@ -36,7 +36,7 @@ BonjourServiceHelper::BonjourServiceHelper(BonjourServiceRegister* parent, QStri
 	_service = service;
 	has_ipv4 = 0;
 	has_ipv6 = 0;
-	_scanService = (1 << DiscoveryRecord::Service::HyperHDR) |
+	_scanService = (1 << DiscoveryRecord::Service::PeerInstance) |
 		(1 << DiscoveryRecord::Service::WLED) |
 		(1 << DiscoveryRecord::Service::PhilipsHue) |
 		(1 << DiscoveryRecord::Service::HomeAssistant);
@@ -450,7 +450,7 @@ int BonjourServiceHelper::service_mdns(QString hostname, QString serviceName, in
 	service.txt_record[0].name = service.service_instance;
 	service.txt_record[0].type = MDNS_RECORDTYPE_TXT;
 	service.txt_record[0].data.txt.key = { MDNS_STRING_CONST("version") };
-	service.txt_record[0].data.txt.value = { MDNS_STRING_CONST(HYPERHDR_VERSION) };
+	service.txt_record[0].data.txt.value = { MDNS_STRING_CONST(OVERGLOW_VERSION) };
 	service.txt_record[0].rclass = 0;
 	service.txt_record[0].ttl = 0;
 
@@ -505,7 +505,7 @@ int BonjourServiceHelper::service_mdns(QString hostname, QString serviceName, in
 
 		if (_scanService != 0)
 		{
-			for (auto scanner :{ DiscoveryRecord::Service::HyperHDR,
+			for (auto scanner :{ DiscoveryRecord::Service::PeerInstance,
 							DiscoveryRecord::Service::WLED,
 							DiscoveryRecord::Service::PhilipsHue,
 							DiscoveryRecord::Service::HomeAssistant })

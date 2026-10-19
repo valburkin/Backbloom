@@ -34,7 +34,7 @@ on run argv
         set statusbar visible to false
         set toolbar visible to false
         set the bounds to { 400, 100, 1001, 502 }
-		set position of item "hyperhdr.app" to { 200, 222 }
+		set position of item "overglow.app" to { 200, 222 }
 		set position of item "Applications" to { 400, 222 }
 		set position of item ".fseventsd" to { 1000, 222 }
 		set position of item ".background" to { 1000, 222 }

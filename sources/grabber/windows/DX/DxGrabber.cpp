@@ -41,15 +41,15 @@
 #include <limits.h>
 #include <DirectXMath.h>
 
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QCoreApplication>
 
 #include <grabber/windows/DX/DxGrabber.h>
-#include <grabber/windows/DX/VertexShaderHyperHDR.h>
-#include <grabber/windows/DX/PixelShaderHyperHDR.h>
+#include <grabber/windows/DX/VertexShaderHdr.h>
+#include <grabber/windows/DX/PixelShaderHdr.h>
 
 #pragma comment (lib, "ole32.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -618,7 +618,7 @@ bool DxGrabber::initShaders(DisplayHandle& display)
 
 	if (CHECK(status))
 	{
-		status = _d3dDevice->CreateVertexShader(g_VertexShaderHyperHDR, sizeof(g_VertexShaderHyperHDR), nullptr, &display.d3dVertexShader);
+		status = _d3dDevice->CreateVertexShader(g_VertexShaderHdr, sizeof(g_VertexShaderHdr), nullptr, &display.d3dVertexShader);
 		if (CHECK(status))
 		{
 			_d3dContext->VSSetShader(display.d3dVertexShader, NULL, 0);
@@ -630,7 +630,7 @@ bool DxGrabber::initShaders(DisplayHandle& display)
 
 	if (CHECK(status))
 	{
-		status = _d3dDevice->CreatePixelShader(g_PixelShaderHyperHDR, sizeof(g_PixelShaderHyperHDR), nullptr, &display.d3dPixelShader);
+		status = _d3dDevice->CreatePixelShader(g_PixelShaderHdr, sizeof(g_PixelShaderHdr), nullptr, &display.d3dPixelShader);
 		if (CHECK(status))
 		{
 			_d3dContext->PSSetShader(display.d3dPixelShader, NULL, 0);
@@ -644,7 +644,7 @@ bool DxGrabber::initShaders(DisplayHandle& display)
 		D3D11_INPUT_ELEMENT_DESC layout[] = { {"SV_Position", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0}, };
 		UINT numElements = ARRAYSIZE(layout);
 
-		status = _d3dDevice->CreateInputLayout(layout, numElements, g_VertexShaderHyperHDR, sizeof(g_VertexShaderHyperHDR), &display.d3dVertexLayout);
+		status = _d3dDevice->CreateInputLayout(layout, numElements, g_VertexShaderHdr, sizeof(g_VertexShaderHdr), &display.d3dVertexLayout);
 		if (CHECK(status))
 			_d3dContext->IASetInputLayout(display.d3dVertexLayout);
 		else

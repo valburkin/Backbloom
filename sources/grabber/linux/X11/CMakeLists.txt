@@ -18,7 +18,7 @@ target_link_libraries(X11-grabber
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
-	target_precompile_headers(X11-grabber REUSE_FROM precompiled_hyperhdr_headers)
+	target_precompile_headers(X11-grabber REUSE_FROM precompiled_headers)
 endif()
 
 

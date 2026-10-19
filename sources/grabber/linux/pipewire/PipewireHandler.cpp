@@ -252,12 +252,12 @@ void PipewireHandler::releaseWorkingFrame()
 
 QString PipewireHandler::getSessionToken()
 {
-	return QString("hyperhdr_s%1").arg(QUuid::createUuid().toString(QUuid::Id128));
+	return QString("overglow_s%1").arg(QUuid::createUuid().toString(QUuid::Id128));
 }
 
 QString PipewireHandler::getRequestToken()
 {
-	return QString("hyperhdr_r%1").arg(QUuid::createUuid().toString(QUuid::Id128));
+	return QString("overglow_r%1").arg(QUuid::createUuid().toString(QUuid::Id128));
 }
 
 void PipewireHandler::reportError(const QString& input)
@@ -615,7 +615,7 @@ void PipewireHandler::startResponse(uint response, QString restoreHandle, uint32
 	//------------------------------------------------------------------------------------
 	qDebug().nospace() << "Connecting to Pipewire interface for stream: " << _frameWidth << " x " << _frameHeight;
 	
-	if ( nullptr == (_pwMainThreadLoop = pw_thread_loop_new("pipewire-hyperhdr-loop", nullptr)))
+	if ( nullptr == (_pwMainThreadLoop = pw_thread_loop_new("pipewire-overglow-loop", nullptr)))
 	{
 		reportError("Pipewire: failed to create new Pipewire thread loop");
 		return;
@@ -1225,14 +1225,14 @@ void PipewireHandler::initEGL()
 
 	if (_libEglHandle == nullptr && (_libEglHandle = dlopen("libEGL.so.1", RTLD_NOW | RTLD_GLOBAL)) == nullptr)
 	{
-		qCritical().nospace() << "PipewireEGL: HyperHDR could not open EGL library";
+		qCritical().nospace() << "PipewireEGL: Overglow could not open EGL library";
 		return;
 	}
 
 	if (_libGlHandle == nullptr && ((_libGlHandle = dlopen("libGL.so.1", RTLD_NOW | RTLD_GLOBAL)) == nullptr)
 							 && ((_libGlHandle = dlopen("libGL.so", RTLD_NOW | RTLD_GLOBAL)) == nullptr))
 	{
-		qCritical().nospace() << "PipewireEGL: HyperHDR could not open GL library";
+		qCritical().nospace() << "PipewireEGL: Overglow could not open GL library";
 		return;
 	}
 
@@ -1428,7 +1428,7 @@ void PipewireHandler::initEGL()
 			EGLint major, minor;
 			if (eglInitialize(displayEgl, &major, &minor))
 			{
-				qDebug().nospace() << "PipewireEGL: EGL initialized for HyperHDR. Version: " << major << "." << minor;
+				qDebug().nospace() << "PipewireEGL: EGL initialized for Overglow. Version: " << major << "." << minor;
 			}
 			else
 			{
@@ -1513,12 +1513,12 @@ void PipewireHandler::initEGL()
 
 	if (!supportedList.isEmpty())
 	{
-		qDebug().nospace() << "PipewireEGL: Found supported by HyperHDR formats: " << supportedList.join(", ");
+		qDebug().nospace() << "PipewireEGL: Found supported by Overglow formats: " << supportedList.join(", ");
 	}
 
 	if (!unsupportedList.isEmpty())
 	{
-		qDebug().nospace() << "PipewireEGL: Found unsupported by HyperHDR formats: " << unsupportedList.join(", ");
+		qDebug().nospace() << "PipewireEGL: Found unsupported by Overglow formats: " << unsupportedList.join(", ");
 	}
 }
 #endif
@@ -1610,7 +1610,7 @@ pw_stream* PipewireHandler::createCapturingStream()
 	
 	pw_core_add_listener(_pwContextConnection, &_pwCoreListener, &pwCoreEvents, this);
 
-	pw_stream* stream = pw_stream_new(_pwContextConnection, "hyperhdr-stream-receiver", reuseProps);
+	pw_stream* stream = pw_stream_new(_pwContextConnection, "overglow-stream-receiver", reuseProps);
 
 	if (stream != nullptr)
 	{

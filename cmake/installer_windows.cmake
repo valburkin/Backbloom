@@ -1,7 +1,7 @@
 macro(InstallerWindows TARGET)
 	if(EXISTS ${TARGET_FILE})
 
-		install ( TARGETS hyperhdr DESTINATION "bin" COMPONENT "HyperHDR" )
+		install ( TARGETS overglow DESTINATION "bin" COMPONENT "Overglow" )
 		include( InstallRequiredSystemLibraries )
 
 		message("Collecting Dependencies for target file: ${TARGET_FILE}")
@@ -29,7 +29,7 @@ macro(InstallerWindows TARGET)
 		separate_arguments(DEPENDENCIES WINDOWS_COMMAND ${DEPS})
 		string(REPLACE "\\" "/" DEPENDENCIES "${DEPENDENCIES}")
 
-		# Copy dependencies to 'hyperhdr/lib' or 'hyperhdr'
+		# Copy dependencies to 'overglow/lib' or 'overglow'
 		while (DEPENDENCIES)
 			list(GET DEPENDENCIES 0 src)
 			list(GET DEPENDENCIES 1 dst)
@@ -39,13 +39,13 @@ macro(InstallerWindows TARGET)
 				install(
 					FILES ${src}
 					DESTINATION "lib/${dst}"
-					COMPONENT "HyperHDR"
+					COMPONENT "Overglow"
 				)
 			else()
 				install(
 					FILES ${src}
 					DESTINATION "bin"
-					COMPONENT "HyperHDR"
+					COMPONENT "Overglow"
 				)
 			endif()
 
@@ -53,7 +53,7 @@ macro(InstallerWindows TARGET)
 		endwhile()
 
 		# Copy TurboJPEG Libs
-		install(FILES ${TurboJPEG_INSTALL_LIB} DESTINATION "bin" COMPONENT "HyperHDR" )
+		install(FILES ${TurboJPEG_INSTALL_LIB} DESTINATION "bin" COMPONENT "Overglow" )
 
 		# Web resources
 		if (NOT USE_EMBEDDED_WEB_RESOURCES)
@@ -61,22 +61,22 @@ macro(InstallerWindows TARGET)
 				message(FATAL_ERROR "Could not find compiled resources for the web server. Consider using USE_EMBEDDED_WEB_RESOURCES option" )
 			endif()
 			get_target_property(webserver-resources-path webserver-resources OUTPUT_FILE)
-			install(FILES ${webserver-resources-path} DESTINATION "lib" COMPONENT "HyperHDR" )
+			install(FILES ${webserver-resources-path} DESTINATION "lib" COMPONENT "Overglow" )
 		endif()
 
 		# Copy SQLITE3
 		if (USE_SHARED_LIBS AND TARGET sqlite3)
-			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:sqlite3> DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE SHARED_LIBRARY) ]] COMPONENT "HyperHDR")
+			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:sqlite3> DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE SHARED_LIBRARY) ]] COMPONENT "Overglow")
 		endif()
 
 		# Copy utils-zstd
 		if (USE_SHARED_LIBS AND TARGET utils-zstd)
-			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:utils-zstd> DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE SHARED_LIBRARY) ]] COMPONENT "HyperHDR")
+			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:utils-zstd> DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE SHARED_LIBRARY) ]] COMPONENT "Overglow")
 		endif()
 
 		# Copy utils-image
 		if (USE_SHARED_LIBS AND TARGET utils-image)
-			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:utils-image> DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE SHARED_LIBRARY) ]] COMPONENT "HyperHDR")
+			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:utils-image> DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE SHARED_LIBRARY) ]] COMPONENT "Overglow")
 		endif()
 
 		# Create a qt.conf file in 'bin' to override hard-coded search paths in Qt plugins
@@ -84,13 +84,13 @@ macro(InstallerWindows TARGET)
 		install(
 			FILES "${CMAKE_BINARY_DIR}/qt.conf"
 			DESTINATION "bin"
-			COMPONENT "HyperHDR"
+			COMPONENT "Overglow"
 		)		
 
-		INSTALL(FILES ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS} DESTINATION bin COMPONENT "HyperHDR")
+		INSTALL(FILES ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS} DESTINATION bin COMPONENT "Overglow")
 		
-		install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION bin COMPONENT "HyperHDR")
-		install(FILES "${PROJECT_SOURCE_DIR}/3RD_PARTY_LICENSES" DESTINATION bin COMPONENT "HyperHDR")
+		install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION bin COMPONENT "Overglow")
+		install(FILES "${PROJECT_SOURCE_DIR}/3RD_PARTY_LICENSES" DESTINATION bin COMPONENT "Overglow")
 
 		find_package(OpenSSL)
 		
@@ -116,10 +116,10 @@ macro(InstallerWindows TARGET)
 			install(
 				FILES ${OPENSSL_SSL} ${OPENSSL_CRYPTO}
 				DESTINATION "bin"
-				COMPONENT "HyperHDR"
+				COMPONENT "Overglow"
 			)
 		else()
-			message( WARNING "OpenSSL NOT found. HyperHDR's https instance and Philips Hue devices will not work.")
+			message( WARNING "OpenSSL NOT found. Overglow's https instance and Philips Hue devices will not work.")
 		endif()
 
 	else()

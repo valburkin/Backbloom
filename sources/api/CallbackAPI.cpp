@@ -2,17 +2,17 @@
 	#include <QVariant>
 #endif
 
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 #include <api/CallbackAPI.h>
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <base/GrabberWrapper.h>
-#include <base/HyperHdrManager.h>
+#include <base/InstanceManager.h>
 #include <base/ComponentController.h>
 #include <base/Muxer.h>
 #include <base/ImageToLedManager.h>
 #include <performance-counters/PerformanceCounters.h>
 
-using namespace hyperhdr;
+using namespace overglow;
 
 CallbackAPI::CallbackAPI(const LoggerName& log, bool localConnection, QObject* parent)
 	: BaseAPI(log, localConnection, parent)
@@ -48,12 +48,12 @@ bool CallbackAPI::subscribeFor(const QString& type, bool unsubscribe)
 	else
 		_subscribedCommands << type;
 
-	if (type == "components-update" && _hyperhdr != nullptr)
+	if (type == "components-update" && _instance != nullptr)
 	{
 		if (unsubscribe)
-			disconnect(_hyperhdr.get(), &HyperHdrInstance::SignalComponentStateChanged, this, &CallbackAPI::componentStateHandler);
+			disconnect(_instance.get(), &LightingInstance::SignalComponentStateChanged, this, &CallbackAPI::componentStateHandler);
 		else
-			connect(_hyperhdr.get(), &HyperHdrInstance::SignalComponentStateChanged, this, &CallbackAPI::componentStateHandler, Qt::UniqueConnection);
+			connect(_instance.get(), &LightingInstance::SignalComponentStateChanged, this, &CallbackAPI::componentStateHandler, Qt::UniqueConnection);
 	}
 
 	if (type == "performance-update")
@@ -85,28 +85,28 @@ bool CallbackAPI::subscribeFor(const QString& type, bool unsubscribe)
 #endif
 	}
 
-	if (type == "priorities-update" && _hyperhdr != nullptr)
+	if (type == "priorities-update" && _instance != nullptr)
 	{
 		if (unsubscribe)
-			disconnect(_hyperhdr.get(), &HyperHdrInstance::SignalPrioritiesChanged, this, &CallbackAPI::priorityUpdateHandler);
+			disconnect(_instance.get(), &LightingInstance::SignalPrioritiesChanged, this, &CallbackAPI::priorityUpdateHandler);
 		else
-			connect(_hyperhdr.get(), &HyperHdrInstance::SignalPrioritiesChanged, this, &CallbackAPI::priorityUpdateHandler, Qt::UniqueConnection);
+			connect(_instance.get(), &LightingInstance::SignalPrioritiesChanged, this, &CallbackAPI::priorityUpdateHandler, Qt::UniqueConnection);
 	}
 
-	if (type == "imageToLedMapping-update" && _hyperhdr != nullptr)
+	if (type == "imageToLedMapping-update" && _instance != nullptr)
 	{
 		if (unsubscribe)
-			disconnect(_hyperhdr.get(), &HyperHdrInstance::SignalImageToLedsMappingChanged, this, &CallbackAPI::imageToLedsMappingChangeHandler);
+			disconnect(_instance.get(), &LightingInstance::SignalImageToLedsMappingChanged, this, &CallbackAPI::imageToLedsMappingChangeHandler);
 		else
-			connect(_hyperhdr.get(), &HyperHdrInstance::SignalImageToLedsMappingChanged, this, &CallbackAPI::imageToLedsMappingChangeHandler, Qt::UniqueConnection);
+			connect(_instance.get(), &LightingInstance::SignalImageToLedsMappingChanged, this, &CallbackAPI::imageToLedsMappingChangeHandler, Qt::UniqueConnection);
 	}
 
-	if (type == "adjustment-update" && _hyperhdr != nullptr)
+	if (type == "adjustment-update" && _instance != nullptr)
 	{
 		if (unsubscribe)
-			disconnect(_hyperhdr.get(), &HyperHdrInstance::SignalAdjustmentUpdated, this, &CallbackAPI::signalAdjustmentUpdatedHandler);
+			disconnect(_instance.get(), &LightingInstance::SignalAdjustmentUpdated, this, &CallbackAPI::signalAdjustmentUpdatedHandler);
 		else
-			connect(_hyperhdr.get(), &HyperHdrInstance::SignalAdjustmentUpdated, this, &CallbackAPI::signalAdjustmentUpdatedHandler, Qt::UniqueConnection);
+			connect(_instance.get(), &LightingInstance::SignalAdjustmentUpdated, this, &CallbackAPI::signalAdjustmentUpdatedHandler, Qt::UniqueConnection);
 	}
 
 	if (type == "grabberstate-update" && grabberWrapper != nullptr)
@@ -120,52 +120,52 @@ bool CallbackAPI::subscribeFor(const QString& type, bool unsubscribe)
 	if (type == "videomodehdr-update")
 	{
 		if (unsubscribe)
-			disconnect(_instanceManager.get(), &HyperHdrManager::SignalSetNewComponentStateToAllInstances, this, &CallbackAPI::videoModeHdrChangeHandler);
+			disconnect(_instanceManager.get(), &InstanceManager::SignalSetNewComponentStateToAllInstances, this, &CallbackAPI::videoModeHdrChangeHandler);
 		else
-			connect(_instanceManager.get(), &HyperHdrManager::SignalSetNewComponentStateToAllInstances, this, &CallbackAPI::videoModeHdrChangeHandler, Qt::UniqueConnection);
+			connect(_instanceManager.get(), &InstanceManager::SignalSetNewComponentStateToAllInstances, this, &CallbackAPI::videoModeHdrChangeHandler, Qt::UniqueConnection);
 	}
 
-	if (type == "settings-update" && _hyperhdr != nullptr)
+	if (type == "settings-update" && _instance != nullptr)
 	{
 		if (unsubscribe)
-			disconnect(_hyperhdr.get(), &HyperHdrInstance::SignalInstanceSettingsChanged, this, &CallbackAPI::settingsChangeHandler);
+			disconnect(_instance.get(), &LightingInstance::SignalInstanceSettingsChanged, this, &CallbackAPI::settingsChangeHandler);
 		else
-			connect(_hyperhdr.get(), &HyperHdrInstance::SignalInstanceSettingsChanged, this, &CallbackAPI::settingsChangeHandler, Qt::UniqueConnection);
+			connect(_instance.get(), &LightingInstance::SignalInstanceSettingsChanged, this, &CallbackAPI::settingsChangeHandler, Qt::UniqueConnection);
 	}
 
-	if (type == "leds-update" && _hyperhdr != nullptr)
+	if (type == "leds-update" && _instance != nullptr)
 	{
 		if (unsubscribe)
-			disconnect(_hyperhdr.get(), &HyperHdrInstance::SignalInstanceSettingsChanged, this, &CallbackAPI::ledsConfigChangeHandler);
+			disconnect(_instance.get(), &LightingInstance::SignalInstanceSettingsChanged, this, &CallbackAPI::ledsConfigChangeHandler);
 		else
-			connect(_hyperhdr.get(), &HyperHdrInstance::SignalInstanceSettingsChanged, this, &CallbackAPI::ledsConfigChangeHandler, Qt::UniqueConnection);
+			connect(_instance.get(), &LightingInstance::SignalInstanceSettingsChanged, this, &CallbackAPI::ledsConfigChangeHandler, Qt::UniqueConnection);
 	}
 
-	if (type == "leds-colors" && _hyperhdr != nullptr)
+	if (type == "leds-colors" && _instance != nullptr)
 	{
 		if (unsubscribe)
-			disconnect(_hyperhdr.get(), &HyperHdrInstance::SignalRawColorsChanged, this, &CallbackAPI::handleIncomingColors);
+			disconnect(_instance.get(), &LightingInstance::SignalRawColorsChanged, this, &CallbackAPI::handleIncomingColors);
 		else
-			connect(_hyperhdr.get(), &HyperHdrInstance::SignalRawColorsChanged, this, &CallbackAPI::handleIncomingColors, Qt::UniqueConnection);
+			connect(_instance.get(), &LightingInstance::SignalRawColorsChanged, this, &CallbackAPI::handleIncomingColors, Qt::UniqueConnection);
 	}
 
-	if (type == "live-video" && _hyperhdr != nullptr)
+	if (type == "live-video" && _instance != nullptr)
 	{
 		if (unsubscribe)
 		{
 			_liveImage = Image<ColorRgb>();
-			disconnect(_hyperhdr.get(), &HyperHdrInstance::SignalInstanceImageUpdated, this, &CallbackAPI::handlerInstanceImageUpdated);
+			disconnect(_instance.get(), &LightingInstance::SignalInstanceImageUpdated, this, &CallbackAPI::handlerInstanceImageUpdated);
 		}
 		else
-			connect(_hyperhdr.get(), &HyperHdrInstance::SignalInstanceImageUpdated, this, &CallbackAPI::handlerInstanceImageUpdated, Qt::UniqueConnection);
+			connect(_instance.get(), &LightingInstance::SignalInstanceImageUpdated, this, &CallbackAPI::handlerInstanceImageUpdated, Qt::UniqueConnection);
 	}
 
 	if (type == "instance-update")
 	{
 		if (unsubscribe)
-			disconnect(_instanceManager.get(), &HyperHdrManager::SignalInstancesListChanged, this, &CallbackAPI::instancesListChangedHandler);
+			disconnect(_instanceManager.get(), &InstanceManager::SignalInstancesListChanged, this, &CallbackAPI::instancesListChangedHandler);
 		else
-			connect(_instanceManager.get(), &HyperHdrManager::SignalInstancesListChanged, this, &CallbackAPI::instancesListChangedHandler, Qt::UniqueConnection);
+			connect(_instanceManager.get(), &InstanceManager::SignalInstancesListChanged, this, &CallbackAPI::instancesListChangedHandler, Qt::UniqueConnection);
 	}
 
 	if (type == "token-update")
@@ -179,9 +179,9 @@ bool CallbackAPI::subscribeFor(const QString& type, bool unsubscribe)
 	if (type == "benchmark-update")
 	{
 		if (unsubscribe)
-			disconnect(_instanceManager.get(), &HyperHdrManager::SignalBenchmarkUpdate, this, &CallbackAPI::signalBenchmarkUpdateHandler);
+			disconnect(_instanceManager.get(), &InstanceManager::SignalBenchmarkUpdate, this, &CallbackAPI::signalBenchmarkUpdateHandler);
 		else
-			connect(_instanceManager.get(), &HyperHdrManager::SignalBenchmarkUpdate, this, &CallbackAPI::signalBenchmarkUpdateHandler, Qt::UniqueConnection);
+			connect(_instanceManager.get(), &InstanceManager::SignalBenchmarkUpdate, this, &CallbackAPI::signalBenchmarkUpdateHandler, Qt::UniqueConnection);
 	}
 
 	return true;
@@ -212,7 +212,7 @@ void CallbackAPI::subscribe(QJsonArray subsArr)
 
 void CallbackAPI::removeSubscriptions()
 {
-	if (_hyperhdr != nullptr)
+	if (_instance != nullptr)
 	{
 		QStringList toRemove(_subscribedCommands);
 
@@ -236,7 +236,7 @@ void CallbackAPI::doCallback(const QString cmd, const QVariant data)
 	emit SignalCallbackToClient(obj);
 }
 
-void CallbackAPI::componentStateHandler(hyperhdr::Components comp, bool state)
+void CallbackAPI::componentStateHandler(overglow::Components comp, bool state)
 {
 	QJsonObject data;
 	data["name"] = componentToIdString(comp);
@@ -271,10 +271,10 @@ void CallbackAPI::priorityUpdateHandler()
 {
 	QJsonObject info;	
 
-	if (_hyperhdr == nullptr)
+	if (_instance == nullptr)
 		return;
 
-	SAFE_CALL_1_RET(_hyperhdr.get(), getJsonInfo, QJsonObject, info, bool, false);
+	SAFE_CALL_1_RET(_instance.get(), getJsonInfo, QJsonObject, info, bool, false);
 
 	doCallback("priorities-update", QVariant(info));
 }
@@ -292,9 +292,9 @@ void CallbackAPI::signalAdjustmentUpdatedHandler(QJsonArray newConfig)
 	doCallback("adjustment-update", QVariant(newConfig));
 }
 
-void CallbackAPI::videoModeHdrChangeHandler(hyperhdr::Components component, bool enable)
+void CallbackAPI::videoModeHdrChangeHandler(overglow::Components component, bool enable)
 {
-	if (component == hyperhdr::Components::COMP_HDR)
+	if (component == overglow::Components::COMP_HDR)
 	{
 		QJsonObject data;
 		data["videomodehdr"] = enable;

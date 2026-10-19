@@ -47,5 +47,5 @@ LedDevice* DriverSerialSP616E::construct(const QJsonObject& deviceConfig)
 	return new DriverSerialSP616E(deviceConfig);
 }
 
-bool DriverSerialSP616E::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE(
+bool DriverSerialSP616E::isRegistered = overglow::leds::REGISTER_LED_DEVICE(
 	"sp616e", "leds_group_3_serial", DriverSerialSP616E::construct);

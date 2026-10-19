@@ -303,4 +303,4 @@ LedDevice* DriverHidSyncLight::construct(const QJsonObject& deviceConfig)
 	return new DriverHidSyncLight(deviceConfig);
 }
 
-bool DriverHidSyncLight::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("synclight", "leds_group_6_HID", DriverHidSyncLight::construct);
+bool DriverHidSyncLight::isRegistered = overglow::leds::REGISTER_LED_DEVICE("synclight", "leds_group_6_HID", DriverHidSyncLight::construct);

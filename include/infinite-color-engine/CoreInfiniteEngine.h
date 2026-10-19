@@ -17,7 +17,7 @@
 #include <infinite-color-engine/InfiniteProcessing.h>
 #include <infinite-color-engine/SharedOutputColors.h>
 
-class HyperHdrInstance;
+class LightingInstance;
 class InfiniteSmoothing;
 
 class CoreInfiniteEngine : public QObject
@@ -25,7 +25,7 @@ class CoreInfiniteEngine : public QObject
 	Q_OBJECT
 
 public:
-	CoreInfiniteEngine(HyperHdrInstance* hyperhdr);
+	CoreInfiniteEngine(LightingInstance* lightingInstance);
 	~CoreInfiniteEngine() = default;
 
 	int getSuggestedInterval();

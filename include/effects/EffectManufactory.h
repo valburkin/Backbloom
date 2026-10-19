@@ -33,7 +33,7 @@
 
 #include <effects/EffectDefinition.h>
 
-namespace hyperhdr::effects {
+namespace overglow::effects {
 	const std::list<EffectDefinition>& GET_ALL_EFFECTS(const EffectDefinition* ed = nullptr);
 	bool REGISTER_EFFECT(const EffectDefinition& ed);
 };

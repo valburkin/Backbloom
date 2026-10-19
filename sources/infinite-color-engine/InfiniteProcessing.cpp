@@ -46,7 +46,7 @@
 
 #include <infinite-color-engine/InfiniteSmoothing.h>
 #include <infinite-color-engine/InfiniteProcessing.h>
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <infinite-color-engine/ColorSpace.h>
 #include <image/ColorRgb.h>
 

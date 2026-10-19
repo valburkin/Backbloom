@@ -37,7 +37,7 @@
 #include <QString>
 #include <QMetaType>
 
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <grabber/GrabberWorker.h>
 #include <utils/GlobalSignals.h>
 

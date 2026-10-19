@@ -209,7 +209,7 @@ QJsonObject DriverNetZigbee2mqtt::discover(const QJsonObject& /*params*/)
 
 	if (!_discoveryFinished)
 	{
-		Error(_log, "Could not find any Zigbee2mqtt devices. Check HyperHDR MQTT network / MQTT broker / Zigbee2mqtt configuration");
+		Error(_log, "Could not find any Zigbee2mqtt devices. Check Overglow MQTT network / MQTT broker / Zigbee2mqtt configuration");
 	}
 	else
 	{
@@ -336,4 +336,4 @@ LedDevice* DriverNetZigbee2mqtt::construct(const QJsonObject& deviceConfig)
 	return new DriverNetZigbee2mqtt(deviceConfig);
 }
 
-bool DriverNetZigbee2mqtt::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("zigbee2mqtt", "leds_group_2_network", DriverNetZigbee2mqtt::construct);
+bool DriverNetZigbee2mqtt::isRegistered = overglow::leds::REGISTER_LED_DEVICE("zigbee2mqtt", "leds_group_2_network", DriverNetZigbee2mqtt::construct);

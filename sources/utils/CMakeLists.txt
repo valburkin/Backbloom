@@ -10,14 +10,14 @@ else()
 	LIST ( REMOVE_ITEM Utils_SOURCES "${CURRENT_SOURCE_DIR}/SystemPerformanceCounters.cpp" )
 endif()
 
-add_library(hyperhdr-utils OBJECT ${Utils_SOURCES})
+add_library(utils OBJECT ${Utils_SOURCES})
 
-target_link_libraries(hyperhdr-utils
+target_link_libraries(utils
 	Qt${Qt_VERSION}::Core
 	Qt${Qt_VERSION}::Network
 	linalg
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
-    target_precompile_headers(hyperhdr-utils REUSE_FROM precompiled_hyperhdr_headers)
+    target_precompile_headers(utils REUSE_FROM precompiled_headers)
 endif()

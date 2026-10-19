@@ -19,7 +19,13 @@ class SqlQuery;
 typedef QPair<QString, QVariant> CPair;
 typedef QVector<CPair> VectorPair;
 
-#define CURRENT_HYPERHDR_DB_EXPORT_VERSION "HyperHDR_export_format_v20"
+#define CURRENT_DB_EXPORT_VERSION "Overglow_export_format_v1"
+
+// settings database file inside <user data>/db
+#define DATABASE_FILE_NAME "overglow.db"
+
+// column of the settings table that holds the instance index (NULL for global settings)
+#define SETTINGS_INSTANCE_COLUMN "instance"
 
 class DBManager
 {

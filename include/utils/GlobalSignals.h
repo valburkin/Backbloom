@@ -39,7 +39,7 @@
 #include <performance-counters/PerformanceCounters.h>
 #include <bonjour/DiscoveryRecord.h>
 
-class HyperHdrManager;
+class InstanceManager;
 class AccessManager;
 class SoundCapture;
 class GrabberHelper;
@@ -63,7 +63,7 @@ public:
 	void operator=(GlobalSignals const&) = delete;
 
 signals:
-	void SignalGetInstanceManager(std::shared_ptr<HyperHdrManager>& instanceManager);
+	void SignalGetInstanceManager(std::shared_ptr<InstanceManager>& instanceManager);
 
 	void SignalGetAccessManager(std::shared_ptr<AccessManager>& accessManager);
 
@@ -81,11 +81,11 @@ signals:
 
 	void SignalNewVideoImage(const QString& name, const Image<ColorRgb>& image);
 
-	void SignalRequestComponent(hyperhdr::Components component, int hyperHdrInd, bool listen);
+	void SignalRequestComponent(overglow::Components component, int instanceIndex, bool listen);
 
 	void SignalPerformanceNewReport(PerformanceReport pr);
 
-	void SignalPerformanceStateChanged(bool enabled, hyperhdr::PerformanceReportType type, int id, QString name = "");
+	void SignalPerformanceStateChanged(bool enabled, overglow::PerformanceReportType type, int id, QString name = "");
 
 	void SignalDiscoveryRequestToScan(DiscoveryRecord::Service type);
 

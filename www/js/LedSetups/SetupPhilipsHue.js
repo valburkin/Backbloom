@@ -36,22 +36,22 @@ function startWizardPhilipsHue(e)
         hue_desc1 = 'wiz_hue_e_desc1';
         hue_create_user = 'wiz_hue_e_create_user';
     }
-    $('#wiz_header').html('<svg data-src="svg/wizard.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n(hue_title));
+    $('#wiz_header').html('<svg data-src="svg/wizard.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n(hue_title));
     $('#wizp1_body').html('<h4 style="font-weight:bold;text-transform:uppercase;">' + $.i18n(hue_title) + '</h4><p>' + $.i18n(hue_intro1) + '</p>' + $.i18n(hue_intro2));
-    $('#wizp1_footer').html('<button type="button" class="btn btn-primary" id="btn_wiz_cont"><svg data-src="svg/button_play.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_continue') + '</button><button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_close.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_cancel') + '</button>');
+    $('#wizp1_footer').html('<button type="button" class="btn btn-primary" id="btn_wiz_cont"><svg data-src="svg/button_play.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_continue') + '</button><button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_close.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_cancel') + '</button>');
     $('#wizp2_body').html('<div id="wh_topcontainer"></div>');
-    $('#wh_topcontainer').append('<p style="font-weight:bold">' + $.i18n(hue_desc1) + '</p><div class="form-group"><label>' + $.i18n('wiz_hue_ip') + '</label><div class="input-group" style="width:250px"><input type="text" class="form-control" id="ip"><div class="input-group-append"><span class="input-group-text" id="retry_bridge" style="height: 100%;display: inline-block;cursor:pointer"><svg data-src="svg/button_reload.svg" fill="currentColor" class="svg4hyperhdr"></svg></span></div></div></div><span style="font-weight:bold;color:red" id="wiz_hue_ipstate"></span><span style="font-weight:bold;color:green;" class="" id="wiz_hue_discovered"></span>');
+    $('#wh_topcontainer').append('<p style="font-weight:bold">' + $.i18n(hue_desc1) + '</p><div class="form-group"><label>' + $.i18n('wiz_hue_ip') + '</label><div class="input-group" style="width:250px"><input type="text" class="form-control" id="ip"><div class="input-group-append"><span class="input-group-text" id="retry_bridge" style="height: 100%;display: inline-block;cursor:pointer"><svg data-src="svg/button_reload.svg" fill="currentColor" class="svg-icon"></svg></span></div></div></div><span style="font-weight:bold;color:red" id="wiz_hue_ipstate"></span><span style="font-weight:bold;color:green;" class="" id="wiz_hue_discovered"></span>');
     $('#wh_topcontainer').append();
     $('#wh_topcontainer').append('<div class="form-group" id="usrcont" style="display:none"></div>');
     if (hueType == 'philipshue')
     {
-        $('#usrcont').append('<label>' + $.i18n('wiz_hue_username') + '</label><div class="form-group input-group" style="width:250px"><input type="text" class="form-control" id="user"><div class="input-group-append"><span class="input-group-text" id="retry_usr" style="cursor:pointer"><svg data-src="svg/button_reload.svg" fill="currentColor" class="svg4hyperhdr" style="width:1.4em;"></svg></span></div></div>');
+        $('#usrcont').append('<label>' + $.i18n('wiz_hue_username') + '</label><div class="form-group input-group" style="width:250px"><input type="text" class="form-control" id="user"><div class="input-group-append"><span class="input-group-text" id="retry_usr" style="cursor:pointer"><svg data-src="svg/button_reload.svg" fill="currentColor" class="svg-icon" style="width:1.4em;"></svg></span></div></div>');
     }
     if (hueType == 'philipshueentertainment')
     {
-        $('#usrcont').append('<label>' + $.i18n('wiz_hue_username') + '</label><div class="form-group input-group" style="width:250px"><input type="text" class="form-control" id="user"></div><label>' + $.i18n('wiz_hue_clientkey') + '</label><div class="input-group" style="width:250px"><input type="text" class="form-control" id="clientkey"><div class="input-group-append"><span class="input-group-text" id="retry_usr" style="height: 100%;display: inline-block;cursor:pointer"><svg data-src="svg/button_reload.svg" fill="currentColor" class="svg4hyperhdr" style="width:1.4em;"></svg></span></div></div><input type="hidden" id="groupId"><input type="hidden" id="entertainmentConfigurationId">');
+        $('#usrcont').append('<label>' + $.i18n('wiz_hue_username') + '</label><div class="form-group input-group" style="width:250px"><input type="text" class="form-control" id="user"></div><label>' + $.i18n('wiz_hue_clientkey') + '</label><div class="input-group" style="width:250px"><input type="text" class="form-control" id="clientkey"><div class="input-group-append"><span class="input-group-text" id="retry_usr" style="height: 100%;display: inline-block;cursor:pointer"><svg data-src="svg/button_reload.svg" fill="currentColor" class="svg-icon" style="width:1.4em;"></svg></span></div></div><input type="hidden" id="groupId"><input type="hidden" id="entertainmentConfigurationId">');
     }
-    $('#usrcont').append('<span style="font-weight:bold;color:red" id="wiz_hue_usrstate"></span><br><button type="button" class="btn btn-primary" style="display:none" id="wiz_hue_create_user"> <svg data-src="svg/button_add.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n(hue_create_user) + '</button>');
+    $('#usrcont').append('<span style="font-weight:bold;color:red" id="wiz_hue_usrstate"></span><br><button type="button" class="btn btn-primary" style="display:none" id="wiz_hue_create_user"> <svg data-src="svg/button_add.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n(hue_create_user) + '</button>');
     if (hueType == 'philipshueentertainment')
     {
         $('#wizp2_body').append('<div id="hue_grp_ids_t" style="display:none"><p style="font-weight:bold">' + $.i18n('wiz_hue_e_desc2') + '</p></div>');
@@ -65,8 +65,8 @@ function startWizardPhilipsHue(e)
     }
     createTableFlex("lidsh", "lidsb", "hue_ids_t");
     $('.lidsh').append(createTableRowFlex([$.i18n('edt_dev_spec_lightid_title'), $.i18n('wiz_pos'), $.i18n('wiz_identify')], true));
-    $('#wizp2_footer').html('<button type="button" class="btn btn-primary" id="btn_wiz_save" style="display:none"><svg data-src="svg/button_save.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_save') + '</button><button type="button" class="btn btn-danger" id="btn_wiz_abort"><svg data-src="svg/button_close.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_cancel') + '</button>');
-    $('#wizp3_body').html('<span>' + $.i18n('wiz_hue_press_link') + '</span> <br /><br /><center><span id="connectionTime"></span><br /><svg data-src="svg/spinner_large.svg" fill="currentColor" class="svg4hyperhdr mt-3"></svg></center>');
+    $('#wizp2_footer').html('<button type="button" class="btn btn-primary" id="btn_wiz_save" style="display:none"><svg data-src="svg/button_save.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_save') + '</button><button type="button" class="btn btn-danger" id="btn_wiz_abort"><svg data-src="svg/button_close.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_cancel') + '</button>');
+    $('#wizp3_body').html('<span>' + $.i18n('wiz_hue_press_link') + '</span> <br /><br /><center><span id="connectionTime"></span><br /><svg data-src="svg/spinner_large.svg" fill="currentColor" class="svg-icon mt-3"></svg></center>');
 
     //open modal
     var phiWiz = new bootstrap.Modal($("#wizard_modal"), {
@@ -510,10 +510,10 @@ function beginWizardHue()
 function createHueUser()
 {
     var connectionRetries = 30;
-    var data = { "devicetype": "hyperhdr#" + Date.now() }
+    var data = { "devicetype": "overglow#" + Date.now() }
     if (hueType == 'philipshueentertainment')
     {
-        data = { "devicetype": "hyperhdr#" + Date.now(), "generateclientkey": true }
+        data = { "devicetype": "overglow#" + Date.now(), "generateclientkey": true }
     }
     var UserInterval = setInterval(function ()
     {

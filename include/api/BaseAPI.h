@@ -5,8 +5,8 @@
 	#include <memory>
 #endif
 
-#include <base/HyperHdrInstance.h>
-#include <base/HyperHdrManager.h>
+#include <base/LightingInstance.h>
+#include <base/InstanceManager.h>
 #include <base/AccessManager.h>
 #include <base/GrabberHelper.h>
 
@@ -48,10 +48,10 @@ public:
 
 	struct registerData
 	{
-		hyperhdr::Components component = hyperhdr::Components::COMP_INVALID;
+		overglow::Components component = overglow::Components::COMP_INVALID;
 		QString origin;
 		QString owner;
-		hyperhdr::Components callerComp = hyperhdr::Components::COMP_INVALID;
+		overglow::Components callerComp = overglow::Components::COMP_INVALID;
 	};
 
 	typedef std::map<int, registerData> MapRegister;
@@ -64,25 +64,25 @@ protected:
 
 	void init();	
 
-	bool clearPriority(int priority, QString& replyMsg, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
-	std::map<hyperhdr::Components, bool> getAllComponents();
+	bool clearPriority(int priority, QString& replyMsg, overglow::Components callerComp = overglow::COMP_INVALID);
+	std::map<overglow::Components, bool> getAllComponents();
 	QVector<QVariantMap> getAllInstanceData();
 	QJsonObject getAverageColor(quint8 index);
 	quint8 getCurrentInstanceIndex();
 	QString installLut(QNetworkReply* reply, QString fileName, int hardware_brightness, int hardware_contrast, int hardware_saturation, qint64 time);
-	bool isHyperhdrEnabled();
-	void registerInput(int priority, hyperhdr::Components component, const QString& origin, const QString& owner, hyperhdr::Components callerComp);
+	bool isInstanceEnabled();
+	void registerInput(int priority, overglow::Components component, const QString& origin, const QString& owner, overglow::Components callerComp);
 	void unregisterInput(int priority);
 
-	void setColor(int priority, const std::vector<uint8_t>& ledColors, int timeout_ms = -1, const QString& origin = "API", hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
-	bool setComponentState(const QString& comp, bool& compState, QString& replyMsg, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
-	bool setEffect(const EffectCmdData& dat, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
-	bool setHyperhdrInstance(quint8 inst);
-	bool setImage(ImageCmdData& data, hyperhdr::Components comp, QString& replyMsg, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
-	void setLedMappingType(int type, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
-	void setSourceAutoSelect(bool state, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
-	void setVideoModeHdr(int hdr, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
-	void setVisiblePriority(int priority, hyperhdr::Components callerComp = hyperhdr::COMP_INVALID);
+	void setColor(int priority, const std::vector<uint8_t>& ledColors, int timeout_ms = -1, const QString& origin = "API", overglow::Components callerComp = overglow::COMP_INVALID);
+	bool setComponentState(const QString& comp, bool& compState, QString& replyMsg, overglow::Components callerComp = overglow::COMP_INVALID);
+	bool setEffect(const EffectCmdData& dat, overglow::Components callerComp = overglow::COMP_INVALID);
+	bool switchToInstance(quint8 inst);
+	bool setImage(ImageCmdData& data, overglow::Components comp, QString& replyMsg, overglow::Components callerComp = overglow::COMP_INVALID);
+	void setLedMappingType(int type, overglow::Components callerComp = overglow::COMP_INVALID);
+	void setSourceAutoSelect(bool state, overglow::Components callerComp = overglow::COMP_INVALID);
+	void setVideoModeHdr(int hdr, overglow::Components callerComp = overglow::COMP_INVALID);
+	void setVisiblePriority(int priority, overglow::Components callerComp = overglow::COMP_INVALID);
 	
 	bool startInstance(quint8 index, int tan = 0);
 	void stopInstance(quint8 index);
@@ -97,7 +97,7 @@ protected:
 	bool saveSettings(const QJsonObject& data);
 	bool isAuthorized();
 	bool isAdminAuthorized();
-	bool updateHyperhdrPassword(const QString& password, const QString& newPassword);
+	bool updatePassword(const QString& password, const QString& newPassword);
 	QString createToken(const QString& comment, AccessManager::AuthDefinition& def);
 	QString renameToken(const QString& id, const QString& comment);
 	QString deleteToken(const QString& id);
@@ -111,16 +111,16 @@ protected:
 	bool isTokenAuthorized(const QString& token);
 	bool isUserAuthorized(const QString& password);
 	bool isUserBlocked();
-	bool hasHyperhdrDefaultPw();
+	bool hasDefaultPassword();
 	void logout();
 	void putSystemInfo(QJsonObject& system);
 	
 	bool _adminAuthorized;
 
 	LoggerName _log;
-	std::shared_ptr<HyperHdrManager>	_instanceManager;
+	std::shared_ptr<InstanceManager>	_instanceManager;
 	std::shared_ptr<AccessManager>		_accessManager;	
-	std::shared_ptr<HyperHdrInstance>	_hyperhdr;
+	std::shared_ptr<LightingInstance>	_instance;
 	std::shared_ptr<SoundCapture> _soundCapture;
 	std::shared_ptr<GrabberHelper> _videoGrabber;
 	std::shared_ptr<GrabberHelper> _systemGrabber;

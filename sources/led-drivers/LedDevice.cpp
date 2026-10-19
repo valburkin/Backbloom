@@ -36,7 +36,7 @@
 #endif
 
 #include <led-drivers/LedDevice.h>
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <utils/GlobalSignals.h>
 #include <infinite-color-engine/ColorSpace.h>
 
@@ -518,7 +518,7 @@ void LedDevice::handleSignalFinalOutputColorsReady(SharedOutputColors infinityLe
 
 		if (diff >= 59000 && diff <= 65000)
 			emit GlobalSignals::getInstance()->SignalPerformanceNewReport(
-				PerformanceReport(hyperhdr::PerformanceReportType::LED, _computeStats.token, this->_activeDeviceType + _customInfo, _computeStats.frames / qMax(diff / 1000.0, 1.0), _computeStats.frames, _computeStats.incomingframes, _computeStats.droppedFrames, _instanceIndex));
+				PerformanceReport(overglow::PerformanceReportType::LED, _computeStats.token, this->_activeDeviceType + _customInfo, _computeStats.frames / qMax(diff / 1000.0, 1.0), _computeStats.frames, _computeStats.incomingframes, _computeStats.droppedFrames, _instanceIndex));
 
 		_computeStats.reset(now);
 	}

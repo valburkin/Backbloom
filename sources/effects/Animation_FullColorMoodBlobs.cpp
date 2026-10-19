@@ -48,4 +48,4 @@ EffectDefinition Animation_FullColorMoodBlobs::getDefinition()
 	return ed;
 }
 
-bool Animation_FullColorMoodBlobs::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_FullColorMoodBlobs::getDefinition());
+bool Animation_FullColorMoodBlobs::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_FullColorMoodBlobs::getDefinition());

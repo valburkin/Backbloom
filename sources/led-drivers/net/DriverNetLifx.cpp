@@ -450,4 +450,4 @@ LedDevice* DriverNetLifx::construct(const QJsonObject& deviceConfig)
 	return new DriverNetLifx(deviceConfig);
 }
 
-bool DriverNetLifx::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("lifx", "leds_group_2_network", DriverNetLifx::construct);
+bool DriverNetLifx::isRegistered = overglow::leds::REGISTER_LED_DEVICE("lifx", "leds_group_2_network", DriverNetLifx::construct);

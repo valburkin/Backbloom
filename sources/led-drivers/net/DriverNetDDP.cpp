@@ -207,4 +207,4 @@ LedDevice* DriverNetDDP::construct(const QJsonObject& deviceConfig)
 	return new DriverNetDDP(deviceConfig);
 }
 
-bool DriverNetDDP::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("ddp", "leds_group_2_network", DriverNetDDP::construct);
+bool DriverNetDDP::isRegistered = overglow::leds::REGISTER_LED_DEVICE("ddp", "leds_group_2_network", DriverNetDDP::construct);

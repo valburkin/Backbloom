@@ -48,4 +48,4 @@ EffectDefinition Animation_WarmMoodBlobs::getDefinition()
 	return ed;
 }
 
-bool Animation_WarmMoodBlobs::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_WarmMoodBlobs::getDefinition());
+bool Animation_WarmMoodBlobs::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_WarmMoodBlobs::getDefinition());

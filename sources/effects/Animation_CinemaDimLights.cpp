@@ -47,4 +47,4 @@ EffectDefinition Animation_CinemaDimLights::getDefinition()
 	return ed;
 }
 
-bool Animation_CinemaDimLights::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_CinemaDimLights::getDefinition());
+bool Animation_CinemaDimLights::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_CinemaDimLights::getDefinition());

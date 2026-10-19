@@ -7,7 +7,7 @@ $(document).ready(function()
 	var conf_editor = null;
 	var conf_editor_logs = null;
 
-	$('#conf_cont_logs').append(createOptPanel('<svg data-src="svg/logs_panel.svg" width="18" height="18" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_log_heading_title"), 'logs_editor_container', 'btn_submit_logs'));
+	$('#conf_cont_logs').append(createOptPanel('<svg data-src="svg/logs_panel.svg" width="18" height="18" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_log_heading_title"), 'logs_editor_container', 'btn_submit_logs'));
 	$('#conf_cont_logs').append(createHelpTable(window.schema.logger.properties, $.i18n("edt_conf_log_heading_title")));
 	$("#conf_cont_logs").children().first().removeClass();
 	$("#conf_cont_logs").children().first().addClass("editor_column");
@@ -25,7 +25,7 @@ $(document).ready(function()
 	});
 
 	
-	$('#conf_cont').append(createOptPanel('<svg data-src="svg/general_settings.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_gen_heading_title"), 'editor_container', 'btn_submit'));
+	$('#conf_cont').append(createOptPanel('<svg data-src="svg/general_settings.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_gen_heading_title"), 'editor_container', 'btn_submit'));
 	$('#conf_cont').append(createHelpTable(window.schema.general.properties, $.i18n("edt_conf_gen_heading_title")));
 	
 
@@ -96,14 +96,14 @@ $(document).ready(function()
 			var startBtnColor = inst[key].running ? "success" : "danger";
 			var startBtnIcon = inst[key].running ? "button_stop.svg" : "button_play.svg";
 			var startBtnText = inst[key].running ? $.i18n('general_btn_stop')+' ' : $.i18n('general_btn_start');
-			var renameBtn = '<button id="instren_' + inst[key].instance + '" type="button" class="h-100 w-100 btn btn-primary btn-sm"><svg data-src="svg/button_edit.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_rename') + '</button>';
+			var renameBtn = '<button id="instren_' + inst[key].instance + '" type="button" class="h-100 w-100 btn btn-primary btn-sm"><svg data-src="svg/button_edit.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_rename') + '</button>';
 			var startBtn = ""
 			var delBtn = "";
 			
 			if (inst[key].instance > 0)
 			{
-				delBtn = '<button id="instdel_' + inst[key].instance + '" type="button" class="h-100 w-100 btn btn-warning btn-sm"><svg data-src="svg/button_delete.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_delete') + '</button>';
-				startBtn = '<button id="inst_' + inst[key].instance + '" type="button" class="h-100 w-100 btn btn-sm btn-' + startBtnColor + `"><svg data-src="svg/${startBtnIcon}" fill="currentColor" class="svg4hyperhdr"></svg>` + startBtnText + '</button>';
+				delBtn = '<button id="instdel_' + inst[key].instance + '" type="button" class="h-100 w-100 btn btn-warning btn-sm"><svg data-src="svg/button_delete.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_delete') + '</button>';
+				startBtn = '<button id="inst_' + inst[key].instance + '" type="button" class="h-100 w-100 btn btn-sm btn-' + startBtnColor + `"><svg data-src="svg/${startBtnIcon}" fill="currentColor" class="svg-icon"></svg>` + startBtnText + '</button>';
 			}
 			var newRow = $('<div>', {class: "row"});
 			var colHeader = $('<div>', {class: "col-4 border-top fw-bold d-flex align-items-center"}).append(inst[key].friendly_name);
@@ -142,7 +142,7 @@ $(document).ready(function()
 		$('#btn_create_inst').attr('disabled', true)
 	});
 
-	$(hyperhdr).off("instance-updated").on("instance-updated", function(event)
+	$(window.serverEvents).off("instance-updated").on("instance-updated", function(event)
 	{
 		buildInstanceList()
 	});
@@ -175,7 +175,7 @@ $(document).ready(function()
 				{
 					content = JSON.parse(content);
 					if (typeof content.instances === 'undefined' || typeof content.settings === 'undefined' ||
-						content.version == null || content.version.indexOf("HyperHDR_export_format_v") != 0)
+						content.version == null || (content.version.indexOf("Overglow_export_format_v") != 0 && content.version.indexOf("HyperHDR_export_format_v") != 0))
 					{
 						showInfoDialog('error', "", $.i18n('infoDialog_import_hyperror_text', f.name));
 						dis_imp_btn(true);
@@ -224,7 +224,7 @@ $(document).ready(function()
 			
 		var backup = await requestGetDB();
 		if (backup.success === true)
-			download(JSON.stringify(backup.info, null, "\t"), 'HyperHDR-' + window.currentVersion + '-Backup-' + timestamp + '.json', "application/json");		
+			download(JSON.stringify(backup.info, null, "\t"), 'Overglow-' + window.currentVersion + '-Backup-' + timestamp + '.json', "application/json");		
 	});
 
 	//create introduction

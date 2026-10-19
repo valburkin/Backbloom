@@ -5,7 +5,7 @@
 #endif
 
 #include <utils/FileUtils.h>
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 
 namespace FileUtils {
 

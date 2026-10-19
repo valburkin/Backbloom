@@ -17,8 +17,8 @@
 
 namespace
 {
-	constexpr const char* TEMPLATE_HYPERHDRAPI = "%1/JsonAPI";
-	constexpr const char* TEMPLATE_HYPERHDRAPI_RESPONSE = "%1/JsonAPI/response";
+	constexpr const char* TEMPLATE_JSON_API_TOPIC = "%1/JsonAPI";
+	constexpr const char* TEMPLATE_JSON_API_RESPONSE_TOPIC = "%1/JsonAPI/response";
 
 	int keepAliveTimerMs(const MQTTContext_t& context)
 	{
@@ -169,15 +169,15 @@ void mqtt::start(QString host, int port, QString username, QString password, boo
 	_ignore_ssl_errors = ignore_ssl_errors;
 	_customTopic = std::move(customTopic);
 
-	HYPERHDRAPI = QString(TEMPLATE_HYPERHDRAPI).arg(_customTopic);
-	HYPERHDRAPI_RESPONSE = QString(TEMPLATE_HYPERHDRAPI_RESPONSE).arg(_customTopic);
+	_jsonApiTopic = QString(TEMPLATE_JSON_API_TOPIC).arg(_customTopic);
+	_jsonApiResponseTopic = QString(TEMPLATE_JSON_API_RESPONSE_TOPIC).arg(_customTopic);
 
 	Debug(_log, "Starting MQTT connection. Address: {:s}:{:d}. Protocol: {:s}. Authentication: {:s}, Ignore SSL errors: {:s}", (_host), _port, _is_ssl ? "SSL" : "NO SSL", (!_username.isEmpty() || !_password.isEmpty()) ? "YES" : "NO", _ignore_ssl_errors ? "YES" : "NO");
 
 	if (!_disableApiAccess)
-		Debug(_log, "MQTT topic: {:s}, MQTT response: {:s}", (HYPERHDRAPI), (HYPERHDRAPI_RESPONSE));
+		Debug(_log, "MQTT topic: {:s}, MQTT response: {:s}", (_jsonApiTopic), (_jsonApiResponseTopic));
 	else
-		Debug(_log, "MQTT access to HyperHDR API is disabled by user");
+		Debug(_log, "MQTT access to Overglow API is disabled by user");
 
 	_network = std::make_unique<NetworkContext>();
 	_network->owner = this;
@@ -242,7 +242,7 @@ void mqtt::connectMqtt()
 
 	_network->socket = _socket;
 
-	const QByteArray clientId = QStringLiteral("HyperHDR:%1").arg(QHostInfo::localHostName()).toUtf8();
+	const QByteArray clientId = QStringLiteral("Overglow:%1").arg(QHostInfo::localHostName()).toUtf8();
 	const QByteArray username = _username.toUtf8();
 	const QByteArray password = _password.toUtf8();
 	MQTTConnectInfo_t connectInfo{};
@@ -304,7 +304,7 @@ void mqtt::connected()
 	Debug(_log, "Connected");
 
 	if (!_disableApiAccess)
-		subscribe(HYPERHDRAPI, MQTTQoS2);
+		subscribe(_jsonApiTopic, MQTTQoS2);
 
 	if (!_connected)
 		return;
@@ -410,7 +410,7 @@ void mqtt::handleSettingsUpdate(settings::type type, const QJsonDocument& config
 	_disableApiAccess = object["disableApiAccess"].toBool(false);
 	_customTopic = object["custom_topic"].toString().trimmed();
 	if (_customTopic.isEmpty())
-		_customTopic = "HyperHDR";
+		_customTopic = "Overglow";
 
 	if (_initialized)
 	{
@@ -462,7 +462,7 @@ void mqtt::subscribe(const QString& topic, MQTTQoS_t qos)
 		if (status == MQTTSendFailed)
 			transportFailure();
 	}
-	else if (topic == HYPERHDRAPI)
+	else if (topic == _jsonApiTopic)
 	{
 		_apiSubscribePacketId = packetId;
 	}
@@ -509,7 +509,7 @@ void mqtt::publish(const QString& topic, const QString& payload, MQTTQoS_t qos)
 
 void mqtt::received(const QString& topic, const QString& payload)
 {
-	if (topic == HYPERHDRAPI && !payload.isEmpty())
+	if (topic == _jsonApiTopic && !payload.isEmpty())
 	{
 		QJsonParseError parseError;
 		const QJsonDocument document = QJsonDocument::fromJson(payload.toUtf8(), &parseError);
@@ -528,7 +528,7 @@ void mqtt::received(const QString& topic, const QString& payload)
 			Debug(_log, "JSON result: {:s}", (response));
 		}
 
-		publish(HYPERHDRAPI_RESPONSE, response, MQTTQoS2);
+		publish(_jsonApiResponseTopic, response, MQTTQoS2);
 		return;
 	}
 
@@ -590,9 +590,9 @@ void mqtt::handleSignalMqttLastWill(QString id, QStringList pairs)
 /////////////////////// Testing ///////////////////////////
 ///////////////////////////////////////////////////////////
 // listener:
-// mosquitto_sub -h localhost -t HyperHDR/JsonAPI/response
+// mosquitto_sub -h localhost -t Overglow/JsonAPI/response
 // commands:
-// mosquitto_pub -h localhost -t HyperHDR/JsonAPI -m "[{\"command\" : \"clear\", \"priority\" :1}, {\"command\" : \"clear\", \"priority\" :2}]"
-// mosquitto_pub -h localhost -t HyperHDR/JsonAPI -m "[{\"command\":\"componentstate\",\"componentstate\": {\"component\":\"HDR\",\"state\": true } }, {\"command\":\"componentstate\",\"componentstate\": {\"component\":\"HDR\",\"state\": false } }]"
-// mosquitto_pub -h localhost -t HyperHDR/JsonAPI -m "[{\"command\" : \"instance\",\"subcommand\":\"switchTo\",\"instance\":1},{\"command\":\"componentstate\",\"componentstate\":{\"component\":\"LEDDEVICE\",\"state\": false}}]"
+// mosquitto_pub -h localhost -t Overglow/JsonAPI -m "[{\"command\" : \"clear\", \"priority\" :1}, {\"command\" : \"clear\", \"priority\" :2}]"
+// mosquitto_pub -h localhost -t Overglow/JsonAPI -m "[{\"command\":\"componentstate\",\"componentstate\": {\"component\":\"HDR\",\"state\": true } }, {\"command\":\"componentstate\",\"componentstate\": {\"component\":\"HDR\",\"state\": false } }]"
+// mosquitto_pub -h localhost -t Overglow/JsonAPI -m "[{\"command\" : \"instance\",\"subcommand\":\"switchTo\",\"instance\":1},{\"command\":\"componentstate\",\"componentstate\":{\"component\":\"LEDDEVICE\",\"state\": false}}]"
 ///////////////////////////////////////////////////////////

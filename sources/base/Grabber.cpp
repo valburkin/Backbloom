@@ -405,7 +405,7 @@ void Grabber::unblockAndRestart(bool running)
 		uninit();
 		start();
 
-		emit GlobalSignals::getInstance()->SignalPerformanceStateChanged(true, hyperhdr::PerformanceReportType::VIDEO_GRABBER, -1);
+		emit GlobalSignals::getInstance()->SignalPerformanceStateChanged(true, overglow::PerformanceReportType::VIDEO_GRABBER, -1);
 	}
 
 	_blocked = false;

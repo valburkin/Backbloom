@@ -4,7 +4,7 @@
 	#include <QString>
 #endif
 
-namespace hyperhdr
+namespace overglow
 {
 	enum Components
 	{
@@ -25,7 +25,7 @@ namespace hyperhdr
 	{
 		switch (c)
 		{
-		case COMP_ALL:           return "HyperHDR";
+		case COMP_ALL:           return "Overglow";
 		case COMP_HDR:			 return "HDR (global)";
 		case COMP_SMOOTHING:     return "Smoothing";
 		case COMP_BLACKBORDER:   return "Blackborder detector";

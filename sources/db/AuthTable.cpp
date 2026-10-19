@@ -2,7 +2,7 @@
 #include <QUuid>
 
 #include <db/AuthTable.h>
-using namespace hyperhdr;
+using namespace overglow;
 
 AuthTable::AuthTable()
 	: DBManager()
@@ -110,7 +110,7 @@ bool AuthTable::updateUserPassword(const QString& user, const QString& newPw)
 }
 
 
-bool AuthTable::resetHyperhdrUser()
+bool AuthTable::resetDefaultUser()
 {
 	QVariantMap map;
 	map["password"] = calcPasswordHashOfUser(DEFAULT_CONFIG_USER, DEFAULT_CONFIG_PASSWORD);

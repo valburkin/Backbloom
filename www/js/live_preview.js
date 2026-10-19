@@ -97,7 +97,7 @@ $(document).ready(function() {
 			height: ledsim_height,
 			closeOnEscape: true,
 			autoOpen: false,
-			title: '<svg data-src="svg/live_preview.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('main_ledsim_title'),
+			title: '<svg data-src="svg/live_preview.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('main_ledsim_title'),
 			resize: function (e) {
 				updateLedLayout();
 			},
@@ -146,12 +146,12 @@ $(document).ready(function() {
 			}
 		}
 		
-		$(window.hyperhdr).on("cmd-config-getconfig",function(event){
+		$(window.serverEvents).on("cmd-config-getconfig",function(event){
 			leds = event.response.info.leds;
 			updateLedLayout();
 		});
 
-		$(window.hyperhdr).on("cmd-instance-switchTo", function (event) {
+		$(window.serverEvents).on("cmd-instance-switchTo", function (event) {
 			setTimeout(function(){
 				if($('#live_preview_dialog').is(':visible'))
 				{
@@ -173,7 +173,7 @@ $(document).ready(function() {
 		imageCanvasNodeCtx.fillRect(0, 0, canvas_width, canvas_height);
 
 		var image = new Image();
-		var sourceImg = document.getElementById("left_top_hyperhdr_logo");
+		var sourceImg = document.getElementById("left_top_logo");
 		if (sourceImg.naturalWidth > 0 && sourceImg.naturalHeight > 0)
 		{
 			var x = Math.max(canvas_width/2 - 130, 0);
@@ -195,7 +195,7 @@ $(document).ready(function() {
 		}
 	};	
 	
-	$(window.hyperhdr).one("ready",function(){
+	$(window.serverEvents).one("ready",function(){
 		getReady();		
 	});
 
@@ -349,7 +349,7 @@ $(document).ready(function() {
 	};
 
 
-	$(window.hyperhdr).on("cmd-image-stream-frame",function(event){
+	$(window.serverEvents).on("cmd-image-stream-frame",function(event){
 		if (!modalOpened)
 		{
 			requestLedImageStop();
@@ -371,7 +371,7 @@ $(document).ready(function() {
 	});
 
 	
-	$(window.hyperhdr).on("cmd-ledcolors-ledstream-update",function(event){
+	$(window.serverEvents).on("cmd-ledcolors-ledstream-update",function(event){
 		if (!modalOpened)
 		{
 			requestLedColorsStop();
@@ -383,7 +383,7 @@ $(document).ready(function() {
 	});
 
 	
-	$(window.hyperhdr).on("cmd-settings-update",function(event){
+	$(window.serverEvents).on("cmd-settings-update",function(event){
 		var obj = event.response.data
 		Object.getOwnPropertyNames(obj).forEach(function(val, idx, array) {
 			window.serverInfo[val] = obj[val];

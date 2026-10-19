@@ -30,16 +30,16 @@
 #endif
 
 #include <base/VideoControl.h>
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <base/GrabberWrapper.h>
 #include <base/GrabberHelper.h>
 #include <utils/GlobalSignals.h>
 
 bool VideoControl::_stream = false;
 
-VideoControl::VideoControl(HyperHdrInstance* hyperhdr)
+VideoControl::VideoControl(LightingInstance* lightingInstance)
 	: QObject()
-	, _hyperhdr(hyperhdr)
+	, _instance(lightingInstance)
 	, _usbCaptEnabled(false)
 	, _alive(false)
 	, _usbCaptPrio(0)
@@ -47,10 +47,10 @@ VideoControl::VideoControl(HyperHdrInstance* hyperhdr)
 	, _usbInactiveTimer(new QTimer(this))
 {
 	// settings changes
-	connect(_hyperhdr, &HyperHdrInstance::SignalInstanceSettingsChanged, this, &VideoControl::handleSettingsUpdate);
+	connect(_instance, &LightingInstance::SignalInstanceSettingsChanged, this, &VideoControl::handleSettingsUpdate);
 
 	// comp changes
-	connect(_hyperhdr, &HyperHdrInstance::SignalRequestComponent, this, &VideoControl::handleCompStateChangeRequest);
+	connect(_instance, &LightingInstance::SignalRequestComponent, this, &VideoControl::handleCompStateChangeRequest);
 
 	// inactive timer usb grabber
 	connect(_usbInactiveTimer, &QTimer::timeout, this, &VideoControl::setUsbInactive);
@@ -58,13 +58,13 @@ VideoControl::VideoControl(HyperHdrInstance* hyperhdr)
 	_usbInactiveTimer->setInterval(800);
 
 	// init
-	QJsonDocument settings = _hyperhdr->getSetting(settings::type::VIDEOCONTROL);
+	QJsonDocument settings = _instance->getSetting(settings::type::VIDEOCONTROL);
 	QUEUE_CALL_2(this, handleSettingsUpdate, settings::type, settings::type::VIDEOCONTROL, QJsonDocument, settings);
 }
 
 VideoControl::~VideoControl()
 {
-	emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::COMP_VIDEOGRABBER, int(_hyperhdr->getInstanceIndex()), false);
+	emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::COMP_VIDEOGRABBER, int(_instance->getInstanceIndex()), false);
 
 	std::cout << "VideoControl exits now" << std::endl;
 }
@@ -106,7 +106,7 @@ void VideoControl::handleUsbImage()
 	if (_usbCaptName != name)
 	{
 		_usbCaptName = name;
-		_hyperhdr->registerInput(_usbCaptPrio, hyperhdr::COMP_VIDEOGRABBER, "System", _usbCaptName);
+		_instance->registerInput(_usbCaptPrio, overglow::COMP_VIDEOGRABBER, "System", _usbCaptName);
 	}
 
 	_alive = true;
@@ -114,7 +114,7 @@ void VideoControl::handleUsbImage()
 	if (!_usbInactiveTimer->isActive() && _usbInactiveTimer->remainingTime() < 0)
 		_usbInactiveTimer->start();
 
-	_hyperhdr->setInputImage(_usbCaptPrio, image);
+	_instance->setInputImage(_usbCaptPrio, image);
 }
 
 void VideoControl::setUsbCaptureEnable(bool enable)
@@ -123,19 +123,19 @@ void VideoControl::setUsbCaptureEnable(bool enable)
 	{
 		if (enable)
 		{
-			_hyperhdr->registerInput(_usbCaptPrio, hyperhdr::COMP_VIDEOGRABBER, "System", _usbCaptName);
+			_instance->registerInput(_usbCaptPrio, overglow::COMP_VIDEOGRABBER, "System", _usbCaptName);
 			connect(GlobalSignals::getInstance(), &GlobalSignals::SignalNewVideoImage, this, &VideoControl::handleIncomingUsbImage, static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::UniqueConnection));
 		}
 		else
 		{
 			disconnect(GlobalSignals::getInstance(), &GlobalSignals::SignalNewVideoImage, this, &VideoControl::handleIncomingUsbImage);
-			_hyperhdr->clear(_usbCaptPrio);
+			_instance->clear(_usbCaptPrio);
 			_usbInactiveTimer->stop();
 		}
 
 		_usbCaptEnabled = enable;
-		_hyperhdr->setNewComponentState(hyperhdr::COMP_VIDEOGRABBER, enable);
-		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::COMP_VIDEOGRABBER, int(_hyperhdr->getInstanceIndex()), enable);
+		_instance->setNewComponentState(overglow::COMP_VIDEOGRABBER, enable);
+		emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::COMP_VIDEOGRABBER, int(_instance->getInstanceIndex()), enable);
 	}
 }
 
@@ -154,9 +154,9 @@ void VideoControl::handleSettingsUpdate(settings::type type, const QJsonDocument
 	}
 }
 
-void VideoControl::handleCompStateChangeRequest(hyperhdr::Components component, bool enable)
+void VideoControl::handleCompStateChangeRequest(overglow::Components component, bool enable)
 {
-	if (component == hyperhdr::COMP_VIDEOGRABBER)
+	if (component == overglow::COMP_VIDEOGRABBER)
 	{
 		setUsbCaptureEnable(enable);
 	}
@@ -166,7 +166,7 @@ void VideoControl::setUsbInactive()
 {
 	if (!_alive)
 	{
-		_hyperhdr->setInputInactive(_usbCaptPrio);
+		_instance->setInputInactive(_usbCaptPrio);
 
 		if (_stream)
 		{

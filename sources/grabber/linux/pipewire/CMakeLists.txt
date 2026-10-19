@@ -27,5 +27,5 @@ target_link_libraries(Pipewire-grabber
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
-	target_precompile_headers(Pipewire-grabber REUSE_FROM precompiled_hyperhdr_headers)
+	target_precompile_headers(Pipewire-grabber REUSE_FROM precompiled_headers)
 endif()

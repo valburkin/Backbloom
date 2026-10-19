@@ -37,7 +37,7 @@
 #include <QUdpSocket>
 #include <QHostInfo>
 
-// Local HyperHDR includes
+// Local Overglow includes
 #include <led-drivers/net/ProviderUdp.h>
 
 ProviderUdp::ProviderUdp(const QJsonObject& deviceConfig)

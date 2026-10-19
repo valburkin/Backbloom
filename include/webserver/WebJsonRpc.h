@@ -10,7 +10,7 @@ class QtHttpServer;
 class QtHttpRequest;
 class QtHttpClientWrapper;
 class HyperAPI;
-class HyperHdrManager;
+class InstanceManager;
 
 class WebJsonRpc : public QObject {
 	Q_OBJECT

@@ -47,4 +47,4 @@ EffectDefinition Animation_CinemaBrightenLights::getDefinition()
 	return ed;
 }
 
-bool Animation_CinemaBrightenLights::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_CinemaBrightenLights::getDefinition());
+bool Animation_CinemaBrightenLights::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_CinemaBrightenLights::getDefinition());

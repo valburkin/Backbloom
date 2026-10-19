@@ -37,7 +37,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 
 #include <QDirIterator>
 #include <QFileInfo>
@@ -175,7 +175,7 @@ bool X11Grabber::init()
 
 		if (foundDevice.isNull() || foundDevice.isEmpty() || !_deviceProperties.contains(foundDevice))
 		{
-			Error(_log, "Could not find any capture device. X11 system grabber won't work if HyperHDR is run as a service due to security restrictions.");
+			Error(_log, "Could not find any capture device. X11 system grabber won't work if Overglow is run as a service due to security restrictions.");
 			return false;
 		}
 

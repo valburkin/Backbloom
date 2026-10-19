@@ -136,7 +136,7 @@ function createLedConfig(haConfig)
 
     $('#wizp2_body').html('<div id="wh_topcontainer"></div>');
     $('#wizp2_body').append(`<div id="ha_lamps_table_holder"><p style="font-weight:bold">${$.i18n('wiz_hue_e_desc3')}</p></div>`);
-    $('#wizp2_footer').html(`<button type="button" class="btn btn-primary" id="btn_wiz_save"><svg data-src="svg/button_save.svg" fill="currentColor" class="svg4hyperhdr"></svg>${$.i18n('general_btn_save')}</button><button type="button" class="btn btn-danger" id="btn_wiz_abort" disabled><svg data-src="svg/button_close.svg" fill="currentColor" class="svg4hyperhdr"></svg>${$.i18n('general_btn_cancel')}</button>`);
+    $('#wizp2_footer').html(`<button type="button" class="btn btn-primary" id="btn_wiz_save"><svg data-src="svg/button_save.svg" fill="currentColor" class="svg-icon"></svg>${$.i18n('general_btn_save')}</button><button type="button" class="btn btn-danger" id="btn_wiz_abort" disabled><svg data-src="svg/button_close.svg" fill="currentColor" class="svg-icon"></svg>${$.i18n('general_btn_cancel')}</button>`);
 
     if (window.serverConfig.leds != null && window.serverConfig.leds.length == haConfig.lamps.length)
     {

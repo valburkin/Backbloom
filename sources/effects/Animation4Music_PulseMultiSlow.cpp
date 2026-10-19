@@ -78,4 +78,4 @@ bool Animation4Music_PulseMultiSlow::getImage(Image<ColorRgb>& newImage)
 	return true;
 };
 
-bool Animation4Music_PulseMultiSlow::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation4Music_PulseMultiSlow::getDefinition());
+bool Animation4Music_PulseMultiSlow::isRegistered = overglow::effects::REGISTER_EFFECT(Animation4Music_PulseMultiSlow::getDefinition());

@@ -44,4 +44,4 @@ EffectDefinition Animation_GreenMoodBlobs::getDefinition()
 	return ed;
 }
 
-bool Animation_GreenMoodBlobs::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_GreenMoodBlobs::getDefinition());
+bool Animation_GreenMoodBlobs::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_GreenMoodBlobs::getDefinition());

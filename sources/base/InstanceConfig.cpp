@@ -34,7 +34,7 @@ InstanceConfig::InstanceConfig(bool master, quint8 instanceIndex, QObject* paren
 		Q_INIT_RESOURCE(resource);
 		try
 		{
-			_schemaJson = QJsonUtils::readSchema(":/hyperhdr-schema");
+			_schemaJson = QJsonUtils::readSchema(":/settings-schema");
 		}
 		catch (const std::runtime_error& error)
 		{
@@ -178,7 +178,7 @@ bool InstanceConfig::upgradeDB(QJsonObject& dbConfig)
 		return false;
 	}
 
-	// HyperHDR v20 update
+	// settings format v20 update
 	if (version < 2)
 	{
 		auto colorObject = dbConfig["color"].toObject();
@@ -259,7 +259,7 @@ bool InstanceConfig::upgradeDB(QJsonObject& dbConfig)
 	return orgVersion != version;
 }
 
-// Databases created by full HyperHDR builds may refer to features that this product does not ship.
+// Databases created by full Overglow builds may refer to features that this product does not ship.
 // The DB version is global, but these settings are partly per instance, so the cleanup is content based
 // and runs for every instance (it is idempotent and also covers restored backups).
 bool InstanceConfig::removeUnsupportedFeatures(QJsonObject& dbConfig)
@@ -295,7 +295,7 @@ bool InstanceConfig::removeUnsupportedFeatures(QJsonObject& dbConfig)
 	const QString deviceKey = settings::typeToString(settings::type::DEVICE);
 	QJsonObject deviceObject = dbConfig[deviceKey].toObject();
 	const QString deviceType = deviceObject["type"].toString("file").toLower();
-	const auto& drivers = hyperhdr::leds::GET_ALL_LED_DEVICE(nullptr);
+	const auto& drivers = overglow::leds::GET_ALL_LED_DEVICE(nullptr);
 
 	if (std::none_of(drivers.begin(), drivers.end(), [&deviceType](const auto& driver) { return driver.name == deviceType; }))
 	{

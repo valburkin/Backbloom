@@ -111,7 +111,7 @@ bool SoundCaptureMacOS::getPermission()
 	{       
         if ([AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio] == AVAuthorizationStatusAuthorized)
 		{
-            Info(_logger, "HyperHDR has the sound capture's permission");
+            Info(_logger, "Overglow has the sound capture's permission");
 			return true;	
         }
         else
@@ -120,14 +120,14 @@ bool SoundCaptureMacOS::getPermission()
                 if (grantedPerm) 
                     Info(_logger, "Got the sound capture permission. Please restart the application.");
                 else
-					Error(_logger, "HyperHDR has NOT been granted the sound capture's permission");                				
+					Error(_logger, "Overglow has NOT been granted the sound capture's permission");                				
             } ];            
         }
     }
 	else
 		Error(_logger, "Selector for authorizationStatusForMediaType failed");
 
-	Error(_logger, "HyperHDR have NOT got the sound capture's permission.");     
+	Error(_logger, "Overglow have NOT got the sound capture's permission.");     
 	return false;
 }
 

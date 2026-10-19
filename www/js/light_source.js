@@ -499,7 +499,7 @@ function createMatrixLayout(ledshoriz, ledsvert, cabling, start)
 	}
 
 	/**
-	 * Adds led to the hyperhdr config led array
+	 * Adds led to the config led array
 	 * @param {Number} x     Horizontal position in matrix
 	 * @param {Number} y     Vertical position in matrix
 	 */

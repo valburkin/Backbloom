@@ -530,7 +530,7 @@ FunctionEnd
 !endif
 
 Function writeStartupRegistry
-  WriteRegStr HKCU "SOFTWARE\MICROSOFT\Windows\CurrentVersion\Run" "@CPACK_NSIS_PACKAGE_NAME@" "$INSTDIR\bin\hyperhdr.exe"
+  WriteRegStr HKCU "SOFTWARE\MICROSOFT\Windows\CurrentVersion\Run" "@CPACK_NSIS_PACKAGE_NAME@" "$INSTDIR\bin\overglow.exe"
 FunctionEnd
 
 ;--------------------------------
@@ -563,7 +563,7 @@ FunctionEnd
   !insertmacro MUI_PAGE_INSTFILES
   @CPACK_NSIS_INSTALLER_FINISH_TITLE_CODE@
   @CPACK_NSIS_INSTALLER_FINISH_TITLE_3LINES_CODE@
-  !define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\bin\hyperhdr.exe"
+  !define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\bin\overglow.exe"
   !define MUI_FINISHPAGE_SHOWREADME_TEXT "$(FINISH_READMETXT)"
   !define MUI_FINISHPAGE_SHOWREADME_FUNCTION writeStartupRegistry
   !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
@@ -814,11 +814,11 @@ FunctionEnd
 ;--------------------------------
 ; determine admin versus local install
 Function un.onInit
-  ; Check if HyperHDR is running
+  ; Check if Overglow is running
   loopIsRunningCheck:
-	FindProcDLL::FindProc "hyperhdr.exe"
+	FindProcDLL::FindProc "overglow.exe"
 	IntCmp $R0 1 0 notRunning
-	  MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "HyperHdr is running.$\n$\nClose it and press Retry, or press Cancel to exit." IDRETRY loopIsRunningCheck IDCANCEL abortnow
+	  MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Overglow is running.$\n$\nClose it and press Retry, or press Cancel to exit." IDRETRY loopIsRunningCheck IDCANCEL abortnow
 
 	abortnow:
 		Abort
@@ -886,11 +886,11 @@ FunctionEnd
 ;Uninstaller Section
 
 Section "Uninstall"
-  ; Check if HyperHDR is running
+  ; Check if Overglow is running
   loopIsRunningCheck:
-    FindProcDLL::FindProc "hyperhdr.exe"
+    FindProcDLL::FindProc "overglow.exe"
     IntCmp $R0 1 0 notRunning
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "HyperHdr is running.$\n$\nClose it and press Retry, or press Cancel to exit." IDRETRY loopIsRunningCheck IDCANCEL abortnow
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Overglow is running.$\n$\nClose it and press Retry, or press Cancel to exit." IDRETRY loopIsRunningCheck IDCANCEL abortnow
 
     abortnow:
       Abort
@@ -994,11 +994,11 @@ SectionEnd
 ; "Program Files" for AllUsers, "My Documents" for JustMe...
 
 Function .onInit
-  ; Check if HyperHDR is running
+  ; Check if Overglow is running
   loopIsRunningCheck:
-	FindProcDLL::FindProc "hyperhdr.exe"
+	FindProcDLL::FindProc "overglow.exe"
 	IntCmp $R0 1 0 notRunning
-	  MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "HyperHdr is running.$\n$\nClose it and press Retry, or press Cancel to exit." IDRETRY loopIsRunningCheck IDCANCEL abortnow
+	  MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Overglow is running.$\n$\nClose it and press Retry, or press Cancel to exit." IDRETRY loopIsRunningCheck IDCANCEL abortnow
 
 	abortnow:
 		Abort

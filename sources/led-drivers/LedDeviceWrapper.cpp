@@ -4,7 +4,7 @@
 #include <led-drivers/LedDeviceManufactory.h>
 
 // util
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <json-utils/JsonUtils.h>
 #include <utils/Macros.h>
 
@@ -14,13 +14,13 @@
 #include <QThread>
 #include <QDir>
 
-LedDeviceWrapper::LedDeviceWrapper(HyperHdrInstance* ownerInstance)
+LedDeviceWrapper::LedDeviceWrapper(LightingInstance* ownerInstance)
 	: QObject(ownerInstance)
 	, _ownerInstance(ownerInstance)
 	, _ledDevice(nullptr, nullptr)
 	, _enabled(false)
 {
-	_ownerInstance->setNewComponentState(hyperhdr::COMP_LEDDEVICE, false);
+	_ownerInstance->setNewComponentState(overglow::COMP_LEDDEVICE, false);
 }
 
 LedDeviceWrapper::~LedDeviceWrapper()
@@ -46,10 +46,10 @@ void LedDeviceWrapper::createLedDevice(QJsonObject config, int smoothingInterval
 
 	QObject::connect(thread, &QThread::started, this, [this, threadReadyPromisePtr, config, instanceIndex, disableOnStartup]() {
 		_ledDevice = std::unique_ptr<LedDevice, void(*)(LedDevice*)>(
-			hyperhdr::leds::CONSTRUCT_LED_DEVICE(config),
+			overglow::leds::CONSTRUCT_LED_DEVICE(config),
 			[](LedDevice* oldLed) {
 				QUEUE_CALL_0(oldLed, stop);
-				hyperhdr::THREAD_REMOVER(QString("%1 [LedDevice]").arg(oldLed->thread()->objectName()), oldLed->thread(), oldLed);
+				overglow::THREAD_REMOVER(QString("%1 [LedDevice]").arg(oldLed->thread()->objectName()), oldLed->thread(), oldLed);
 			}
 		);
 		_ledDevice->setInstanceIndex(instanceIndex);
@@ -58,7 +58,7 @@ void LedDeviceWrapper::createLedDevice(QJsonObject config, int smoothingInterval
 		if (!disableOnStartup)
 			QUEUE_CALL_0(_ledDevice.get(), start);
 
-		connect(_ownerInstance, &HyperHdrInstance::SignalSmoothingRestarted, _ledDevice.get(), &LedDevice::smoothingRestarted, Qt::QueuedConnection);
+		connect(_ownerInstance, &LightingInstance::SignalSmoothingRestarted, _ledDevice.get(), &LedDevice::smoothingRestarted, Qt::QueuedConnection);
 		connect(_ledDevice.get(), &LedDevice::SignalEnableStateChanged, this, &LedDeviceWrapper::handleInternalEnableState, Qt::QueuedConnection);
 
 		threadReadyPromisePtr->set_value();
@@ -73,12 +73,12 @@ void LedDeviceWrapper::createLedDevice(QJsonObject config, int smoothingInterval
 	threadReadyPromisePtr->get_future().get();
 }
 
-void LedDeviceWrapper::handleComponentState(hyperhdr::Components component, bool state)
+void LedDeviceWrapper::handleComponentState(overglow::Components component, bool state)
 {
 	if (_ledDevice == nullptr)
 		return;
 
-	if (component == hyperhdr::COMP_LEDDEVICE)
+	if (component == overglow::COMP_LEDDEVICE)
 	{
 		if (state)
 		{
@@ -90,7 +90,7 @@ void LedDeviceWrapper::handleComponentState(hyperhdr::Components component, bool
 		}
 	}
 
-	if (component == hyperhdr::COMP_ALL)
+	if (component == overglow::COMP_ALL)
 	{
 		QUEUE_CALL_1(_ledDevice.get(), pauseRetryTimer, bool, (!state));
 	}
@@ -103,16 +103,16 @@ void LedDeviceWrapper::handleInternalEnableState(bool newState)
 
 	if (newState)
 	{
-		connect(_ledDevice.get(), &LedDevice::SignalSmoothingClockTick, _ownerInstance, &HyperHdrInstance::SignalSmoothingClockTick, static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::UniqueConnection));
-		connect(_ownerInstance, &HyperHdrInstance::SignalFinalOutputColorsReady, _ledDevice.get(), &LedDevice::handleSignalFinalOutputColorsReady, Qt::UniqueConnection);
+		connect(_ledDevice.get(), &LedDevice::SignalSmoothingClockTick, _ownerInstance, &LightingInstance::SignalSmoothingClockTick, static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::UniqueConnection));
+		connect(_ownerInstance, &LightingInstance::SignalFinalOutputColorsReady, _ledDevice.get(), &LedDevice::handleSignalFinalOutputColorsReady, Qt::UniqueConnection);
 	}
 	else
 	{
-		disconnect(_ledDevice.get(), &LedDevice::SignalSmoothingClockTick, _ownerInstance, &HyperHdrInstance::SignalSmoothingClockTick);
-		disconnect(_ownerInstance, &HyperHdrInstance::SignalFinalOutputColorsReady, _ledDevice.get(), &LedDevice::handleSignalFinalOutputColorsReady);
+		disconnect(_ledDevice.get(), &LedDevice::SignalSmoothingClockTick, _ownerInstance, &LightingInstance::SignalSmoothingClockTick);
+		disconnect(_ownerInstance, &LightingInstance::SignalFinalOutputColorsReady, _ledDevice.get(), &LedDevice::handleSignalFinalOutputColorsReady);
 	}
 
-	_ownerInstance->setNewComponentState(hyperhdr::COMP_LEDDEVICE, newState);
+	_ownerInstance->setNewComponentState(overglow::COMP_LEDDEVICE, newState);
 	_enabled = newState;
 
 	if (_enabled)

@@ -35,7 +35,7 @@ class SuspendHandler : public QObject {
 	Q_OBJECT
 
 signals:
-	void SignalHibernate(bool wakeUp, hyperhdr::SystemComponent source);
+	void SignalHibernate(bool wakeUp, overglow::SystemComponent source);
 
 public:
 	SuspendHandler(bool sessionLocker = false);

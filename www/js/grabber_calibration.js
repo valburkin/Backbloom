@@ -65,9 +65,9 @@ $(document).ready( function(){
 
 	$("#grabber_calibration_intro").html($.i18n("grabber_calibration_expl"));
 	
-	sendToHyperhdr("serverinfo", "", '"subscribe":["lut-calibration-update"]');
+	sendToInstance("serverinfo", "", '"subscribe":["lut-calibration-update"]');
 	
-	$(window.hyperhdr).off("cmd-lut-calibration-update").on("cmd-lut-calibration-update", function(event)
+	$(window.serverEvents).off("cmd-lut-calibration-update").on("cmd-lut-calibration-update", function(event)
 	{
 		handleMessage(event);
 	});
@@ -106,11 +106,11 @@ $(document).ready( function(){
 	}
 
 	function startCalibrationWizard() {		
-		$('#wiz_header').html('<svg data-src="svg/wizard.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n("main_menu_grabber_calibration_token"));
-		$('#wizp1_body').html('<h4 id="calibration_running_header" style="font-weight:bold;text-transform:uppercase;">' + $.i18n("perf_please_wait") + '</h4><div class="row pe-1 ps-2"><div class="col-12 p-3 mt-3 text-center"><svg data-src="svg/spinner_large.svg" fill="currentColor" class="svg4hyperhdr mb-2"></svg><br/></div></div>');
+		$('#wiz_header').html('<svg data-src="svg/wizard.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n("main_menu_grabber_calibration_token"));
+		$('#wizp1_body').html('<h4 id="calibration_running_header" style="font-weight:bold;text-transform:uppercase;">' + $.i18n("perf_please_wait") + '</h4><div class="row pe-1 ps-2"><div class="col-12 p-3 mt-3 text-center"><svg data-src="svg/spinner_large.svg" fill="currentColor" class="svg-icon mb-2"></svg><br/></div></div>');
 		$('#wizp2_body').html('<h4 id="calibration_summary_header" style="font-weight:bold;text-transform:uppercase;"></h4><p id="calibration_summary"></p>');
-		$('#wizp1_footer').html('<button type="button" class="btn btn-danger" name="btn_wiz_abort"><svg data-src="svg/button_cancel.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_cancel') + '</button>');
-		$('#wizp2_footer').html('<button type="button" class="btn btn-success" name="btn_wiz_closeme_download"><svg data-src="svg/button_success.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_ok') + '</button>');
+		$('#wizp1_footer').html('<button type="button" class="btn btn-danger" name="btn_wiz_abort"><svg data-src="svg/button_cancel.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_cancel') + '</button>');
+		$('#wizp2_footer').html('<button type="button" class="btn btn-success" name="btn_wiz_closeme_download"><svg data-src="svg/button_success.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_ok') + '</button>');
 		//open modal
 		calibWiz= new bootstrap.Modal($("#wizard_modal"), {
 			backdrop: "static",
@@ -160,7 +160,7 @@ $(document).ready( function(){
 				calibWiz.hide();
 				resetWizard(true);
 			}
-			alert("Error occured. Please consult the HyperHDR log.\n\n" + json.error);
+			alert("Error occured. Please consult the Overglow log.\n\n" + json.error);
 			return;
 		}
 
@@ -191,7 +191,7 @@ $(document).ready( function(){
 			resetImage();
 
 			let resElement = document.getElementById("calibration_summary_header");
-			resElement.innerHTML = `Finished!<br/>If the new LUT file was successfully created then you can find the path in the HyperHDR logs.<br/>Usually it's 'lut_lin_tables.3d' in your home HyperHDR folder.`;
+			resElement.innerHTML = `Finished!<br/>If the new LUT file was successfully created then you can find the path in the Overglow logs.<br/>Usually it's 'lut_lin_tables.3d' in your home Overglow folder.`;
 			$('#wizp1').toggle(false);
 			$('#wizp2').toggle(true);
 			return;

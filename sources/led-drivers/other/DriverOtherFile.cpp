@@ -190,4 +190,4 @@ LedDevice* DriverOtherFile::construct(const QJsonObject& deviceConfig)
 	return new DriverOtherFile(deviceConfig);
 }
 
-bool DriverOtherFile::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("file", "leds_group_5_debug", DriverOtherFile::construct);
+bool DriverOtherFile::isRegistered = overglow::leds::REGISTER_LED_DEVICE("file", "leds_group_5_debug", DriverOtherFile::construct);

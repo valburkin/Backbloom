@@ -5,9 +5,9 @@
 
 function startWizardHome_assistant(e)
 {
-    $('#wiz_header').html(`<svg data-src="svg/wizard.svg" fill="currentColor" class="svg4hyperhdr"></svg>${$.i18n('wiz_home_assistant_title')}`);
+    $('#wiz_header').html(`<svg data-src="svg/wizard.svg" fill="currentColor" class="svg-icon"></svg>${$.i18n('wiz_home_assistant_title')}`);
     $('#wizp1_body').html(`<h4 style="font-weight:bold;text-transform:uppercase;">${$.i18n('wiz_home_assistant_title')}</h4><p>${$.i18n('wiz_ha_intro')}</p><div class="form-group" id="ha_form"></div>`);
-    $('#wizp1_footer').html(`<button type="button" class="btn btn-primary" id="btn_wiz_cont" disabled><svg data-src="svg/button_play.svg" fill="currentColor" class="svg4hyperhdr"></svg>${$.i18n('general_btn_continue')}</button><button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_close.svg" fill="currentColor" class="svg4hyperhdr"></svg>${$.i18n('general_btn_cancel')}</button>`);
+    $('#wizp1_footer').html(`<button type="button" class="btn btn-primary" id="btn_wiz_cont" disabled><svg data-src="svg/button_play.svg" fill="currentColor" class="svg-icon"></svg>${$.i18n('general_btn_continue')}</button><button type="button" class="btn btn-danger" data-bs-dismiss="modal"><svg data-src="svg/button_close.svg" fill="currentColor" class="svg-icon"></svg>${$.i18n('general_btn_cancel')}</button>`);
 
     $('#ha_form').append(`<label for="hostHA" class="form-label">${$.i18n('device_address')}</label><div><input type="text" id="hostHA" name="haInputParams1" class="form-control float-left d-inline" style="width:52%"/><select id="deviceListInstances" class="form-select bg-warning float-left d-inline" style="width:46%" /></div>`);
     $('#ha_form').append(`<label for="tokenHA" class="form-label mt-4">${$.i18n('edt_dev_auth_key_title')}</label><input type="text" id="tokenHA" name="haInputParams2" class="form-control">`);

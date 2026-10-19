@@ -12,7 +12,7 @@
 class BonjourServiceRegister;
 class FileServer;
 class QtHttpServer;
-class HyperHdrManager;
+class InstanceManager;
 class NetOrigin;
 class QtHttpRequest;
 class QtHttpReply;
@@ -59,8 +59,8 @@ private:
 	std::shared_ptr<NetOrigin> _netOrigin;
 
 	const QString        WEBSERVER_DEFAULT_PATH = ":/www";
-	const QString        WEBSERVER_DEFAULT_CRT_PATH = ":/hyperhdrcrt.pem";
-	const QString        WEBSERVER_DEFAULT_KEY_PATH = ":/hyperhdrkey.pem";
+	const QString        WEBSERVER_DEFAULT_CRT_PATH = ":/default-crt.pem";
+	const QString        WEBSERVER_DEFAULT_KEY_PATH = ":/default-key.pem";
 	quint16              WEBSERVER_DEFAULT_PORT = 8090;
 
 	BonjourServiceRegister* _serviceRegister = nullptr;

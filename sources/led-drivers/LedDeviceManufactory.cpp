@@ -34,7 +34,7 @@
 #include <led-drivers/LedDevice.h>
 #include <led-drivers/other/DriverOtherFile.h>
 
-namespace hyperhdr::leds
+namespace overglow::leds
 {
 	LedDeviceDefinition::LedDeviceDefinition(QString _name, QString _group, LedDeviceConstructor _constructor) :
 		name(_name),

@@ -2,26 +2,26 @@ macro(InstallerMacOS TARGET)
 	if(EXISTS ${TARGET_FILE})
 		cmake_policy(PUSH)
 		cmake_policy(SET CMP0177 NEW)	
-		install ( TARGETS hyperhdr DESTINATION "share/.." COMPONENT "HyperHDR" )
+		install ( TARGETS overglow DESTINATION "share/.." COMPONENT "Overglow" )
 		cmake_policy(POP)		
 
-		install(FILES "${PROJECT_SOURCE_DIR}/cmake/osx/Hyperhdr.icns" DESTINATION "hyperhdr.app/Contents/Resources" COMPONENT "HyperHDR")
-		install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION "hyperhdr.app/Contents/Resources" COMPONENT "HyperHDR")
-		install(FILES "${PROJECT_SOURCE_DIR}/3RD_PARTY_LICENSES" DESTINATION "hyperhdr.app/Contents/Resources" COMPONENT "HyperHDR")
+		install(FILES "${PROJECT_SOURCE_DIR}/branding/overglow.icns" DESTINATION "overglow.app/Contents/Resources" COMPONENT "Overglow")
+		install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION "overglow.app/Contents/Resources" COMPONENT "Overglow")
+		install(FILES "${PROJECT_SOURCE_DIR}/3RD_PARTY_LICENSES" DESTINATION "overglow.app/Contents/Resources" COMPONENT "Overglow")
 
 		# Copy SQLITE3
 		if (USE_SHARED_LIBS AND TARGET sqlite3)
-			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:sqlite3> DESTINATION "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/lib" TYPE SHARED_LIBRARY) ]] COMPONENT "HyperHDR")
+			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:sqlite3> DESTINATION "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/lib" TYPE SHARED_LIBRARY) ]] COMPONENT "Overglow")
 		endif()
 
 		# Copy utils-zstd
 		if (USE_SHARED_LIBS AND TARGET utils-zstd)
-			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:utils-zstd> DESTINATION "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/lib" TYPE SHARED_LIBRARY) ]] COMPONENT "HyperHDR")
+			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:utils-zstd> DESTINATION "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/lib" TYPE SHARED_LIBRARY) ]] COMPONENT "Overglow")
 		endif()
 
 		# Copy utils-image
 		if (USE_SHARED_LIBS AND TARGET utils-image)
-			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:utils-image> DESTINATION "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/lib" TYPE SHARED_LIBRARY) ]] COMPONENT "HyperHDR")
+			install(CODE [[ file(INSTALL FILES $<TARGET_FILE:utils-image> DESTINATION "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/lib" TYPE SHARED_LIBRARY) ]] COMPONENT "Overglow")
 		endif()
 
 		if ( Qt5Core_FOUND )			
@@ -36,11 +36,11 @@ macro(InstallerMacOS TARGET)
 			OUTPUT_STRIP_TRAILING_WHITESPACE
 		)
 
-		install(CODE "set(MYQT_PLUGINS_DIR \"${MYQT_PLUGINS_DIR}\")"     COMPONENT "HyperHDR")
-		install(CODE "set(MY_DEPENDENCY_PATHS \"${TARGET_FILE}\")"       COMPONENT "HyperHDR")
-		install(CODE "set(MY_SYSTEM_LIBS_SKIP \"${SYSTEM_LIBS_SKIP}\")"  COMPONENT "HyperHDR")
-		install(CODE "set(SCOPE_Qt_VERSION ${Qt_VERSION})"               COMPONENT "HyperHDR")
-		install(CODE "set(SCOPE_CMAKE_SYSTEM_PROCESSOR ${CMAKE_SYSTEM_PROCESSOR})" COMPONENT "HyperHDR")
+		install(CODE "set(MYQT_PLUGINS_DIR \"${MYQT_PLUGINS_DIR}\")"     COMPONENT "Overglow")
+		install(CODE "set(MY_DEPENDENCY_PATHS \"${TARGET_FILE}\")"       COMPONENT "Overglow")
+		install(CODE "set(MY_SYSTEM_LIBS_SKIP \"${SYSTEM_LIBS_SKIP}\")"  COMPONENT "Overglow")
+		install(CODE "set(SCOPE_Qt_VERSION ${Qt_VERSION})"               COMPONENT "Overglow")
+		install(CODE "set(SCOPE_CMAKE_SYSTEM_PROCESSOR ${CMAKE_SYSTEM_PROCESSOR})" COMPONENT "Overglow")
 		install(CODE [[
 				execute_process(
 					COMMAND brew --prefix openssl@3
@@ -66,13 +66,13 @@ macro(InstallerMacOS TARGET)
 						string(FIND ${openssl_lib} "dylib" _indexSSL)
 						if (${_indexSSL} GREATER -1)
 							file(INSTALL
-								DESTINATION "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/Frameworks"
+								DESTINATION "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/Frameworks"
 								TYPE SHARED_LIBRARY
 								FILES "${openssl_lib}"
 							)
 						else()
 							file(INSTALL
-								DESTINATION "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/lib"
+								DESTINATION "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/lib"
 								TYPE SHARED_LIBRARY
 								FILES "${openssl_lib}"
 							)
@@ -90,9 +90,9 @@ macro(InstallerMacOS TARGET)
 				  
 				foreach(_libfile ${_r_deps})
 				    if(_libfile MATCHES "\\.dylib$")
-				        set(_dest "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/Frameworks")
+				        set(_dest "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/Frameworks")
 				    else()
-				        set(_dest "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/lib")
+				        set(_dest "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/lib")
 				    endif()
 				    file(COPY "${_libfile}" DESTINATION "${_dest}" FOLLOW_SYMLINK_CHAIN)
 				endforeach()		
@@ -114,7 +114,7 @@ macro(InstallerMacOS TARGET)
 
 							foreach(DEPENDENCY ${PLUGINS})
 									file(INSTALL
-										DESTINATION "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/lib"
+										DESTINATION "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/lib"
 										TYPE SHARED_LIBRARY
 										FILES ${DEPENDENCY}
 									)									
@@ -122,9 +122,9 @@ macro(InstallerMacOS TARGET)
 
 							get_filename_component(real_file "${file}" REALPATH)
 							get_filename_component(singleQtLib ${file} NAME)
-							list(APPEND MYQT_PLUGINS "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/plugins/${PLUGIN}/${singleQtLib}")
+							list(APPEND MYQT_PLUGINS "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/plugins/${PLUGIN}/${singleQtLib}")
 							file(INSTALL
-								DESTINATION "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/plugins/${PLUGIN}"
+								DESTINATION "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/plugins/${PLUGIN}"
 								TYPE SHARED_LIBRARY
 								FILES "${real_file}"
 							)
@@ -134,10 +134,10 @@ macro(InstallerMacOS TARGET)
 				endforeach()
 
 			include(BundleUtilities)
-			fixup_bundle("${CMAKE_INSTALL_PREFIX}/hyperhdr.app" "${MYQT_PLUGINS}" "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/lib;${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/Frameworks")
-			fixup_bundle("${CMAKE_INSTALL_PREFIX}/hyperhdr.app" "" "")
+			fixup_bundle("${CMAKE_INSTALL_PREFIX}/overglow.app" "${MYQT_PLUGINS}" "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/lib;${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/Frameworks")
+			fixup_bundle("${CMAKE_INSTALL_PREFIX}/overglow.app" "" "")
 				
-			file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/lib")			
+			file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/lib")			
 			file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}/share")
 
 			message( "Detected architecture: '${SCOPE_CMAKE_SYSTEM_PROCESSOR}'")
@@ -145,8 +145,8 @@ macro(InstallerMacOS TARGET)
 				cmake_policy(PUSH)
 					cmake_policy(SET CMP0009 NEW)
 					message( "Re-signing bundle's components...")
-					file(GLOB_RECURSE libSignFramework LIST_DIRECTORIES false "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/Frameworks/*" "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/plugins/tls/*")
-					list(APPEND libSignFramework "${CMAKE_INSTALL_PREFIX}/hyperhdr.app/Contents/MacOS/hyperhdr")
+					file(GLOB_RECURSE libSignFramework LIST_DIRECTORIES false "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/Frameworks/*" "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/plugins/tls/*")
+					list(APPEND libSignFramework "${CMAKE_INSTALL_PREFIX}/overglow.app/Contents/MacOS/overglow")
 					foreach(_fileToSign ${libSignFramework})
 						string(FIND ${_fileToSign} ".framework/Resources" isResources)
 						if (${isResources} EQUAL -1)
@@ -157,13 +157,13 @@ macro(InstallerMacOS TARGET)
 						endif()			
 					endforeach()
 					message( "Perform final verification...")
-					execute_process(COMMAND bash -c "codesign --verify --strict --verbose=4 ${CMAKE_INSTALL_PREFIX}/hyperhdr.app" RESULT_VARIABLE CODESIGN_VERIFY)
+					execute_process(COMMAND bash -c "codesign --verify --strict --verbose=4 ${CMAKE_INSTALL_PREFIX}/overglow.app" RESULT_VARIABLE CODESIGN_VERIFY)
 					if(NOT CODESIGN_VERIFY EQUAL 0)
 						message(WARNING "Failed to repair the bundle signature: verification failed")
 					endif()
 				cmake_policy(POP)
 			endif()
-		]] COMPONENT "HyperHDR")
+		]] COMPONENT "Overglow")
 	else()		
 		# Run CMake after target was built to run get_prerequisites on ${TARGET_FILE}
 		add_custom_command(

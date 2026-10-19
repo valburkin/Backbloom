@@ -71,7 +71,7 @@ export function HomePage() {
         </a>
 
         <p className="text-xs text-ink-faint">
-          {sysInfo?.hyperhdr?.version ? `Service version ${sysInfo.hyperhdr.version} · ` : ''}
+          {sysInfo?.overglow?.version ? `Service version ${sysInfo.overglow.version} · ` : ''}
           {backend.url}
         </p>
       </div>

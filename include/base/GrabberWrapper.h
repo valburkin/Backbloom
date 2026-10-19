@@ -45,7 +45,7 @@ public slots:
 	QJsonDocument getCalibrationInfo();
 
 private slots:
-	void signalRequestSourceHandler(hyperhdr::Components component, int instanceIndex, bool listen);
+	void signalRequestSourceHandler(overglow::Components component, int instanceIndex, bool listen);
 
 signals:
 	///
@@ -54,7 +54,7 @@ signals:
 	void SignalNewVideoImage(const QString& name, const Image<ColorRgb>& image);
 	void SignalVideoStreamChanged(QString device, QString videoMode);
 	void SignalInstancePauseChanged(int instance, bool isEnabled);
-	void SignalSetNewComponentStateToAllInstances(hyperhdr::Components component, bool enable);
+	void SignalSetNewComponentStateToAllInstances(overglow::Components component, bool enable);
 	void SignalSaveCalibration(QString saveData);
 
 public slots:

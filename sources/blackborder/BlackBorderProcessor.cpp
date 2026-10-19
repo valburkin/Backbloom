@@ -1,13 +1,13 @@
 #include <iostream>
 
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 
 // Blackborder includes
 #include <blackborder/BlackBorderProcessor.h>
 
-using namespace hyperhdr;
+using namespace overglow;
 
-BlackBorderProcessor::BlackBorderProcessor(HyperHdrInstance* hyperhdr, QObject* parent)
+BlackBorderProcessor::BlackBorderProcessor(LightingInstance* lightingInstance, QObject* parent)
 	: QObject(parent)
 	, _enabled(false)
 	, _unknownSwitchCnt(600)
@@ -24,12 +24,12 @@ BlackBorderProcessor::BlackBorderProcessor(HyperHdrInstance* hyperhdr, QObject* 
 	, _hardDisabled(false)
 	, _userEnabled(false)
 {
-	connect(this, &BlackBorderProcessor::setNewComponentState, hyperhdr, &HyperHdrInstance::setNewComponentState);
+	connect(this, &BlackBorderProcessor::setNewComponentState, lightingInstance, &LightingInstance::setNewComponentState);
 
-	handleSettingsUpdate(settings::type::BLACKBORDER, hyperhdr->getSetting(settings::type::BLACKBORDER));
+	handleSettingsUpdate(settings::type::BLACKBORDER, lightingInstance->getSetting(settings::type::BLACKBORDER));
 
-	connect(hyperhdr, &HyperHdrInstance::SignalInstanceSettingsChanged, this, &BlackBorderProcessor::handleSettingsUpdate);
-	connect(hyperhdr, &HyperHdrInstance::SignalRequestComponent, this, &BlackBorderProcessor::handleCompStateChangeRequest);
+	connect(lightingInstance, &LightingInstance::SignalInstanceSettingsChanged, this, &BlackBorderProcessor::handleSettingsUpdate);
+	connect(lightingInstance, &LightingInstance::SignalRequestComponent, this, &BlackBorderProcessor::handleCompStateChangeRequest);
 }
 
 BlackBorderProcessor::~BlackBorderProcessor()
@@ -38,9 +38,9 @@ BlackBorderProcessor::~BlackBorderProcessor()
 }
 
 
-void BlackBorderProcessor::handleCompStateChangeRequest(hyperhdr::Components component, bool enable)
+void BlackBorderProcessor::handleCompStateChangeRequest(overglow::Components component, bool enable)
 {
-	if (component == hyperhdr::COMP_BLACKBORDER)
+	if (component == overglow::COMP_BLACKBORDER)
 	{
 		_userEnabled = enable;
 		if (enable)
@@ -54,7 +54,7 @@ void BlackBorderProcessor::handleCompStateChangeRequest(hyperhdr::Components com
 			_enabled = enable;
 		}
 
-		emit setNewComponentState(hyperhdr::COMP_BLACKBORDER, enable);
+		emit setNewComponentState(overglow::COMP_BLACKBORDER, enable);
 	}
 }
 
@@ -220,6 +220,6 @@ void BlackBorderProcessor::handleSettingsUpdate(settings::type type, const QJson
 		Info("BLACKBORDER", "Set mode to: {:s}", (_detectionMode));
 
 		// eval the comp state
-		handleCompStateChangeRequest(hyperhdr::COMP_BLACKBORDER, obj["enable"].toBool(true));
+		handleCompStateChangeRequest(overglow::COMP_BLACKBORDER, obj["enable"].toBool(true));
 	}
 }

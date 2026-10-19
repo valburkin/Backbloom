@@ -47,7 +47,7 @@
 #include <utils/FrameDecoderUtils.h>
 #include <base/GrabberWrapper.h>
 #include <api/HyperAPI.h>
-#include <base/HyperHdrManager.h>
+#include <base/InstanceManager.h>
 #include <infinite-color-engine/ColorSpace.h>
 #include <infinite-color-engine/YuvConverter.h>
 #include <lut-calibrator/BoardUtils.h>
@@ -118,7 +118,7 @@ public:
 //                      LUT CALIBRATOR                         //
 /////////////////////////////////////////////////////////////////
 
-LutCalibrator::LutCalibrator(QString rootpath, hyperhdr::Components defaultComp, bool debug, bool lchCorrection)
+LutCalibrator::LutCalibrator(QString rootpath, overglow::Components defaultComp, bool debug, bool lchCorrection)
 {
 	_log = "CALIBRATOR";
 	_capturedColors = std::make_shared<CapturedColors>();
@@ -352,9 +352,9 @@ void LutCalibrator::startHandler()
 		return;
 	}
 
-	emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_HDR, -1, false);
+	emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_HDR, -1, false);
 	QThread::msleep(1500);
-	emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_HDR, -1, true);
+	emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_HDR, -1, true);
 	QThread::msleep(1500);
 
 	if (!set1to1LUT())
@@ -363,13 +363,13 @@ void LutCalibrator::startHandler()
 		return;
 	}				
 
-	if (_defaultComp == hyperhdr::COMP_VIDEOGRABBER)
+	if (_defaultComp == overglow::COMP_VIDEOGRABBER)
 	{
 		notifyCalibrationMessage("Using video grabber as a source<br/>Waiting for first captured test board..");
 		Debug(_log, "Using video grabber as a source<br/>Waiting for first captured test board..");
 		connect(GlobalSignals::getInstance(), &GlobalSignals::SignalNewVideoImage, this, &LutCalibrator::setVideoImage, Qt::ConnectionType::UniqueConnection);
 	}
-	else if (_defaultComp == hyperhdr::COMP_SYSTEMGRABBER)
+	else if (_defaultComp == overglow::COMP_SYSTEMGRABBER)
 	{
 		notifyCalibrationMessage("Using system grabber as a source<br/>Waiting for first captured test board..");
 		Debug(_log, "Using system grabber as a source<br/>Waiting for first captured test board..");
@@ -377,7 +377,7 @@ void LutCalibrator::startHandler()
 	}
 	else
 	{
-		error(QString("Cannot use '%1' as a video source for calibration").arg(hyperhdr::componentToString(_defaultComp)));
+		error(QString("Cannot use '%1' as a video source for calibration").arg(overglow::componentToString(_defaultComp)));
 	}
 }
 
@@ -389,12 +389,12 @@ void LutCalibrator::stopHandler()
 
 	if (_forcedExit)
 	{
-		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_HDR, -1, false);
-		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_HDR, -1, true);
+		emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_HDR, -1, false);
+		emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_HDR, -1, true);
 
-		if (_defaultComp == hyperhdr::COMP_VIDEOGRABBER)
+		if (_defaultComp == overglow::COMP_VIDEOGRABBER)
 		{
-			emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_VIDEOGRABBER, -1, true);
+			emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_VIDEOGRABBER, -1, true);
 		}
 	}
 }
@@ -1401,12 +1401,12 @@ void LutCalibrator::calibration()
 	Debug(_log, "The control score: {:.3f}", currentError / 300.0);
 
 	// reload LUT
-	emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_HDR, -1, false);
-	emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_HDR, -1, true);
+	emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_HDR, -1, false);
+	emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_HDR, -1, true);
 
-	if (_defaultComp == hyperhdr::COMP_VIDEOGRABBER)
+	if (_defaultComp == overglow::COMP_VIDEOGRABBER)
 	{
-		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_VIDEOGRABBER, -1, true);	
+		emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_VIDEOGRABBER, -1, true);	
 	}
 }
 
@@ -1609,9 +1609,9 @@ void LutCalibrator::calibrate()
 		sendReport(_log, _yuvConverter->toString());
 	#endif
 
-	if (_defaultComp == hyperhdr::COMP_VIDEOGRABBER)
+	if (_defaultComp == overglow::COMP_VIDEOGRABBER)
 	{
-		emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_VIDEOGRABBER, -1, false);	
+		emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_VIDEOGRABBER, -1, false);	
 	}
 	
 	_capturedColors->finilizeBoard();

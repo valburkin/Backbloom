@@ -8,7 +8,7 @@
 #include <db/MetaTable.h>
 #include <QUuid>
 
-using namespace hyperhdr;
+using namespace overglow;
 
 AccessManager::AccessManager(QObject* parent)
 	: QObject(parent)
@@ -39,7 +39,7 @@ AccessManager::AccessManager(QObject* parent)
 		_authTable->createUser(DEFAULT_CONFIG_USER, DEFAULT_CONFIG_PASSWORD);
 	}
 
-	// update HyperHDR user token on startup
+	// update Overglow user token on startup
 	_authTable->setUserToken(DEFAULT_CONFIG_USER);
 }
 
@@ -92,7 +92,7 @@ QVector<AccessManager::AuthDefinition> AccessManager::getTokenList() const
 
 QString AccessManager::getUserToken(const QString& usr) const
 {
-	return QString(_authTable->getUserToken(usr));
+	return QString(_authTable->getUserToken(usr.isEmpty() ? QString(DEFAULT_CONFIG_USER) : usr));
 }
 
 void AccessManager::setAuthBlock(bool user)
@@ -155,9 +155,9 @@ bool AccessManager::updateUserPassword(const QString& user, const QString& pw, c
 	return false;
 }
 
-bool AccessManager::resetHyperhdrUser()
+bool AccessManager::resetDefaultUser()
 {
-	return _authTable->resetHyperhdrUser();
+	return _authTable->resetDefaultUser();
 }
 
 void AccessManager::setNewTokenRequest(QObject* caller, const QString& comment, const QString& id, const int& tan)

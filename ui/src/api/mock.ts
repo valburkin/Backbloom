@@ -30,7 +30,7 @@ function clone<T>(v: T): T {
 }
 
 /**
- * In-memory stand-in for HyperHDR, built from the layout fixtures: one instance driving a two-output
+ * In-memory stand-in for Overglow, built from the layout fixtures: one instance driving a two-output
  * WLED controller with the product owner's 168-LED legacy layout. Implements the same Backend interface
  * as WsClient, including auth errors, so the whole UI can run without a server (`?mock` / VITE_MOCK=1).
  */
@@ -137,7 +137,7 @@ export class MockBackend implements Backend {
         return ok(this.serverInfo());
       case 'sysinfo':
         return ok({
-          hyperhdr: { version: '22.0.0-mock', build: 'mock', readOnlyMode: false },
+          overglow: { version: '22.0.0-mock', build: 'mock', readOnlyMode: false },
           system: { hostName: 'MOCK-PC', prettyName: 'Mock OS', architecture: 'x86_64' },
         });
       case 'config':
@@ -159,7 +159,7 @@ export class MockBackend implements Backend {
         return fail('unknown or missing subcommand');
       case 'instance':
         if (subcommand === 'switchTo') {
-          if (params.instance !== 0) return fail('Selected HyperHDR instance isn\'t running');
+          if (params.instance !== 0) return fail('Selected Overglow instance isn\'t running');
           return ok();
         }
         return fail('Command not implemented');

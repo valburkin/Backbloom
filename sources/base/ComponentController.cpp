@@ -2,18 +2,18 @@
 	#include <iostream>
 #endif
 
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 #include <base/ComponentController.h>
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 
-using namespace hyperhdr;
+using namespace overglow;
 
-ComponentController::ComponentController(HyperHdrInstance* hyperhdr, bool disableOnStartup) :
-	_log(QString("COMPONENTCTRL%1").arg(hyperhdr->getInstanceIndex())),
+ComponentController::ComponentController(LightingInstance* lightingInstance, bool disableOnStartup) :
+	_log(QString("COMPONENTCTRL%1").arg(lightingInstance->getInstanceIndex())),
 	_disableOnStartup(disableOnStartup)
 {
 	// init all comps to false
-	QVector<hyperhdr::Components> vect;
+	QVector<overglow::Components> vect;
 	vect << COMP_ALL << COMP_HDR << COMP_SMOOTHING << COMP_BLACKBORDER;
 
 	vect << COMP_VIDEOGRABBER << COMP_SYSTEMGRABBER << COMP_LEDDEVICE;
@@ -22,8 +22,8 @@ ComponentController::ComponentController(HyperHdrInstance* hyperhdr, bool disabl
 		_componentStates.emplace(e, (e == COMP_ALL));
 	}
 
-	connect(this, &ComponentController::SignalRequestComponent, hyperhdr, &HyperHdrInstance::SignalRequestComponent);
-	connect(hyperhdr, &HyperHdrInstance::SignalRequestComponent, this, &ComponentController::handleCompStateChangeRequest);
+	connect(this, &ComponentController::SignalRequestComponent, lightingInstance, &LightingInstance::SignalRequestComponent);
+	connect(lightingInstance, &LightingInstance::SignalRequestComponent, this, &ComponentController::handleCompStateChangeRequest);
 	Debug(_log, "ComponentController is initialized. Components are {:s}", (_disableOnStartup) ? "DISABLED" : "ENABLED");
 }
 
@@ -32,7 +32,7 @@ ComponentController::~ComponentController()
 	Debug(_log, "ComponentController is released");
 }
 
-void ComponentController::handleCompStateChangeRequest(hyperhdr::Components comps, bool activated)
+void ComponentController::handleCompStateChangeRequest(overglow::Components comps, bool activated)
 {
 	if (comps == COMP_ALL)
 	{
@@ -40,7 +40,7 @@ void ComponentController::handleCompStateChangeRequest(hyperhdr::Components comp
 		{
 			bool disableLeds = _disableOnStartup && !isComponentEnabled(COMP_ALL) && _prevComponentStates.empty();
 
-			Debug(_log, "Disabling HyperHDR instance: saving current component states first");
+			Debug(_log, "Disabling Overglow instance: saving current component states first");
 			_componentStates[COMP_ALL] = false;
 
 			auto componentStatesCopy = _componentStates;
@@ -60,14 +60,14 @@ void ComponentController::handleCompStateChangeRequest(hyperhdr::Components comp
 						}
 					}
 
-			Debug(_log, "Disabling HyperHDR instance: preparations completed");
+			Debug(_log, "Disabling Overglow instance: preparations completed");
 			emit SignalComponentStateChanged(COMP_ALL, false);
 		}
 		else
 		{
 			if (activated && !_prevComponentStates.empty())
 			{
-				Debug(_log, "Enabling HyperHDR instance: recovering previuosly saved component states");
+				Debug(_log, "Enabling Overglow instance: recovering previuosly saved component states");
 				for (const auto& comp : _prevComponentStates)
 					if (comp.first != COMP_ALL)
 					{
@@ -83,17 +83,17 @@ void ComponentController::handleCompStateChangeRequest(hyperhdr::Components comp
 	}
 }
 
-int ComponentController::isComponentEnabled(hyperhdr::Components comp) const
+int ComponentController::isComponentEnabled(overglow::Components comp) const
 {
 	return (_componentStates.count(comp)) ? _componentStates.at(comp) : -1;
 }
 
-const std::map<hyperhdr::Components, bool>& ComponentController::getComponentsState() const
+const std::map<overglow::Components, bool>& ComponentController::getComponentsState() const
 {
 	return _componentStates;
 }
 
-void ComponentController::setNewComponentState(hyperhdr::Components comp, bool activated)
+void ComponentController::setNewComponentState(overglow::Components comp, bool activated)
 {
 	if (_componentStates[comp] != activated)
 	{
@@ -106,7 +106,7 @@ void ComponentController::setNewComponentState(hyperhdr::Components comp, bool a
 
 void ComponentController::turnGrabbers(bool activated, bool includingSystemGrabber, bool includingVideoGrabber)
 {
-	std::list<hyperhdr::Components> components;
+	std::list<overglow::Components> components;
 
 	if (includingSystemGrabber) components.push_back(COMP_SYSTEMGRABBER);
 	if (includingVideoGrabber) components.push_back(COMP_VIDEOGRABBER);

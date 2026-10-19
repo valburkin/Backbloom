@@ -178,7 +178,7 @@ int main(int argc, char* argv[]) {
 
 
 	out << "> [!NOTE]\n";
-	out << "> ### Offline benchmark: Old HyperHDR v21 vs New vectorized codecs HyperHDR v22\n";
+	out << "> ### Offline benchmark: old scalar codecs vs new vectorized codecs\n";
 	out << "> **Platform:** " << QSysInfo::prettyProductName() << " (" << cpuName() << ")\n";
 	out << "> **System:** " << QSysInfo::kernelType() << " " << QSysInfo::kernelVersion() << "\n\n";
 
@@ -199,7 +199,10 @@ int main(int argc, char* argv[]) {
 			{
 				std::vector<double> gains;
 				QString appDir = QCoreApplication::applicationDirPath();
-				QString userFolder = QString("%1%2").arg(QStandardPaths::writableLocation(QStandardPaths::HomeLocation)).arg("/.hyperhdr/lut_lin_tables.3d");
+				QString userFolder = QString("%1%2").arg(QStandardPaths::writableLocation(QStandardPaths::HomeLocation)).arg("/.overglow/lut_lin_tables.3d");
+				// a LUT next to the executable takes precedence (keeps test runs out of the user's data folder)
+				if (QFileInfo::exists(appDir + "/lut_lin_tables.3d"))
+					userFolder = appDir + "/lut_lin_tables.3d";
 				QString filePath = appDir + "/" + fileName;
 				QFile file(filePath);
 

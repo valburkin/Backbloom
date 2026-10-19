@@ -14,13 +14,13 @@ $(document).ready( function(){
 	var SYSTEM_AVAILABLE = (window.serverInfo.systemGrabbers != null);
 
 	function startSignalWizard() {		
-		$('#wiz_header').html('<svg data-src="svg/wizard.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n("edt_conf_stream_wizard_calibration_title"));
+		$('#wiz_header').html('<svg data-src="svg/wizard.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n("edt_conf_stream_wizard_calibration_title"));
 		$('#wizp1_body').html('<h4 style="font-weight:bold;text-transform:uppercase;">' + $.i18n("edt_conf_stream_wizard_prepare_for_calibration") + '</h4><p>' + $.i18n("edt_conf_stream_wizard_prepare_for_calibration_details") + '</p>');
-		$('#wizp2_body').html('<h4 style="font-weight:bold;text-transform:uppercase;">' + $.i18n("edt_conf_stream_wizard_calibrating") + '</h4><div class="row pe-1 ps-2"><div class="col-12 p-3 mt-3 text-center"><svg data-src="svg/spinner_large.svg" fill="currentColor" class="svg4hyperhdr"></svg><br/><span class="ps-3 align-middle" id="live_calibration_log">'+$.i18n("edt_conf_stream_wizard_calibrating_message_waiting")+'</span></div></div>');
+		$('#wizp2_body').html('<h4 style="font-weight:bold;text-transform:uppercase;">' + $.i18n("edt_conf_stream_wizard_calibrating") + '</h4><div class="row pe-1 ps-2"><div class="col-12 p-3 mt-3 text-center"><svg data-src="svg/spinner_large.svg" fill="currentColor" class="svg-icon"></svg><br/><span class="ps-3 align-middle" id="live_calibration_log">'+$.i18n("edt_conf_stream_wizard_calibrating_message_waiting")+'</span></div></div>');
 		$('#wizp3_body').html('<h4 id="live_calibration_summary_header" style="font-weight:bold;text-transform:uppercase;">' + $.i18n("edt_conf_stream_wizard_calibrating_summary") + '</h4><p id="live_calibration_summary"></p>');
-		$('#wizp1_footer').html('<button type="button" class="btn btn-primary" id="btn_wiz_cont_calibration"><svg data-src="svg/button_play.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_continue') + '</button><button type="button" class="btn btn-danger" name="btn_wiz_closeme_calibration"><svg data-src="svg/button_close.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_cancel') + '</button>');
-		$('#wizp2_footer').html('<button type="button" class="btn btn-danger" id="btn_wiz_disrupt_calibration"><svg data-src="svg/button_stop.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_cancel') + '</button>');
-		$('#wizp3_footer').html('<button type="button" class="btn btn-success" name="btn_wiz_closeme_calibration"><svg data-src="svg/button_success.svg" fill="currentColor" class="svg4hyperhdr"></svg></i>' + $.i18n('general_btn_ok') + '</button>');
+		$('#wizp1_footer').html('<button type="button" class="btn btn-primary" id="btn_wiz_cont_calibration"><svg data-src="svg/button_play.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_continue') + '</button><button type="button" class="btn btn-danger" name="btn_wiz_closeme_calibration"><svg data-src="svg/button_close.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_cancel') + '</button>');
+		$('#wizp2_footer').html('<button type="button" class="btn btn-danger" id="btn_wiz_disrupt_calibration"><svg data-src="svg/button_stop.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_cancel') + '</button>');
+		$('#wizp3_footer').html('<button type="button" class="btn btn-success" name="btn_wiz_closeme_calibration"><svg data-src="svg/button_success.svg" fill="currentColor" class="svg-icon"></svg></i>' + $.i18n('general_btn_ok') + '</button>');
 		//open modal
 		var sigWiz= new bootstrap.Modal($("#wizard_modal"), {
 			backdrop: "static",
@@ -476,7 +476,7 @@ $(document).ready( function(){
 		function buildInfoPanel(selectedDevice)
 		{			
 			var button = $('<button>');
-			var buttonIcon = $('<svg data-src="svg/info.svg" aria-hidden="true" fill="currentColor" class="svg4hyperhdr me-1" />');
+			var buttonIcon = $('<svg data-src="svg/info.svg" aria-hidden="true" fill="currentColor" class="svg-icon me-1" />');
 			var correction = 0;
 			
 			if (document.getElementById('page-content').clientWidth <= 800)
@@ -533,7 +533,7 @@ $(document).ready( function(){
 			if (placeHolder.length > 0)
 			{
 				var button = $('<button>');
-				var buttonIcon = $('<svg data-src="svg/button_play.svg" aria-hidden="true" fill="currentColor" class="svg4hyperhdr me-1" />');			
+				var buttonIcon = $('<svg data-src="svg/button_play.svg" aria-hidden="true" fill="currentColor" class="svg-icon me-1" />');			
 								  
 				button.attr('id','video_calibration_button')				 
 				  .attr('style', "position:absolute; right:0px; top:0px; border-top-left-radius: 4px; border-bottom-left-radius: 4px;")
@@ -594,10 +594,10 @@ $(document).ready( function(){
 	 		
 	if(VIDEO_AVAILABLE) 
 	{
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/capturing_video.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_stream_heading_title"), 'editor_container_video_device', 'btn_submit_videoGrabber'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/capturing_video.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_stream_heading_title"), 'editor_container_video_device', 'btn_submit_videoGrabber'));
 		$('#conf_cont').append(createHelpTable(window.schema.videoGrabber.properties, $.i18n("edt_conf_stream_heading_title")));
 	
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/capturing_video.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_instCapture_heading_title"), 'editor_container_videoControl', 'btn_submit_videoControl'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/capturing_video.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_instCapture_heading_title"), 'editor_container_videoControl', 'btn_submit_videoControl'));
 		$('#conf_cont').append(createHelpTable(window.schema.videoControl.properties, $.i18n("edt_conf_instCapture_heading_title")));			
 
 		// Instance Capture
@@ -628,10 +628,10 @@ $(document).ready( function(){
 			window.schema.systemGrabber.properties.device.options.enum_titles.push(name);
 		}
 		
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/capturing_software.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_system_heading_title"), 'editor_container_system_device', 'btn_submit_systemGrabber'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/capturing_software.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_system_heading_title"), 'editor_container_system_device', 'btn_submit_systemGrabber'));
 		$('#conf_cont').append(createHelpTable(window.schema.systemGrabber.properties, $.i18n("edt_conf_system_heading_title")));
 		
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/capturing_software.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_system_control_heading_title"), 'editor_container_systemControl', 'btn_submit_systemControl'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/capturing_software.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_system_control_heading_title"), 'editor_container_systemControl', 'btn_submit_systemControl'));
 		$('#conf_cont').append(createHelpTable(window.schema.systemControl.properties, $.i18n("edt_conf_system_control_heading_title")));			
 		
 		conf_system_section_editor = createJsonEditor('editor_container_system_device', { systemGrabber : window.schema.systemGrabber}, true, true);

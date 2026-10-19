@@ -24,11 +24,11 @@ $(document).ready( function(){
 	}
 	
 	function startDownloadWizard() {		
-		$('#wiz_header').html('<svg data-src="svg/wizard.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n("main_menu_grabber_lut"));
-		$('#wizp1_body').html('<h4 style="font-weight:bold;text-transform:uppercase;">' + $.i18n("perf_please_wait") + '</h4><div class="row pe-1 ps-2"><div class="col-12 p-3 mt-3 text-center"><svg data-src="svg/spinner_large.svg" fill="currentColor" class="svg4hyperhdr mb-2"></svg><br/></div></div>');
+		$('#wiz_header').html('<svg data-src="svg/wizard.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n("main_menu_grabber_lut"));
+		$('#wizp1_body').html('<h4 style="font-weight:bold;text-transform:uppercase;">' + $.i18n("perf_please_wait") + '</h4><div class="row pe-1 ps-2"><div class="col-12 p-3 mt-3 text-center"><svg data-src="svg/spinner_large.svg" fill="currentColor" class="svg-icon mb-2"></svg><br/></div></div>');
 		$('#wizp2_body').html('<h4 id="download_summary_header" style="font-weight:bold;text-transform:uppercase;"></h4><p id="download_summary"></p>');
 		$('#wizp1_footer').html('');
-		$('#wizp2_footer').html('<button type="button" class="btn btn-success" name="btn_wiz_closeme_download"><svg data-src="svg/button_success.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('general_btn_ok') + '</button>');
+		$('#wizp2_footer').html('<button type="button" class="btn btn-success" name="btn_wiz_closeme_download"><svg data-src="svg/button_success.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('general_btn_ok') + '</button>');
 		//open modal
 		var downWiz= new bootstrap.Modal($("#wizard_modal"), {
 			backdrop: "static",
@@ -132,25 +132,31 @@ $(document).ready( function(){
 			}
 		}
 	};
-	//httpRequest.open('GET', 'https://raw.githubusercontent.com/awawa-dev/LUT4HDR/master/manifest.json');
-	httpRequest.open('GET', 'https://awawa-dev.github.io/lut/manifest.json');
-	httpRequest.send();
+	if (window.lutRepositoryManifestUrl)
+	{
+		httpRequest.open('GET', window.lutRepositoryManifestUrl);
+		httpRequest.send();
+	}
+	else
+	{
+		document.getElementById("LutGrid").innerHTML = '<div class="callout callout-info">No LUT download repository is configured for this product. Use the LUT calibration instead.</div>';
+	}
 
-	$(window.hyperhdr).off("cmd-lut-install-update").on("cmd-lut-install-update", function(event)
+	$(window.serverEvents).off("cmd-lut-install-update").on("cmd-lut-install-update", function(event)
 	{
 		let resElement = document.getElementById("download_summary_header");
 
 		if (event.response.info.status == 1)
 		{
 			$('#download_summary_header').css('color', 'green');
-			resElement.innerHTML = '<svg data-src="svg/success.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('infoDialog_general_success_title');
+			resElement.innerHTML = '<svg data-src="svg/success.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('infoDialog_general_success_title');
 			resElement = document.getElementById("download_summary");
 			resElement.innerHTML = $.i18n("main_menu_grabber_lut_restart", selectedLut.lutBrightness, selectedLut.lutContrast, selectedLut.lutSaturation);
 		}
 		else
 		{
 			$('#download_summary_header').css('color', 'red');
-			resElement.innerHTML = '<svg data-src="svg/error.svg" fill="currentColor" class="svg4hyperhdr"></svg>' + $.i18n('infoDialog_general_error_title');
+			resElement.innerHTML = '<svg data-src="svg/error.svg" fill="currentColor" class="svg-icon"></svg>' + $.i18n('infoDialog_general_error_title');
 			resElement = document.getElementById("download_summary");
 			resElement.innerHTML = event.response.info.error;	
 		}

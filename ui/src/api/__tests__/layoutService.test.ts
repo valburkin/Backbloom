@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import legacyLeds from '../../layout/__fixtures__/my-layout.json';
 import { compileLayout, type LayoutSpec } from '../../layout';
-import { HyperApi } from '../hyperhdr';
+import { RpcApi } from '../rpcApi';
 import { MockBackend, MOCK_PASSWORD } from '../mock';
 import { isLayoutSpec, loadLayout, saveBlockers, saveLayout } from '../layoutService';
 import { RpcError } from '../types';
@@ -11,7 +11,7 @@ async function connected(opts: ConstructorParameters<typeof MockBackend>[0] = {}
   const opened = new Promise<void>((r) => backend.onStatus((s) => s === 'open' && r()));
   backend.connect();
   await opened;
-  return { backend, api: new HyperApi(backend) };
+  return { backend, api: new RpcApi(backend) };
 }
 
 describe('MockBackend', () => {

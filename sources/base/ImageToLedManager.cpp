@@ -25,12 +25,12 @@
 *  SOFTWARE.
 */
 
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <base/ImageToLedManager.h>
 #include <base/ImageColorAveraging.h>
 #include <blackborder/BlackBorderProcessor.h>
 
-using namespace hyperhdr;
+using namespace overglow;
 using namespace linalg::aliases;
 
 void ImageToLedManager::registerProcessingUnit(
@@ -73,21 +73,21 @@ QString ImageToLedManager::mappingTypeToStr(int mappingType)
 	return "advanced";
 }
 
-ImageToLedManager::ImageToLedManager(const LedString& ledString, HyperHdrInstance* hyperhdr)
-	: QObject(hyperhdr)
-	, _instanceIndex(hyperhdr->getInstanceIndex())
+ImageToLedManager::ImageToLedManager(const LedString& ledString, LightingInstance* lightingInstance)
+	: QObject(lightingInstance)
+	, _instanceIndex(lightingInstance->getInstanceIndex())
 	, _log(QString("IMAGETOLED_MNG%1").arg(_instanceIndex))
 	, _ledString(ledString)
-	, _borderProcessor(new BlackBorderProcessor(hyperhdr, this))
+	, _borderProcessor(new BlackBorderProcessor(lightingInstance, this))
 	, _colorAveraging(nullptr)
 	, _mappingType(0)
 	, _sparseProcessing(false)
 {
 	// init
-	handleSettingsUpdate(settings::type::COLOR, hyperhdr->getSetting(settings::type::COLOR));
+	handleSettingsUpdate(settings::type::COLOR, lightingInstance->getSetting(settings::type::COLOR));
 	// listen for changes in color - ledmapping
-	connect(hyperhdr, &HyperHdrInstance::SignalInstanceSettingsChanged, this, &ImageToLedManager::handleSettingsUpdate);
-	connect(this, &ImageToLedManager::SignalImageToLedsMappingChanged, hyperhdr, &HyperHdrInstance::SignalImageToLedsMappingChanged);
+	connect(lightingInstance, &LightingInstance::SignalInstanceSettingsChanged, this, &ImageToLedManager::handleSettingsUpdate);
+	connect(this, &ImageToLedManager::SignalImageToLedsMappingChanged, lightingInstance, &LightingInstance::SignalImageToLedsMappingChanged);
 
 	Debug(_log, "ImageToLedManager initialized");
 }
@@ -217,7 +217,7 @@ void ImageToLedManager::verifyBorder(const Image<ColorRgb>& image)
 
 	if (_borderProcessor->enabled() && _borderProcessor->process(image))
 	{
-		const hyperhdr::BlackBorder border = _borderProcessor->getCurrentBorder();
+		const overglow::BlackBorder border = _borderProcessor->getCurrentBorder();
 
 		if (border.unknown)
 		{

@@ -171,7 +171,7 @@ void AutomaticToneMapping::finilize()
 
 
 				_modeSDR = true;
-				emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_HDR, -1, false);
+				emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_HDR, -1, false);
 			}
 		}
 		else if (!triggered && _modeSDR)
@@ -185,7 +185,7 @@ void AutomaticToneMapping::finilize()
 			{
 				_modeSDR = false;
 				Info(_log, "Tone mapping ON triggered after {:d} sec", now - _startedTime);
-				emit GlobalSignals::getInstance()->SignalRequestComponent(hyperhdr::Components::COMP_HDR, -1, true);
+				emit GlobalSignals::getInstance()->SignalRequestComponent(overglow::Components::COMP_HDR, -1, true);
 			}
 		}
 

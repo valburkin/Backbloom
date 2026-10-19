@@ -16,5 +16,5 @@ if (${MACOS_MAJOR_VERSION} GREATER_EQUAL "14")
 endif()
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers AND (NOT APPLE))
-	target_precompile_headers(sound-capture-macos REUSE_FROM precompiled_hyperhdr_headers)
+	target_precompile_headers(sound-capture-macos REUSE_FROM precompiled_headers)
 endif()

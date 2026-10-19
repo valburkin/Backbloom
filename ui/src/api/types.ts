@@ -1,4 +1,4 @@
-// Wire types for the HyperHDR JSON-RPC protocol (WebSocket on the web server port, default 8090).
+// Wire types for the Overglow JSON-RPC protocol (WebSocket on the web server port, default 8090).
 //
 // Requests:  { command, subcommand?, tan, ...params }   (the server validates with additionalProperties: false)
 // Replies:   { command, tan, success, info?, error? }   (command is "cmd" or "cmd-subcmd"; errors may omit the subcommand,
@@ -115,7 +115,7 @@ export interface ServerInfo {
 }
 
 export interface SysInfo {
-  hyperhdr?: { version?: string; build?: string; readOnlyMode?: boolean; id?: string };
+  overglow?: { version?: string; build?: string; readOnlyMode?: boolean; id?: string; supportUrl?: string };
   system?: { hostName?: string; prettyName?: string; architecture?: string };
 }
 

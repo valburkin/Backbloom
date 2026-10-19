@@ -6,7 +6,7 @@ import { Logo } from '../components/Logo';
 import { MOCK_PASSWORD } from '../api/mock';
 
 /** The backend's factory default (the legacy UI signs in with it automatically; here it's an explicit choice). */
-const FACTORY_PASSWORD = 'hyperhdr';
+const FACTORY_PASSWORD = 'overglow';
 
 export function LoginScreen() {
   const { login, continueReadOnly, tokenRequired, defaultPassword, backend, sessionError } = useConnection();

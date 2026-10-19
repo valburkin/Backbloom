@@ -43,5 +43,5 @@ EffectDefinition Animation_PoliceLightsSolid::getDefinition()
 	return ed;
 }
 
-bool Animation_PoliceLightsSolid::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_PoliceLightsSolid::getDefinition());
+bool Animation_PoliceLightsSolid::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_PoliceLightsSolid::getDefinition());
 

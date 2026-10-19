@@ -31,7 +31,7 @@
 
 #include <base/Grabber.h>
 #include <base/GrabberWrapper.h>
-#include <base/HyperHdrManager.h>
+#include <base/InstanceManager.h>
 
 DetectionAutomatic::DetectionAutomatic() :
 	_log("SIGNAL_AUTO"),

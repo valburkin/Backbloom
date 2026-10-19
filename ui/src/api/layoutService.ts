@@ -6,7 +6,7 @@ import {
   type LayoutSpec,
   type LedRect,
 } from '../layout';
-import type { HyperApi } from './hyperhdr';
+import type { RpcApi } from './rpcApi';
 import type { BackendConfig, ServerInfo } from './types';
 
 export type LayoutSource = 'saved' | 'legacy' | 'empty';
@@ -71,7 +71,7 @@ async function withTimeout<T>(p: (signal: AbortSignal) => Promise<T>, ms: number
 }
 
 /** Ask the WLED controller for its outputs; fall back to a single output on any failure. */
-async function controllerForDevice(api: HyperApi, device: unknown, ledCount: number): Promise<{ controller: Controller; note?: string }> {
+async function controllerForDevice(api: RpcApi, device: unknown, ledCount: number): Promise<{ controller: Controller; note?: string }> {
   const d = (device ?? {}) as { type?: string; host?: string };
   const host = typeof d.host === 'string' ? d.host.trim() : '';
   if (d.type !== 'wled' || !host) {
@@ -105,7 +105,7 @@ function fromLegacy(rects: LedRect[], controller: Controller, instance: number, 
  * Load the layout to edit. Admin sessions read the global `layout` setting (falling back to the instance's
  * legacy `leds` + `device`); without admin access only serverinfo's `leds` is available.
  */
-export async function loadLayout(api: HyperApi, opts: { admin: boolean; serverInfo?: ServerInfo | null }): Promise<LoadedLayout> {
+export async function loadLayout(api: RpcApi, opts: { admin: boolean; serverInfo?: ServerInfo | null }): Promise<LoadedLayout> {
   const instance = opts.serverInfo?.currentInstance ?? 0;
   if (opts.admin) {
     const config = await api.getConfig();
@@ -148,7 +148,7 @@ function sameHost(a: string, b: string): boolean {
 }
 
 /** Find the running instance whose LED device is this controller. Single-instance setups skip the search. */
-async function findInstanceFor(api: HyperApi, controller: Controller, serverInfo: ServerInfo | null): Promise<number> {
+async function findInstanceFor(api: RpcApi, controller: Controller, serverInfo: ServerInfo | null): Promise<number> {
   const current = serverInfo?.currentInstance ?? 0;
   const running = (serverInfo?.instance ?? []).filter((i) => i.running);
   if (running.length <= 1) return running[0]?.instance ?? current;
@@ -181,7 +181,7 @@ export interface SaveResult {
  * matching the legacy UI (the backend replaces its in-memory config with what it receives).
  * Only called from an explicit user action.
  */
-export async function saveLayout(api: HyperApi, spec: LayoutSpec, serverInfo: ServerInfo | null): Promise<SaveResult> {
+export async function saveLayout(api: RpcApi, spec: LayoutSpec, serverInfo: ServerInfo | null): Promise<SaveResult> {
   if (spec.controllers.length !== 1) throw new Error('Only single-controller layouts can be saved for now.');
   const controller = spec.controllers[0];
   const compiled = compileLayout(spec).find((c) => c.controllerId === controller.id);

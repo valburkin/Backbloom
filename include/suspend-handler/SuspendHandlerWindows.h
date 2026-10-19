@@ -43,7 +43,7 @@ class SuspendHandler : public QObject, public QAbstractNativeEventFilter {
 	bool			_sessionLocker;
 
 signals:
-	void SignalHibernate(bool wakeUp, hyperhdr::SystemComponent source);
+	void SignalHibernate(bool wakeUp, overglow::SystemComponent source);
 
 public:
 	SuspendHandler(bool sessionLocker = false);

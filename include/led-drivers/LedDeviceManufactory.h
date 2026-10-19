@@ -38,7 +38,7 @@ class LedDevice;
 
 typedef std::function<LedDevice* (const QJsonObject& deviceConfig)> LedDeviceConstructor;
 
-namespace hyperhdr::leds
+namespace overglow::leds
 {
 	struct LedDeviceDefinition
 	{

@@ -21,7 +21,7 @@ private slots:
 	void handleSettingsUpdate(settings::type type, const QJsonDocument& config);
 
 private:
-	friend class HyperHdrDaemon;
+	friend class AppDaemon;
 	NetOrigin(QObject* parent = nullptr, const LoggerName& log = "NETWORK");
 
 	LoggerName _log;

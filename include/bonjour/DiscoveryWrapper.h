@@ -52,7 +52,7 @@ public slots:
 	QList<DiscoveryRecord> getPhilipsHUE();
 	QList<DiscoveryRecord> getHomeAssistant();
 	QList<DiscoveryRecord> getWLED();
-	QList<DiscoveryRecord> getHyperHDRServices();
+	QList<DiscoveryRecord> getPeerInstances();
 	QList<DiscoveryRecord> getAllServices();	
 
 	void signalDiscoveryEventHandler(const DiscoveryRecord& message);
@@ -67,5 +67,5 @@ private:
 	void cleanUp(QList<DiscoveryRecord>& target);
 
 	// contains all current active service sessions
-	QList<DiscoveryRecord> _hyperhdrSessions, _wledDevices, _hueDevices, _homeAssistantDevices, _espDevices, _picoDevices, _esp32s2Devices;
+	QList<DiscoveryRecord> _peerInstances, _wledDevices, _hueDevices, _homeAssistantDevices, _espDevices, _picoDevices, _esp32s2Devices;
 };

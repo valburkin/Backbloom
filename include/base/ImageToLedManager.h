@@ -15,14 +15,14 @@
 
 #include <linalg.h>
 
-class HyperHdrInstance;
+class LightingInstance;
 
 class ImageToLedManager : public QObject
 {
 	Q_OBJECT
 
 public:
-	ImageToLedManager(const LedString& ledString, HyperHdrInstance* hyperhdr);
+	ImageToLedManager(const LedString& ledString, LightingInstance* lightingInstance);
 
 	void setSize(unsigned width, unsigned height);
 	void setLedString(const LedString& ledString);
@@ -61,8 +61,8 @@ private:
 	quint8		_instanceIndex;
 	LoggerName	_log;	
 	LedString	_ledString;
-	hyperhdr::BlackBorderProcessor* _borderProcessor;
-	std::unique_ptr<hyperhdr::ImageColorAveraging> _colorAveraging;
+	overglow::BlackBorderProcessor* _borderProcessor;
+	std::unique_ptr<overglow::ImageColorAveraging> _colorAveraging;
 	int		_mappingType;
 	bool	_sparseProcessing;
 };

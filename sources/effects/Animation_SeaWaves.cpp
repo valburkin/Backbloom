@@ -60,4 +60,4 @@ EffectDefinition Animation_SeaWaves::getDefinition()
 	return ed;
 }
 
-bool Animation_SeaWaves::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_SeaWaves::getDefinition());
+bool Animation_SeaWaves::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_SeaWaves::getDefinition());

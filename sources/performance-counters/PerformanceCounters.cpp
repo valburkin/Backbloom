@@ -33,7 +33,7 @@
 #endif
 
 #include <utils/Logger.h>
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 #include <performance-counters/PerformanceCounters.h>
 #include <utils/GlobalSignals.h>
 #include <performance-counters/SystemPerformanceCounters.h>
@@ -42,10 +42,10 @@
 	#include <bonjour/DiscoveryWrapper.h>
 #endif
 
-using namespace hyperhdr;
+using namespace overglow;
 
 PerformanceReport::PerformanceReport():
-	type((int)hyperhdr::PerformanceReportType::UNKNOWN),
+	type((int)overglow::PerformanceReportType::UNKNOWN),
 	id(-1),
 	param1(0),
 	param2(0),
@@ -87,7 +87,7 @@ PerformanceReport::PerformanceReport(int _type, qint64 _token, QString _name, do
 PerformanceCounters::PerformanceCounters()
 {
 	qRegisterMetaType<PerformanceReport>();
-	qRegisterMetaType<hyperhdr::PerformanceReportType>("hyperhdr::PerformanceReportType");
+	qRegisterMetaType<overglow::PerformanceReportType>("overglow::PerformanceReportType");
 
 	_system = std::make_unique<SystemPerformanceCounters>();
 

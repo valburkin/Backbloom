@@ -15,7 +15,7 @@
 
 #include <linalg.h>
 
-namespace hyperhdr
+namespace overglow
 {	
 	class ImageColorAveraging
 	{

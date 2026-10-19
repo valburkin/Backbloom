@@ -116,4 +116,4 @@ bool Animation_SystemShutdown::Play(HyperImage& painter)
 }
 
 
-bool Animation_SystemShutdown::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_SystemShutdown::getDefinition());
+bool Animation_SystemShutdown::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_SystemShutdown::getDefinition());

@@ -47,4 +47,4 @@ EffectDefinition Animation_Breath::getDefinition()
 	return ed;
 }
 
-bool Animation_Breath::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_Breath::getDefinition());
+bool Animation_Breath::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_Breath::getDefinition());

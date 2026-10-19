@@ -30,11 +30,11 @@
 	#include <QThread>
 #endif
 
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 #include <base/SystemWrapper.h>
 #include <base/Grabber.h>
 #include <utils/GlobalSignals.h>
-#include <base/HyperHdrManager.h>
+#include <base/InstanceManager.h>
 
 SystemWrapper::SystemWrapper(const QString& grabberName, Grabber* ggrabber)
 	: _grabberName(grabberName)
@@ -70,14 +70,14 @@ SystemWrapper::~SystemWrapper()
 	Debug(_log, "Closing grabber: {:s}", (_grabberName));
 }
 
-void SystemWrapper::signalRequestSourceHandler(hyperhdr::Components component, int hyperhdrInd, bool listen)
+void SystemWrapper::signalRequestSourceHandler(overglow::Components component, int instanceIndex, bool listen)
 {
-	if (component == hyperhdr::Components::COMP_SYSTEMGRABBER)
+	if (component == overglow::Components::COMP_SYSTEMGRABBER)
 	{
 		if (listen)
-			GRABBER_SYSTEM_CLIENTS.push_back(hyperhdrInd);
+			GRABBER_SYSTEM_CLIENTS.push_back(instanceIndex);
 		else
-			GRABBER_SYSTEM_CLIENTS.remove(hyperhdrInd);
+			GRABBER_SYSTEM_CLIENTS.remove(instanceIndex);
 
 		if (GRABBER_SYSTEM_CLIENTS.empty())
 			stop();

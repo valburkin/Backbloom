@@ -27,24 +27,24 @@
 
 #include <infinite-color-engine/CoreInfiniteEngine.h>
 #include <infinite-color-engine/InfiniteSmoothing.h>
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 
-using namespace hyperhdr;
+using namespace overglow;
 using namespace ColorSpaceMath;
 using namespace linalg::aliases;
 
-CoreInfiniteEngine::CoreInfiniteEngine(HyperHdrInstance* hyperhdr)
+CoreInfiniteEngine::CoreInfiniteEngine(LightingInstance* lightingInstance)
 	: QObject(),
-	_smoothing(std::make_unique<InfiniteSmoothing>(hyperhdr->getSetting(settings::type::SMOOTHING), hyperhdr)),
-	_processing(std::make_unique<InfiniteProcessing>(hyperhdr->getSetting(settings::type::COLOR), hyperhdr->getSetting(settings::type::DEVICE), QString("COLORS%1").arg(hyperhdr->getInstanceIndex()))),
-	_log(QString("ENGINE%1").arg(hyperhdr->getInstanceIndex()))
+	_smoothing(std::make_unique<InfiniteSmoothing>(lightingInstance->getSetting(settings::type::SMOOTHING), lightingInstance)),
+	_processing(std::make_unique<InfiniteProcessing>(lightingInstance->getSetting(settings::type::COLOR), lightingInstance->getSetting(settings::type::DEVICE), QString("COLORS%1").arg(lightingInstance->getInstanceIndex()))),
+	_log(QString("ENGINE%1").arg(lightingInstance->getInstanceIndex()))
 {
 	qRegisterMetaType<SharedOutputColors>("SharedOutputColors");
-	connect(hyperhdr, &HyperHdrInstance::SignalInstanceSettingsChanged, _smoothing.get(), &InfiniteSmoothing::handleSignalInstanceSettingsChanged);
-	connect(hyperhdr, &HyperHdrInstance::SignalRequestComponent, _smoothing.get(), &InfiniteSmoothing::handleSignalRequestComponent);
-	connect(hyperhdr, &HyperHdrInstance::SignalSmoothingClockTick, _smoothing.get(), &InfiniteSmoothing::SignalMasterClockTick, static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::UniqueConnection));
-	connect(hyperhdr, &HyperHdrInstance::SignalInstanceSettingsChanged, _processing.get(), &InfiniteProcessing::handleSignalInstanceSettingsChanged);
-	connect(_smoothing.get(), &InfiniteSmoothing::SignalProcessedColors, hyperhdr, &HyperHdrInstance::SignalFinalOutputColorsReady, static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::UniqueConnection));
+	connect(lightingInstance, &LightingInstance::SignalInstanceSettingsChanged, _smoothing.get(), &InfiniteSmoothing::handleSignalInstanceSettingsChanged);
+	connect(lightingInstance, &LightingInstance::SignalRequestComponent, _smoothing.get(), &InfiniteSmoothing::handleSignalRequestComponent);
+	connect(lightingInstance, &LightingInstance::SignalSmoothingClockTick, _smoothing.get(), &InfiniteSmoothing::SignalMasterClockTick, static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::UniqueConnection));
+	connect(lightingInstance, &LightingInstance::SignalInstanceSettingsChanged, _processing.get(), &InfiniteProcessing::handleSignalInstanceSettingsChanged);
+	connect(_smoothing.get(), &InfiniteSmoothing::SignalProcessedColors, lightingInstance, &LightingInstance::SignalFinalOutputColorsReady, static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::UniqueConnection));
 }
 
 int CoreInfiniteEngine::getSuggestedInterval()

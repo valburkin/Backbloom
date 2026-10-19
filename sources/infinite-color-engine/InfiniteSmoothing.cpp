@@ -50,9 +50,9 @@
 #include <infinite-color-engine/InfiniteHybridInterpolator.h>
 #include <infinite-color-engine/InfiniteHybridRgbInterpolator.h>
 #include <infinite-color-engine/InfiniteExponentialInterpolator.h>
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 
-using namespace hyperhdr;
+using namespace overglow;
 using namespace linalg::aliases;
 
 namespace
@@ -64,10 +64,10 @@ namespace
 	constexpr double   MINIMAL_UPDATEFREQUENCY = 20;
 }
 
-InfiniteSmoothing::InfiniteSmoothing(const QJsonDocument& config, HyperHdrInstance* hyperhdr)
+InfiniteSmoothing::InfiniteSmoothing(const QJsonDocument& config, LightingInstance* lightingInstance)
 	: QObject(),
-	_log(QString("SMOOTHING%1").arg(hyperhdr->getInstanceIndex())),
-	_hyperhdr(hyperhdr),
+	_log(QString("SMOOTHING%1").arg(lightingInstance->getInstanceIndex())),
+	_instance(lightingInstance),
 	_continuousOutput(false),
 	_currentConfigId(SMOOTHING_USER_CONFIG),
 	_enabled(false),
@@ -159,7 +159,7 @@ void InfiniteSmoothing::clearQueuedColors(bool deviceEnabled, bool restarting)
 			connect(this, &InfiniteSmoothing::SignalMasterClockTick, this, &InfiniteSmoothing::updateLeds, static_cast<Qt::ConnectionType>(Qt::DirectConnection | Qt::UniqueConnection));
 		}
 
-		emit _hyperhdr->SignalSmoothingRestarted(this->getSuggestedInterval(), this->getAntiFlickeringFilterState());
+		emit _instance->SignalSmoothingRestarted(this->getSuggestedInterval(), this->getAntiFlickeringFilterState());
 
 		Info(_log, "Smoothing queue is cleared");
 	}
@@ -211,7 +211,7 @@ void InfiniteSmoothing::handleSignalInstanceSettingsChanged(settings::type type,
 		if (_currentConfigId == SMOOTHING_USER_CONFIG)
 		{
 			if (isEnabled())
-				QUEUE_CALL_0(_hyperhdr, update);
+				QUEUE_CALL_0(_instance, update);
 			selectConfig(SMOOTHING_USER_CONFIG);
 		}
 	}
@@ -290,14 +290,14 @@ void InfiniteSmoothing::queueColors(SharedOutputColors&& nonlinearRgbLedColors)
 	emit SignalProcessedColors(nonlinearRgbLedColors);
 }
 
-void InfiniteSmoothing::handleSignalRequestComponent(hyperhdr::Components component, bool state)
+void InfiniteSmoothing::handleSignalRequestComponent(overglow::Components component, bool state)
 {
-	if (component == hyperhdr::COMP_LEDDEVICE)
+	if (component == overglow::COMP_LEDDEVICE)
 	{
 		clearQueuedColors(state);
 	}
 
-	if (component == hyperhdr::COMP_SMOOTHING)
+	if (component == overglow::COMP_SMOOTHING)
 	{
 		setEnable(state);
 	}
@@ -309,7 +309,7 @@ void InfiniteSmoothing::setEnable(bool enable)
 
 	clearQueuedColors(isEnabled());
 
-	_hyperhdr->setNewComponentState(hyperhdr::COMP_SMOOTHING, enable);
+	_instance->setNewComponentState(overglow::COMP_SMOOTHING, enable);
 }
 
 unsigned InfiniteSmoothing::addConfig(int settlingTime_ms, double ledUpdateFrequency_hz, bool pause)

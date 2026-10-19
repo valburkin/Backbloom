@@ -34,26 +34,26 @@
 #include <effects/Effect.h>
 #include <effects/EffectManufactory.h>
 #include <utils/Logger.h>
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <base/SoundCapture.h>
 #include <utils/GlobalSignals.h>
 #include <effects/AnimationBaseMusic.h>
 
-Effect::Effect(HyperHdrInstance* hyperhdr, int visiblePriority, int priority, int timeout, const EffectDefinition& effect)
+Effect::Effect(LightingInstance* lightingInstance, int visiblePriority, int priority, int timeout, const EffectDefinition& effect)
 	: QObject()
 	, _visiblePriority(visiblePriority)
 	, _priority(priority)
 	, _timeout(timeout)
-	, _instanceIndex(hyperhdr->getInstanceIndex())
+	, _instanceIndex(lightingInstance->getInstanceIndex())
 	, _name(QString::fromStdString(effect.name))
 	, _effect(effect.factory())
 	, _soundHandle(0)
 	, _soundCapture(nullptr)
 	, _endTime(-1)
 	, _interrupt(false)
-	, _image(hyperhdr->getLedGridSize().width(), hyperhdr->getLedGridSize().height())
+	, _image(lightingInstance->getLedGridSize().width(), lightingInstance->getLedGridSize().height())
 	, _timer(this)
-	, _ledCount(hyperhdr->getLedCount())
+	, _ledCount(lightingInstance->getLedCount())
 {
 	_log = QString("EFFECT%1(%2)").arg(_instanceIndex).arg((_name.length() > 9) ? _name.left(6) + "..." : _name);
 
@@ -242,5 +242,5 @@ QString Effect::getDescription() const
 
 std::list<EffectDefinition> Effect::getAvailableEffects()
 {
-	return hyperhdr::effects::GET_ALL_EFFECTS();
+	return overglow::effects::GET_ALL_EFFECTS();
 }

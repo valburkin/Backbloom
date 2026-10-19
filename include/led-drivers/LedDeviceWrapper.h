@@ -10,7 +10,7 @@
 #include <utils/Components.h>
 
 class LedDevice;
-class HyperHdrInstance;
+class LightingInstance;
 
 typedef LedDevice* (*LedDeviceCreateFuncType) (const QJsonObject&);
 typedef std::map<QString, LedDeviceCreateFuncType> LedDeviceRegistry;
@@ -19,7 +19,7 @@ class LedDeviceWrapper : public QObject
 {
 	Q_OBJECT
 public:
-	explicit LedDeviceWrapper(HyperHdrInstance* ownerInstance);
+	explicit LedDeviceWrapper(LightingInstance* ownerInstance);
 	virtual ~LedDeviceWrapper();
 
 	void createLedDevice(QJsonObject config, int smoothingInterval, bool antiFlickeringFilter, bool disableOnStartup);
@@ -31,11 +31,11 @@ public:
 	int hasLedClock();
 
 public slots:
-	void handleComponentState(hyperhdr::Components component, bool state);
+	void handleComponentState(overglow::Components component, bool state);
 	void handleInternalEnableState(bool newState);
 
 private:
-	HyperHdrInstance* _ownerInstance;
+	LightingInstance* _ownerInstance;
 	std::unique_ptr<LedDevice, void(*)(LedDevice*)> _ledDevice;
 	bool              _enabled;
 };

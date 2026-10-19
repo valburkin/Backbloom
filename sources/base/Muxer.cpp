@@ -32,7 +32,7 @@ Muxer::Muxer(int instanceIndex, int /*ledCount*/, QObject* parent)
 	_lowestPriorityInfo.priority = Muxer::LOWEST_PRIORITY;
 	_lowestPriorityInfo.timeout = -1;
 	_lowestPriorityInfo.staticColor = ColorRgb::BLACK;
-	_lowestPriorityInfo.componentId = hyperhdr::COMP_COLOR;
+	_lowestPriorityInfo.componentId = overglow::COMP_COLOR;
 	_lowestPriorityInfo.origin = "System";
 	_lowestPriorityInfo.owner = "";
 
@@ -82,7 +82,7 @@ const QMap<int, Muxer::InputInfo>& Muxer::getInputInfoTable() const
 	return _activeInputs;
 }
 
-hyperhdr::Components Muxer::getComponentOfPriority(int priority) const
+overglow::Components Muxer::getComponentOfPriority(int priority) const
 {
 	return _activeInputs[priority].componentId;
 }
@@ -173,7 +173,7 @@ bool Muxer::hasPriority(int priority) const
 	return (priority == Muxer::LOWEST_PRIORITY) ? true : _activeInputs.contains(priority);
 }
 
-void Muxer::registerInput(int priority, hyperhdr::Components component, const QString& origin, const ColorRgb& staticColor, unsigned smooth_cfg, const QString& owner)
+void Muxer::registerInput(int priority, overglow::Components component, const QString& origin, const ColorRgb& staticColor, unsigned smooth_cfg, const QString& owner)
 {
 	// detect new registers
 	bool newInput = false;
@@ -194,7 +194,7 @@ void Muxer::registerInput(int priority, hyperhdr::Components component, const QS
 
 	if (newInput)
 	{
-		Info(_log, "Register new input '{:s}/{:s}' with priority {:d} as inactive", (origin), hyperhdr::componentToIdString(component), priority);
+		Info(_log, "Register new input '{:s}/{:s}' with priority {:d} as inactive", (origin), overglow::componentToIdString(component), priority);
 		// emit 'prioritiesChanged' only if _sourceAutoSelectEnabled is false
 		if (!_sourceAutoSelectEnabled)
 			emit SignalPrioritiesChanged();
@@ -244,7 +244,7 @@ void Muxer::clearAll(bool forceClearAll)
 		for (const auto& key : keys)
 		{
 			const InputInfo& info = getInputInfo(key);
-			if ((info.componentId == hyperhdr::COMP_COLOR || info.componentId == hyperhdr::COMP_EFFECT || info.componentId == hyperhdr::COMP_IMAGE) && key < Muxer::LOWEST_PRIORITY - 1)
+			if ((info.componentId == overglow::COMP_COLOR || info.componentId == overglow::COMP_EFFECT || info.componentId == overglow::COMP_IMAGE) && key < Muxer::LOWEST_PRIORITY - 1)
 			{
 				clearInput(key);
 			}
@@ -277,7 +277,7 @@ void Muxer::setCurrentTime()
 			// call timeTrigger when effect or color is running with timeout > 0, blacklist prio 255
 			if (infoIt.priority < Muxer::LOWEST_EFFECT_PRIORITY &&
 				infoIt.timeout > 0 &&
-				(infoIt.componentId == hyperhdr::COMP_EFFECT || infoIt.componentId == hyperhdr::COMP_COLOR || infoIt.componentId == hyperhdr::COMP_IMAGE))
+				(infoIt.componentId == overglow::COMP_EFFECT || infoIt.componentId == overglow::COMP_COLOR || infoIt.componentId == overglow::COMP_IMAGE))
 				emit SignalTimeTrigger_Internal(); // as signal to prevent Threading issues
 		}
 	}
@@ -296,7 +296,7 @@ void Muxer::setCurrentTime()
 		}
 	}
 	// apply & emit on change (after apply!)
-	hyperhdr::Components comp = getComponentOfPriority(newPriority);
+	overglow::Components comp = getComponentOfPriority(newPriority);
 	if (_currentPriority != newPriority || comp != _prevVisComp)
 	{
 		_previousPriority = _currentPriority;

@@ -40,7 +40,7 @@ public slots:
 	void stop();
 
 private slots:
-	void signalRequestSourceHandler(hyperhdr::Components component, int hyperHdrInd, bool listen);
+	void signalRequestSourceHandler(overglow::Components component, int instanceIndex, bool listen);
 
 signals:
 	void SignalSystemImage(const QString& name, const Image<ColorRgb>& image);

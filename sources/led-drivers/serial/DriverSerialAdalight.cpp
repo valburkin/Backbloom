@@ -243,4 +243,4 @@ LedDevice* DriverSerialAdalight::construct(const QJsonObject& deviceConfig)
 	return new DriverSerialAdalight(deviceConfig);
 }
 
-bool DriverSerialAdalight::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("adalight", "leds_group_3_serial", DriverSerialAdalight::construct);
+bool DriverSerialAdalight::isRegistered = overglow::leds::REGISTER_LED_DEVICE("adalight", "leds_group_3_serial", DriverSerialAdalight::construct);

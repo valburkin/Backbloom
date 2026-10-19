@@ -111,4 +111,4 @@ bool Animation_Plasma::Play(HyperImage& painter)
 }
 
 
-bool Animation_Plasma::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_Plasma::getDefinition());
+bool Animation_Plasma::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_Plasma::getDefinition());

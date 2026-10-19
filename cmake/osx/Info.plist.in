@@ -3,29 +3,29 @@
 <plist version="1.0">
 	<dict>
 		<key>CFBundleIdentifier</key>
-		<string>com.awawa-dev.hyperhdr</string>
+		<string>com.overglow.app</string>
 		<key>CFBundleName</key>
-		<string>HyperHDR</string>
+		<string>Overglow</string>
 		<key>CFBundleExecutable</key>
-		<string>hyperhdr</string>
+		<string>overglow</string>
 		<key>CFBundleShortVersionString</key>
 		<string>@BUNDLE_SHORT_VERSION@</string>
 		<key>CFBundleVersion</key>
-		<string>@HYPERHDR_VERSION@</string>		
+		<string>@OVERGLOW_VERSION@</string>		
 		<key>CFBundleIconFile</key>
-		<string>Hyperhdr.icns</string>
+		<string>overglow.icns</string>
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>NSCameraUsageDescription</key>
-		<string>HyperHDR needs your permission to access the video capture devices.</string>
+		<string>Overglow needs your permission to access the video capture devices.</string>
 		<key>NSScreenCaptureUsageDescription</key>
-		<string>HyperHDR needs your permission to capture the screen.</string>
+		<string>Overglow needs your permission to capture the screen.</string>
 		<key>NSMicrophoneUsageDescription</key>
-		<string>HyperHDR requires microphone access for audio-reactive effects. Once granted, a restart is required to apply the permission.</string>
+		<string>Overglow requires microphone access for audio-reactive effects. Once granted, a restart is required to apply the permission.</string>
 		<key>NSLocalNetworkUsageDescription</key>
-		<string>HyperHDR needs access to your local network to discover and communicate with other devices.</string>
+		<string>Overglow needs access to your local network to discover and communicate with other devices.</string>
 		<key>LSUIElement</key>
 		<true/>
 	</dict>

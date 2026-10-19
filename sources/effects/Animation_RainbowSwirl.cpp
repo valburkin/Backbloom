@@ -48,5 +48,5 @@ EffectDefinition Animation_RainbowSwirl::getDefinition()
 	return ed;
 }
 
-bool Animation_RainbowSwirl::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_RainbowSwirl::getDefinition());
+bool Animation_RainbowSwirl::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_RainbowSwirl::getDefinition());
 

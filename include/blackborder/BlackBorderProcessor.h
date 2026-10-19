@@ -9,16 +9,16 @@
 #include <utils/Components.h>
 #include <blackborder/BlackBorderDetector.h>
 
-class HyperHdrInstance;
+class LightingInstance;
 
-namespace hyperhdr
+namespace overglow
 {
 	class BlackBorderProcessor : public QObject
 	{
 		Q_OBJECT
 
 	public:
-		BlackBorderProcessor(HyperHdrInstance* hyperhdr, QObject* parent);
+		BlackBorderProcessor(LightingInstance* lightingInstance, QObject* parent);
 		~BlackBorderProcessor() override;
 
 		BlackBorder getCurrentBorder() const;
@@ -29,11 +29,11 @@ namespace hyperhdr
 		bool process(const Image<ColorRgb>& image);
 
 	signals:
-		void setNewComponentState(hyperhdr::Components component, bool state);
+		void setNewComponentState(overglow::Components component, bool state);
 
 	private slots:
 		void handleSettingsUpdate(settings::type type, const QJsonDocument& config);
-		void handleCompStateChangeRequest(hyperhdr::Components component, bool enable);
+		void handleCompStateChangeRequest(overglow::Components component, bool enable);
 
 	private:
 		bool updateBorder(const BlackBorder& newDetectedBorder);

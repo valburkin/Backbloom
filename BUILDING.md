@@ -1,13 +1,9 @@
-# Available methods to build HyperHDR:
-## 1. [Native build](#native-build)
-## 2. [Build a HyperHDR installer for any supported Linux system on any system using Docker](#build-a-hyperhdr-installer-for-any-supported-linux-system-on-any-system-using-docker)
-## 3. [Online: Github Action](#onlinegithub-action)
+# Building Overglow
 
----
+Windows is the primary platform and has its own step-by-step guide: [BUILDING-WINDOWS.md](BUILDING-WINDOWS.md).
+This page covers native Linux and macOS builds, which compile from the same sources but are not currently tested.
 
-# Native build
-
-## Preparing build environment
+## Build dependencies
 
 ### Debian/Ubuntu
 
@@ -32,126 +28,29 @@ sudo pacman -Syy
 sudo pacman -S alsa-lib base-devel bash binutils chrpath cmake dbus dpkg fakeroot freetds git libfbclient libglvnd libjpeg-turbo mariadb-libs mesa ninja openssl pipewire pkgfile postgresql-libs python qt6-base qt6-serialport unzip wayland wget xz chrpath
 ```
 
-### Windows
-
-We assume a 64bit Windows 10. Install the following:
-
-- [Git](https://git-scm.com/downloads) (Check during installation: Add to PATH)
-- [CMake (Windows win64-x64 Installer)](https://cmake.org/download/) (Check during installation: Add to PATH)
-- [Visual Studio 2022 Community Edition](https://visualstudio.microsoft.com/downloads/)
-    - Select 'Desktop development with C++'
-    - On the right, just select `MSVC v143 VS 2022 C++ x64/x86-Buildtools` and latest `Windows 10 SDK`. Everything else is not needed, but you can stay with default selection.
-- [OpenSSL](https://slproweb.com/products/Win32OpenSSL.html) (for QT5.15-6.2: OpenSSL v1.1.1, for QT6: OpenSSL 3)
-- [libjpeg-turbo](https://github.com/libjpeg-turbo/libjpeg-turbo/releases)
-- [Python 3 (Windows x86-64 executable installer)](https://www.python.org/downloads/windows/) (Check during installation: Add to PATH and Debug Symbols)
-    - Open a console window and execute `pip install aqtinstall`.
-    - Now we can download Qt to _C:\Qt_ `mkdir c:\Qt && aqt install -O c:\Qt 6.8.3 windows desktop win64_msvc2022_64 -m qtserialport`
-    - May need to add QT6 path before compiling, for example: `set CMAKE_PREFIX_PATH=C:\Qt\6.8.3\msvc2022_64\lib\cmake\` or for older QT5 `set Qt5_Dir=C:\Qt\5.15.2\msvc2019_64\lib\cmake\Qt5\`
-- Optional for creating installer packages: [NSIS 3.x](https://sourceforge.net/projects/nsis/files/NSIS%203/) ([direct link](https://sourceforge.net/projects/nsis/files/latest/download))
-
-> [!TIP]  
-> After you execute the configuration command in the build folder (for example ```cmake -DCMAKE_BUILD_TYPE=Release ..```) you should receive *.sln solution project file that can be opened in Visual Studio. Select `hyperhdr` project as default for the solution to run it after compilation.
-
 ### macOS
 First install [brew](https://brew.sh/) manager.  
 Next: `brew install qtbase qtserialport cmake xz pkg-config`
 
-## Compiling and installing HyperHDR
+## Compiling
 
-### Linux/macOS: the general quick & recommended way
-
-```bash
-git clone --recursive https://github.com/awawa-dev/HyperHDR.git hyperhdr
-cd hyperhdr
-mkdir build
-cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j $(nproc)
-
-# if this get stucked and dmesg says out of memory try:
-make -j 2
-
-# Run it from the build directory
-bin/hyperhdr -d
-
-# BUILD INSTALLERS (recommended method to install HyperHDR, doesnt work for ArchLinux: use build.sh script )
-cpack
-# or compile and build the package using one command
-cmake --build . --target package --config Release
-```
-
-### Windows: the general quick & recommended way
+The third-party sources in `external/` must be present (see section 2 of [BUILDING-WINDOWS.md](BUILDING-WINDOWS.md)
+for the pinned commits).
 
 ```bash
-git clone --recursive https://github.com/awawa-dev/HyperHDR.git hyperhdr
-cd hyperhdr
-mkdir build
-cd build
-# You might need to setup MSVC env first
-call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-# Maintainers: to build the HyperHDR installer, install NSIS and define environment variable:  
-# set VCINSTALLDIR="C:\Program Files\Microsoft Visual Studio\2022\Community\VC"
-cmake -DPLATFORM=windows -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release ..
-cmake --build . --config Release -- -maxcpucount
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j $(nproc)
 
-# Run it from the build directory
-bin/Release/hyperhdr -d
+# run it from the build directory
+build/bin/overglow -d
+
+# optional: installer packages (DEB/RPM/TGZ on Linux, DMG on macOS)
+cmake --build build --target package
 ```
 
-----
+Set `-DOVERGLOW_SUPPORT_URL=<url>` to show a support/documentation link in the web UIs and installers.
 
-# Build a HyperHDR installer for any supported Linux system on any system using Docker
-
-All you need is Docker and Bash, which are available on every supported system — even on Windows, where you only need to enable "Windows Subsystem for Linux". You don’t need to install any additional packages to build HyperHDR, because the script uses Docker images provided by [HyperDockerBuilder](https://github.com/awawa-dev/HyperDockerBuilder), which contain everything required to create the installer. Thanks to this, you can compile, for example, the aarch64 HyperHDR installer for Raspberry Pi directly on a PC. To start, run the `build.sh` script in the main directory.
-
-```console
-pi@ubuntu:~/hyperhdr$ ./build.sh 
-
-Required environmental options:
-PLATFORM - one of the supported targets: osx|windows|linux|rpi
-DISTRO_NAME  | DISTRO_VERSION | ARCHITECTURE - these are only for linux targets
-   debian    | bullseye       | armhf
-   debian    | bullseye       | arm64
-   debian    | bullseye       | amd64
-   debian    | bookworm       | armhf
-   debian    | bookworm       | arm64
-   debian    | bookworm       | amd64
-   debian    | trixie         | armhf
-   debian    | trixie         | arm64
-   debian    | trixie         | amd64
-   debian    | forky          | armhf
-   debian    | forky          | arm64
-   debian    | forky          | amd64
-   ubuntu    | noble          | amd64
-   ubuntu    | resolute       | amd64
-   fedora    | 44             | amd64
-   archlinux | latest         | amd64
-
-Optional environmental options:
-BUILD_TYPE - Release|Debug, default is Release version
-BUILD_ARCHIVES - false|true, cpack will build ZIP package
-USE_STANDARD_INSTALLER_NAME - false|true, use standard Linux package naming
-USE_CCACHE - false|true, use ccache if available
-RESET_CACHE - false|true, reset ccache storage
-INCLUDE_DEP_LIB - false|true, bundle dependency libs into the Linux installer
-
-Example of usage:
-PLATFORM=rpi DISTRO_NAME=debian DISTRO_VERSION=bullseye ARCHITECTURE=arm64 ./build.sh
-Installers from Docker builds will be ready in the deploy folder
-```
-
-The `build.sh` script can also be used to natively build macOS/Windows installers as an alternative to the method described in the previous point. Of course, then you must have all the necessary packages installed.
-
-----
-
-# Online:Github Action
-
-Fork HyperHDR project. Now you must enable project's `Settings → Actions → Actions permissions → Allow all actions and reusable workflows` and save it.
-Once you've done this, any change, even using the Github online editor, will immediately trigger the build in the Actions tab. If this did not happen, you probably did not enable the option described or did it later after making the changes.
-
----
-
-# Available CMake HyperHDR configuration options:
+## CMake configuration options
 Use -D prefix when configuring the build.
 
 * LED DEVICES  

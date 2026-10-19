@@ -26,7 +26,7 @@ add_library(suspend-handler OBJECT ${SUSPEND_HANDLER_SOURCES} )
 target_link_libraries(suspend-handler PUBLIC ${APPKIT_FRAMEWORK} Qt${Qt_VERSION}::Core Qt${Qt_VERSION}::Network)
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers AND NOT APPLE)
-	target_precompile_headers(suspend-handler REUSE_FROM precompiled_hyperhdr_headers)
+	target_precompile_headers(suspend-handler REUSE_FROM precompiled_headers)
 endif()
 
 if(ENABLE_POWER_MANAGEMENT AND UNIX AND NOT APPLE)

@@ -88,4 +88,4 @@ bool Animation4Music_StereoGreen::getImage(Image<ColorRgb>& newImage)
 	return true;
 };
 
-bool Animation4Music_StereoGreen::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation4Music_StereoGreen::getDefinition());
+bool Animation4Music_StereoGreen::isRegistered = overglow::effects::REGISTER_EFFECT(Animation4Music_StereoGreen::getDefinition());

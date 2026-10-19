@@ -39,7 +39,7 @@
 #include <limits.h>
 #include <stdio.h>
 
-#include <base/HyperHdrInstance.h>
+#include <base/LightingInstance.h>
 #include <grabber/GrabberWorker.h>
 #include <utils/GlobalSignals.h>
 
@@ -117,7 +117,7 @@ AVFGrabber::AVFGrabber(const QString& device, const QString& configurationPath)
 
 	if (!getPermission())
 	{
-		Warning(_log, "HyperHDR has NOT been granted the camera's permission. Will check it later again.");
+		Warning(_log, "Overglow has NOT been granted the camera's permission. Will check it later again.");
 		QTimer::singleShot(3000, this, &AVFGrabber::getPermission);
 	}
 
@@ -136,7 +136,7 @@ bool AVFGrabber::getPermission()
 	{
 		if ([AVCaptureDevice authorizationStatusForMediaType : AVMediaTypeVideo] == AVAuthorizationStatusAuthorized)
 		{
-			Info(_log, "HyperHDR has the camera's permission");
+			Info(_log, "Overglow has the camera's permission");
 			_permission = true;
 		}
 		else if (_isAVF)
@@ -146,9 +146,9 @@ bool AVFGrabber::getPermission()
 				_permission = grantedPerm;
 
 				if (_permission)
-					Info(_log, "HyperHDR has been granted the camera's permission");
+					Info(_log, "Overglow has been granted the camera's permission");
 				else
-					Error(_log, "HyperHDR has NOT been granted the camera's permission");
+					Error(_log, "Overglow has NOT been granted the camera's permission");
 
 				if (_isAVF)
 				{
@@ -156,7 +156,7 @@ bool AVFGrabber::getPermission()
 						QMetaObject::invokeMethod(this, [this]{ QTimer::singleShot(5000, this, &AVFGrabber::getPermission); });
 					else
 					{
-						Info(_log, "Got the video permission. Now trying to start HyperHDR's video grabber.");
+						Info(_log, "Got the video permission. Now trying to start Overglow's video grabber.");
 						start();
 					}
 				}
@@ -206,7 +206,7 @@ void AVFGrabber::setHdrToneMappingEnabled(int mode)
 				loadLutFile(PixelFormat::RGB24);
 			_AVFWorkerManager.Start();
 		}
-		emit SignalSetNewComponentStateToAllInstances(hyperhdr::Components::COMP_HDR, (mode != 0));
+		emit SignalSetNewComponentStateToAllInstances(overglow::Components::COMP_HDR, (mode != 0));
 	}
 	else
 		Debug(_log, "setHdrToneMappingMode nothing changed: {:s}", (mode == 0) ? "Disabled" : "Enabled");
@@ -231,7 +231,7 @@ bool AVFGrabber::init()
 {
 	if (!_permission)
 	{
-		Warning(_log, "HyperHDR has NOT been granted the camera's permission");
+		Warning(_log, "Overglow has NOT been granted the camera's permission");
 		return false;
 	}
 
@@ -782,7 +782,7 @@ bool AVFGrabber::process_image(const void* frameImageBuffer, int size)
 				QString access = (frameStat.directAccess) ? " (direct)" : "";
 				if (diff >= 59000 && diff <= 65000)
 					emit GlobalSignals::getInstance()->SignalPerformanceNewReport(
-					PerformanceReport(hyperhdr::PerformanceReportType::VIDEO_GRABBER, frameStat.token, this->_actualDeviceName + access, total / qMax(diff / 1000.0, 1.0), av, frameStat.goodFrame, frameStat.badFrame));
+					PerformanceReport(overglow::PerformanceReportType::VIDEO_GRABBER, frameStat.token, this->_actualDeviceName + access, total / qMax(diff / 1000.0, 1.0), av, frameStat.goodFrame, frameStat.badFrame));
 				
 				resetCounter(now);
 

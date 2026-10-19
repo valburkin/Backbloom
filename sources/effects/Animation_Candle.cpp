@@ -41,4 +41,4 @@ EffectDefinition Animation_Candle::getDefinition()
 	return ed;
 }
 
-bool Animation_Candle::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_Candle::getDefinition());
+bool Animation_Candle::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_Candle::getDefinition());

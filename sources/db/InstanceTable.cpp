@@ -151,7 +151,7 @@ void InstanceTable::createInstance()
 		if (createRecord(cond, data))
 			setEnable(0, true);
 		else
-			throw std::runtime_error("Failed to create HyperHDR root instance in db! This should never be the case...");
+			throw std::runtime_error("Failed to create Overglow root instance in db! This should never be the case...");
 	}
 }
 

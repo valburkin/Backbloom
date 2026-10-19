@@ -74,4 +74,4 @@ bool Animation4Music_PulseGreen::getImage(Image<ColorRgb>& newImage)
 	return true;
 };
 
-bool Animation4Music_PulseGreen::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation4Music_PulseGreen::getDefinition());
+bool Animation4Music_PulseGreen::isRegistered = overglow::effects::REGISTER_EFFECT(Animation4Music_PulseGreen::getDefinition());

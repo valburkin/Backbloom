@@ -16,7 +16,7 @@
 #include <effects/AnimationBase.h>
 #include <utils/Logger.h>
 
-class HyperHdrInstance;
+class LightingInstance;
 class SoundCapture;
 
 class Effect : public QObject
@@ -31,7 +31,7 @@ public slots:
 	void visiblePriorityChanged(quint8 priority);
 
 public:
-	Effect(HyperHdrInstance* hyperhdr,
+	Effect(LightingInstance* lightingInstance,
 			int visiblePriority,
 			int priority,
 			int timeout,

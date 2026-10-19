@@ -36,7 +36,7 @@
 #include <suspend-handler/SuspendHandlerMacOS.h>
 #include <utils/Components.h>
 #include <image/Image.h>
-#include <base/HyperHdrManager.h>
+#include <base/InstanceManager.h>
 #include <iostream>
 #include <QThread>
 #import <Cocoa/Cocoa.h>
@@ -76,14 +76,14 @@ namespace {
 - (void)goingSleep: (NSNotification*)note
 {
 	if (_suspendHandler != nullptr)
-		emit _suspendHandler->SignalHibernate(false, hyperhdr::SystemComponent::SUSPEND);
+		emit _suspendHandler->SignalHibernate(false, overglow::SystemComponent::SUSPEND);
 }
 
 
 - (void)goingWake: (NSNotification*)note
 {
 	if (_suspendHandler != nullptr)
-		emit _suspendHandler->SignalHibernate(true, hyperhdr::SystemComponent::SUSPEND);
+		emit _suspendHandler->SignalHibernate(true, overglow::SystemComponent::SUSPEND);
 }
 
 @end

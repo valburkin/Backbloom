@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Overglow
+GenericName=Overglow Ambient Lighting
+Comment=Real-time ambient lighting system for TVs, monitors and LEDs
+Icon=overglow
+Terminal=false
+TryExec=overglow
+Exec=overglow
+Type=Application
+StartupNotify=false
+Categories=AudioVideo;Video;Settings;Multimedia;

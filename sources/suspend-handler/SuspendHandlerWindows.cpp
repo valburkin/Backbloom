@@ -34,7 +34,7 @@
 #include <suspend-handler/SuspendHandlerWindows.h>
 #include <utils/Components.h>
 #include <image/Image.h>
-#include <base/HyperHdrManager.h>
+#include <base/InstanceManager.h>
 #include <windows.h>
 #include <wtsapi32.h>
 #include <systray/Systray.h>
@@ -145,11 +145,11 @@ bool SuspendHandler::nativeEventFilter(const QByteArray& /*eventType*/, void* me
 		switch (msg->wParam)
 		{			
 			case PBT_APMRESUMESUSPEND:
-				emit SignalHibernate(true, hyperhdr::SystemComponent::SUSPEND);
+				emit SignalHibernate(true, overglow::SystemComponent::SUSPEND);
 				return true;
 				break;
 			case PBT_APMSUSPEND:
-				emit SignalHibernate(false, hyperhdr::SystemComponent::SUSPEND);
+				emit SignalHibernate(false, overglow::SystemComponent::SUSPEND);
 				return true;
 				break;
 		}
@@ -160,9 +160,9 @@ bool SuspendHandler::nativeEventFilter(const QByteArray& /*eventType*/, void* me
 			if (s != nullptr && s->PowerSetting == GUID_SESSION_DISPLAY_STATUS && s->DataLength > 0)
 			{
 				if (s->Data[0] == 1)
-					emit SignalHibernate(true, hyperhdr::SystemComponent::MONITOR);
+					emit SignalHibernate(true, overglow::SystemComponent::MONITOR);
 				else if (s->Data[0] == 0)
-					emit SignalHibernate(false, hyperhdr::SystemComponent::MONITOR);
+					emit SignalHibernate(false, overglow::SystemComponent::MONITOR);
 			}
 		}
 	}
@@ -174,7 +174,7 @@ bool SuspendHandler::nativeEventFilter(const QByteArray& /*eventType*/, void* me
 			switch (msg->wParam)
 			{
 			case WTS_SESSION_UNLOCK:
-				emit SignalHibernate(true, hyperhdr::SystemComponent::LOCKER);
+				emit SignalHibernate(true, overglow::SystemComponent::LOCKER);
 				return true;
 				break;
 
@@ -186,7 +186,7 @@ bool SuspendHandler::nativeEventFilter(const QByteArray& /*eventType*/, void* me
 				}
 				else
 				{
-					emit SignalHibernate(false, hyperhdr::SystemComponent::LOCKER);
+					emit SignalHibernate(false, overglow::SystemComponent::LOCKER);
 					return true;
 				}
 				break;

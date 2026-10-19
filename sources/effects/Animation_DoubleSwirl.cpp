@@ -66,5 +66,5 @@ EffectDefinition Animation_DoubleSwirl::getDefinition()
 	return ed;
 }
 
-bool Animation_DoubleSwirl::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_DoubleSwirl::getDefinition());
+bool Animation_DoubleSwirl::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_DoubleSwirl::getDefinition());
 

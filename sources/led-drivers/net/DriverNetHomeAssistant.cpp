@@ -1,7 +1,7 @@
 #include <led-drivers/net/DriverNetHomeAssistant.h>
 #include <utils/InternalClock.h>
 
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 #ifdef ENABLE_BONJOUR
 	#include <bonjour/DiscoveryWrapper.h>
 #endif
@@ -315,7 +315,7 @@ QJsonObject DriverNetHomeAssistant::discover(const QJsonObject& /*params*/)
 		}
 	}
 #else
-	Error(_log, "The Network Discovery Service was mysteriously disabled while the maintainer was compiling this version of HyperHDR");
+	Error(_log, "The Network Discovery Service was mysteriously disabled while the maintainer was compiling this version of Overglow");
 #endif	
 
 	devicesDiscovered.insert("devices", deviceList);
@@ -329,4 +329,4 @@ LedDevice* DriverNetHomeAssistant::construct(const QJsonObject& deviceConfig)
 	return new DriverNetHomeAssistant(deviceConfig);
 }
 
-bool DriverNetHomeAssistant::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("home_assistant", "leds_group_2_network", DriverNetHomeAssistant::construct);
+bool DriverNetHomeAssistant::isRegistered = overglow::leds::REGISTER_LED_DEVICE("home_assistant", "leds_group_2_network", DriverNetHomeAssistant::construct);

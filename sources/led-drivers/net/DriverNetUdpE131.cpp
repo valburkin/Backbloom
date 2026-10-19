@@ -7,7 +7,7 @@
 #include <QHostInfo>
 #include <QUuid>
 
-// hyperhdr local includes
+// local includes
 #include <led-drivers/net/DriverNetUdpE131.h>
 
 union e131_packet_t
@@ -69,7 +69,7 @@ bool DriverNetUdpE131::init(QJsonObject deviceConfig)
 	if (ProviderUdp::init(deviceConfig))
 	{
 		_e131_universe = deviceConfig["universe"].toInt(1);
-		_e131_source_name = deviceConfig["source-name"].toString("hyperhdr on " + QHostInfo::localHostName());
+		_e131_source_name = deviceConfig["source-name"].toString("Overglow on " + QHostInfo::localHostName());
 		_disableSplitting = deviceConfig["disableSplitting"].toBool(false);
 		QString _json_cid = deviceConfig["cid"].toString("");
 
@@ -179,4 +179,4 @@ LedDevice* DriverNetUdpE131::construct(const QJsonObject& deviceConfig)
 	return new DriverNetUdpE131(deviceConfig);
 }
 
-bool DriverNetUdpE131::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("udpe131", "leds_group_2_network", DriverNetUdpE131::construct);
+bool DriverNetUdpE131::isRegistered = overglow::leds::REGISTER_LED_DEVICE("udpe131", "leds_group_2_network", DriverNetUdpE131::construct);

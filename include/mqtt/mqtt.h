@@ -68,8 +68,8 @@ private:
 	void executeJson(const QString& origin, const QJsonDocument& input, QJsonDocument& result);
 
 private:
-	QString HYPERHDRAPI;
-	QString HYPERHDRAPI_RESPONSE;
+	QString _jsonApiTopic;
+	QString _jsonApiResponseTopic;
 	QString _customTopic;
 
 	bool _enabled = false;

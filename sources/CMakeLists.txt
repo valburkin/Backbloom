@@ -1,8 +1,8 @@
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
-	file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/precompiled_hyperhdr_headers.cpp "void precompiledHeadersHyperHDR(){};")
-	add_library(precompiled_hyperhdr_headers ${CMAKE_CURRENT_BINARY_DIR}/precompiled_hyperhdr_headers.cpp)
-	target_link_libraries(precompiled_hyperhdr_headers PRIVATE Qt${Qt_VERSION}::Network Qt${Qt_VERSION}::Core)
-	target_precompile_headers(precompiled_hyperhdr_headers PRIVATE ${CMAKE_SOURCE_DIR}/include/precompiled_hyperhdr_headers/AllHeaders_pch.h )
+	file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/precompiled_headers.cpp "void precompiledHeadersStub(){};")
+	add_library(precompiled_headers ${CMAKE_CURRENT_BINARY_DIR}/precompiled_headers.cpp)
+	target_link_libraries(precompiled_headers PRIVATE Qt${Qt_VERSION}::Network Qt${Qt_VERSION}::Core)
+	target_precompile_headers(precompiled_headers PRIVATE ${CMAKE_SOURCE_DIR}/include/precompiled_headers/AllHeaders_pch.h )
 endif()
 
 # Define the current source locations
@@ -49,6 +49,6 @@ if (UNIX AND NOT APPLE AND (ENABLE_POWER_MANAGEMENT OR ENABLE_PIPEWIRE OR ENABLE
 endif()
 
 # Executables
-add_subdirectory(hyperhdr)
+add_subdirectory(app)
 
 

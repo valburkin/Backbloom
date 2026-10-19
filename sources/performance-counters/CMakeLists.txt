@@ -18,7 +18,7 @@ target_link_libraries(performance-counters
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
-	target_precompile_headers(performance-counters REUSE_FROM precompiled_hyperhdr_headers)
+	target_precompile_headers(performance-counters REUSE_FROM precompiled_headers)
 endif()
 
 if(APPLE)

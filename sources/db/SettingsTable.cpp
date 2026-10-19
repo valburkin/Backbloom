@@ -1,7 +1,7 @@
 #include <db/SettingsTable.h>
 #include <utils/settings.h>
 
-#define INSTANCE_COLUMN QString("hyperhdr_instance")
+#define INSTANCE_COLUMN QString(SETTINGS_INSTANCE_COLUMN)
 
 SettingsTable::SettingsTable(quint8 instance)
 	: DBManager()
@@ -35,7 +35,7 @@ bool SettingsTable::createSettingsRecord(const QString& type, const QString& con
 ///
 /// @brief      Test if record exist, type can be global setting or local (instance)
 /// @param[in]  type           type of setting
-/// @param[in]  hyperhdr_instance  The instance of hyperhdr assigned (might be empty)
+/// @param[in]  instance       The instance assigned (might be empty)
 /// @return     true on success else false
 ///
 bool SettingsTable::recordExist(const QString& type) const
@@ -112,7 +112,7 @@ bool SettingsTable::purge(const QString& type) const
 	return deleteRecord(cond);
 }
 ///
-/// @brief Delete all settings entries associated with this instance, called from InstanceTable of HyperHDRIManager
+/// @brief Delete all settings entries associated with this instance, called from InstanceTable of InstanceManager
 ///
 void SettingsTable::deleteInstance() const
 {

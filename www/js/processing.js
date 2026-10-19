@@ -31,7 +31,7 @@ $(document).ready( function() {
 			$("#smoothing_algo_explanation").children().first().text("");
 	};
 
-	$(window.hyperhdr).off("cmd-hasLedClock-update").on("cmd-hasLedClock-update", function(event)
+	$(window.serverEvents).off("cmd-hasLedClock-update").on("cmd-hasLedClock-update", function(event)
 	{
 		if (event.response.success)
 		{
@@ -51,19 +51,19 @@ $(document).ready( function() {
 		
 	{
 		//color		
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/image_processing_color_calibration.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_color_heading_title"), 'editor_container_color', 'btn_submit_color'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/image_processing_color_calibration.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_color_heading_title"), 'editor_container_color', 'btn_submit_color'));
 		$('#conf_cont').append(createHelpTable(window.schema.color.properties, $.i18n("edt_conf_color_heading_title")));
 		
 		//smoothing		
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/image_processing_smoothing.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_smooth_heading_title"), 'editor_container_smoothing', 'btn_submit_smoothing'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/image_processing_smoothing.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_smooth_heading_title"), 'editor_container_smoothing', 'btn_submit_smoothing'));
 		$('#conf_cont').append(createHelpTable(window.schema.smoothing.properties, $.i18n("edt_conf_smooth_heading_title")));
 		
 		//blackborder
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/image_processing_blackborder.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_conf_bb_heading_title"), 'editor_container_blackborder', 'btn_submit_blackborder'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/image_processing_blackborder.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_conf_bb_heading_title"), 'editor_container_blackborder', 'btn_submit_blackborder'));
 		$('#conf_cont').append(createHelpTable(window.schema.blackborderdetector.properties, $.i18n("edt_conf_bb_heading_title")));
 
 		//automatic tone mapping
-		$('#conf_cont').append(createOptPanel('<svg data-src="svg/hdr.svg" fill="currentColor" class="svg4hyperhdr"></svg>', $.i18n("edt_automatic_tone_mapping_title"), 'editor_container_automatic_tone_mapping', 'btn_submit_automatic_tone_mapping'));
+		$('#conf_cont').append(createOptPanel('<svg data-src="svg/hdr.svg" fill="currentColor" class="svg-icon"></svg>', $.i18n("edt_automatic_tone_mapping_title"), 'editor_container_automatic_tone_mapping', 'btn_submit_automatic_tone_mapping'));
 		$('#conf_cont').append(createHelpTable(window.schema.automaticToneMapping.properties, $.i18n("edt_automatic_tone_mapping_title")));
 	}	
 	

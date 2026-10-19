@@ -8,7 +8,14 @@ FILE ( GLOB_RECURSE webFiles RELATIVE ${CMAKE_BINARY_DIR}  ${CMAKE_SOURCE_DIR}/w
 FOREACH( f ${webFiles} )
     STRING ( REPLACE "www/" ";" workingWebFile ${f})
     list(GET workingWebFile -1 fname)
-    SET(HYPERHDR_WEBCONFIG_RES "${HYPERHDR_WEBCONFIG_RES}\n\t\t<file alias=\"/www/${fname}\">${f}</file>")
+    SET(WEBCONFIG_RESOURCE_ENTRIES "${WEBCONFIG_RESOURCE_ENTRIES}\n\t\t<file alias=\"/www/${fname}\">${f}</file>")
+ENDFOREACH()
+# legal notices, shown by the About page of the web UI
+set(LEGAL_NOTICES ${CMAKE_SOURCE_DIR}/LICENSE ${CMAKE_SOURCE_DIR}/3RD_PARTY_LICENSES)
+FOREACH( notice ${LEGAL_NOTICES} )
+    file(RELATIVE_PATH noticePath ${CMAKE_BINARY_DIR} ${notice})
+    get_filename_component(noticeName ${notice} NAME)
+    SET(WEBCONFIG_RESOURCE_ENTRIES "${WEBCONFIG_RESOURCE_ENTRIES}\n\t\t<file alias=\"/www/legal/${noticeName}.txt\">${noticePath}</file>")
 ENDFOREACH()
 CONFIGURE_FILE(${CURRENT_SOURCE_DIR}/web_resources.qrc.in ${CMAKE_BINARY_DIR}/web_resources.qrc )
 
@@ -29,6 +36,7 @@ if (NOT USE_EMBEDDED_WEB_RESOURCES)
     endif()
 
     FILE ( GLOB_RECURSE web_resources_list ${CMAKE_SOURCE_DIR}/www/* )
+    list(APPEND web_resources_list ${LEGAL_NOTICES})
 
     add_custom_command (
         OUTPUT ${EMBEDDED_WEB_RESOURCES}
@@ -52,5 +60,5 @@ if (USE_STATIC_QT_PLUGINS)
 endif()
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
-	target_precompile_headers(webserver REUSE_FROM precompiled_hyperhdr_headers)
+	target_precompile_headers(webserver REUSE_FROM precompiled_headers)
 endif()

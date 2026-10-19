@@ -50,7 +50,7 @@
 #include <webserver/QtHttpHeader.h>
 
 #include <webserver/FileServer.h>
-#include "HyperhdrConfig.h"
+#include "OverglowConfig.h"
 
 QString         FileServer::_baseUrl;
 
@@ -134,7 +134,7 @@ void FileServer::onRequestNeedsReply(QtHttpRequest* request, QtHttpReply* reply)
 		// special uri handling for server commands
 		if (!uri_parts.empty())
 		{
-			if (uri_parts.at(0) == "hyperhdr_heart_beat")
+			if (uri_parts.at(0) == "heartbeat")
 			{
 				reply->addHeader("Content-Type", "text/plain");
 				reply->appendRawData("alive");

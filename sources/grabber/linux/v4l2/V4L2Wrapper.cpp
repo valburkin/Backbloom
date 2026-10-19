@@ -27,7 +27,7 @@
 
 #include <QMetaType>
 #include <grabber/linux/v4l2/V4L2Wrapper.h>
-#include <base/HyperHdrManager.h>
+#include <base/InstanceManager.h>
 #include <utils/GlobalSignals.h>
 
 V4L2Wrapper::V4L2Wrapper(const QString& device,

@@ -40,7 +40,7 @@ public:
 	bool open();
 
 signals:
-	void monitorStateChanged(bool wakeUp, hyperhdr::SystemComponent source);
+	void monitorStateChanged(bool wakeUp, overglow::SystemComponent source);
 
 private slots:
 	void handleSignal(const QString& path, const QString& interface, const QString& member, const QVariantList& arguments, bool parseError);
@@ -60,7 +60,7 @@ public:
 	bool open(bool sessionLocker);
 
 signals:
-	void prepareForSleep(bool wakeUp, hyperhdr::SystemComponent source);
+	void prepareForSleep(bool wakeUp, overglow::SystemComponent source);
 
 private slots:
 	void handleSignal(const QString& path, const QString& interface, const QString& member, const QVariantList& arguments, bool parseError);

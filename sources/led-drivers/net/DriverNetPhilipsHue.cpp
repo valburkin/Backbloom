@@ -1,6 +1,6 @@
 #include <QSslConfiguration>
 #include <led-drivers/net/DriverNetPhilipsHue.h>
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 #ifdef ENABLE_BONJOUR
 	#include <bonjour/DiscoveryWrapper.h>
 #endif
@@ -2016,7 +2016,7 @@ QJsonObject DriverNetPhilipsHue::discover(const QJsonObject& /*params*/)
 		}
 	}
 #else
-	Error(_log, "The Network Discovery Service was mysteriously disabled while the maintainer was compiling this version of HyperHDR");
+	Error(_log, "The Network Discovery Service was mysteriously disabled while the maintainer was compiling this version of Overglow");
 #endif
 	if (deviceList.isEmpty())
 	{
@@ -2210,4 +2210,4 @@ LedDevice* DriverNetPhilipsHue::construct(const QJsonObject& deviceConfig)
 	return new DriverNetPhilipsHue(deviceConfig);
 }
 
-bool DriverNetPhilipsHue::isRegistered = hyperhdr::leds::REGISTER_LED_DEVICE("philipshue", "leds_group_2_network", DriverNetPhilipsHue::construct);
+bool DriverNetPhilipsHue::isRegistered = overglow::leds::REGISTER_LED_DEVICE("philipshue", "leds_group_2_network", DriverNetPhilipsHue::construct);

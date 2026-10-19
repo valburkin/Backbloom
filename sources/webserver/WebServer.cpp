@@ -9,7 +9,7 @@
 
 #include <webserver/QtHttpRequest.h>
 #include <webserver/WebServer.h>
-#include "HyperhdrConfig.h"
+#include "OverglowConfig.h"
 #include <webserver/FileServer.h>
 #include <webserver/QtHttpServer.h>
 
@@ -65,7 +65,7 @@ void WebServer::initServer()
 {
 	Info(_log, "Initialize Webserver");
 	_server = new QtHttpServer(_netOrigin, this);
-	_server->setServerName(QString("HyperHDR WebServer %1").arg((!_useSsl) ? "(HTTP)" : "(HTTPS)"));
+	_server->setServerName(QString("Overglow WebServer %1").arg((!_useSsl) ? "(HTTP)" : "(HTTPS)"));
 
 	if (_useSsl)
 	{
@@ -108,13 +108,13 @@ void WebServer::onServerStarted(quint16 port)
 	{
 		if (_serviceRegister == nullptr)
 		{
-			_serviceRegister = new BonjourServiceRegister(this, DiscoveryRecord::Service::HyperHDR, port);
+			_serviceRegister = new BonjourServiceRegister(this, DiscoveryRecord::Service::PeerInstance, port);
 			_serviceRegister->registerService();
 		}
 		else if (_serviceRegister->getPort() != port)
 		{
 			delete _serviceRegister;
-			_serviceRegister = new BonjourServiceRegister(this, DiscoveryRecord::Service::HyperHDR, port);
+			_serviceRegister = new BonjourServiceRegister(this, DiscoveryRecord::Service::PeerInstance, port);
 			_serviceRegister->registerService();
 		}
 	}

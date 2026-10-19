@@ -16,7 +16,7 @@ class AccessManager : public QObject
 {
 	Q_OBJECT
 private:
-	friend class HyperHdrDaemon;
+	friend class AppDaemon;
 	AccessManager(QObject* parent);
 
 public:
@@ -37,7 +37,7 @@ public:
 	bool isAuthRequired() const;
 	bool isLocalAuthRequired() const;
 	bool isLocalAdminAuthRequired() const;
-	bool resetHyperhdrUser();
+	bool resetDefaultUser();
 	bool isTokenAuthBlocked() const;
 
 public slots:
@@ -57,7 +57,7 @@ public slots:
 	void handlePendingTokenRequest(const QString& id, bool accept);
 
 	QVector<AccessManager::AuthDefinition> getPendingRequests() const;
-	QString getUserToken(const QString& usr = "Hyperhdr") const;
+	QString getUserToken(const QString& usr = QString()) const;
 	QVector<AccessManager::AuthDefinition> getTokenList() const;
 	void handleSettingsUpdate(settings::type type, const QJsonDocument& config);
 	void savePipewire(const QString& wToken);

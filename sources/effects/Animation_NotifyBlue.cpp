@@ -47,5 +47,5 @@ EffectDefinition Animation_NotifyBlue::getDefinition()
 	return ed;
 }
 
-bool Animation_NotifyBlue::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_NotifyBlue::getDefinition());
+bool Animation_NotifyBlue::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_NotifyBlue::getDefinition());
 

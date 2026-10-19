@@ -47,4 +47,4 @@ EffectDefinition Animation_StrobeRed::getDefinition()
 	return ed;
 }
 
-bool Animation_StrobeRed::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_StrobeRed::getDefinition());
+bool Animation_StrobeRed::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_StrobeRed::getDefinition());

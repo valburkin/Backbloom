@@ -34,7 +34,7 @@
 #include <limits>
 #include <unistd.h>
 #include <QLatin1String>
-#include <base/HyperHdrManager.h>
+#include <base/InstanceManager.h>
 #include <image/Image.h>
 #include <suspend-handler/SuspendHandlerLinux.h>
 #include <suspend-handler/SuspendHandlerLinuxDBus.h>
@@ -80,7 +80,7 @@ void SessionMonitorDBus::handleSignal(const QString&, const QString&, const QStr
 	bool monitorOff = arguments[0].toBool();
 
 	qDebug().nospace() << "Display event: monitor is " << (monitorOff ? "OFF" : "ON");
-	emit monitorStateChanged(!monitorOff, hyperhdr::SystemComponent::MONITOR);
+	emit monitorStateChanged(!monitorOff, overglow::SystemComponent::MONITOR);
 }
 
 SystemSuspendDBus::SystemSuspendDBus(QObject* parent) : HelperDBus(parent) {
@@ -147,7 +147,7 @@ void SystemSuspendDBus::handleSignal(const QString& path, const QString& interfa
 			if (_delayedWakeup && !lockHint) {
 				_delayedWakeup = false;
 				qDebug().nospace() << "OS event: waking up (delayed)";
-				emit prepareForSleep(true, hyperhdr::SystemComponent::SUSPEND);
+				emit prepareForSleep(true, overglow::SystemComponent::SUSPEND);
 			}
 		}
 	}
@@ -163,7 +163,7 @@ void SystemSuspendDBus::handleSignal(const QString& path, const QString& interfa
 		{
 			_delayedWakeup = false;
 			qDebug().nospace() << ((isGoingSleep) ? "OS event: going to sleep" : "OS event: waking up");
-			emit prepareForSleep(!isGoingSleep, hyperhdr::SystemComponent::SUSPEND);
+			emit prepareForSleep(!isGoingSleep, overglow::SystemComponent::SUSPEND);
 		}
 	}
 }

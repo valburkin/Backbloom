@@ -18,7 +18,7 @@ class V4L2Grabber final : public Grabber
 	Q_OBJECT
 
 public:
-	struct HyperHdrFormat
+	struct SupportedFormat
 	{
 		__u32		v4l2Format;
 		PixelFormat innerFormat;

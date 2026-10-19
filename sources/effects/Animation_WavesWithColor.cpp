@@ -40,4 +40,4 @@ EffectDefinition Animation_WavesWithColor::getDefinition()
 	return ed;
 }
 
-bool Animation_WavesWithColor::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_WavesWithColor::getDefinition());
+bool Animation_WavesWithColor::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_WavesWithColor::getDefinition());

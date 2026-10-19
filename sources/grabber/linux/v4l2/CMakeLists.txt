@@ -13,5 +13,5 @@ target_link_libraries(v4l2-grabber
 )
 
 if(USE_PRECOMPILED_HEADERS AND COMMAND target_precompile_headers)
-	target_precompile_headers(v4l2-grabber REUSE_FROM precompiled_hyperhdr_headers)
+	target_precompile_headers(v4l2-grabber REUSE_FROM precompiled_headers)
 endif()

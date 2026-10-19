@@ -119,4 +119,4 @@ bool Animation_KnightRider::Play(HyperImage& painter)
 	return ret;
 }
 
-bool Animation_KnightRider::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_KnightRider::getDefinition());
+bool Animation_KnightRider::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_KnightRider::getDefinition());

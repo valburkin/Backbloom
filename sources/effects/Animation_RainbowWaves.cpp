@@ -75,5 +75,5 @@ EffectDefinition Animation_RainbowWaves::getDefinition()
 	return ed;
 }
 
-bool Animation_RainbowWaves::isRegistered = hyperhdr::effects::REGISTER_EFFECT(Animation_RainbowWaves::getDefinition());
+bool Animation_RainbowWaves::isRegistered = overglow::effects::REGISTER_EFFECT(Animation_RainbowWaves::getDefinition());
 

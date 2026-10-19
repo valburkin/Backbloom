@@ -128,7 +128,7 @@ $(document).ready(function()
 		if (efx != "__none__" && efx != null)
 		{
 			requestPriorityClear();
-			$(window.hyperhdr).one("cmd-clear", function(event)
+			$(window.serverEvents).one("cmd-clear", function(event)
 			{
 				setTimeout(function()
 				{
@@ -216,7 +216,7 @@ $(document).ready(function()
 			var btn = '<button id="srcBtn' + i + '" type="button" ' + btn_state + ' class="btn btn-' + btn_type + ' btn_input_selection mb-2" onclick="requestSetSource(' + priority + ');">' + btn_text + '</button>';
 
 			if ((compId == "EFFECT" || compId == "COLOR" || compId == "IMAGE") && priority < 254)
-				btn += '<button type="button" class="btn btn-danger ms-1 mb-2" onclick="requestPriorityClear(' + priority + ');"><svg data-src="svg/button_close.svg" fill="currentColor" class="svg4hyperhdr me-0"></svg></button>';
+				btn += '<button type="button" class="btn btn-danger ms-1 mb-2" onclick="requestPriorityClear(' + priority + ');"><svg data-src="svg/button_close.svg" fill="currentColor" class="svg-icon me-0"></svg></button>';
 
 			if (btn_type != 'default')
 				$('.sstbody').append(createRemoteTableRow([origin, owner, priority, btn], false, true));
@@ -492,18 +492,18 @@ $(document).ready(function()
 
 	// interval updates
 
-	$(window.hyperhdr).on('components-updated', function(e, comp)
+	$(window.serverEvents).on('components-updated', function(e, comp)
 	{
 		//console.log ("components-updated", e, comp);
 		updateComponent(comp);
 	});
 
-	$(window.hyperhdr).on("priorities-update", function(event)
+	$(window.serverEvents).on("priorities-update", function(event)
 	{
 		updateInputSelect();
 	});
 
-	$(window.hyperhdr).on("adjustment-update", function (event, colorData) {
+	$(window.serverEvents).on("adjustment-update", function (event, colorData) {
 		colorAdjustmentEnabled = false;
 		for(var key in colorData)
 		{
@@ -514,13 +514,13 @@ $(document).ready(function()
 		colorAdjustmentEnabled = true;
 	});
 	
-	$(window.hyperhdr).on("cmd-imageToLedMapping-update", function(event)
+	$(window.serverEvents).on("cmd-imageToLedMapping-update", function(event)
 	{
 		window.serverInfo.imageToLedMappingType = event.response.data.imageToLedMappingType;
 		updateLedMapping();
 	});
 
-	$(window.hyperhdr).on("cmd-videomodehdr-update", function(event)
+	$(window.serverEvents).on("cmd-videomodehdr-update", function(event)
 	{
 		window.serverInfo.videomodehdr = event.response.data.videomodehdr;
 		updateVideoModeHdr();

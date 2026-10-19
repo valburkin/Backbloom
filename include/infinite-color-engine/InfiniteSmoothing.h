@@ -23,14 +23,14 @@
 #include <infinite-color-engine/InfiniteInterpolator.h>
 #include <utils/Logger.h>
 
-class HyperHdrInstance;
+class LightingInstance;
 
 class InfiniteSmoothing : public QObject
 {
 	Q_OBJECT
 
 public:
-	InfiniteSmoothing(const QJsonDocument& config, HyperHdrInstance* hyperhdr);
+	InfiniteSmoothing(const QJsonDocument& config, LightingInstance* lightingInstance);
 
 	void setEnable(bool enable);
 	bool isEnabled() const;
@@ -50,7 +50,7 @@ signals:
 
 public slots:
 	void handleSignalInstanceSettingsChanged(settings::type type, const QJsonDocument& config);
-	void handleSignalRequestComponent(hyperhdr::Components component, bool state);
+	void handleSignalRequestComponent(overglow::Components component, bool state);
 
 private slots:
 	void updateLeds();
@@ -62,7 +62,7 @@ private:
 	unsigned addConfig(int settlingTime_ms, double ledUpdateFrequency_hz = 25.0, bool pause = false);
 
 	LoggerName _log;
-	HyperHdrInstance* _hyperhdr;
+	LightingInstance* _instance;
 	QMutex _dataSynchro;
 
 	bool _continuousOutput;

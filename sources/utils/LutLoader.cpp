@@ -24,7 +24,7 @@
 *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 *  SOFTWARE.
 */
-#include <HyperhdrConfig.h>
+#include <OverglowConfig.h>
 #include <utils/LutLoader.h>
 #include <image/ColorRgb.h>
 #include <utils/FrameDecoder.h>
@@ -144,7 +144,7 @@ void LutLoader::loadLutFile(const LoggerName& _log, PixelFormat color, const QLi
 bool LutLoader::decompressLut(const LoggerName& _log, QFile& file, int index)
 {
 	auto now = InternalClock::nowPrecise();
-	[[maybe_unused]] const char* retVal = "HyperHDR was built without a support for ZSTD decoder";
+	[[maybe_unused]] const char* retVal = "Overglow was built without a support for ZSTD decoder";
 	QByteArray compressedFile = file.readAll();
 	#ifdef ENABLE_ZSTD
 		retVal = DecompressZSTD(compressedFile.size(), reinterpret_cast<uint8_t*>(compressedFile.data()), _lut.data(), index, LUT_FILE_SIZE);

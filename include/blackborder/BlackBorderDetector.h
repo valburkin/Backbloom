@@ -2,7 +2,7 @@
 
 #include <image/Image.h>
 
-namespace hyperhdr
+namespace overglow
 {
 	struct BlackBorder
 	{

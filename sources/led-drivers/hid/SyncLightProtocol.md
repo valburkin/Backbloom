@@ -176,8 +176,8 @@ left side: top -> bottom
 
 ## Color order
 
-The driver writes the color bytes it receives from HyperHDR. RGB byte order is
-already applied by HyperHDR's color processing pipeline before
+The driver writes the color bytes it receives from Overglow. RGB byte order is
+already applied by Overglow's color processing pipeline before
 `LedDevice::write()` reaches this driver. Applying RGB order again inside the
 SyncLight frame builder would double-swap channels.
 
@@ -189,5 +189,5 @@ The driver sends a black frame from:
 - `close()`
 - `~DriverOtherSyncLight()`
 
-The destructor path is required because quitting HyperHDR from the tray may
+The destructor path is required because quitting Overglow from the tray may
 destroy the driver without going through the normal instance-disable path.

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { HyperApi, SUBSCRIPTIONS } from '../api/hyperhdr';
+import { RpcApi, SUBSCRIPTIONS } from '../api/rpcApi';
 import type { Backend, ComponentInfo, ConnectionStatus, InstanceInfo, PriorityInfo, ServerInfo, SysInfo } from '../api/types';
 
 /**
@@ -12,7 +12,7 @@ export type AuthState = 'checking' | 'login' | 'admin' | 'readOnly';
 
 export interface ConnectionContextValue {
   backend: Backend;
-  api: HyperApi;
+  api: RpcApi;
   status: ConnectionStatus;
   auth: AuthState;
   /** Bumps on every (re)established session; consumers reload per-session data when it changes. */
@@ -32,7 +32,7 @@ export interface ConnectionContextValue {
 
 const Ctx = createContext<ConnectionContextValue | null>(null);
 
-const TOKEN_KEY = 'ambient.loginToken';
+const TOKEN_KEY = 'overglow.loginToken';
 
 function readToken(): string | null {
   try {
@@ -55,7 +55,7 @@ function message(e: unknown): string {
 }
 
 export function ConnectionProvider({ backend, children }: { backend: Backend; children: ReactNode }) {
-  const api = useMemo(() => new HyperApi(backend), [backend]);
+  const api = useMemo(() => new RpcApi(backend), [backend]);
   const [status, setStatus] = useState<ConnectionStatus>(backend.status);
   const [auth, setAuth] = useState<AuthState>('checking');
   const [session, setSession] = useState(0);

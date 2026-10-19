@@ -2,10 +2,10 @@
 
 #include <db/DBManager.h>
 
-namespace hyperhdr {
+namespace overglow {
 	constexpr const char* NO_AUTH = "No Authorization";
-	constexpr const char* DEFAULT_CONFIG_USER = "Hyperhdr";
-	constexpr const char* DEFAULT_CONFIG_PASSWORD = "hyperhdr";
+	constexpr const char* DEFAULT_CONFIG_USER = "admin";
+	constexpr const char* DEFAULT_CONFIG_PASSWORD = "overglow";
 }
 
 class AuthTable : public DBManager
@@ -22,7 +22,7 @@ public:
 	bool setUserToken(const QString& user);
 	const QByteArray getUserToken(const QString& user);
 	bool updateUserPassword(const QString& user, const QString& newPw);
-	bool resetHyperhdrUser();
+	bool resetDefaultUser();
 	void updateUserUsed(const QString& user);
 	bool tokenExist(const QString& token);
 	bool createToken(const QString& token, const QString& comment, const QString& id);

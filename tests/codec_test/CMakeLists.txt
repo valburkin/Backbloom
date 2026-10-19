@@ -77,7 +77,7 @@ if (USE_CCACHE_CACHING)
 			configure_file(${OUR_CMAKE_MODULES}/Directory.Build.props.in ${CMAKE_BINARY_DIR}/Directory.Build.props)
 		else()
 			if ( APPLE )
-				set(HYPERHDR_CCACHE_PARAMS
+				set(CCACHE_PARAMS
 				CCACHE_MAXSIZE=600M
 				CCACHE_NOCOMPRESS=true
 				CCACHE_DIR=${CCACHE_DIR_CACHE_LOCATION}
@@ -86,17 +86,17 @@ if (USE_CCACHE_CACHING)
 
 				add_compile_options(-Xclang -fno-pch-timestamp)
 			else()
-				set(HYPERHDR_CCACHE_PARAMS
+				set(CCACHE_PARAMS
 				CCACHE_MAXSIZE=600M
 				CCACHE_NOCOMPRESS=true
 				CCACHE_DIR=${CCACHE_DIR_CACHE_LOCATION}
 				CCACHE_SLOPPINESS=pch_defines,time_macros
 				CACHE STRING "CCache parameters")
 			endif()
-			mark_as_advanced(HYPERHDR_CCACHE_PARAMS)
+			mark_as_advanced(CCACHE_PARAMS)
 
-			set(CMAKE_C_COMPILER_LAUNCHER ${CMAKE_COMMAND} -E env ${HYPERHDR_CCACHE_PARAMS} ${CCACHE_FOUND})
-			set(CMAKE_CXX_COMPILER_LAUNCHER ${CMAKE_COMMAND} -E env ${HYPERHDR_CCACHE_PARAMS} ${CCACHE_FOUND})
+			set(CMAKE_C_COMPILER_LAUNCHER ${CMAKE_COMMAND} -E env ${CCACHE_PARAMS} ${CCACHE_FOUND})
+			set(CMAKE_CXX_COMPILER_LAUNCHER ${CMAKE_COMMAND} -E env ${CCACHE_PARAMS} ${CCACHE_FOUND})
 
 			message(STATUS "Using CCache for compilation. It is invoked as: ${CMAKE_CXX_COMPILER_LAUNCHER}")
 		endif()
@@ -194,18 +194,18 @@ if ( "${PLATFORM}" MATCHES "osx" )
 	SET ( DEFAULT_EMBEDDED_WEB_RESOURCES OFF )
 
 	if(CMAKE_OSX_DEPLOYMENT_TARGET)
-		set(CMAKE_OSX_HYPERHDR_DEPLOYMENT_TARGET ${CMAKE_OSX_DEPLOYMENT_TARGET})
+		set(CMAKE_OSX_OVERGLOW_DEPLOYMENT_TARGET ${CMAKE_OSX_DEPLOYMENT_TARGET})
 	else()
 		execute_process(COMMAND sw_vers -productVersion
 						OUTPUT_VARIABLE MACOS_VERSION
 						OUTPUT_STRIP_TRAILING_WHITESPACE)
-		set(CMAKE_OSX_HYPERHDR_DEPLOYMENT_TARGET ${MACOS_VERSION})
-		message(STATUS "Using CMAKE_OSX_HYPERHDR_DEPLOYMENT_TARGET=${CMAKE_OSX_HYPERHDR_DEPLOYMENT_TARGET}")
+		set(CMAKE_OSX_OVERGLOW_DEPLOYMENT_TARGET ${MACOS_VERSION})
+		message(STATUS "Using CMAKE_OSX_OVERGLOW_DEPLOYMENT_TARGET=${CMAKE_OSX_OVERGLOW_DEPLOYMENT_TARGET}")
 	endif()
 
-	if (CMAKE_OSX_HYPERHDR_DEPLOYMENT_TARGET)
-		message(STATUS "CMAKE_OSX_DEPLOYMENT_TARGET: ${CMAKE_OSX_HYPERHDR_DEPLOYMENT_TARGET}")
-		SET(CMAKE_OSX_DEPLOYMENT_TARGET_COPY ${CMAKE_OSX_HYPERHDR_DEPLOYMENT_TARGET})
+	if (CMAKE_OSX_OVERGLOW_DEPLOYMENT_TARGET)
+		message(STATUS "CMAKE_OSX_DEPLOYMENT_TARGET: ${CMAKE_OSX_OVERGLOW_DEPLOYMENT_TARGET}")
+		SET(CMAKE_OSX_DEPLOYMENT_TARGET_COPY ${CMAKE_OSX_OVERGLOW_DEPLOYMENT_TARGET})
 		string(REPLACE "." ";" CMAKE_OSX_DEPLOYMENT_TARGET_COPY_LIST ${CMAKE_OSX_DEPLOYMENT_TARGET_COPY})
 		list(GET CMAKE_OSX_DEPLOYMENT_TARGET_COPY_LIST 0 MACOS_MAJOR_VERSION)
 		message(STATUS "MAJOR MACOS VERSION: ${MACOS_MAJOR_VERSION}")
@@ -221,7 +221,7 @@ if ( "${PLATFORM}" MATCHES "osx" )
 		else()
 			SET ( DEFAULT_MAC_SYSTEM             ON  )
 		endif()
-	endif(CMAKE_OSX_HYPERHDR_DEPLOYMENT_TARGET)
+	endif(CMAKE_OSX_OVERGLOW_DEPLOYMENT_TARGET)
 
 elseif ( "${PLATFORM}" MATCHES "rpi" )	
 	SET ( DEFAULT_SYSTRAY    OFF )
@@ -285,7 +285,7 @@ if (DEFAULT_X11)
 endif()
 
 # D-bus support
-set ( HYPERHDR_HAVE_DBUS                  OFF )
+set ( OVERGLOW_HAVE_DBUS                  OFF )
 if (DEFAULT_POWER_MANAGEMENT OR DEFAULT_PIPEWIRE OR DEFAULT_SYSTRAY)
 	if(UNIX AND NOT APPLE)
 		find_package(PkgConfig REQUIRED)
@@ -296,7 +296,7 @@ if (DEFAULT_POWER_MANAGEMENT OR DEFAULT_PIPEWIRE OR DEFAULT_SYSTRAY)
 			SET ( DEFAULT_PIPEWIRE                       OFF )
 			SET ( DEFAULT_SYSTRAY                        OFF )
 		else()
-			set ( HYPERHDR_HAVE_DBUS                     ON )
+			set ( OVERGLOW_HAVE_DBUS                     ON )
 		endif()
 	endif()
 endif()
@@ -304,7 +304,7 @@ endif()
 # Find OpenSSL
 find_package(OpenSSL)
 if (NOT OPENSSL_FOUND)
-	message( WARNING "OpenSSL could not be found. HyperHDR HTTPS instance and Philips Hue support will be disabled." )
+	message( WARNING "OpenSSL could not be found. Overglow HTTPS instance and Philips Hue support will be disabled." )
 endif()
 
 # Pipewire support
@@ -445,7 +445,7 @@ if(UNIX AND NOT APPLE)
 	option(USE_STANDARD_INSTALLER_NAME "Use the standardized Linux installer name" OFF)
 	colorMe("USE_STANDARD_INSTALLER_NAME = " ${USE_STANDARD_INSTALLER_NAME})
 
-	colorMe("HYPERHDR_HAVE_DBUS = " ${HYPERHDR_HAVE_DBUS})
+	colorMe("OVERGLOW_HAVE_DBUS = " ${OVERGLOW_HAVE_DBUS})
 else()
 	SET ( USE_STANDARD_INSTALLER_NAME      OFF )
 endif()
@@ -463,7 +463,7 @@ endif()
 
 # configure a header file to pass some of the CMake settings
 # to the source code
-configure_file("${PROJECT_SOURCE_DIR}/../../HyperhdrConfig.h.in" "${PROJECT_BINARY_DIR}/HyperhdrConfig.h")
+configure_file("${PROJECT_SOURCE_DIR}/../../OverglowConfig.h.in" "${PROJECT_BINARY_DIR}/OverglowConfig.h")
 include_directories("${PROJECT_BINARY_DIR}")
 
 # Define the global output path of binaries
@@ -603,7 +603,7 @@ endif()
 # remove generated files on make cleaan too
 LIST( APPEND GENERATED_QRC
 	${CMAKE_BINARY_DIR}/WebConfig.qrc
-	${CMAKE_BINARY_DIR}/HyperhdrConfig.h
+	${CMAKE_BINARY_DIR}/OverglowConfig.h
 )
 set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${GENERATED_QRC}" )
 
