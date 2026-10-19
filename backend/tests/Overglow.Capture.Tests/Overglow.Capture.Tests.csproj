@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Overglow.Capture\Overglow.Capture.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Overglow.Core.Tests\Golden\TestImages.cs" Link="Golden\TestImages.cs" />
+  </ItemGroup>
+</Project>

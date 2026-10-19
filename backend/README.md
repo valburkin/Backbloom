@@ -4,11 +4,12 @@ The C# / .NET 10 port of the Overglow backend. The C++ code in `sources/` and `i
 implementation: behavior is ported from it file by file and compared with golden fixtures exported from it. It is
 deleted once this backend reaches parity.
 
-Status: **port step 2** (golden fixtures). The React UI in `ui/` connects to it, a synthetic frame source drives the
+Status: **port steps 1-4**. The React UI in `ui/` connects to it, screen capture (or a synthetic test pattern) drives the
 LEDs through the real mapping and color pipeline, and the WLED, DDP and file drivers run on their own device threads.
 LED layout parsing, image to LED mapping, color processing and black border detection match fixtures exported from the
 C++ reference exactly. Settings (port step 4) live in SQLite, cover every kept settings type and are imported from
-HyperHDR databases.
+HyperHDR databases. Windows screen capture with HDR tone mapping (port step 3) drives the pipeline from the
+`systemGrabber` settings; see [Screen capture](#screen-capture-windows).
 
 Portions of this code are ported from [HyperHDR](https://github.com/awawa-dev/HyperHDR) (MIT, copyright awawa-dev);
 the source file each part comes from is named in its doc comments.
@@ -36,7 +37,9 @@ Command-line options (also `OVERGLOW_<NAME>` environment variables):
 | `--data-dir` | per-user `Overglow` folder; `backend/.local/data` when run from the source tree | `settings.db` (settings, controllers, credentials as hashes, instance id), `backups/`, `imported/`. See [Settings](#settings-storage-and-hyperhdr-import). |
 | `--legacy-data-dir` | HyperHDR's data folder; none when run from the source tree | Where the first start looks for `db/hyperhdr.db` to import. `none` turns it off. |
 | `--ui-dir` | `ui/dist` of the source tree | Built React UI to serve. |
+| `--capture` | `screen` | Frame source: `screen` (DXGI desktop duplication, configured by `systemGrabber`; falls back to the test pattern on other OSes) or `synthetic` (test pattern, used by the server tests). |
 | `--fps` | `60` | Rate of the synthetic test source. |
+| `--lut-dirs` | data dir, app dir | Directories searched for `lut_lin_tables.3d` (or `.3d.zst`), separated by `;`; the default table is written to the first. |
 
 ### Using the UI
 
@@ -52,7 +55,9 @@ The default admin password is `overglow` (as in the C++ build). Local clients ne
 ```
 src/
   Overglow.Core       pure logic: LED layout, image->LED mapping, color processing, black borders (no I/O, no threads)
-  Overglow.Capture    frame source abstraction, frame pacer, synthetic test source
+  Overglow.Capture    frame source abstraction, frame pacer, synthetic test source, capture settings, CPU scaling
+                      path, HDR tone mapping table (LUT loader, default LUT)
+  Overglow.Capture.Windows  DXGI desktop duplication + Direct3D 11 scaling / HDR shader (TerraFX interop)
   Overglow.Devices    LED device lifecycle (LedDeviceRunner) + drivers: wled, ddp, file
   Overglow.Settings   settings schemas + validation, SQLite store, credential store, HyperHDR import, backups
   Overglow.Engine     orchestration: frame loop, component switches, controllers, live preview feed
@@ -65,7 +70,7 @@ tests/
 Dependency rules (a project may only use the ones above it in this list):
 
 1. `Core`, `Settings` (no project references)
-2. `Capture`, `Devices` (Core)
+2. `Capture`, `Devices` (Core); `Capture.Windows` (Capture)
 3. `Engine` (Core, Capture, Devices, Settings)
 4. `Server` (Engine and below)
 5. `App` (everything; the only place that creates services)
@@ -73,8 +78,8 @@ Dependency rules (a project may only use the ones above it in this list):
 `Overglow.Engine` is an addition to the plan's layout: the API layer needs one orchestrator to talk to
 (component switches, live colors, identify), and it can't live in `App` without the server depending on the host.
 
-Platform code (Windows capture, audio, tray) will live only in `*.Windows` / `*.MacOS` / `*.Linux` projects behind
-interfaces defined in the projects above.
+Platform code lives only in `*.Windows` / `*.MacOS` / `*.Linux` projects behind interfaces defined in the projects
+above (`Capture.Windows` implements `IScreenCaptureSource`; `App` creates it only on Windows).
 
 ## Threading model
 
@@ -96,7 +101,7 @@ interfaces defined in the projects above.
 ## Hot-path rules
 
 The frame loop and `LedDeviceRunner.Submit` must not allocate in steady state (`GC.GetAllocatedBytesForCurrentThread`
-tests enforce it in Core, Devices and Engine):
+tests enforce it in Core, Devices, Engine, Capture and Capture.Windows):
 
 - buffers are sized when the LED count or frame size changes, not per frame;
 - `ImageToLedMap` precomputes pixel offsets per LED into flat arrays;
@@ -110,7 +115,41 @@ frame) and the file driver writing to the null device (Release build, 24 logical
 without clients and 2.1 % with the UI's live preview connected; working set about 62 MB (22 MB private).
 
 The synthetic source paces itself by absolute deadlines because the default Windows timer resolution is 15.6 ms;
-the average rate is exact, single frames jitter by up to one timer tick. Real capture paces itself (DXGI).
+the average rate is exact, single frames jitter by up to one timer tick. Screen capture uses the same pacer for its
+`fps` limit and then takes the newest desktop image DXGI has.
+
+## Screen capture (Windows)
+
+Port of the DX grabber (`DxGrabber`, `Grabber`, `SystemWrapper`, `LutLoader`, `DefaultLut`). `DxgiScreenSource` runs
+entirely on the frame loop thread (D3D11's immediate context is single-threaded): it initializes lazily, retries after
+failures and rebuilds the duplication when it is lost.
+
+| | |
+|---|---|
+| Monitors | `MonitorEnumerator`: DXGI outputs plus the display configuration API. Setting values: `auto` (primary monitor; HyperHDR took the first sorted entry, which could be a multi-monitor one), `\\.\DISPLAY5\|NVIDIA GeForce RTX 5080` (HyperHDR's id, kept so imported settings work and the UI can show it), the stable monitor device path (or `edid:manufacturer:product:connector` when the driver reports none), or `MULTI-MONITOR\|adapter` (all monitors of an adapter side by side, ordered by `reorder_displays` as `std::next_permutation` did). |
+| Duplication | `IDXGIOutput6::DuplicateOutput1` (the capture thread is made per-monitor DPI aware, otherwise it fails with `DXGI_ERROR_UNSUPPORTED`). HDR is detected per monitor (`DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020`); with hardware on and `monitor_nits` > 0 the desktop is duplicated as FP16 scRGB (10-bit PQ as a fallback), else as 8-bit BGRA, which Windows converts to SDR. |
+| GPU path (`hardware`) | `GpuScaler`: the acquired texture is copied into an own texture (the frame is released at once), `Shaders/Downscale.hlsl` averages each `divide` x `divide` block of the cropped area (bilinear taps between texels, up to 8 x 8 per pixel) into a small BGRA target, then one staging readback of that size. Modes: scRGB scaled by 80 / `monitor_nits` + BT.709 OETF (the C++ HDR shader, reconstructed from its bytecode), PQ/BT.2020 -> BT.709, the LUT as a 256^3 RGBA8 3D texture read with exact texel loads (8-bit captures with `hdrToneMapping`), or plain SDR. The shader only runs when the image or the mode changed. |
+| CPU path | `CpuScaler` + `BgraDownscaler` (port of `decodeBGRA`): full-size 8-bit readback, every `divide`-th pixel, LUT on the CPU. Used when `hardware` is off or the shaders can't be created. |
+| Scaling, crop | `CaptureRegion`: the smallest whole factor that makes the cropped width fit `videoMode` (as `getTargetSystemFrameDimension`). Crops are in screen pixels on both paths (the C++ GPU path cropped the scaled image) and are ignored when they leave 16 pixels or less. |
+| Pacing, latency | `fps` via `FramePacer`; then `AcquireNextFrame(0)` returns the newest desktop image (no new image: the last one is delivered again from the staging texture; only the pointer moved: no GPU work). Until the first image after (re)start it waits up to 100 ms. |
+| Recovery | `DXGI_ERROR_ACCESS_LOST` / invalid call / device removed (display mode or HDR change, desktop switch, driver reset): everything is released and rebuilt 100 ms later. `E_ACCESSDENIED` (secure desktop: UAC, lock screen): retried every second; the thread attaches to the input desktop (`OpenInputDesktop` + `SetThreadDesktop`) so a service can follow it. Missing monitor: retried every 5 s. A retry waits instead of spinning; the same problem is logged once. |
+| LUT | `LutLoader`: first existing `lut_lin_tables.3d` or `.3d.zst` wins; one table or the legacy three-table file (first table used). `LutProvider` loads in the background on first use (only when an 8-bit capture has `hdrToneMapping`) and otherwise builds the default table (`DefaultLut`, bit-identical to C++, ~0.3 s on 24 cores) and saves it to the first LUT directory. |
+| Settings | `systemGrabber` (schema in `Overglow.Settings`); `App` reconfigures the source on every change of that section, the next frame restarts the capture. |
+
+Interop: [TerraFX.Interop.Windows](https://github.com/terrafx/terrafx.interop.windows) (MIT). It is a 1:1 projection
+of the Windows SDK headers as blittable structs and function pointers, so the port reads like the C++ code, COM calls
+allocate nothing (no runtime-callable wrappers, unlike Vortice's class wrappers, which allocate per acquired frame) and
+it is trimming/AOT compatible with no source generator configuration (CsWin32 would need one per API and its COM
+wrappers marshal by default). Unused parts of the large assembly are trimmed when published.
+
+Shaders: `Shaders/Downscale.hlsl` is the source; the bytecode (`Downscale.vs.cso`, `Downscale.ps.cso`, embedded) is
+checked in, so building needs no Windows SDK. `Shaders.targets` recompiles it with the SDK's `fxc` (vs_5_0/ps_5_0,
+`/O3 /WX`) when the HLSL is newer; fxc output is deterministic. The resources are marked `WithCulture="false"`
+(MSBuild would otherwise treat `Downscale.ps.cso` as a Pashto satellite resource).
+
+Measured on the RTX 5080 with a 3440x1440 desktop texture scaled to 491x205 (Release, 300 frames): GPU path 0.21 ms
+per frame for FP16 HDR and 0.13 ms for 8-bit (copy, shader, readback; 0.31 / 0.21 ms CPU time), CPU path 0.78 ms; no
+allocations on either path. Waiting for a monitor that delivers no frames costs 0.1-0.3 % of one core.
 
 ## JSON-RPC protocol
 
@@ -236,7 +275,7 @@ difference) up to 20 per failure.
 | `mapping/` `{ leds, tolerance, cases: [{ image, width, height, fnv1a, mappingType, sparseProcessing, horizontalBorder, verticalBorder, expected }] }` | `ImageColorAveraging` | `MappingGoldenTests` | owner's 168 LEDs and 3 other layouts, 8 images, 3 sizes (+512x288, 7x5), both mapping types, sparse, borders |
 | `color/` `{ step: process \| calibrate, enabled, colorOrder, adjustment, tolerance, inputs, expected, expectedBytes }` | `InfiniteProcessing`, `LedDevice` rounding | `ColorGoldenTests` | owner's settings, 23 variations, 6 color orders, 4 calibration-only; 185 colors each |
 | `blackborder/cpp-detector.json` | `BlackBorderDetector` | `BlackBorderGoldenTests` | 15 pictures x 3 sizes x 3 thresholds x 4 modes |
-| `hdr/` | `DefaultLut`, `LutLoader`, `decodeBGRA` | `HdrGoldenTests` (smoke) | port step 3 |
+| `hdr/` | `DefaultLut`, `LutLoader`, `decodeBGRA` | `HdrGoldenTests` (Capture.Tests), `ScalerTests` (GPU) | default table (MD5, grid, grays) and the CPU path match exactly; the GPU LUT path matches exactly without scaling and within 1 level of the mean of the looked-up block colors with scaling (the C++ code point-sampled) |
 | `smoothing/` | the 6 interpolators, injected time line | `SmoothingGoldenTests` (smoke) | port step 5 |
 | `effects/` | the 10 kept effects | `EffectsGoldenTests` (smoke) | port step 5 |
 | `rgbw/` | `RGBW::rgb2rgbw`, `InfiniteColorEngineRgbw` | `RgbwGoldenTests` (smoke) | port step 6 |
@@ -261,7 +300,12 @@ comparison tests are skipped until the port step named in the skip reason.
   settings schema always stores all of them, so it only matters for hand-made settings.
 - Black borders: `BlackBorderProcessor` is ported but not wired into the pipeline yet (Engine), nor the `BLACKBORDER`
   component switch.
-- Windows capture + HDR tone mapping, smoothing, effects, the remaining drivers and discovery.
+- Smoothing, effects, the remaining drivers and discovery.
+- Screen capture: rotated monitors are captured in scanout orientation (the C++ grabber mis-scaled them); the
+  "please wait" image while the default LUT is built is not shown (frames pass without the LUT for ~0.3 s);
+  `serverinfo.systemGrabbers.modes` lists only the captured monitor (Engine/Server should list `Monitors`); the
+  duplication stays open while `SYSTEMGRABBER` is off; HDR content has no highlight roll-off (clipped at SDR white, as
+  in C++). The desktop tests skip when the desktop delivers no frames (monitor off).
 - Multiple controllers: the store keeps a list of controllers and `DeviceManager` fans out to a list, but the engine
   and the protocol still use controller 0 (`device`) only.
 - The UI's restore dialog still says the app closes to apply a backup; it doesn't any more.

@@ -5,13 +5,34 @@ using Overglow.Settings;
 
 namespace Overglow.App;
 
+/// <summary>Which frame source drives the lighting.</summary>
+public enum CaptureKind
+{
+    /// <summary>Screen capture (DXGI desktop duplication on Windows), configured by the <c>systemGrabber</c> settings.</summary>
+    Screen,
+
+    /// <summary>The synthetic test pattern (development, tests, platforms without capture).</summary>
+    Synthetic,
+}
+
 /// <summary>
 /// Process options from the command line (<c>--data-dir</c>, <c>--legacy-data-dir</c>, <c>--port</c>, <c>--bind</c>,
-/// <c>--ui-dir</c>, <c>--fps</c>) or <c>OVERGLOW_</c>-prefixed environment variables (<c>OVERGLOW_DATA_DIR</c> and
-/// <c>OVERGLOW_LEGACY_DATA_DIR</c> as in the C++ build).
+/// <c>--ui-dir</c>, <c>--capture</c>, <c>--fps</c>, <c>--lut-dirs</c>) or <c>OVERGLOW_</c>-prefixed environment variables
+/// (<c>OVERGLOW_DATA_DIR</c> and <c>OVERGLOW_LEGACY_DATA_DIR</c> as in the C++ build).
 /// </summary>
 /// <param name="LegacyDataDirectory">HyperHDR's data directory to import on the first start; null: none.</param>
-public sealed record AppOptions(string DataDirectory, string? LegacyDataDirectory, int Port, IPAddress BindAddress, string? UiDirectory, double SyntheticFps)
+/// <param name="Capture">Frame source: screen capture (default) or the synthetic test pattern.</param>
+/// <param name="SyntheticFps">Rate of the synthetic test pattern.</param>
+/// <param name="LutDirectories">Directories searched for <c>lut_lin_tables.3d</c>, in order; the default table is created in the first.</param>
+public sealed record AppOptions(
+    string DataDirectory,
+    string? LegacyDataDirectory,
+    int Port,
+    IPAddress BindAddress,
+    string? UiDirectory,
+    CaptureKind Capture,
+    double SyntheticFps,
+    IReadOnlyList<string> LutDirectories)
 {
     /// <summary>Default web port of the .NET backend while it runs next to HyperHDR (which owns 8090/8092).</summary>
     public const int DefaultPort = 18290;
@@ -24,15 +45,24 @@ public sealed record AppOptions(string DataDirectory, string? LegacyDataDirector
         ArgumentNullException.ThrowIfNull(configuration);
         var port = int.TryParse(configuration["port"], NumberStyles.None, CultureInfo.InvariantCulture, out var p) ? p : DefaultPort;
         var bind = IPAddress.TryParse(configuration["bind"], out var b) ? b : IPAddress.Loopback;
+        var capture = Enum.TryParse<CaptureKind>(configuration["capture"], ignoreCase: true, out var c) ? c : CaptureKind.Screen;
         var fps = double.TryParse(configuration["fps"], NumberStyles.Float, CultureInfo.InvariantCulture, out var f) && f > 0 ? f : 60;
         var backend = FindBackendDirectory();
+        var data = ResolveDataDirectory(Read(configuration, "data-dir", "DATA_DIR"), backend);
+
+        // HyperHDR's policy: the data directory, then the application directory.
+        var lutDirs = configuration["lut-dirs"] is { Length: > 0 } dirs
+            ? dirs.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(Path.GetFullPath).ToArray()
+            : [data, AppContext.BaseDirectory];
         return new AppOptions(
-            ResolveDataDirectory(Read(configuration, "data-dir", "DATA_DIR"), backend),
+            data,
             ResolveLegacyDirectory(Read(configuration, "legacy-data-dir", "LEGACY_DATA_DIR"), backend),
             port,
             bind,
             configuration["ui-dir"] is { Length: > 0 } ui ? Path.GetFullPath(ui) : FindUiDirectory(backend),
-            fps);
+            capture,
+            fps,
+            lutDirs);
     }
 
     private static string? Read(IConfiguration configuration, string option, string environment) =>

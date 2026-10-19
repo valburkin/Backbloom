@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Overglow.Capture;
 using Overglow.Devices;
 using Overglow.Engine;
 using Overglow.Server;
@@ -60,7 +59,7 @@ public static class OverglowHost
         services.AddSingleton(sp => CreateServerOptions(options, sp.GetRequiredService<SettingsServices>().Database));
 
         // The lighting: frame source -> pipeline -> controllers.
-        services.AddSingleton<IFrameSource>(_ => new SyntheticFrameSource(new SyntheticFrameSourceOptions(FramesPerSecond: options.SyntheticFps)));
+        services.AddCapture(options);
         services.AddSingleton<DeviceManager>();
         services.AddSingleton<LightingEngine>();
         services.AddHostedService<EngineHostedService>();
