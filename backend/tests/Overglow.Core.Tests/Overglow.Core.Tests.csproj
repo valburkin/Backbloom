@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Overglow.Core\Overglow.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Overglow.App/Overglow.App.csproj" />
+    <Project Path="src/Overglow.Capture/Overglow.Capture.csproj" />
+    <Project Path="src/Overglow.Core/Overglow.Core.csproj" />
+    <Project Path="src/Overglow.Devices/Overglow.Devices.csproj" />
+    <Project Path="src/Overglow.Engine/Overglow.Engine.csproj" />
+    <Project Path="src/Overglow.Server/Overglow.Server.csproj" />
+    <Project Path="src/Overglow.Settings/Overglow.Settings.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Overglow.Core.Tests/Overglow.Core.Tests.csproj" />
+    <Project Path="tests/Overglow.Devices.Tests/Overglow.Devices.Tests.csproj" />
+    <Project Path="tests/Overglow.Engine.Tests/Overglow.Engine.Tests.csproj" />
+    <Project Path="tests/Overglow.Server.Tests/Overglow.Server.Tests.csproj" />
+    <Project Path="tests/Overglow.Settings.Tests/Overglow.Settings.Tests.csproj" />
+  </Folder>
+</Solution>

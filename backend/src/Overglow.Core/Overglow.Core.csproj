@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Pure lighting logic: LED layout, image-to-LED mapping, color processing. No I/O.</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Overglow.Core.Tests" />
+  </ItemGroup>
+</Project>

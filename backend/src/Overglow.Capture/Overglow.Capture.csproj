@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Frame source abstractions and the synthetic test source. Platform capture lives in Overglow.Capture.*.</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Overglow.Core\Overglow.Core.csproj" />
+  </ItemGroup>
+</Project>

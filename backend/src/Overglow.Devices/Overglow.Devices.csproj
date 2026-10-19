@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>LED device lifecycle and drivers (WLED, DDP, file).</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Overglow.Core\Overglow.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Schemas\*.json" LogicalName="Overglow.Devices.Schemas.%(Filename).json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Overglow.Devices.Tests" />
+  </ItemGroup>
+</Project>

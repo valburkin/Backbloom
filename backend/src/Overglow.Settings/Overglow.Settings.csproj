@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Settings store, schemas and validation, credential storage.</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Schemas\*.json" LogicalName="Overglow.Settings.Schemas.%(Filename).json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Overglow.Settings.Tests" />
+  </ItemGroup>
+</Project>
