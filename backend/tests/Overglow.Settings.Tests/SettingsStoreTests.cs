@@ -1,54 +1,51 @@
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.Logging.Abstractions;
 using Overglow.Settings.Auth;
+using Overglow.Settings.Storage;
+using static Overglow.Settings.Tests.TestSchema;
 
 namespace Overglow.Settings.Tests;
 
 public sealed class SettingsStoreTests : IDisposable
 {
-    private readonly string _dir = Path.Combine(Path.GetTempPath(), $"overglow-settings-{Guid.NewGuid():N}");
-
-    private static SettingsSchema Schema() => SettingsSchema.CreateBuiltin(new Dictionary<string, JsonObject>
-    {
-        ["file"] = JsonNode.Parse("""
-            { "type": "object", "properties": {
-                "output": { "type": "string", "default": "/dev/null" },
-                "printTimeStamp": { "type": "boolean", "default": true, "required": true } },
-              "additionalProperties": true }
-            """)!.AsObject(),
-        ["wled"] = JsonNode.Parse("""
-            { "type": "object", "properties": {
-                "host": { "type": "string" },
-                "brightnessMaxLevel": { "type": "integer", "minimum": 1, "maximum": 255, "default": 255, "required": true } },
-              "additionalProperties": true }
-            """)!.AsObject(),
-    });
-
-    private JsonFileSettingsStore Open() => new(_dir, Schema(), NullLogger<JsonFileSettingsStore>.Instance);
-
-    private static JsonObject Parse(string json) => JsonNode.Parse(json)!.AsObject();
+    private readonly TempDirectory _dir = new();
+    private readonly List<OpenStore> _open = [];
 
     public void Dispose()
     {
-        if (Directory.Exists(_dir))
-        {
-            Directory.Delete(_dir, recursive: true);
-        }
+        _open.ForEach(o => o.Dispose());
+        _dir.Dispose();
+    }
+
+    private SqliteSettingsStore Open() => Track(OpenStore.In(_dir.Path)).Store;
+
+    private OpenStore Track(OpenStore store)
+    {
+        _open.Add(store);
+        return store;
+    }
+
+    private void CloseAll()
+    {
+        _open.ForEach(o => o.Dispose());
+        _open.Clear();
     }
 
     [Fact]
-    public void NewStore_HasSchemaDefaultsButNoLayout()
+    public void NewStore_HasSchemaDefaultsForEverySectionButNoLayout()
     {
         var all = Open().Snapshot();
 
+        Assert.Equal(SettingsSchema.BuiltinSections.Where(s => s != "layout"), all.Select(kv => kv.Key));
         Assert.Equal("file", all["device"]!["type"]!.GetValue<string>());
-        Assert.Equal("rgb", all["device"]!["colorOrder"]!.GetValue<string>());
         Assert.Equal("/dev/null", all["device"]!["output"]!.GetValue<string>());
         Assert.Equal(1.5, all["color"]!["channelAdjustment"]![0]!["gamma"]!.GetValue<double>());
-        Assert.Equal("advanced", all["color"]!["imageToLedMappingType"]!.GetValue<string>());
+        Assert.Equal("HybridRgbInterpolator", all["smoothing"]!["type"]!.GetValue<string>());
+        Assert.Equal("Rainbow swirl fast", all["foregroundEffect"]!["effect"]!.GetValue<string>());
+        Assert.Equal(20, all["systemGrabber"]!["fps"]!.GetValue<int>());
         Assert.Single(all["leds"]!.AsArray());
         Assert.True(all["network"]!["localAdminAuth"]!.GetValue<bool>());
-        Assert.False(all.ContainsKey("layout"));
+        var controller = Assert.Single(Open().Controllers);
+        Assert.Equal((0, true), (controller.Id, controller.Enabled));
     }
 
     [Fact]
@@ -72,28 +69,9 @@ public sealed class SettingsStoreTests : IDisposable
                 new("general.name", "must be at least 4 characters long"),
             },
             result.Errors.ToHashSet());
-        Assert.Equal(1.5, store.GetSection("color")!["channelAdjustment"]![0]!["gamma"]!.GetValue<double>());
         Assert.Equal(0, changes);
-        Assert.False(File.Exists(Path.Combine(_dir, JsonFileSettingsStore.FileName)));
-    }
-
-    [Theory]
-    [InlineData("""{ "color": { "imageToLedMappingType": "fancy" } }""", "color.imageToLedMappingType", "must be one of: \"advanced\", \"unicolor_mean\"")]
-    [InlineData("""{ "color": { "sparse_processing": "yes" } }""", "color.sparse_processing", "must be true or false")]
-    [InlineData("""{ "color": { "bogus": 1 } }""", "color.bogus", "isn't a known setting")]
-    [InlineData("""{ "leds": [] }""", "leds", "needs at least 1 item")]
-    [InlineData("""{ "leds": [{ "hmin": 0, "hmax": 1.5, "vmin": 0, "vmax": 1 }] }""", "leds.0.hmax", "must be at most 1")]
-    [InlineData("""{ "leds": [{ "hmin": 0, "hmax": 1, "vmin": 0, "vmax": 1, "group": 0.5 }] }""", "leds.0.group", "must be a whole number")]
-    [InlineData("""{ "smoothing": { "time_ms": 99999 } }""", "smoothing", "isn't a setting this version supports")]
-    [InlineData("""{ "device": { "type": "hue" } }""", "device.type", "unknown LED device type \"hue\" (available: file, wled)")]
-    [InlineData("""{ "device": { "type": "wled", "host": "x", "brightnessMaxLevel": 300 } }""", "device.brightnessMaxLevel", "must be at most 255")]
-    [InlineData("""{ "layout": { "version": 0, "controllers": [], "strips": [] } }""", "layout.version", "must be at least 1")]
-    [InlineData("""{ "general": 5 }""", "general", "must be an object")]
-    public void Update_RejectsInvalidValues(string update, string path, string message)
-    {
-        var result = Open().Update(Parse(update));
-
-        Assert.Contains(new SettingsError(path, message), result.Errors);
+        CloseAll();
+        Assert.Equal(1.5, Open().GetSection("color")!["channelAdjustment"]![0]!["gamma"]!.GetValue<double>());
     }
 
     [Fact]
@@ -114,10 +92,13 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal(0, store.GetSection("leds")![0]!["group"]!.GetValue<int>());
         Assert.Equal(255, store.GetSection("device")!["brightnessMaxLevel"]!.GetValue<int>());
         Assert.Equal("rgb", store.GetSection("device")!["colorOrder"]!.GetValue<string>());
+        var snapshot = store.Snapshot();
 
+        CloseAll();
         var reopened = Open();
-        Assert.True(JsonNode.DeepEquals(store.Snapshot(), reopened.Snapshot()));
+        Assert.True(JsonNode.DeepEquals(snapshot, reopened.Snapshot()));
         Assert.True(reopened.GetSection("leds")![1]!["disabled"]!.GetValue<bool>());
+        Assert.Equal("wled", reopened.Controllers[0].Device["type"]!.GetValue<string>());
     }
 
     [Fact]
@@ -145,55 +126,171 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public void Load_ResetsInvalidSectionsAndKeepsUnknownOnes()
+    public void Update_IsOneTransaction_AFailingWriteChangesNothing()
     {
-        Directory.CreateDirectory(_dir);
-        File.WriteAllText(Path.Combine(_dir, JsonFileSettingsStore.FileName), """
-            { "version": 1, "settings": {
-                "general": { "name": "x" },
-                "logger": { "level": "verbose" },
-                "futureFeature": { "on": true } } }
-            """);
+        var open = Track(OpenStore.In(_dir.Path));
+        open.Database.Write((c, t) => SettingsDatabase.Execute(c, t, """
+            CREATE TRIGGER fail_logger BEFORE INSERT ON settings WHEN NEW.section = 'logger'
+            BEGIN SELECT RAISE(ABORT, 'disk full'); END
+            """));
+        var changes = 0;
+        open.Store.Changed += _ => changes++;
 
-        var store = Open();
-        Assert.Equal("My Overglow Config", store.GetSection("general")!["name"]!.GetValue<string>());
-        Assert.Equal("verbose", store.GetSection("logger")!["level"]!.GetValue<string>());
-        Assert.Null(store.GetSection("futureFeature"));
+        var result = open.Store.Update(Parse("""{ "general": { "name": "Living room" }, "logger": { "level": "warn" } }"""));
 
-        store.Update(Parse("""{ "logger": { "level": "warn" } }"""));
-        var file = JsonNode.Parse(File.ReadAllText(Path.Combine(_dir, JsonFileSettingsStore.FileName)))!;
-        Assert.True(file["settings"]!["futureFeature"]!["on"]!.GetValue<bool>());
+        Assert.False(result.Success);
+        Assert.Contains("disk full", Assert.Single(result.Errors).Message, StringComparison.Ordinal);
+        Assert.Equal(0, changes);
+        Assert.Equal("My Overglow Config", open.Store.GetSection("general")!["name"]!.GetValue<string>());
+        CloseAll();
+        Assert.Equal("My Overglow Config", Open().GetSection("general")!["name"]!.GetValue<string>());
     }
 
     [Fact]
-    public void ClientSchema_ContainsSectionsAndDriverSchemas()
+    public async Task Update_ConcurrentWritersAllPersistAndReadersSeeValidSnapshots()
     {
-        var schema = Schema().ToClientSchema();
-        var properties = schema["properties"]!.AsObject();
+        var store = Open();
+        var levels = new[] { "silent", "warn", "verbose", "debug" };
+        var writers = Enumerable.Range(0, 8).Select(w => Task.Run(() =>
+        {
+            for (var i = 0; i < 25; i++)
+            {
+                var section = (w % 2 == 0) ? Parse($$"""{ "general": { "name": "Writer {{w}} #{{i}}" } }""") : Parse($$"""{ "logger": { "level": "{{levels[i % 4]}}" } }""");
+                Assert.True(store.Update(section).Success);
+                Assert.True(store.Snapshot().ContainsKey("color"));
+            }
+        }, TestContext.Current.CancellationToken)).ToArray();
+        await Task.WhenAll(writers);
 
-        Assert.Contains("color", properties.Select(p => p.Key));
-        Assert.Contains("layout", properties.Select(p => p.Key));
+        var name = store.GetSection("general")!["name"]!.GetValue<string>();
+        Assert.EndsWith("#24", name, StringComparison.Ordinal);
+        var snapshot = store.Snapshot();
+        CloseAll();
+        Assert.True(JsonNode.DeepEquals(snapshot, Open().Snapshot()));
+    }
+
+    [Fact]
+    public void Load_RepairsSectionsThatNoLongerValidateAndKeepsUnknownRows()
+    {
+        var open = Track(OpenStore.In(_dir.Path));
+        open.Database.Write((c, t) =>
+        {
+            SettingsDatabase.Execute(c, t, "INSERT INTO settings VALUES ('smoothing', '{\"time_ms\": 99999, \"type\": \"Stepper\"}', 'now')");
+            SettingsDatabase.Execute(c, t, "INSERT INTO settings VALUES ('futureFeature', '{\"on\": true}', 'now')");
+        });
+        CloseAll();
+
+        var store = Open();
+        Assert.Equal(5000, store.GetSection("smoothing")!["time_ms"]!.GetValue<int>());
+        Assert.Equal("Stepper", store.GetSection("smoothing")!["type"]!.GetValue<string>());
+        Assert.Null(store.GetSection("futureFeature"));
+
+        store.Update(Parse("""{ "logger": { "level": "warn" } }"""));
+        var future = _open[^1].Database.Read(c =>
+        {
+            using var command = c.CreateCommand();
+            command.CommandText = "SELECT value FROM settings WHERE section = 'futureFeature'";
+            return command.ExecuteScalar() as string;
+        });
+        Assert.Equal("{\"on\": true}", future);
+    }
+
+    [Fact]
+    public void Replace_ValidatesEverythingAndFillsDefaults()
+    {
+        var store = Open();
+        var content = store.Export();
+        content.Sections.Remove("smoothing");
+        content.Sections["logger"] = Parse("""{ "level": "warn" }""");
+        var changed = new List<string>();
+        store.Changed += c => changed.AddRange(c.Sections.Keys);
+
+        var invalid = store.Replace(content with { Controllers = [content.Controllers[0] with { Id = 3 }] });
+        Assert.Contains(invalid.Errors, e => e.Path == "controllers");
+
+        var controllers = new[] { content.Controllers[0], new ControllerSettings(1, "Desk", false, Parse("""{ "type": "wled", "host": "desk.local" }""")) };
+        var result = store.Replace(content with { Controllers = controllers });
+
+        Assert.True(result.Success);
+        Assert.Equal(["logger"], changed);
+        Assert.Equal(150, store.GetSection("smoothing")!["time_ms"]!.GetValue<int>());
+        Assert.Equal(["LED controller", "Desk"], store.Controllers.Select(c => c.Name));
+        Assert.Equal(255, store.Controllers[1].Device["brightnessMaxLevel"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void Database_AppliesForwardMigrationsInOrderAndRefusesNewerFiles()
+    {
+        var path = _dir.File("migrations.db");
+        var applied = new List<int>();
+        SchemaMigration Step(int version) => new(version, $"step {version}", (c, t) =>
+        {
+            applied.Add(version);
+            SettingsDatabase.Execute(c, t, $"CREATE TABLE t{version} (x)");
+        });
+
+        SettingsDatabase.Open(path, [Step(1)]).Dispose();
+        using (var upgraded = SettingsDatabase.Open(path, [Step(1), Step(2), Step(3)]))
+        {
+            Assert.Equal(3, upgraded.Version);
+            Assert.False(upgraded.Created);
+        }
+
+        Assert.Equal([1, 2, 3], applied);
+        var error = Assert.Throws<InvalidDataException>(() => SettingsDatabase.Open(path, [Step(1), Step(2)]));
+        Assert.Contains("newer Overglow", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Database_RefusesFilesThatArentOverglowSettings()
+    {
+        var path = new LegacyDatabaseBuilder().Write(_dir.File("hyperhdr.db"));
+
+        Assert.Throws<InvalidDataException>(() => SettingsDatabase.Open(path));
+    }
+
+    [Fact]
+    public void ClientSchema_ContainsEverySectionAndTheDriverSchemas()
+    {
+        var properties = Create().ToClientSchema()["properties"]!.AsObject();
+
+        Assert.Equal([.. SettingsSchema.BuiltinSections, "alldevices"], properties.Select(p => p.Key));
         Assert.Equal(["file", "wled"], properties["alldevices"]!.AsObject().Select(p => p.Key));
     }
 
     [Fact]
     public void AuthStore_RoundTripsHashesAndTokens()
     {
-        var store = new JsonFileAuthStore(_dir);
+        var open = Track(OpenStore.In(_dir.Path));
+        var store = new SqliteAuthStore(open.Database);
         Assert.Same(AuthData.Empty, store.Load());
 
         var data = new AuthData(
             new SecretHash([1, 2, 3], [4, 5], 1000),
             false,
-            [new ApiToken("a1b2c", "Stream Deck", new SecretHash([9], [8], 10), new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero))]);
+            [
+                new ApiToken("a1b2c", "Stream Deck", new SecretHash([9], [8], 10), new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero)),
+                new ApiToken("ffff0", "Old", new SecretHash([7], [], 0, SecretAlgorithm.LegacySha512), null),
+            ]);
         store.Save(data);
-        var loaded = new JsonFileAuthStore(_dir).Load();
+        CloseAll();
+        var loaded = new SqliteAuthStore(Track(OpenStore.In(_dir.Path)).Database).Load();
 
         Assert.Equal([1, 2, 3], loaded.Password!.Hash);
         Assert.Equal(1000, loaded.Password.Iterations);
         Assert.False(loaded.IsDefaultPassword);
-        var token = Assert.Single(loaded.Tokens);
-        Assert.Equal(("a1b2c", "Stream Deck"), (token.Id, token.Comment));
-        Assert.Equal(data.Tokens[0].LastUse, token.LastUse);
+        Assert.Equal(["a1b2c", "ffff0"], loaded.Tokens.Select(t => t.Id));
+        Assert.Equal(("Stream Deck", data.Tokens[0].LastUse), (loaded.Tokens[0].Comment, loaded.Tokens[0].LastUse));
+        Assert.Equal(SecretAlgorithm.LegacySha512, loaded.Tokens[1].Secret.Algorithm);
+    }
+
+    [Fact]
+    public void InstanceId_IsCreatedOnceAndKept()
+    {
+        var open = Track(OpenStore.In(_dir.Path));
+        var id = open.Database.GetOrCreateInstanceId();
+
+        Assert.True(Guid.TryParse(id, out _));
+        Assert.Equal(id, open.Database.GetOrCreateInstanceId());
     }
 }

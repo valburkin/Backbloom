@@ -17,7 +17,8 @@ public sealed record TokenInfo(string Id, string Comment, DateTimeOffset? LastUs
 /// <summary>
 /// Password and token checks (port of HyperHDR's AccessManager / AuthTable semantics): one admin password
 /// (factory default "overglow" until changed), a user token issued on login that is valid until the process restarts,
-/// and API tokens for other apps. Secrets are stored as PBKDF2-SHA256 hashes only.
+/// and API tokens for other apps. Secrets are stored as PBKDF2-SHA256 hashes only; hashes imported from HyperHDR
+/// (salted SHA-512) keep working and are replaced by PBKDF2 the first time they are used.
 /// </summary>
 public sealed class AuthService
 {
@@ -91,6 +92,13 @@ public sealed class AuthService
             if (ok)
             {
                 _failedLogins = 0;
+                if (stored.Algorithm != SecretAlgorithm.Pbkdf2Sha256 && ReferenceEquals(stored, _data.Password))
+                {
+                    // a password imported from HyperHDR: store it the way this version does
+                    _data = _data with { Password = Hash(password, PasswordIterations) };
+                    _store.Save(_data);
+                }
+
                 return LoginResult.Success;
             }
 
@@ -123,7 +131,8 @@ public sealed class AuthService
                 return false;
             }
 
-            _data = _data with { Tokens = [.. _data.Tokens.Select(t => t.Id == match.Id ? t with { LastUse = _time.GetUtcNow() } : t)] };
+            var secret = match.Secret.Algorithm == SecretAlgorithm.Pbkdf2Sha256 ? match.Secret : Hash(token, 1);
+            _data = _data with { Tokens = [.. _data.Tokens.Select(t => t.Id == match.Id ? t with { Secret = secret, LastUse = _time.GetUtcNow() } : t)] };
             _store.Save(_data);
             return true;
         }
@@ -199,8 +208,12 @@ public sealed class AuthService
         return new SecretHash(Rfc2898DeriveBytes.Pbkdf2(secret, salt, iterations, HashAlgorithmName.SHA256, 32), salt, iterations);
     }
 
-    private static bool Verify(string secret, SecretHash stored) =>
-        CryptographicOperations.FixedTimeEquals(
+    private static bool Verify(string secret, SecretHash stored) => stored.Algorithm switch
+    {
+        SecretAlgorithm.Pbkdf2Sha256 => CryptographicOperations.FixedTimeEquals(
             Rfc2898DeriveBytes.Pbkdf2(secret, stored.Salt, stored.Iterations, HashAlgorithmName.SHA256, stored.Hash.Length),
-            stored.Hash);
+            stored.Hash),
+        SecretAlgorithm.LegacySha512 => CryptographicOperations.FixedTimeEquals(SHA512.HashData([.. Encoding.UTF8.GetBytes(secret), .. stored.Salt]), stored.Hash),
+        _ => false,
+    };
 }

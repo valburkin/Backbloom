@@ -9,6 +9,7 @@ using Overglow.Core.Layout;
 using Overglow.Core.Mapping;
 using Overglow.Devices;
 using Overglow.Settings;
+using Overglow.Settings.Storage;
 
 namespace Overglow.Engine.Tests;
 
@@ -48,9 +49,11 @@ internal sealed class SolidSource(byte r, byte g, byte b, int width = 64, int he
 public sealed class EngineTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"overglow-engine-{Guid.NewGuid():N}");
+    private readonly List<SettingsDatabase> _databases = [];
 
     public void Dispose()
     {
+        _databases.ForEach(d => d.Dispose());
         if (Directory.Exists(_dir))
         {
             Directory.Delete(_dir, recursive: true);
@@ -59,10 +62,12 @@ public sealed class EngineTests : IDisposable
 
     private static DriverRegistry Registry() => new DriverRegistry().RegisterAll();
 
-    private JsonFileSettingsStore Store(DriverRegistry registry) => new(
-        _dir,
-        SettingsSchema.CreateBuiltin(registry.Drivers.ToDictionary(d => d.Type, d => d.Schema)),
-        NullLogger<JsonFileSettingsStore>.Instance);
+    private SqliteSettingsStore Store(DriverRegistry registry)
+    {
+        var database = SettingsDatabase.Open(Path.Combine(_dir, SettingsDatabase.FileName));
+        _databases.Add(database);
+        return new(database, SettingsSchema.CreateBuiltin(registry.Drivers.ToDictionary(d => d.Type, d => d.Schema)), NullLogger<SqliteSettingsStore>.Instance);
+    }
 
     private static DeviceManager Devices(DriverRegistry registry) =>
         new(registry, new DriverContext(NullLoggerFactory.Instance, new HttpClient()), NullLoggerFactory.Instance);

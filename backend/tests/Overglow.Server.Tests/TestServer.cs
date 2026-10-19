@@ -6,7 +6,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Overglow.App;
+using Overglow.Devices;
+using Overglow.Settings;
 
 namespace Overglow.Server.Tests;
 
@@ -14,12 +17,14 @@ namespace Overglow.Server.Tests;
 internal sealed class TestServer : IAsyncDisposable
 {
     private readonly WebApplication _app;
+    private readonly bool _ownsDirectory;
 
-    private TestServer(WebApplication app, string dataDirectory, Uri baseUri)
+    private TestServer(WebApplication app, string dataDirectory, Uri baseUri, bool ownsDirectory)
     {
         _app = app;
         DataDirectory = dataDirectory;
         BaseUri = baseUri;
+        _ownsDirectory = ownsDirectory;
     }
 
     public string DataDirectory { get; }
@@ -28,20 +33,49 @@ internal sealed class TestServer : IAsyncDisposable
 
     public IServiceProvider Services => _app.Services;
 
-    /// <summary>Starts a server; <paramref name="settings"/> (a settings.json "settings" object) seeds the data directory.</summary>
-    public static async Task<TestServer> StartAsync(string? settings = null)
+    public static string NewDataDirectory()
     {
         var dir = Path.Combine(Path.GetTempPath(), $"overglow-server-{Guid.NewGuid():N}");
         Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    /// <summary>Starts a server in a new data directory; <paramref name="settings"/> (sections as JSON) are stored first.</summary>
+    public static async Task<TestServer> StartAsync(string? settings = null)
+    {
+        var dir = NewDataDirectory();
         if (settings is not null)
         {
-            await File.WriteAllTextAsync(Path.Combine(dir, "settings.json"), $$"""{ "version": 1, "settings": {{settings}} }""");
+            using var services = SettingsServices.Open(new SettingsOptions(dir, null), Schema(), NullLoggerFactory.Instance);
+            var result = services.Store.Update(JsonNode.Parse(settings)!.AsObject());
+            Assert.True(result.Success, string.Join("; ", result.Errors));
         }
 
-        var app = OverglowHost.Build(["--data-dir", dir, "--port", "0", "--fps", "60", "--ui-dir", Path.Combine(dir, "no-ui")]);
+        return await StartInAsync(dir, ownsDirectory: true);
+    }
+
+    /// <summary>Starts a server on an existing data directory, which is kept unless <paramref name="ownsDirectory"/>.</summary>
+    public static async Task<TestServer> StartInAsync(string dir, bool ownsDirectory = false)
+    {
+        var app = OverglowHost.Build(["--data-dir", dir, "--legacy-data-dir", "none", "--port", "0", "--fps", "60", "--ui-dir", Path.Combine(dir, "no-ui")]);
         await app.StartAsync();
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
-        return new TestServer(app, dir, new Uri(address));
+        return new TestServer(app, dir, new Uri(address), ownsDirectory);
+    }
+
+    public static SettingsSchema Schema() =>
+        SettingsSchema.CreateBuiltin(new DriverRegistry().RegisterAll().Drivers.ToDictionary(d => d.Type, d => d.Schema, StringComparer.Ordinal));
+
+    public static void DeleteDirectory(string dir)
+    {
+        try
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+        catch (IOException)
+        {
+            // A device thread may still hold a file for a moment; the temp folder is cleaned up eventually.
+        }
     }
 
     public async Task<RpcClient> ConnectAsync()
@@ -55,13 +89,9 @@ internal sealed class TestServer : IAsyncDisposable
     {
         await _app.StopAsync();
         await _app.DisposeAsync();
-        try
+        if (_ownsDirectory)
         {
-            Directory.Delete(DataDirectory, recursive: true);
-        }
-        catch (IOException)
-        {
-            // A device thread may still hold a file for a moment; the temp folder is cleaned up eventually.
+            DeleteDirectory(DataDirectory);
         }
     }
 }

@@ -1,6 +1,9 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.DependencyInjection;
+using Overglow.Settings;
+using Overglow.Settings.Storage;
 
 namespace Overglow.Server.Tests;
 
@@ -69,7 +72,79 @@ public sealed class JsonRpcTests
 
         Assert.True(Success(await client.CallAsync("authorize", "deleteToken", new JsonObject { ["id"] = created["id"]!.GetValue<string>() })));
         Assert.Empty((await client.CallAsync("authorize", "getTokenList"))["info"]!.AsArray());
-        Assert.DoesNotContain("long-enough-1", await File.ReadAllTextAsync(Path.Combine(server.DataDirectory, "auth.json"), TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        using var file = new FileStream(Path.Combine(server.DataDirectory, SettingsDatabase.FileName), FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(file, Encoding.Latin1);
+        Assert.DoesNotContain("long-enough-1", await reader.ReadToEndAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Authorize_PasswordAndTokensSurviveARestart()
+    {
+        var dir = TestServer.NewDataDirectory();
+        try
+        {
+            string secret;
+            await using (var server = await TestServer.StartInAsync(dir))
+            await using (var client = await server.ConnectAsync())
+            {
+                Assert.True(Success(await client.CallAsync("authorize", "login", Obj("""{ "password": "overglow" }"""))));
+                Assert.True(Success(await client.CallAsync("authorize", "newPassword", Obj("""{ "password": "overglow", "newPassword": "long-enough-2" }"""))));
+                secret = (await client.CallAsync("authorize", "createToken", Obj("""{ "comment": "Phone" }""")))["info"]!["token"]!.GetValue<string>();
+            }
+
+            await using (var server = await TestServer.StartInAsync(dir))
+            await using (var client = await server.ConnectAsync())
+            {
+                Assert.False((await client.CallAsync("authorize", "newPasswordRequired"))["info"]!["newPasswordRequired"]!.GetValue<bool>());
+                Assert.Equal("No Authorization", Error(await client.CallAsync("authorize", "login", Obj("""{ "password": "overglow" }"""))));
+                Assert.True(Success(await client.CallAsync("authorize", "login", Obj("""{ "password": "long-enough-2" }"""))));
+                Assert.Equal("Phone", Assert.Single((await client.CallAsync("authorize", "getTokenList"))["info"]!.AsArray())!["comment"]!.GetValue<string>());
+                Assert.True(Success(await client.CallAsync("authorize", "login", new JsonObject { ["token"] = secret })));
+            }
+        }
+        finally
+        {
+            TestServer.DeleteDirectory(dir);
+        }
+    }
+
+    [Fact]
+    public async Task Backup_SaveAndRestoreWhileRunning()
+    {
+        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var client = await server.ConnectAsync();
+        await client.CallAsync("serverinfo", parameters: Obj("""{ "subscribe": ["settings-update", "leds-update"] }"""));
+        Assert.True(Success(await client.CallAsync("config", "setconfig", Obj("""{ "config": { "logger": { "level": "warn" } } }"""))));
+        client.NextEvent("settings-update");
+
+        var backup = (await client.CallAsync("save-db"))["info"]!.AsObject();
+        Assert.Equal("Overglow_export_format_v1", backup["version"]!.GetValue<string>());
+
+        var leds = Obj("""{ "config": { "logger": { "level": "verbose" }, "leds": [{ "hmin": 0, "hmax": 1, "vmin": 0, "vmax": 1 }, { "hmin": 0, "hmax": 1, "vmin": 0, "vmax": 1 }] } }""");
+        Assert.True(Success(await client.CallAsync("config", "setconfig", leds)));
+        client.NextEvent("leds-update");
+
+        var restored = await client.CallAsync("load-db", parameters: new JsonObject { ["config"] = backup.DeepClone() });
+        Assert.True(Success(restored), Error(restored));
+        Assert.Single(client.NextEvent("leds-update")["data"]!["leds"]!.AsArray());
+        var config = (await client.CallAsync("config", "getconfig"))["info"]!;
+        Assert.Equal("warn", config["logger"]!["level"]!.GetValue<string>());
+        Assert.Single(config["leds"]!.AsArray());
+        Assert.True(Success(await client.CallAsync("serverinfo")));
+        Assert.Single(Directory.GetFiles(Path.Combine(server.DataDirectory, "backups")));
+
+        var invalid = await client.CallAsync("load-db", parameters: Obj("""{ "config": { "version": "nope", "settings": [] } }"""));
+        Assert.StartsWith("Couldn't restore the backup: This isn't a settings backup", Error(invalid), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Backup_NeedsAdminRights()
+    {
+        await using var server = await TestServer.StartAsync();
+        await using var client = await server.ConnectAsync();
+
+        Assert.Equal("No Authorization", Error(await client.CallAsync("save-db")));
+        Assert.Equal("No Authorization", Error(await client.CallAsync("load-db", parameters: Obj("""{ "config": {} }"""))));
     }
 
     [Fact]
@@ -132,7 +207,10 @@ public sealed class JsonRpcTests
         var stored = (await client.CallAsync("config", "getconfig"))["info"]!;
         Assert.Equal(1.5, stored["color"]!["channelAdjustment"]![0]!["gamma"]!.GetValue<double>());
 
-        Assert.Equal("isn't a setting this version supports", (await client.CallAsync("config", "setconfig", Obj("""{ "config": { "smoothing": {} } }""")))["errors"]![0]!["message"]!.GetValue<string>());
+        Assert.Equal("isn't a setting this version supports", (await client.CallAsync("config", "setconfig", Obj("""{ "config": { "flatbufServer": {} } }""")))["errors"]![0]!["message"]!.GetValue<string>());
+        var smoothing = await client.CallAsync("config", "setconfig", Obj("""{ "config": { "smoothing": { "time_ms": 99999 } } }"""));
+        Assert.Equal("smoothing.time_ms", smoothing["errors"]![0]!["path"]!.GetValue<string>());
+        Assert.Equal(150, (await client.CallAsync("config", "getconfig"))["info"]!["smoothing"]!["time_ms"]!.GetValue<int>());
 
         var schema = (await client.CallAsync("config", "getschema"))["info"]!;
         Assert.NotNull(schema["properties"]!["alldevices"]!["wled"]);
@@ -167,8 +245,13 @@ public sealed class JsonRpcTests
             Assert.Equal("color.channelAdjustment.0.gamma", invalid["errors"]![0]!["path"]!.GetValue<string>());
         }
 
-        var file = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(server.DataDirectory, "settings.json"), TestContext.Current.CancellationToken))!;
-        Assert.Equal(0.5, file["settings"]!["color"]!["channelAdjustment"]![0]!["scaleOutput"]!.GetValue<double>());
+        var stored = server.Services.GetRequiredService<SettingsServices>().Database.Read(c =>
+        {
+            using var command = c.CreateCommand();
+            command.CommandText = "SELECT value FROM settings WHERE section = 'color'";
+            return JsonNode.Parse((string)command.ExecuteScalar()!)!;
+        });
+        Assert.Equal(0.5, stored["channelAdjustment"]![0]!["scaleOutput"]!.GetValue<double>());
     }
 
     [Fact]

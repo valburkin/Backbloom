@@ -26,6 +26,8 @@ public static class OverglowServer
         services.AddSingleton<IRpcCommand, SysInfoCommand>();
         services.AddSingleton<IRpcCommand, ServerInfoCommand>();
         services.AddSingleton<IRpcCommand, ConfigCommand>();
+        services.AddSingleton<IRpcCommand, SaveDbCommand>();
+        services.AddSingleton<IRpcCommand, LoadDbCommand>();
         services.AddSingleton<IRpcCommand, AdjustmentCommand>();
         services.AddSingleton<IRpcCommand, ComponentStateCommand>();
         services.AddSingleton<IRpcCommand, LedDeviceCommand>();

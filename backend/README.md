@@ -7,7 +7,8 @@ deleted once this backend reaches parity.
 Status: **port step 2** (golden fixtures). The React UI in `ui/` connects to it, a synthetic frame source drives the
 LEDs through the real mapping and color pipeline, and the WLED, DDP and file drivers run on their own device threads.
 LED layout parsing, image to LED mapping, color processing and black border detection match fixtures exported from the
-C++ reference exactly.
+C++ reference exactly. Settings (port step 4) live in SQLite, cover every kept settings type and are imported from
+HyperHDR databases.
 
 Portions of this code are ported from [HyperHDR](https://github.com/awawa-dev/HyperHDR) (MIT, copyright awawa-dev);
 the source file each part comes from is named in its doc comments.
@@ -32,7 +33,8 @@ Command-line options (also `OVERGLOW_<NAME>` environment variables):
 |---|---|---|
 | `--port` | `18290` | Web port (HTTP, WebSocket JSON-RPC, UI files). HyperHDR keeps 8090/8092. |
 | `--bind` | `127.0.0.1` | Address to listen on; use `0.0.0.0` for other devices on the network. |
-| `--data-dir` | `backend/.local/data` | Settings (`settings.json`), credentials (`auth.json`, hashes only), instance id. Never the user profile. |
+| `--data-dir` | per-user `Overglow` folder; `backend/.local/data` when run from the source tree | `settings.db` (settings, controllers, credentials as hashes, instance id), `backups/`, `imported/`. See [Settings](#settings-storage-and-hyperhdr-import). |
+| `--legacy-data-dir` | HyperHDR's data folder; none when run from the source tree | Where the first start looks for `db/hyperhdr.db` to import. `none` turns it off. |
 | `--ui-dir` | `ui/dist` of the source tree | Built React UI to serve. |
 | `--fps` | `60` | Rate of the synthetic test source. |
 
@@ -52,7 +54,7 @@ src/
   Overglow.Core       pure logic: LED layout, image->LED mapping, color processing, black borders (no I/O, no threads)
   Overglow.Capture    frame source abstraction, frame pacer, synthetic test source
   Overglow.Devices    LED device lifecycle (LedDeviceRunner) + drivers: wled, ddp, file
-  Overglow.Settings   schema-validated settings store (JSON file), credential store
+  Overglow.Settings   settings schemas + validation, SQLite store, credential store, HyperHDR import, backups
   Overglow.Engine     orchestration: frame loop, component switches, controllers, live preview feed
   Overglow.Server     Kestrel: JSON-RPC over WebSocket + POST /json-rpc, auth, UI files
   Overglow.App        host: composition root (DI), configuration, logging (exe: overglow)
@@ -119,10 +121,11 @@ Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): r
 |---|---|
 | `authorize` tokenRequired, adminRequired, newPasswordRequired, login (password / token), logout, newPassword, createToken, getTokenList, deleteToken | done |
 | `sysinfo`, `serverinfo` (+ subscriptions), `performance-counters` | done |
-| `config` getschema, getconfig, setconfig | done (schema covers general, logger, device, color, leds, layout, network) |
+| `config` getschema, getconfig, setconfig | done (every kept settings type, see [Settings](#settings-storage-and-hyperhdr-import)) |
+| `save-db`, `load-db` | done (backups in the C++ export format; HyperHDR backups are accepted) |
 | `componentstate` ALL, SYSTEMGRABBER, LEDDEVICE | done (SMOOTHING, BLACKBORDER come with those features) |
 | `adjustment`, `ledcolors` ledstream-start/stop, `leddevice` identify/discover/getProperties, `logging`, `instance` switchTo | done (discover returns no devices until discovery is ported) |
-| `color`, `effect`, `clear`, `sourceselect`, `save-db`, `load-db`, imagestream | not yet ("Command not implemented") |
+| `color`, `effect`, `clear`, `sourceselect`, imagestream | not yet ("Command not implemented") |
 
 Deliberate differences from the C++ backend (its bug backlog):
 
@@ -132,11 +135,84 @@ Deliberate differences from the C++ backend (its bug backlog):
 3. `serverinfo` always returns the info, also when subscribing to `performance-update`.
 4. `logging start` replies first; the history follows as a `logging-update` event without the request's tan.
 5. Settings can be saved while the lights are off.
-6. (Backup restore is not implemented yet.)
+6. `load-db` restores while running: the settings are migrated like an import, the current ones are saved to
+   `backups/` first, the reply lists what the migration changed, and the pipeline and controllers pick the new values
+   up through `settings-update` (HyperHDR quit the process). Sections the backup doesn't contain get their defaults;
+   an absent `layout` is not announced by an event, so clients reload the config after a restore.
 7. `layout` has no default: `getconfig` omits it until a client saves one.
 
 Also: `logout` returns the connection to the rights it had before signing in, and the identify blink is applied
 before the controller's color order (so it is really red, green, blue on GRB strips).
+
+## Settings storage and HyperHDR import
+
+**Sections and validation.** Every settings type the C++ build kept is a section: `general`, `logger`, `device`,
+`color`, `smoothing`, `systemGrabber`, `blackborderdetector`, `foregroundEffect`, `backgroundEffect`, `soundEffect`,
+`webConfig`, `effects`, `systemControl`, `network`, `ledConfig`, `leds`, `mqtt`, `layout`. Their schemas are the C++
+files (`sources/base/schema`, copied unchanged into `Overglow.Settings/Schemas`), the LED driver schemas come from
+`Overglow.Devices`, and defaults exist only there. The in-house validator stays: the schemas use the draft-03
+`required: true` form that the standard validators don't support. `setconfig` uses it strictly (reject, per-field
+errors); only imports and stored data from an older schema use its repair mode (clamp numbers, reset values of the wrong
+type or outside an enum to their default, drop unknown fields, report every fix).
+
+**Database.** `settings.db` (Microsoft.Data.Sqlite), one connection per process, every use serialized; reads come from
+a validated in-memory copy, every update is one transaction written before the copy changes. `PRAGMA application_id`
+marks the file, `PRAGMA user_version` is the schema version: `SettingsDatabase.Migrations` lists the forward steps, each
+applied once in its own transaction; a file from a newer version is refused, never rewritten. Schema 1:
+
+| Table | Holds |
+|---|---|
+| `settings (section, value, updated_at)` | the pipeline's sections (JSON text) |
+| `controllers (id, name, enabled)`, `controller_settings (controller_id, section, value, updated_at)` | the LED controllers and their `device` |
+| `admin_password`, `api_tokens` | hashes with salt, algorithm and iterations |
+| `meta (key, value)` | instance id, first-start and import markers |
+
+Rows of sections this version doesn't know (written by a newer one) are kept untouched.
+
+**Instances -> one pipeline.** HyperHDR ran a complete pipeline per instance; this backend runs one pipeline that feeds
+many controllers:
+
+| HyperHDR | Overglow .NET |
+|---|---|
+| global types (`general`, `logger`, `network`, `webConfig`, `mqtt`, `systemGrabber`, `soundEffect`, `layout`) | pipeline sections |
+| per-instance types of the first instance (`leds`, `ledConfig`, `color`, `smoothing`, `blackborderdetector`, `foregroundEffect`, `backgroundEffect`, `effects`, `systemControl`) | pipeline sections |
+| `device` of instance N (in instance order), name and enabled flag from `instances` | controller N; controller 0 is the `device` of `getconfig`/`setconfig` |
+| per-instance settings of further instances | not imported (reported) |
+
+The engine drives controller 0 today; the other controllers are stored for the multi-controller work.
+
+**Import** (`SettingsImporter`, `LegacyMigrations`, ported from InstanceConfig, SettingsMigration, LegacyMigration and
+AccessManager/AuthTable): reads HyperHDR v17 to 24-beta databases (`hyperhdr_instance` column, user `Hyperhdr`) and
+Overglow C++ ones (`instance` column, user `admin`); the source is copied to `imported/` and only the copy is opened.
+Rules, all idempotent and logged one line each (never with secrets):
+
+- format upgrades by `general.version` (HyperHDR upgradeDB up to 6: backlight threshold steps, pause while locked);
+- removed settings types are dropped: proto/flatbuffers/raw UDP/boblight/JSON servers, forwarder, the capture-card stack
+  (`videoGrabber`, `videoControl`, `videoDetection`, `automaticToneMapping`), `grabberV4L2`; unknown types too;
+- CEC (`systemControl.cecControl`) and signal detection options (`systemGrabber`) are removed;
+- removed effects map to the kept ones (e.g. "Knight rider" -> "Breath", music color variants -> MULTI COLOR);
+- a device type that this build doesn't have becomes the `file` driver (no output), keeping color order and refresh
+  time; the copy in `imported/` keeps the original for drivers ported later;
+- HyperHDR's factory name "My HyperHDR Config" becomes "My Overglow Config"; an empty C++ `layout` is left absent;
+- every section is then repaired against its schema;
+- credentials: the admin password hash (salted SHA-512) and API token hashes are imported as `LegacySha512` and keep
+  working; `AuthService` replaces them with PBKDF2 on first use. A password still at HyperHDR's or the C++ build's
+  factory default becomes this version's default (`overglow`, flagged as default).
+
+Converting is a pure function of the source, so importing the same file again changes nothing.
+
+**First start and data directory.** The data directory defaults to the per-user `Overglow` folder
+(`%LOCALAPPDATA%\Overglow`, `~/Library/Application Support/Overglow`, `$XDG_CONFIG_HOME/Overglow`), or
+`backend/.local/data` for a build that runs from the source tree. When `settings.db` has no first-start marker, the
+first existing of `<data>/db/overglow.db` (the C++ build's database in the same folder) and
+`<legacy>/db/hyperhdr.db` is imported (`--legacy-data-dir`, default HyperHDR's folder: `~/.hyperhdr` if it exists,
+else `%LOCALAPPDATA%\HyperHDR` / `~/Library/Preferences/HyperHDR` / `~/.config/HyperHDR`; source-tree builds don't look
+unless told). A failed import is logged and the app starts with defaults; it isn't retried automatically.
+`overglow import <file> --data-dir <dir>` imports a database explicitly (the current settings go to `backups/` first).
+
+**Backups.** `save-db` returns the C++ export format (`Overglow_export_format_v1`: `instances` + `settings` rows with
+JSON text, per-instance types under instance 0, each controller's `device` under its id); `load-db` also accepts
+`HyperHDR_export_format_v17`/`v20`. Credentials are never part of a backup.
 
 ## Golden fixtures
 
@@ -165,6 +241,11 @@ difference) up to 20 per failure.
 | `effects/` | the 10 kept effects | `EffectsGoldenTests` (smoke) | port step 5 |
 | `rgbw/` | `RGBW::rgb2rgbw`, `InfiniteColorEngineRgbw` | `RgbwGoldenTests` (smoke) | port step 6 |
 
+`settings/owner-hyperhdr-v22.db` is the owner's HyperHDR v22 database, sanitized: admin password, salt and session
+token replaced (the password is `fixture-password`), meta uuid replaced, WLED host blanked, microphone and display
+names replaced by `default` / `auto`, file vacuumed (no free pages with old content). Everything else (168 LEDs,
+color, smoothing, effects, capture, removed-feature records) is as the owner had it.
+
 Tolerance is 0 for every exported fixture: the mapping sums integers and does the same float conversion and divisions
 as C++, and the color pipeline builds the same float tables (`powf` of the same C runtime) and runs the same float
 operations in the same order (no FMA contraction on either side). Hand-written fixtures (`hand-*.json`) state their own
@@ -180,6 +261,7 @@ comparison tests are skipped until the port step named in the skip reason.
   settings schema always stores all of them, so it only matters for hand-made settings.
 - Black borders: `BlackBorderProcessor` is ported but not wired into the pipeline yet (Engine), nor the `BLACKBORDER`
   component switch.
-- Windows capture + HDR tone mapping, smoothing, effects, the remaining drivers and discovery, SQLite settings with
-  HyperHDR database import.
-- Multiple controllers: `DeviceManager` already fans out to a list; the settings still describe one `device`.
+- Windows capture + HDR tone mapping, smoothing, effects, the remaining drivers and discovery.
+- Multiple controllers: the store keeps a list of controllers and `DeviceManager` fans out to a list, but the engine
+  and the protocol still use controller 0 (`device`) only.
+- The UI's restore dialog still says the app closes to apply a backup; it doesn't any more.
