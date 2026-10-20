@@ -5,6 +5,8 @@ import { Callout, Select, Switch } from '../components/form';
 import { PageHeader } from '../components/PageHeader';
 import { ColorPicker } from '../components/ColorPicker';
 import { LedPreview } from '../components/LedPreview';
+import { LiveLayoutLights } from '../components/LayoutLights';
+import { useLayoutView } from '../live/layoutView';
 import { useConnection } from '../app/connection';
 import { useConfig } from '../app/config';
 import { useEditor } from '../app/editor';
@@ -74,6 +76,7 @@ function ModeSwitch() {
   const sendColor = useThrottled((rgb: Rgb) => void api.setColor(rgb).catch(() => undefined), 120);
   const grabberOn = serverInfo?.components?.find((c) => c.name === 'SYSTEMGRABBER')?.enabled === true;
   const sound = config?.soundEffect as { enable?: boolean; device?: string } | undefined;
+  const musicAvailable = serverInfo?.sound ? serverInfo.sound.available !== false : true;
 
   const start = (m: Mode) => {
     setMode(m);
@@ -83,7 +86,7 @@ function ModeSwitch() {
         if (!grabberOn) await api.setComponent('SYSTEMGRABBER', true);
       });
     else if (m === 'effect' && effect) void run('mode', 'Couldn’t start the effect', () => api.runEffect(effect));
-    else if (m === 'music' && song) void run('mode', 'Couldn’t start music mode', () => api.runEffect(song));
+    else if (m === 'music' && song && musicAvailable) void run('mode', 'Couldn’t start music mode', () => api.runEffect(song));
     else if (m === 'color') void run('mode', 'Couldn’t set the color', () => api.setColor(color));
   };
 
@@ -144,13 +147,21 @@ function ModeSwitch() {
         )}
         {mode === 'music' && (
           <div className="space-y-3">
-            {auth === 'admin' && sound && !sound.enable && <SoundOffNotice />}
+            {!musicAvailable &&
+              (auth === 'admin' && sound ? (
+                <SoundOffNotice onEnabled={() => song && void run('mode', 'Couldn’t start music mode', () => api.runEffect(song))} />
+              ) : (
+                <Callout tone="info" icon={<AudioLines size={16} />}>
+                  Sound capture is off on this PC, so the music effects can’t run.
+                </Callout>
+              ))}
             <div className="flex flex-wrap items-end gap-3">
               <Select
                 className="min-w-[16rem] flex-1"
                 label="Music effect"
                 value={song}
                 options={music.map((n) => ({ value: n, label: effectLabel(n) }))}
+                disabled={!musicAvailable}
                 onChange={(v) => {
                   setSong(v);
                   void run('mode', 'Couldn’t start music mode', () => api.runEffect(v));
@@ -189,19 +200,28 @@ function StopButton() {
   );
 }
 
-function SoundOffNotice() {
+/** Music effects need the sound capture: a way to turn it on, then `onEnabled` (start the chosen effect). */
+function SoundOffNotice({ onEnabled }: { onEnabled?: () => void }) {
   const { api } = useConnection();
   const { config } = useConfig();
   const { run, busy } = useAction();
   return (
     <Callout tone="warn" icon={<AudioLines size={16} />}>
-      Sound capture is off, so music effects have nothing to react to.{' '}
+      Sound capture is off, so music effects can’t run.{' '}
       <button
         type="button"
         className="font-medium underline underline-offset-2"
         disabled={busy === 'sound'}
         onClick={() =>
-          void run('sound', 'Couldn’t turn on sound capture', () => api.setConfig({ soundEffect: { ...(config?.soundEffect as object), enable: true } }), 'Sound capture is on')
+          void run(
+            'sound',
+            'Couldn’t turn on sound capture',
+            async () => {
+              await api.setConfig({ soundEffect: { ...(config?.soundEffect as object), enable: true } });
+              onEnabled?.();
+            },
+            'Sound capture is on',
+          )
         }
       >
         Turn it on
@@ -329,7 +349,8 @@ function IntensityCard() {
 }
 
 function PreviewCard() {
-  const { serverInfo } = useConnection();
+  const { serverInfo, api, auth } = useConnection();
+  const view = useLayoutView(api, auth === 'admin', serverInfo?.leds);
   const frame = useLedFrame();
   return (
     <Card className="overflow-hidden">
@@ -343,7 +364,7 @@ function PreviewCard() {
         </span>
       </div>
       <div className="bg-[radial-gradient(ellipse_at_center,#141826_0%,#0b0d13_70%)] p-4">
-        <LedPreview rects={serverInfo?.leds} frame={frame} />
+        {view ? <LiveLayoutLights view={view} frame={frame} /> : <LedPreview rects={serverInfo?.leds} frame={frame} />}
       </div>
     </Card>
   );

@@ -58,7 +58,8 @@ needed only from another device; this computer can set a new one without it, als
 | `save-db` / `load-db` | backup and restore (also HyperHDR backups); restore applies while running |
 | `componentstate` | switch `ALL`, `SMOOTHING`, `BLACKBORDER`, `SYSTEMGRABBER`, `LEDDEVICE` |
 | `color`, `clear`, `clearall`, `sourceselect` | static colors and source selection by priority |
-| `effect` | run an effect by name at a priority, optionally for a duration |
+| `effect` | run an effect by name at a priority, optionally for a duration; a music effect is refused while sound capture is off (`serverinfo.sound.available`) |
+| `effects` `previews` | a few looping seconds of one effect (`name`) or of every effect on the user's LEDs, for the effect cards: `{ fps, ledCount, standard, previews: [{ name, frames }] }`, `frames` the RGB bytes of each frame in base64 in the order of `leds`; `standard`: there are no LEDs yet, so a standard 16:9 frame was used (rendered on simulated time, not on the lights) |
 | `adjustment` | change color adjustment (stored) |
 | `ledcolors` `ledstream-start` / `ledstream-stop` | live LED colors for the preview |
 | `leddevice` `discover` / `getProperties` / `identify` | driver tools |
@@ -70,7 +71,8 @@ needed only from another device; this computer can set a new one without it, als
 Events: `components-update`, `priorities-update`, `adjustment-update`, `settings-update`, `leds-update`,
 `imageToLedMapping-update`, `performance-update`, `token-update`, `instance-update`, `sessions-update`,
 `controllers-update`, `capture-update` (screen capture started or stopped, monitor HDR mode and tone mapping),
-`setup-update` (the `setup` state), `logging-update`, and the LED color stream.
+`setup-update` (the `setup` state), `sound-update` (`serverinfo.sound` when the sound capture starts, stops, fails or
+recovers), `logging-update`, and the LED color stream.
 
 Differences from HyperHDR (rejected invalid settings, persisted `adjustment`, restore without restart, and others)
 are listed in [backend/README.md](../backend/README.md#json-rpc-protocol).

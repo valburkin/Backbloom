@@ -155,13 +155,13 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
         _ => "off",
     };
 
-    /// <summary><c>effects</c>: every effect that can be run, <c>[{ name }]</c>.</summary>
+    /// <summary><c>effects</c>: every effect that can be run, <c>[{ name, description }]</c> (the description is new).</summary>
     public static JsonArray Effects()
     {
         var list = new JsonArray();
         foreach (var effect in EffectEngine.Available)
         {
-            list.Add((JsonNode)new JsonObject { ["name"] = effect.Name });
+            list.Add((JsonNode)new JsonObject { ["name"] = effect.Name, ["description"] = effect.Description });
         }
 
         return list;
@@ -182,7 +182,9 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
     /// <summary>
     /// <c>sound</c>: <c>{ active, device, sound_available: [id], sound_devices: [{ id, name, kind }] }</c>.
     /// HyperHDR listed device names in <c>sound_available</c>; here they are the ids the setting stores, with names for
-    /// display in <c>sound_devices</c> (an addition). <c>running</c> (also an addition) is true while sound arrives.
+    /// display in <c>sound_devices</c> (an addition). <c>running</c> (also an addition) is true while sound arrives,
+    /// <c>error</c> (also an addition) says why the device couldn't be opened, <c>available</c> (also an addition) whether
+    /// music effects can run (capture on, with a device, on a system that has one). Pushed as <c>sound-update</c>.
     /// </summary>
     public JsonObject? Sound()
     {
@@ -204,14 +206,21 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
             });
         }
 
-        return new JsonObject
+        var info = new JsonObject
         {
             ["active"] = sound.Active,
+            ["available"] = engine.Effects.MusicAvailable,
             ["running"] = sound.Running,
             ["device"] = sound.Device,
             ["sound_available"] = ids,
             ["sound_devices"] = devices,
         };
+        if (sound.Error is not null)
+        {
+            info["error"] = sound.Error;
+        }
+
+        return info;
     }
 
     /// <summary>The visible static color unless it is black (as HyperHDR listed it).</summary>

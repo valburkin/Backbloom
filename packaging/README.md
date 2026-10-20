@@ -27,8 +27,10 @@ The script
 The version is the `<Version>` in `backend/Directory.Build.props` (the only place it is set). Nothing is installed or
 uploaded by the script.
 
-**Versions.** Every commit to `main` raises the patch version in `Directory.Build.props` (in that commit) and is
-tagged `v<version>`. To try uncommitted changes, `-Dev` builds `<next patch>-dev.<date>.<time>` (e.g.
+**Versions.** The version changes only for a release (see
+[Branches and releases](../docs/development.md#branches-and-releases)); a release commit is tagged `v<version>` and its
+notes are its section in [CHANGELOG.md](../CHANGELOG.md). To try changes before a release, `-Dev` builds
+`<next patch>-dev.<date>.<time>` (e.g.
 `0.1.4-dev.20261020.103045` after 0.1.3) without changing any file: each dev build installs over the previous one, and
 the 0.1.4 release over all of them (SemVer orders pre-releases before the release).
 

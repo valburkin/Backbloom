@@ -1,10 +1,14 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { AudioLines, Moon, Palette, Play, Power, Search, Sparkles, Square } from 'lucide-react';
 import { Button, Card, cx, Segmented, StatusDot } from '../components/ui';
 import { Callout, NumberField, Section, Select, Toggle } from '../components/form';
 import { PageFrame } from '../components/PageFrame';
 import { ColorPicker } from '../components/ColorPicker';
 import { LedPreview } from '../components/LedPreview';
+import { EffectThumb } from '../components/EffectThumb';
+import { LiveLayoutLights } from '../components/LayoutLights';
+import { useLayoutView, type LayoutView } from '../live/layoutView';
+import type { RpcApi } from '../api/rpcApi';
 import { usePageSettings } from '../app/config';
 import { useConnection } from '../app/connection';
 import { useAction } from '../app/useAction';
@@ -22,28 +26,55 @@ const LABELS: Record<string, string> = {
   'soundEffect.device': 'Sound device',
 };
 
-function EffectGrid({ names, running, onPlay, busy }: { names: string[]; running?: string; onPlay: (n: string) => void; busy: boolean }) {
+type GridProps = {
+  names: string[];
+  descriptions: ReadonlyMap<string, string>;
+  api: RpcApi;
+  view: LayoutView | null;
+  layoutKey: string;
+  running?: string;
+  onPlay: (n: string) => void;
+  busy: boolean;
+  /** The effects can't run now (music effects without sound capture): shown dimmed, not clickable. */
+  unavailable?: boolean;
+};
+
+function EffectGrid({ names, descriptions, api, view, layoutKey, running, onPlay, busy, unavailable = false }: GridProps) {
   if (!names.length) return <p className="text-[13px] text-ink-faint">No effects found.</p>;
   return (
-    <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {names.map((n) => {
         const active = n === running;
+        const description = descriptions.get(n);
         return (
           <li key={n}>
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || unavailable}
               aria-pressed={active}
               onClick={() => onPlay(n)}
               className={cx(
-                'flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-[13px] transition-colors',
-                active ? 'border-accent bg-accent/10' : 'border-line bg-surface-2 hover:border-line-strong',
+                'group flex h-full w-full flex-col gap-2 rounded-xl border p-2 text-left transition-colors',
+                active ? 'border-accent bg-accent/10' : 'border-line bg-surface-2',
+                unavailable ? 'cursor-not-allowed opacity-50' : !active && 'hover:border-line-strong',
               )}
             >
-              <span className={cx('flex h-7 w-7 shrink-0 items-center justify-center rounded-full', active ? 'bg-accent text-accent-ink' : 'bg-surface-3 text-ink-muted')}>
-                {active ? <StatusDot tone="ok" /> : <Play size={13} />}
-              </span>
-              <span className="min-w-0 flex-1 truncate">{effectLabel(n)}</span>
+              <div className="relative">
+                <EffectThumb api={api} name={n} view={view} layoutKey={layoutKey} />
+                <span
+                  className={cx(
+                    'absolute left-1.5 top-1.5 flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium backdrop-blur',
+                    active ? 'bg-black/60 text-white' : 'bg-black/50 text-white/90 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100',
+                  )}
+                >
+                  {active ? <StatusDot tone="ok" /> : <Play size={11} />}
+                  {active ? 'Playing' : 'Play'}
+                </span>
+              </div>
+              <div className="min-w-0 px-1 pb-1">
+                <div className="truncate text-[13px] font-medium">{effectLabel(n)}</div>
+                {description && <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-ink-muted">{description}</p>}
+              </div>
             </button>
           </li>
         );
@@ -118,6 +149,12 @@ export function EffectsPage() {
   const [color, setColor] = useState<Rgb>([255, 100, 0]);
   const sendColor = useThrottled((rgb: Rgb) => void api.setColor(rgb).catch(() => undefined), 120);
   const { music, regular } = splitEffects(serverInfo?.effects);
+  const descriptions = useMemo(() => new Map((serverInfo?.effects ?? []).map((e) => [e.name, e.description ?? ''])), [serverInfo?.effects]);
+  const view = useLayoutView(api, auth === 'admin', serverInfo?.leds);
+  const layoutKey = useMemo(() => JSON.stringify(serverInfo?.leds ?? []), [serverInfo?.leds]);
+  const thumbs = { api, view, layoutKey };
+  // older backends don't say; they run music effects without capture
+  const musicAvailable = serverInfo?.sound ? serverInfo.sound.available !== false : true;
   const { source } = currentSource(serverInfo?.priorities);
   const running = source?.componentId === 'EFFECT' ? source.owner : undefined;
   const q = query.trim().toLowerCase();
@@ -128,7 +165,11 @@ export function EffectsPage() {
   const all = [...regular, ...music];
   const sound = ps.value<Obj>('soundEffect');
   const devices =
-    serverInfo?.sound?.sound_devices?.map((d) => ({ value: d.id, label: d.name })) ??
+    serverInfo?.sound?.sound_devices?.map((d) => ({
+      value: d.id,
+      label: d.name,
+      group: d.kind === 'microphone' ? 'Microphones (react to the room)' : 'What this PC plays',
+    })) ??
     (serverInfo?.sound?.sound_available ?? []).map((d) => ({ value: d, label: d }));
   const isAdmin = auth === 'admin';
 
@@ -151,7 +192,7 @@ export function EffectsPage() {
             <span className="text-ink-muted">{running ? effectLabel(running) : source?.componentId === 'COLOR' ? 'Static color' : 'No effect running'}</span>
           </div>
           <div className="p-4">
-            <LedPreview rects={serverInfo?.leds} frame={frame} />
+            {view ? <LiveLayoutLights view={view} frame={frame} /> : <LedPreview rects={serverInfo?.leds} frame={frame} />}
           </div>
         </Card>
         <Section title="Static color" icon={<Palette size={18} />} description="Drag to change the color live.">
@@ -183,7 +224,7 @@ export function EffectsPage() {
           </label>
         }
       >
-        <EffectGrid names={filtered} running={running} onPlay={play} busy={busy === 'play'} />
+        <EffectGrid names={filtered} descriptions={descriptions} {...thumbs} running={running} onPlay={play} busy={busy === 'play'} />
       </Section>
 
       <Section title="Music" icon={<AudioLines size={18} />} description="Sound-reactive effects listen to a sound device on this PC.">
@@ -193,7 +234,11 @@ export function EffectsPage() {
             <Select
               label="Sound device"
               value={String(sound.device ?? '')}
-              hint={devices.length ? 'To react to what you hear, pick an output (“what you hear”) device; a microphone reacts to the room.' : 'No sound devices were found.'}
+              hint={
+                devices.length
+                  ? 'The default output follows Windows when you switch between speakers and headphones.'
+                  : 'No sound devices were found.'
+              }
               options={devices}
               onChange={(v) => ps.setPath('soundEffect', ['device'], v)}
             />
@@ -202,10 +247,19 @@ export function EffectsPage() {
         ) : (
           <Callout tone="info">Sign in to set up sound capture.</Callout>
         )}
-        {serverInfo?.sound?.active === false && sound.enable === true && !ps.dirty && (
-          <Callout tone="warn">Sound capture is enabled but not running. Check that the device is connected.</Callout>
+        {!musicAvailable && (
+          <Callout tone="info">
+            {isAdmin ? 'Turn on sound capture above to use the music effects.' : 'Sound capture is off on this PC, so the music effects can’t run.'}
+          </Callout>
         )}
-        <EffectGrid names={filteredMusic} running={running} onPlay={play} busy={busy === 'play'} />
+        {serverInfo?.sound?.active === false && sound.enable === true && !ps.dirty && (
+          <Callout tone="warn">
+            {serverInfo.sound.error
+              ? `The sound device can’t be used: ${serverInfo.sound.error}.`
+              : 'Sound capture is enabled but not running. Check that the device is connected.'}
+          </Callout>
+        )}
+        <EffectGrid names={filteredMusic} descriptions={descriptions} {...thumbs} running={running} onPlay={play} busy={busy === 'play'} unavailable={!musicAvailable} />
       </Section>
 
       {isAdmin && ps.ready && (

@@ -15,11 +15,13 @@ const p = (componentId: string, extra: Partial<PriorityInfo> = {}): PriorityInfo
 describe('modes', () => {
   it('splits the real effect list into music and regular effects', () => {
     const { music, regular } = splitEffects(serverInfo.effects);
-    expect(music).toHaveLength(4);
+    expect(music).toHaveLength(9);
+    expect(music[0]).toBe('Music: bass glow');
     expect(regular).toHaveLength(6);
     expect(regular).toContain('Rainbow swirl');
     expect(regular.some((n) => n.startsWith('Music:'))).toBe(false);
-    expect(effectLabel('Music: stereo for LED strip (MULTI COLOR)')).toBe('stereo for LED strip (MULTI COLOR)');
+    expect(effectLabel('Music: stereo for LED strip (MULTI COLOR)')).toBe('Stereo');
+    expect(effectLabel('Music: VU meter')).toBe('VU meter');
   });
 
   it('derives the mode from the visible source (captured priorities-update payloads)', () => {
@@ -31,7 +33,7 @@ describe('modes', () => {
 
   it('describes sources in plain language', () => {
     expect(describeSource(p('COLOR', { value: { RGB: [255, 100, 0] } }))).toBe('Static color (255, 100, 0)');
-    expect(describeSource(p('EFFECT', { owner: 'Music: stereo for LED strip (BLUE)' }))).toBe('Music: stereo for LED strip (BLUE)');
+    expect(describeSource(p('EFFECT', { owner: 'Music: stereo for LED strip (BLUE)' }))).toBe('Music: Stereo (BLUE)');
     expect(describeSource(p('SYSTEMGRABBER'))).toBe('Your screen');
     expect(describeSource(p('FLATBUFSERVER', { origin: 'Game plugin@10.0.0.4' }))).toBe('Game plugin');
     expect(describeSource(null)).toMatch(/idle/);

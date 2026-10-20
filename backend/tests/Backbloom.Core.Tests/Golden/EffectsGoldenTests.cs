@@ -21,9 +21,11 @@ public sealed class EffectsGoldenTests
     public static TheoryData<string> EffectFixtures() => Fixtures.All("effects");
 
     [Fact]
-    public void Catalog_HasTheTenKeptEffects()
+    public void Catalog_HasTheTenKeptEffectsAndTheNewMusicEffects()
     {
-        Assert.Equal(10, EffectCatalog.All.Select(e => e.Name).Distinct().Count());
+        Assert.Equal(15, EffectCatalog.All.Select(e => e.Name).Distinct().Count());
+        Assert.Equal(5, EffectCatalog.All.Count(e => e.Create(new EffectContext(new MsvcRandom(1), null)) is MusicAnimation));
+        Assert.All(EffectCatalog.All, e => Assert.EndsWith(".", e.Description, StringComparison.Ordinal));
         foreach (var fixture in EffectFixtures())
         {
             var f = Fixtures.Load(fixture.Data);

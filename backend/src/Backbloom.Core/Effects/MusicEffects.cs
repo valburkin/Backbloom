@@ -23,9 +23,14 @@ public abstract class MusicEffect(MusicAnalysis? music) : Effect
     public sealed override EffectOutput Render(EffectCanvas canvas, Span<Rgb8> leds)
     {
         ArgumentNullException.ThrowIfNull(canvas);
-        if (music is null || !music.HasResult(this, ref _lastIndex, out var newData, ref _isMulti, out var stats) || !newData)
+        if (music is null)
         {
             return EffectOutput.None;
+        }
+
+        if (!music.HasResult(this, ref _lastIndex, out var newData, ref _isMulti, out var stats) || !newData)
+        {
+            return DrawBetweenResults(canvas) ? EffectOutput.Image : EffectOutput.None;
         }
 
         canvas.Resize(EffectCanvas.DefaultWidth, EffectCanvas.DefaultHeight);
@@ -40,6 +45,10 @@ public abstract class MusicEffect(MusicAnalysis? music) : Effect
 
     /// <param name="isMulti">Interpolation steps left until the next result (for <see cref="MusicStats.Value3Step"/>).</param>
     protected abstract void Draw(EffectCanvas canvas, MusicStats stats, int isMulti);
+
+    /// <summary>A step without a new result: an effect that moves on its own (see <see cref="MusicAnimation"/>) draws.</summary>
+    /// <returns>True when it drew a new picture.</returns>
+    private protected virtual bool DrawBetweenResults(EffectCanvas canvas) => false;
 
     /// <summary>The bars of the stereo and quatro effects: from the middle of each side, as long as the loudness.</summary>
     protected static void DrawSideBars(EffectCanvas canvas, Rgb8 color, int value)

@@ -223,9 +223,18 @@ export class MockBackend implements Backend {
         this.autoSelect = true;
         this.emitPriorities();
         return ok();
+      case 'effects':
+        if (subcommand === 'previews') {
+          const all = this.fx.serverInfo.effects ?? [];
+          const effects = typeof params.name === 'string' ? all.filter((e) => e.name === params.name) : all;
+          if (!effects.length) return fail(`Effect '${String(params.name)}' not found`);
+          return ok(mockEffectPreviews(effects, Array.isArray(this.config.leds) ? this.config.leds.length : 0));
+        }
+        return fail('unknown or missing subcommand');
       case 'effect': {
         const name = (params.effect as { name?: string } | undefined)?.name ?? '';
         if (!this.fx.serverInfo.effects?.some((e) => e.name === name)) return fail(`Effect ${name} not found`);
+        if (name.startsWith('Music: ') && !this.sound()?.available) return fail('Turn on sound capture to use music effects');
         this.source = { kind: 'effect', name };
         this.autoSelect = true;
         this.emitPriorities();
@@ -450,6 +459,13 @@ export class MockBackend implements Backend {
       if (section === 'leds') this.emit('leds-update', { leds: value });
       if (section === 'color') this.emit('adjustment-update', (value as { channelAdjustment: unknown }).channelAdjustment);
       if (section === 'systemGrabber') this.emit('capture-update', this.systemGrabbers());
+      if (section === 'soundEffect') {
+        this.emit('sound-update', this.sound());
+        if (!this.sound()?.available && this.source?.kind === 'effect' && this.source.name.startsWith('Music: ')) {
+          this.source = null;
+          this.emitPriorities();
+        }
+      }
       if (section === 'network') {
         const on = (value as { remoteAccess?: boolean }).remoteAccess === true;
         this.updateSetup({ remoteAccess: { ...this.setup.remoteAccess, enabled: on, urls: on ? [MOCK_LAN_URL] : [], advertised: on } });
@@ -492,7 +508,14 @@ export class MockBackend implements Backend {
       leds: clone(this.config.leds) as ServerInfo['leds'],
       controllers: this.controllers(),
       systemGrabbers: this.systemGrabbers(),
+      sound: this.sound(),
     };
+  }
+
+  /** serverinfo.sound: music effects can run while capture is on (as in the backend). */
+  private sound(): ServerInfo['sound'] {
+    const enabled = (this.config.soundEffect as { enable?: boolean } | undefined)?.enable === true;
+    return { ...clone(this.fx!.serverInfo.sound), active: enabled, available: enabled };
   }
 
   /** `systemGrabbers`: the demo screen is an SDR monitor, so only tone mapping forced on applies. */
@@ -641,4 +664,29 @@ export class MockBackend implements Backend {
   private delay(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
   }
+}
+
+/** Stand-ins for the backend's rendered previews: a hue wave for each effect, pulsing at 120 BPM for music ones. */
+function mockEffectPreviews(effects: ReadonlyArray<{ name: string }>, ledCount: number) {
+  const fps = 15;
+  const standard = ledCount === 0;
+  const leds = standard ? 50 : ledCount;
+  const frames = 60;
+  const previews = effects.map((e) => {
+    const n = [...e.name].reduce((h, c) => h + c.charCodeAt(0), 0);
+    const music = e.name.startsWith('Music: ');
+    const bytes = new Uint8Array(frames * leds * 3);
+    for (let f = 0; f < frames; f++) {
+      const level = music ? 0.3 + 0.7 * Math.exp(-((f % 8) / 2.5)) : 1;
+      for (let i = 0; i < leds; i++) {
+        const hue = (n * 47 + (i / leds) * 360 + f * 4.5) % 360;
+        const [r, g, b] = [0, 120, 240].map((o) => Math.max(0, Math.cos(((hue - o) * Math.PI) / 180)) * 255 * level);
+        bytes.set([r, g, b], (f * leds + i) * 3);
+      }
+    }
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return { name: e.name, frames: btoa(binary) };
+  });
+  return { fps, ledCount: leds, standard, previews };
 }

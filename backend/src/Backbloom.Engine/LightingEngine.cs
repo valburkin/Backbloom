@@ -178,7 +178,7 @@ public sealed partial class LightingEngine : IDisposable
 
     /// <summary>Runs an effect (the <c>effect</c> command) for <paramref name="durationMs"/> ms (&lt;= 0: until cleared).</summary>
     /// <returns>False when there is no such effect.</returns>
-    public bool RunEffect(string name, int priority, long durationMs, string origin) => Effects.Run(name, priority, durationMs, origin);
+    public EffectStart RunEffect(string name, int priority, long durationMs, string origin) => Effects.Run(name, priority, durationMs, origin);
 
     /// <summary>Shows a static color (the <c>color</c> command) for <paramref name="durationMs"/> ms (&lt;= 0: until cleared).</summary>
     public void SetColor(int priority, Rgb8 color, long durationMs, string origin) => Sources.SetColor(priority, color, durationMs, origin);

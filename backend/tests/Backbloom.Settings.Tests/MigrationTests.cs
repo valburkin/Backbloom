@@ -40,6 +40,19 @@ public sealed class MigrationTests
     }
 
     [Fact]
+    public void UseDefaultSoundDevice_ReplacesHyperHdrsRecordingDeviceWithTheDefaultOutput()
+    {
+        var config = Parse("""{ "soundEffect": { "device": "Microphone (HD Pro Webcam C920)", "enable": false, "enable_smoothing": false } }""");
+
+        var changes = Run(LegacyMigrations.UseDefaultSoundDevice, config);
+
+        Assert.Equal("default", config["soundEffect"]!["device"]!.GetValue<string>());
+        Assert.Contains("'Microphone (HD Pro Webcam C920)'", Assert.Single(changes), StringComparison.Ordinal);
+        Assert.Empty(Run(LegacyMigrations.UseDefaultSoundDevice, Parse("""{ "soundEffect": { "device": "input:{abc}" } }""")));
+        Assert.Empty(Run(LegacyMigrations.UseDefaultSoundDevice, Parse("""{ "general": {} }""")));
+    }
+
+    [Fact]
     public void UpgradeFormat_Version1_LowersCountThresholdsThenMapsThemToTheSmallestStep()
     {
         var config = Parse("""

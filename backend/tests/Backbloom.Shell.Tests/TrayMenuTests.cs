@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Backbloom.Core.Color;
@@ -40,8 +41,8 @@ public sealed class TrayMenuTests : IDisposable
         Assert.False(Item(menu, "Effect").Checked);
         Assert.False(Item(menu, "Color").Checked);
         Assert.Equal(
-            ["fullscreen pulse (MULTI COLOR)", "quatro for LED strip (MULTI COLOR)", "stereo for LED strip (MULTI COLOR)", "pulse waves for LED strip (MULTI COLOR)"],
-            Item(menu, "Music").Children!.Select(c => c.Text));
+            ["Fullscreen pulse", "Quatro", "Stereo", "Pulse waves", "Spectrum", "VU meter", "Beat ripple", "Waterfall", "Bass glow"],
+            Item(menu, "Music").Children!.Where(c => c.Enabled && !c.IsSeparator).Select(c => c.Text));
         Assert.Equal(["Rainbow swirl", "Rainbow swirl fast", "Full color mood blobs", "Warm mood blobs", "Breath", "Candle"], Item(menu, "Effect").Children!.Select(c => c.Text));
         Assert.Equal(TrayMenu.Colors.Select(c => c.Name), Item(menu, "Color").Children!.Select(c => c.Text));
         Assert.False(Item(menu, "Start with the OS").Checked);
@@ -67,6 +68,15 @@ public sealed class TrayMenuTests : IDisposable
         Assert.True((host.Engine.Sources.Visible.Renderer as EffectSource)?.Definition.IsMusic);
         Assert.True(Item(tray.Build(), "Music").Children![0].Checked);
         Assert.Equal([TrayMenu.ColorPriority], host.Engine.Effects.Active.Select(e => e.Priority));
+
+        // without sound capture the music effect ends and the music entries can't be chosen
+        Assert.True(host.Settings.Update(new JsonObject { ["soundEffect"] = new JsonObject { ["enable"] = false, ["device"] = "default", ["enable_smoothing"] = true } }).Success);
+        Assert.Empty(host.Engine.Effects.Active);
+        var off = Item(tray.Build(), "Music").Children!;
+        Assert.Equal("Sound capture is off", off[0].Text);
+        Assert.All(off.Where(c => !c.IsSeparator), c => Assert.False(c.Enabled));
+        Assert.True(host.Settings.Update(new JsonObject { ["soundEffect"] = new JsonObject { ["enable"] = true, ["device"] = "default", ["enable_smoothing"] = true } }).Success);
+        Assert.All(Item(tray.Build(), "Music").Children!, c => Assert.True(c.Enabled));
 
         // a color at the same priority replaces the effect
         Item(tray.Build(), "Color").Children!.Single(c => c.Text == "Red").Invoke!();

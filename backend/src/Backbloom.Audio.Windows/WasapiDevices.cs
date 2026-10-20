@@ -17,10 +17,20 @@ internal sealed class AudioException : Exception
     }
 
     public AudioException(string operation, int hresult)
-        : base($"{operation} failed (0x{hresult:X8})")
+        : base(Explain(hresult) is { } reason ? $"{reason} ({operation}, 0x{hresult:X8})" : $"{operation} failed (0x{hresult:X8})")
     {
         HResult = hresult;
     }
+
+    // The failures a user can fix, in words: the UI shows the message as the reason the capture doesn't run.
+    private static string? Explain(int hresult) => unchecked((uint)hresult) switch
+    {
+        0x80070005 => "Windows blocks access to the device; allow desktop apps to use the microphone in Settings > Privacy & security > Microphone",
+        0x88890004 => "The device was disconnected or disabled", // AUDCLNT_E_DEVICE_INVALIDATED
+        0x8889000A => "Another app uses the device exclusively", // AUDCLNT_E_DEVICE_IN_USE
+        0x80070490 => "The device isn't connected", // E_NOTFOUND from GetDevice
+        _ => null,
+    };
 }
 
 /// <summary>

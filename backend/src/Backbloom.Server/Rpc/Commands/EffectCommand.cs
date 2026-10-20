@@ -7,7 +7,7 @@ namespace Backbloom.Server.Rpc;
 /// <c>effect</c>: runs an effect at a priority, <c>{ priority: 1..253, effect: { name }, duration?: ms, origin?: name }</c>
 /// (HyperHDR's HyperAPI::handleEffectCommand). An effect replaces what ran at its priority and ends when it is
 /// cleared, replaced or its duration is over. Effect arguments, scripts and images aren't supported (HyperHDR
-/// rejected arguments too).
+/// rejected arguments too). A music effect is refused while sound capture is off.
 /// </summary>
 public sealed class EffectCommand(LightingEngine engine) : IRpcCommand
 {
@@ -38,13 +38,20 @@ public sealed class EffectCommand(LightingEngine engine) : IRpcCommand
         {
             context.Fail("Effect arguments, scripts and images aren't supported");
         }
-        else if (engine.RunEffect(name, priority.Value, context.GetInt("duration") ?? -1, $"{origin ?? "JsonRpc"}@{context.Session.Peer}"))
-        {
-            context.Reply();
-        }
         else
         {
-            context.Fail($"Effect '{name}' not found");
+            switch (engine.RunEffect(name, priority.Value, context.GetInt("duration") ?? -1, $"{origin ?? "JsonRpc"}@{context.Session.Peer}"))
+            {
+                case EffectStart.Started:
+                    context.Reply();
+                    break;
+                case EffectStart.NoSound:
+                    context.Fail("Turn on sound capture to use music effects");
+                    break;
+                default:
+                    context.Fail($"Effect '{name}' not found");
+                    break;
+            }
         }
 
         return ValueTask.CompletedTask;

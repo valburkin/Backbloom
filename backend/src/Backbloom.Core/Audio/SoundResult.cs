@@ -20,8 +20,16 @@ internal struct MovingTarget
 /// <param name="ScaledAverage">Loudness 0..255.</param>
 /// <param name="OldScaledAverage">The loudness of the previous result.</param>
 /// <param name="AverageColor">The color of the spectrum (bass red ... treble blue), scaled by loudness.</param>
-public readonly record struct MusicStats(bool Valid, int ScaledAverage, int OldScaledAverage, int CurrentMax, Rgb8 AverageColor)
+/// <param name="BandLevels">The eight band levels 0..255, band <c>i</c> in byte <c>i</c> (see <see cref="Band"/>).</param>
+/// <param name="Beats">Beats detected since the capture started; an effect reacts when it changes.</param>
+public readonly record struct MusicStats(bool Valid, int ScaledAverage, int OldScaledAverage, int CurrentMax, Rgb8 AverageColor, ulong BandLevels = 0, uint Beats = 0)
 {
+    /// <summary>Number of frequency bands, 0-86 Hz (bass) ... 6-11 kHz (treble).</summary>
+    public const int BandCount = 8;
+
+    /// <summary>The level of band <paramref name="index"/> (0..7), 0..255, relative to that band's recent maximum.</summary>
+    public byte Band(int index) => (byte)(BandLevels >> (index * 8));
+
     /// <summary>
     /// The loudness a third (<paramref name="isMulti"/> = 2), two thirds (1) or all the way (0) from the previous
     /// result to this one (C++ <c>getValue3Step</c>).
@@ -46,11 +54,15 @@ public readonly record struct MusicStats(bool Valid, int ScaledAverage, int OldS
 /// <summary>
 /// Turns the band levels of each sound block into a loudness and a color that moves smoothly between blocks. Port of
 /// <c>SoundCaptureResult</c> (sources/base/SoundCaptureResult.cpp, MIT, awawa-dev) with its integer arithmetic,
-/// including the 8-bit wrap-around of the decaying band levels. Not thread-safe (<see cref="MusicAnalysis"/> locks).
+/// including the 8-bit wrap-around of the decaying band levels. The beat detection is new (HyperHDR had none). Not
+/// thread-safe (<see cref="MusicAnalysis"/> locks).
 /// </summary>
 internal sealed class SoundResult
 {
-    public const int Bands = 8;
+    public const int Bands = MusicStats.BandCount;
+
+    // At most one beat per 5 blocks (230 ms at 21.5 blocks/s, up to 260 BPM).
+    private const int MinBlocksBetweenBeats = 5;
 
     private static readonly Rgb8[] s_bandColors =
     [
@@ -71,6 +83,9 @@ internal sealed class SoundResult
     private int _oldScaledAverage;
     private int _currentMax;
     private MovingTarget _internal;
+    private int _bassAverage;
+    private int _blocksSinceBeat;
+    private uint _beats;
 
     public SoundResult() => Reset();
 
@@ -83,7 +98,19 @@ internal sealed class SoundResult
     /// <summary>The track as the last result left it (C++ <c>mtInternal</c>).</summary>
     public MovingTarget Internal => _internal;
 
-    public MusicStats Stats => new(_validData, _scaledAverage, _oldScaledAverage, _currentMax, Working.AverageColor);
+    public MusicStats Stats
+    {
+        get
+        {
+            ulong bands = 0;
+            for (var i = 0; i < Bands; i++)
+            {
+                bands |= (ulong)_scaled[i] << (i * 8);
+            }
+
+            return new(_validData, _scaledAverage, _oldScaledAverage, _currentMax, Working.AverageColor, bands, _beats);
+        }
+    }
 
     public void Reset()
     {
@@ -102,6 +129,9 @@ internal sealed class SoundResult
         _currentMax = 0;
         Working = default;
         _internal = default;
+        _bassAverage = 0;
+        _blocksSinceBeat = 0;
+        _beats = 0;
     }
 
     public void ClearBands() => Array.Clear(_pure);
@@ -111,6 +141,7 @@ internal sealed class SoundResult
     /// <summary>Takes the bands of a block into the levels, loudness and color (C++ <c>Smooth</c>).</summary>
     public void Smooth()
     {
+        DetectBeat(_pure[0] + _pure[1]);
         var currentAverage = 0;
         var res = _internal;
         _validData = true;
@@ -207,6 +238,19 @@ internal sealed class SoundResult
         }
 
         return true;
+    }
+
+    // A beat: the bass (0-258 Hz) of a block well above its recent average (about the last 8 blocks).
+    private void DetectBeat(int bass)
+    {
+        _blocksSinceBeat++;
+        if (bass > 400 && (long)bass * 10 > (long)_bassAverage * 14 && _blocksSinceBeat >= MinBlocksBetweenBeats)
+        {
+            _beats++;
+            _blocksSinceBeat = 0;
+        }
+
+        _bassAverage += (bass - _bassAverage) / 8;
     }
 
     // C++ Drive: a step toward the target, at least 1 and at most distance / y.

@@ -53,16 +53,33 @@ public sealed record EffectContext(IEffectRandom Random, MusicAnalysis? Music);
 /// <param name="SmoothingDirect">Shows its colors directly, without smoothing (the music effects).</param>
 /// <param name="SmoothingTimeMs">Settling time of its own smoothing configuration.</param>
 /// <param name="SmoothingFrequency">Update frequency of its own smoothing configuration; 0: the default effect one.</param>
+/// <param name="Description">One sentence for the UI: what the effect looks like.</param>
 public sealed record EffectDefinition(
     string Name,
     Func<EffectContext, Effect> Create,
     bool SmoothingDirect = false,
     int SmoothingTimeMs = 0,
-    int SmoothingFrequency = 0)
+    int SmoothingFrequency = 0,
+    string Description = "")
 {
     /// <summary>The effect has its own smoothing configuration (C++ <c>smoothingCustomSettings</c>).</summary>
     public bool HasCustomSmoothing => SmoothingFrequency != 0 || SmoothingDirect;
 
     /// <summary>A sound-reactive effect; its name starts with "Music: ", which the UI relies on.</summary>
     public bool IsMusic => Name.StartsWith(MusicEffect.NamePrefix, StringComparison.Ordinal);
+
+    /// <summary>
+    /// The name to show in menus: without "Music: " and the "for LED strip" and "(MULTI COLOR)" of HyperHDR's music
+    /// effect names (kept as ids, they are stored in settings), capitalized ("Stereo"). The UI's <c>effectLabel</c> does
+    /// the same.
+    /// </summary>
+    public string DisplayName
+    {
+        get
+        {
+            var name = (IsMusic ? Name[MusicEffect.NamePrefix.Length..] : Name).Replace(" (MULTI COLOR)", string.Empty, StringComparison.Ordinal)
+                .Replace(" for LED strip", string.Empty, StringComparison.Ordinal);
+            return name.Length > 0 ? char.ToUpperInvariant(name[0]) + name[1..] : name;
+        }
+    }
 }

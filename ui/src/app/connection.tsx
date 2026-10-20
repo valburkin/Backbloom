@@ -169,6 +169,10 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
         const d = e.data as SetupState | null;
         if (d && typeof d === 'object' && typeof d.firstRunCompleted === 'boolean') setSetup(d);
       }),
+      backend.onEvent('sound-update', (e) => {
+        const d = e.data as ServerInfo['sound'] | null;
+        setServerInfo((si) => (si && d && typeof d === 'object' ? { ...si, sound: d } : si));
+      }),
       backend.onEvent('controllers-update', (e) => {
         const d = e.data as { controllers?: ServerInfo['controllers'] };
         setServerInfo((si) => (si && Array.isArray(d.controllers) ? { ...si, controllers: d.controllers } : si));

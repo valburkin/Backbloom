@@ -74,6 +74,27 @@ at a real LED controller.
   `9f49bd2`) and keeps the MIT attribution.
 - American English everywhere. Commit messages are plain: a summary line, then what and why.
 
+## Branches and releases
+
+- **Work on a branch.** Every feature or fix gets its own branch from `main` (`feat/<topic>`, `fix/<topic>`), or its
+  own worktree when several agents work at once. Commit there as often as needed; the version doesn't change.
+- **Try it.** `./packaging/build.ps1 -Dev` builds an installer `<next patch>-dev.<date>.<time>` from the working tree
+  without changing any file; each one installs over the previous one.
+- **Merge when done.** When build, tests and docs are green and the change has been tried, squash-merge the branch
+  into `main` (one commit per feature or fix) and delete it. The merge adds the change to `## Unreleased` in
+  [CHANGELOG.md](../CHANGELOG.md): one line per change under Added, Changed, Fixed or Removed, written for users ("Fixed
+  flicker when switching monitors", not "Refactor the frame smoother").
+- **Release when ready.** `main` accumulates merged changes; a release happens only when decided:
+  1. set `<Version>` in `backend/Directory.Build.props` ([SemVer](https://semver.org/): new features raise the minor
+     version, fixes only the patch);
+  2. rename `## Unreleased` to `## <version> – <yyyy-MM-dd>` and add a new empty `## Unreleased` above it;
+  3. commit ("Release <version>"), tag it `v<version>` (annotated), and build the installer with
+     `./packaging/build.ps1`.
+
+  The version section of the changelog is the release note.
+- **Urgent fix after a release** while `main` has unreleased changes: branch from the release tag, fix, release as the
+  next patch from that branch, then merge the fix into `main` too.
+
 ## Third-party notices
 
 After adding or updating a NuGet package used by the app or an npm production dependency, run

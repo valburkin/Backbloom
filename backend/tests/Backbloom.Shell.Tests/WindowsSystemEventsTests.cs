@@ -82,7 +82,7 @@ public sealed partial class WindowsSystemEventsTests
 
         await using var host = await TestHost.StartAsync("""{ "general": { "disableOnLocked": true } }""");
         var window = host.App.Services.GetRequiredService<UiThread>().MessageWindow;
-        Assert.True(host.Engine.RunEffect("Candle", 1, 0, "test"));
+        Assert.Equal(EffectStart.Started, host.Engine.RunEffect("Candle", 1, 0, "test"));
 
         SendMessageW((nint)window, SessionChange, WtsSessionLock, 1);
         Assert.False(host.Engine.Components.IsOn(Component.SystemGrabber));

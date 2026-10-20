@@ -55,6 +55,17 @@ public sealed class EffectCanvas
         }
     }
 
+    /// <summary>Sets the pixel at (x, y), which must be inside the picture.</summary>
+    public void SetPixel(int x, int y, Rgb8 color)
+    {
+        var o = Offset(x, y);
+        var px = Frame.Pixels;
+        px[o] = color.B;
+        px[o + 1] = color.G;
+        px[o + 2] = color.R;
+        px[o + 3] = 0xff;
+    }
+
     /// <summary>Copies the picture as RGB24 rows (3 bytes per pixel), the C++ <c>Image&lt;ColorRgb&gt;</c> layout.</summary>
     public void CopyRgb(Span<byte> rgb)
     {

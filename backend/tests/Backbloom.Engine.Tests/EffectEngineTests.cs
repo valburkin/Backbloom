@@ -230,8 +230,8 @@ public sealed class EffectEngineTests : IDisposable
         var engine = Engine(new SolidSource(0, 0, 255));
         engine.Start();
 
-        Assert.False(engine.RunEffect("No such effect", 50, -1, "test"));
-        Assert.True(engine.RunEffect("Candle", 50, -1, "test@peer"));
+        Assert.Equal(EffectStart.Unknown, engine.RunEffect("No such effect", 50, -1, "test"));
+        Assert.Equal(EffectStart.Started, engine.RunEffect("Candle", 50, -1, "test@peer"));
         var effect = engine.Priorities[0];
         Assert.Equal(("EFFECT", "Candle", "test@peer", true), (effect.ComponentId, effect.Owner, effect.Origin, effect.Visible));
         Assert.Equal(new ActiveEffect("Candle", 50, -1), Assert.Single(engine.Effects.Active));
@@ -241,16 +241,16 @@ public sealed class EffectEngineTests : IDisposable
         WaitUntil(() => engine.LedColors.CopyLatest(preview) == 3 && preview[0] > preview[2]);
 
         // another effect at the same priority replaces it; one with a duration expires by itself
-        Assert.True(engine.RunEffect("Breath", 50, -1, "test"));
+        Assert.Equal(EffectStart.Started, engine.RunEffect("Breath", 50, -1, "test"));
         Assert.Equal("Breath", Assert.Single(engine.Effects.Active).Name);
-        Assert.True(engine.RunEffect("Rainbow swirl", 40, 400, "test"));
+        Assert.Equal(EffectStart.Started, engine.RunEffect("Rainbow swirl", 40, 400, "test"));
         Assert.Equal(40, engine.Priorities[0].Priority);
         WaitUntil(() => engine.Effects.Active.Count == 1 && engine.Priorities[0].Priority == 50);
 
         // a color at its priority ends an effect, and so does clear
         engine.SetColor(50, new Rgb8(1, 2, 3), 0, "test");
         WaitUntil(() => engine.Effects.Active.Count == 0);
-        Assert.True(engine.RunEffect("Breath", 60, -1, "test"));
+        Assert.Equal(EffectStart.Started, engine.RunEffect("Breath", 60, -1, "test"));
         Assert.True(engine.Clear(-1));
         WaitUntil(() => engine.Effects.Active.Count == 0 && engine.Priorities is [{ ComponentId: "SYSTEMGRABBER" }]);
     }
@@ -341,14 +341,14 @@ public sealed class EffectEngineTests : IDisposable
         engine.Start();
         Assert.Equal(0, platform.Started);
 
-        Assert.True(engine.RunEffect(MusicPulseEffect.Name, 50, -1, "test"));
+        Assert.Equal(EffectStart.Started, engine.RunEffect(MusicPulseEffect.Name, 50, -1, "test"));
         Assert.Equal((1, 1, "default"), (platform.Started, platform.Running, platform.LastDevice));
         var preview = new byte[3];
         WaitUntil(() => sound.Blocks > 10 && engine.LedColors.CopyLatest(preview) == 3 && preview.Any(b => b > 10));
         Assert.True(sound.GetInfo() is { Active: true, Running: true, Device: "default", Devices.Count: 2 });
 
         // a second music effect shares the capture; it stops with the last one
-        Assert.True(engine.RunEffect(MusicWavesEffect.Name, 40, -1, "test"));
+        Assert.Equal(EffectStart.Started, engine.RunEffect(MusicWavesEffect.Name, 40, -1, "test"));
         Assert.Equal(1, platform.Started);
         engine.Clear(40);
         Assert.Equal(1, platform.Running);
@@ -356,11 +356,20 @@ public sealed class EffectEngineTests : IDisposable
         WaitUntil(() => platform.Running == 0);
 
         // a device change while a music effect runs restarts the capture on the new device
-        Assert.True(engine.RunEffect(MusicPulseEffect.Name, 50, -1, "test"));
+        Assert.Equal(EffectStart.Started, engine.RunEffect(MusicPulseEffect.Name, 50, -1, "test"));
         var store = _store!;
         Assert.True(store.Update(JsonNode.Parse("""{ "soundEffect": { "enable": true, "device": "input:mic", "enable_smoothing": false } }""")!.AsObject()).Success);
         Assert.Equal((3, 1, "input:mic"), (platform.Started, platform.Running, platform.LastDevice));
         Assert.False(sound.Analysis.Smoothing);
+
+        // switching sound capture off ends the music effect (it would freeze on its last picture); music effects are
+        // refused until it is back on, other effects aren't affected
+        Assert.True(store.Update(JsonNode.Parse("""{ "soundEffect": { "enable": false, "device": "input:mic", "enable_smoothing": false } }""")!.AsObject()).Success);
+        WaitUntil(() => engine.Effects.Active.Count == 0 && platform.Running == 0);
+        Assert.DoesNotContain(engine.Priorities, p => p.Priority == 50);
+        Assert.False(engine.Effects.MusicAvailable);
+        Assert.Equal(EffectStart.NoSound, engine.RunEffect(MusicPulseEffect.Name, 50, -1, "test"));
+        Assert.Equal(EffectStart.Started, engine.RunEffect("Candle", 50, -1, "test"));
     }
 
     private static void WaitUntil(Func<bool> condition)

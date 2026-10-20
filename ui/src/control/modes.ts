@@ -9,13 +9,17 @@ export function isMusicEffect(name: string): boolean {
   return name.startsWith(MUSIC_PREFIX);
 }
 
-/** Effect name without the "Music: " prefix the backend uses to mark sound-reactive effects. */
+/**
+ * Display name: without the "Music: " prefix the backend uses to mark sound-reactive effects and the "(MULTI COLOR)"
+ * and "for LED strip" of HyperHDR's music effect names, which are kept as ids.
+ */
 export function effectLabel(name: string): string {
-  return isMusicEffect(name) ? name.slice(MUSIC_PREFIX.length) : name;
+  const label = (isMusicEffect(name) ? name.slice(MUSIC_PREFIX.length) : name).replace(' (MULTI COLOR)', '').replace(' for LED strip', '');
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export function splitEffects(effects: ReadonlyArray<{ name: string }> | undefined): { music: string[]; regular: string[] } {
-  const names = (effects ?? []).map((e) => e.name).sort((a, b) => a.localeCompare(b));
+  const names = (effects ?? []).map((e) => e.name).sort((a, b) => effectLabel(a).localeCompare(effectLabel(b)));
   return { music: names.filter(isMusicEffect), regular: names.filter((n) => !isMusicEffect(n)) };
 }
 

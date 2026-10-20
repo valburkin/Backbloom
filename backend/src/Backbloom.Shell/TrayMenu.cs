@@ -89,9 +89,17 @@ public sealed partial class TrayMenu : IDisposable
             c.Name,
             () => ShowColor(c.Color),
             Checked: lightsOn && visible.HasSource && visible.Component == SourceComponent.Color && visible.Priority == ColorPriority && visible.Color == c.Color)).ToList();
+        var musicAvailable = _engine.Effects.MusicAvailable;
         TrayMenuItem EffectItem(EffectDefinition e) =>
-            new(e.IsMusic ? e.Name[MusicEffect.NamePrefix.Length..] : e.Name, () => RunEffect(e.Name), Checked: e.Name == effect);
+            new(e.DisplayName, () => RunEffect(e.Name), Checked: e.Name == effect, Enabled: !e.IsMusic || musicAvailable);
         var music = EffectEngine.Available.Where(e => e.IsMusic).Select(EffectItem).ToList();
+        if (!musicAvailable)
+        {
+            // music effects need the sound capture (settings in the window, Effects & Music)
+            music.Insert(0, new TrayMenuItem("Sound capture is off", Enabled: false));
+            music.Insert(1, TrayMenuItem.Separator);
+        }
+
         var effects = EffectEngine.Available.Where(e => !e.IsMusic).Select(EffectItem).ToList();
         var pausedUntil = PausedUntil;
         var pause = pausedUntil is { } until
@@ -142,7 +150,7 @@ public sealed partial class TrayMenu : IDisposable
     public void RunEffect(string name)
     {
         CancelPause();
-        if (_engine.RunEffect(name, ColorPriority, 0, "System tray"))
+        if (_engine.RunEffect(name, ColorPriority, 0, "System tray") == EffectStart.Started)
         {
             _engine.Components.Set(Component.All, true);
         }

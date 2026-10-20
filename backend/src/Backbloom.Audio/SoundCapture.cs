@@ -36,15 +36,17 @@ public sealed record SoundSettings(bool Enable, string Device, bool Smoothing)
 /// <summary>What <c>serverinfo.sound</c> reports.</summary>
 /// <param name="Active">Capture is configured and its device works (or no music effect needed it yet).</param>
 /// <param name="Running">A music effect runs and the device delivers sound.</param>
-public sealed record SoundInfo(bool Active, bool Running, string Device, IReadOnlyList<AudioDevice> Devices);
+/// <param name="Error">Why the device couldn't be opened the last time it was tried; null when it worked.</param>
+public sealed record SoundInfo(bool Active, bool Running, string Device, IReadOnlyList<AudioDevice> Devices, string? Error = null);
 
 /// <summary>
 /// Music mode's sound capture: runs the platform capture of the configured device while at least one music effect
 /// has it open, and feeds <see cref="Analysis"/>. Port of <c>SoundCapture</c> (sources/base/SoundCapture.cpp, MIT,
 /// awawa-dev) without the analysis (in <see cref="MusicAnalysis"/>); settings changes apply at once (HyperHDR only
-/// used them at the next start). Thread-safe.
+/// used them at the next start). Each session reports through its own observer, so a session that was replaced (the
+/// device changed) can't mark the new one as failed. Thread-safe.
 /// </summary>
-public sealed partial class SoundCapture : IDisposable, IAudioCaptureObserver
+public sealed partial class SoundCapture : IDisposable
 {
     private const int SilentBlocksBeforeWarning = 20;
     private static readonly TimeSpan s_devicesCacheTime = TimeSpan.FromSeconds(2);
@@ -58,6 +60,7 @@ public sealed partial class SoundCapture : IDisposable, IAudioCaptureObserver
     private IDisposable? _session;
     private string? _failure;
     private int _nextHandle;
+    private int _generation;
     private IReadOnlyList<AudioDevice> _devices = [];
     private DateTime _devicesRead;
     private int _silentRun;
@@ -79,6 +82,21 @@ public sealed partial class SoundCapture : IDisposable, IAudioCaptureObserver
 
     /// <summary>Blocks analyzed since start (for diagnostics and tests).</summary>
     public long Blocks => _writer.Blocks;
+
+    /// <summary>
+    /// Music effects can run: capture is enabled with a device and this system has a platform capture (it may still
+    /// fail to open the device, which <see cref="GetInfo"/> reports).
+    /// </summary>
+    public bool CanCapture
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _settings.Active && _platform is not null;
+            }
+        }
+    }
 
     /// <summary>Raised after the capture state changed (started, stopped, failed, settings).</summary>
     public event Action? Changed;
@@ -169,7 +187,7 @@ public sealed partial class SoundCapture : IDisposable, IAudioCaptureObserver
                 _devicesRead = DateTime.UtcNow;
             }
 
-            return new SoundInfo(_settings.Active && _platform is not null && _failure is null, _session is not null && _soundReported, _settings.Device, _devices);
+            return new SoundInfo(_settings.Active && _platform is not null && _failure is null, _session is not null && _soundReported, _settings.Device, _devices, _failure);
         }
     }
 
@@ -185,10 +203,15 @@ public sealed partial class SoundCapture : IDisposable, IAudioCaptureObserver
         stopped?.Dispose();
     }
 
-    void IAudioCaptureObserver.Opened(string deviceName, AudioFormat format)
+    private void Opened(int generation, string deviceName, AudioFormat format)
     {
         lock (_lock)
         {
+            if (generation != _generation)
+            {
+                return;
+            }
+
             _failure = null;
         }
 
@@ -196,11 +219,16 @@ public sealed partial class SoundCapture : IDisposable, IAudioCaptureObserver
         Changed?.Invoke();
     }
 
-    void IAudioCaptureObserver.Failed(string reason)
+    private void Failed(int generation, string reason)
     {
         bool first;
         lock (_lock)
         {
+            if (generation != _generation)
+            {
+                return;
+            }
+
             first = _failure != reason;
             _failure = reason;
         }
@@ -229,7 +257,7 @@ public sealed partial class SoundCapture : IDisposable, IAudioCaptureObserver
         _silentRun = 0;
         _soundReported = _silenceReported = false;
         Analysis.Start();
-        _session = _platform.Start(_settings.Device, _writer, this);
+        _session = _platform.Start(_settings.Device, _writer, new SessionObserver(this, ++_generation));
         LogStarted(_settings.Device, _platform.Name);
     }
 
@@ -244,6 +272,7 @@ public sealed partial class SoundCapture : IDisposable, IAudioCaptureObserver
 
         Analysis.Stop();
         _session = null;
+        _generation++;
         _soundReported = false;
         LogStopped();
         return session;
@@ -273,6 +302,13 @@ public sealed partial class SoundCapture : IDisposable, IAudioCaptureObserver
                 Changed?.Invoke();
             }
         }
+    }
+
+    private sealed class SessionObserver(SoundCapture owner, int generation) : IAudioCaptureObserver
+    {
+        public void Opened(string deviceName, AudioFormat format) => owner.Opened(generation, deviceName, format);
+
+        public void Failed(string reason) => owner.Failed(generation, reason);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Sound capture: device {Device}, smoothing {Smoothing}")]

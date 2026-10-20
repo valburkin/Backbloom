@@ -16,7 +16,7 @@ React UI; see [Credits](#credits).
   minimal backlight, power limit.
 - **Smoothing**: six interpolators (Stepper, RGB, exponential, YUV, Hybrid, HybridRgb) at a configurable rate, with
   an anti-flicker filter. See [docs/smoothing.md](docs/smoothing.md).
-- **Effects and music mode**: rainbow swirls, mood blobs, breath, candle, and four music effects driven by WASAPI
+- **Effects and music mode**: rainbow swirls, mood blobs, breath, candle, and nine music effects driven by WASAPI
   loopback or a microphone.
 - **Desktop app**: tray menu (lights, screen sync, music, effects, colors, pause), window with the UI, start with
   Windows (opt-in), sleep and lock handling, single instance, automatic updates.
@@ -88,6 +88,7 @@ unless told to (`--legacy-data-dir`). Every copy listens on `127.0.0.1:18290` on
 - [Development guide](docs/development.md)
 - [Backend reference](backend/README.md): every subsystem in detail
 - [Roadmap](docs/roadmap.md): what's next
+- [Changelog](CHANGELOG.md): what changed in each release
 
 ## Credits
 

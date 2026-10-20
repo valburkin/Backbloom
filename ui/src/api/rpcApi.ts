@@ -3,6 +3,7 @@ import type {
   BackendConfig,
   ChannelAdjustment,
   DiscoveredDevice,
+  EffectPreviews,
   ServerInfo,
   SettingsSchema,
   SetupState,
@@ -23,6 +24,7 @@ export const SUBSCRIPTIONS = [
   'capture-update',
   'performance-update',
   'setup-update',
+  'sound-update',
 ] as const;
 
 /** Priority and origin the UI uses for colors and effects it starts (the backend's web-UI slot). */
@@ -147,6 +149,16 @@ export class RpcApi {
       origin: UI_ORIGIN,
       ...(duration ? { duration } : {}),
     });
+  }
+
+  /** A looping preview of one effect (or all) on the user's LEDs for the effect cards (rendered by the backend, not on the lights). */
+  async effectPreviews(name?: string): Promise<EffectPreviews> {
+    const i = info<{ fps?: number; ledCount?: number; standard?: boolean; previews?: Array<{ name: string; frames: string }> }>(
+      await this.backend.call('effects', 'previews', name === undefined ? undefined : { name }),
+    );
+    const frames = new Map<string, Uint8Array>();
+    for (const p of i.previews ?? []) frames.set(p.name, Uint8Array.from(atob(p.frames), (c) => c.charCodeAt(0)));
+    return { fps: i.fps ?? 15, ledCount: i.ledCount ?? 0, standard: i.standard === true, frames };
   }
 
   async runEffect(name: string, duration?: number): Promise<void> {

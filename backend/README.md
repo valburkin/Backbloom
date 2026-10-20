@@ -323,6 +323,41 @@ byte (LED colors, pictures, step times):
 | Candle | `CandleEffect` (`Animation_CandleLight`) | LED colors, random flicker | asks 200, runs 100 ms | 500 ms at 20 Hz |
 | Music: fullscreen pulse / stereo / quatro / pulse waves (MULTI COLOR) | `Music*Effect` (`Animation4Music_*`) | 80x45 picture from the sound | polled every 17 ms, draws per sound block | direct (no smoothing) |
 
+Five music effects are new in Backbloom (no C++ counterpart, so no fixtures; `EffectTests` covers them). They derive
+from `MusicAnimation`, which takes each sound result in `Update` and paints on every 17 ms step in `Paint`, so ripples,
+scrolling and falling levels move smoothly although results come 21.5 times a second. Most map the picture to the
+frame's edge (`EdgePositions`: the way from the middle of the bottom edge up either side to the middle of the top, each
+pixel taking its nearest edge point, so LED areas of any depth see the same colors):
+
+| Effect | Class | Picture | Smoothing |
+|---|---|---|---|
+| Music: spectrum | `MusicSpectrumEffect` | the eight band levels along the edge, bass at the bottom (red) to treble at the top (violet); levels jump up and fall back slowly | direct |
+| Music: VU meter | `MusicVuMeterEffect` | the loudness (curved, since it is relative to the recent maximum) fills the edge from the bottom, green to red, with a white peak held 0.7 s, then falling | direct |
+| Music: beat ripple | `MusicBeatRippleEffect` | each beat starts a ring in the music's color (saturated) that spreads from the middle over the edges in 0.85 s; a dim glow between beats | direct |
+| Music: waterfall | `MusicWaterfallEffect` | the music's color (saturated, as bright as the music is loud) enters at the bottom and takes 1.6 s up both sides | direct |
+| Music: bass glow | `MusicBassGlowEffect` | the whole frame in a color going once around the hue circle in two minutes, brighter with the bass | direct |
+
+Every effect has a one-sentence `Description` for the UI and a `DisplayName` for menus ("Music: stereo for LED strip
+(MULTI COLOR)" is shown as "Stereo"; names stay the ids stored in settings).
+
+**Previews** (`EffectPreview`, `effects previews` command). For the effect cards the UI gets a few looping seconds of an
+effect on the user's own LEDs (the `leds` list of every controller, so strips anywhere, like one behind the desk and one
+on the ceiling, show what they would do), 15 frames a second: 6 s for effects, 4 s for music effects. They are rendered
+on simulated time, not on the lights: the effect steps at the times it asks for, each LED takes the mean of its area of
+the picture (or its own color from effects that set LED colors; disabled LEDs stay dark), effects with their own
+smoothing are followed roughly, and music effects hear `SyntheticMusic` (a two-bar 120 BPM loop: kick, hi-hat, bass,
+chords and an arpeggio, bass-heavy in the first bar and brighter in the second), one loop to learn the levels and one
+recorded, so the preview loops seamlessly. The UI asks for each effect as its card comes into view; previews are kept
+until the layout changes. Without enabled LEDs they use `EffectPreview.StandardFrame` (16 LEDs along the top and
+bottom, 9 per side). The UI draws them, and the live preview, on the layout as the Layout page does (each strip outside
+the screen edge it samples, strips on the same edge in their own lanes).
+
+**Music effects need sound capture.** Without it they would freeze on their last picture (HyperHDR ran them anyway).
+`EffectEngine.Run` refuses one while `SoundCapture.CanCapture` is false (`EffectStart.NoSound`; the `effect` command
+answers "Turn on sound capture to use music effects", the tray greys the music entries out), switching capture off ends
+the running ones (what is below shows again), and a music background effect ends and comes back with the capture.
+`serverinfo.sound.available` tells the UI, which dims the music cards.
+
 "Effect default" is the 200 ms / 25 Hz configuration the C++ engine registered for effects; equal configurations are
 shared (C++ `addCustomSmoothingConfig`), so the engine registers three: default, Candle, direct. Smoothing applies only
 while the `SMOOTHING` component is on. Pictures go through an image-to-LED map of their own (80x45, no black border
@@ -355,13 +390,17 @@ the screen shows (it became active during the effect, so the controllers stay on
 `MusicAnalysis` (Core) is `SoundCapture::analyzeSpectrum` + `SoundCaptureResult`: blocks of 1024 mono 16-bit samples at
 22,050 Hz, the same fixed-point FFT, eight bands, the loudness and the moving color with its integer arithmetic, and the
 "two interpolated steps between blocks" smoothing (`enable_smoothing`). The music fixtures feed their recorded audio
-blocks through it.
+blocks through it. Additions for the new effects, which leave the C++ results unchanged: `MusicStats.Band(i)` (the eight
+band levels 0..255, each relative to its band's recent maximum) and `MusicStats.Beats`, a beat counter: a beat is a
+block whose bass (0-258 Hz) is 1.4 times its average over about the last 8 blocks, at most one per 5 blocks (230 ms).
 
 `Backbloom.Audio`: `SoundCapture` applies `soundEffect` (`enable`, `device`, `enable_smoothing`; changes apply at once,
 HyperHDR only read them at the next start) and runs the platform capture while at least one music effect holds it
 (C++ `open`/`close` handles). `AudioBlockWriter` turns any device format (float or 16/24/32-bit PCM, any rate and
 channel count) into the analysis blocks: channels averaged, each 22,050 Hz sample the mean of the input over its time
-span. Without sound capture a music effect shows black. The logs say when sound is detected or silent (as C++).
+span. Without sound capture a music effect shows black. The logs say when sound is detected or silent (as C++). `enable`
+defaults to true (HyperHDR: false): the capture only runs while a music effect does, and the default output needs no
+microphone permission, so music effects work without setting anything up.
 
 `Backbloom.Audio.Windows`: WASAPI, shared mode, event-driven (waits at most 50 ms), the device's mix format.
 
@@ -370,7 +409,7 @@ span. Without sound capture a music effect shows black. The logs say when sound 
 | `default` (the schema default) | what the default output device plays (loopback), following Windows when the default output changes (checked every 2 s) |
 | `loopback:<endpoint id>` | what that output device plays |
 | `input:<endpoint id>` | that recording device (microphone, line in) |
-| a device name (HyperHDR stored waveIn names) | the recording device with that name (waveIn names are cut to 31 characters) |
+| a device name (HyperHDR stored waveIn names) | the recording device with that name (waveIn names are cut to 31 characters); imports replace such names with `default` |
 
 Endpoint ids (`{0.0.0.00000000}.{guid}`) survive restarts and renaming, unlike names. A loopback stream delivers
 nothing while nothing plays; that time is fed to the analysis as silence. A lost device (unplugged, disabled, format
@@ -378,9 +417,17 @@ change) is reopened every second. Interop is TerraFX, as for screen capture: COM
 loop allocates nothing (NAudio would add a dependency with its own allocation per buffer; CsWin32 needs per-API
 generator configuration).
 
-`serverinfo.sound` is `{ active, device, sound_available: [ids], sound_devices: [{ id, name, kind }], running }`:
-`sound_devices` (names for display) and `running` (sound arrives) are additions; `active` is false while capture is
-disabled or the device fails. The UI's Effects & Music page shows the names.
+`serverinfo.sound` is `{ active, device, sound_available: [ids], sound_devices: [{ id, name, kind }], running, error }`:
+`sound_devices` (names for display), `running` (sound arrives) and `error` (why the device failed, in words for the
+failures a user can fix: microphone access blocked in Windows privacy settings, device disconnected or in exclusive use)
+are additions; `active` is false while capture is disabled or the device fails. It is pushed as `sound-update` when the
+capture starts, stops, fails, recovers, or hears sound or silence. Each capture session reports through its own
+observer, so a session being replaced (the device changed) can't mark the new device as failed. The UI's Effects &
+Music page shows the names, grouped into outputs and microphones, and the error.
+
+HyperHDR could only capture recording devices, so its `soundEffect.device` is a microphone name because nothing else
+was offered; music on a PC plays through its output, so imports (`LegacyMigrations.UseDefaultSoundDevice`) set it to
+`default`. Ids chosen in this version (`loopback:`, `input:`) are kept.
 
 Measured (Release, owner's 168 LEDs, file driver to the null device, no clients, smoothing off as the owner has it):
 "Rainbow swirl fast" at its full 52.6 steps/s 0.62 % of one core; music mode (pulse, default output in loopback while
@@ -478,12 +525,12 @@ wires them (`DesktopRegistration`).
 | | |
 |---|---|
 | Single instance | One app per data directory (C++: one `backbloom.exe` per machine, a second start failed). The first instance holds `backbloom.lock` in the data directory exclusively (released by the OS even after a crash) and listens on a named pipe derived from the directory (current user only). A second start with the same directory asks it to show its window (headless: the second process opens the UI in the browser) and exits; `--quit` asks it to quit and waits. Instances with different data directories run side by side. |
-| Tray | `Shell_NotifyIcon` (version 4) with the Backbloom icon (`branding/backbloom.ico`, embedded; the best size is picked from the .ico). Menu, rebuilt on each open (`TrayMenu`): **Open Backbloom** (default, also a click on the icon), **Lights** (`ALL`), **Screen sync** (removes colors and effects, capture on; checked while the screen shows or waits for its first frame), **Music** (the four music effects), **Effect** (the six effects), **Color** (the C++ colors) -- music, effects and colors run at priority 1 until something else is chosen, as C++ did; the running one is checked --, **Pause for 30 minutes** (then *Resume*; a switch elsewhere ends the pause), **Start with Windows**, **Quit**. The icon comes back after an Explorer restart (`TaskbarCreated`). C++'s "Instances" submenu is gone (one pipeline). |
+| Tray | `Shell_NotifyIcon` (version 4) with the Backbloom icon (`branding/backbloom.ico`, embedded; the best size is picked from the .ico). Menu, rebuilt on each open (`TrayMenu`): **Open Backbloom** (default, also a click on the icon), **Lights** (`ALL`), **Screen sync** (removes colors and effects, capture on; checked while the screen shows or waits for its first frame), **Music** (the music effects), **Effect** (the six effects), **Color** (the C++ colors) -- music, effects and colors run at priority 1 until something else is chosen, as C++ did; the running one is checked --, **Pause for 30 minutes** (then *Resume*; a switch elsewhere ends the pause), **Start with Windows**, **Quit**. The icon comes back after an Explorer restart (`TaskbarCreated`). C++'s "Instances" submenu is gone (one pipeline). |
 | Window | A plain Win32 window hosting the UI in WebView2 (`Microsoft.Web.WebView2.Core` only, BSD-3; no WinForms/WPF, their assemblies are kept out of the output by `Directory.Build.targets`). Dark title bar, the UI's background until the page draws, placement (normal bounds + maximized) in `window.json` (atomic write; restored only when it is on a monitor). Closing it destroys the window and its browser processes (no memory held while hidden); the app stays in the tray. Links to other sites open in the default browser. Without the WebView2 runtime (`GetAvailableBrowserVersionString`) or when it fails to start, the UI opens in the default browser. Profile in `<data>/webview`. |
 | Autostart | `RegistryAutostart`: value `Backbloom` in `HKCU\...\CurrentVersion\Run` (as C++), command `"<exe>" --no-window` plus `--data-dir` when it isn't the default; enabled only when the entry starts this executable (also C++'s bare-path entries). Off by default: only the user turns it on (tray menu, the welcome's checkbox, `setup autostart`). The key is a constructor parameter; the tests use a scratch key and never write the real Run key. |
 | Power and session | `WindowsSystemEvents` (hidden top-level window: `RegisterSuspendResumeNotification`, `RegisterPowerSettingNotification(GUID_SESSION_DISPLAY_STATUS)`, `WTSRegisterSessionNotification`, `WM_ENDSESSION`) raises `ISystemEvents`; `PowerPolicy` (port of `InstanceManager::hibernate`) reacts: sleep -> `ALL` off, wake-up -> on 3 s later; locked or display off with `general.disableOnLocked` -> `SYSTEMGRABBER` off (the screen source leaves, so the LEDs go dark unless a color or effect shows: an effect chosen by the user keeps running while locked, as in C++; without this setting the screen still leaves 800 ms after the lock screen stops its frames), unlocked and display on -> capture on 3 s later, and the screen shows again with its first frame. A lock in a remote desktop session is ignored (as C++). |
 | Startup | `general.disableLedsStartup` starts with `LEDDEVICE` off (engine, unchanged); `--no-window` keeps the window closed, except until the first-run welcome was completed (the window always opens then, so the welcome is seen). |
-| Logging | Console (when there is one), `logs/backbloom-yyyyMMdd.log` in the data directory and the UI's log view, at the level of the `logger` section (silent = errors only, warn, verbose = info, debug), applied at once when it changes. One plain-text line per message (time, level, category, rendered message template; exceptions indented below), written by a background thread; a new file per day and per 10 MB, the newest 10 kept. |
+| Logging | Console (when there is one), `logs/backbloom-yyyyMMdd.log` in the data directory and the UI's log view, at the level of the `logger` section (silent = errors only, warn, verbose = info, debug), applied at once when it changes. One plain-text line per message (time, level, category, rendered message template; exceptions indented below), written by a background thread; a new file per day and per 10 MB, the newest 10 kept. A failed start or a crash (unhandled exception) is appended there as a `FATAL` entry by `CrashReport` (directly, so it is recorded before logging exists and when the process ends), printed to the console if there is one, and shown in a message box (`ErrorDialog`) unless `--service`. |
 | Shutdown | Quit, `--quit` and Ctrl+C stop the host: WebSocket clients are closed at once, the engine switches every controller off (black frame, then closed), then the tray icon goes. Where Windows ends the process as soon as a notification returns (`WM_ENDSESSION` at logoff/shutdown; console close and shutdown signals), the handler stops the host and waits up to 4.5 s for the LEDs (`GracefulShutdown`). C++ didn't handle the session end. |
 | Settings | Crash-safe as before: every change is one SQLite transaction (rollback journal, `synchronous=FULL` by default); `window.json` is written to a temporary file and moved over. |
 | Packaging | `backbloom.exe` is a `WinExe` with the Backbloom icon; the built UI is copied next to it (`ui/`, build and publish) when `ui/dist` exists. `packaging/build.ps1` publishes a self-contained ReadyToRun folder and packs the Velopack installer with automatic updates; see [packaging/README.md](../packaging/README.md). |
@@ -716,6 +763,7 @@ Rules, all idempotent and logged one line each (never with secrets):
   time; the copy in `imported/` keeps the original for drivers ported later;
 - HyperHDR's factory name "My HyperHDR Config" becomes "My Backbloom Config"; an empty `layout` is left absent;
 - `systemGrabber.hdrToneMapping` true becomes `auto`, false `off` (see [Screen capture](#screen-capture-windows));
+- `soundEffect.device`, a HyperHDR recording device name, becomes `default` (what this PC plays);
 - every section is then repaired against its schema;
 - credentials: the admin password hash (salted SHA-512) and API token hashes are imported as `LegacySha512` and keep
   working; `AuthService` replaces them with PBKDF2 on first use. A password still at HyperHDR's or the C++ build's

@@ -190,7 +190,7 @@ public sealed partial class HomeAssistantLight : IAsyncDisposable
             _engine.Clear(-1);
             _engine.Components.Set(Component.SystemGrabber, true);
         }
-        else if (effect is null || !_engine.RunEffect(effect, ColorPriority, 0, "Home Assistant"))
+        else if (effect is null || _engine.RunEffect(effect, ColorPriority, 0, "Home Assistant") != EffectStart.Started)
         {
             var hasColor = command["color"] is JsonObject;
             var hasBrightness = command["brightness"] is JsonValue;

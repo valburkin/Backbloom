@@ -36,6 +36,7 @@ public static class BackbloomServer
         services.AddSingleton<IRpcCommand, ComponentStateCommand>();
         services.AddSingleton<IRpcCommand, ColorCommand>();
         services.AddSingleton<IRpcCommand, EffectCommand>();
+        services.AddSingleton<IRpcCommand, EffectsCommand>();
         services.AddSingleton<IRpcCommand, ClearCommand>();
         services.AddSingleton<IRpcCommand, ClearAllCommand>();
         services.AddSingleton<IRpcCommand, SourceSelectCommand>();

@@ -14,11 +14,24 @@ namespace Backbloom.Engine;
 /// <param name="TimeoutMs">The duration it was started with (-1: until cleared).</param>
 public sealed record ActiveEffect(string Name, int Priority, long TimeoutMs);
 
+/// <summary>What became of a request to run an effect.</summary>
+public enum EffectStart
+{
+    Started,
+
+    /// <summary>There is no effect with that name.</summary>
+    Unknown,
+
+    /// <summary>A music effect while sound capture is off (or this system has none): it would show nothing.</summary>
+    NoSound,
+}
+
 /// <summary>
 /// Runs effects as sources (<see cref="EffectSource"/> registered with <see cref="PriorityManager"/>), gives each
 /// effect its smoothing configuration, and applies the <c>foregroundEffect</c> (startup), <c>backgroundEffect</c> and
 /// <c>soundEffect</c> settings. Port of <c>EffectEngine</c> (sources/effects/EffectEngine.cpp) and the effect parts of
-/// <c>LightingInstance::handleSettingsUpdate</c>. An effect ends when its source is cleared, replaced or expires.
+/// <c>LightingInstance::handleSettingsUpdate</c>. An effect ends when its source is cleared, replaced or expires. Music
+/// effects run only while sound capture can (HyperHDR ran them on a stale picture); switching it off ends them.
 /// Thread-safe; never calls the priority manager while holding its own lock (the manager's events take other locks).
 /// </summary>
 public sealed partial class EffectEngine : IDisposable
@@ -93,6 +106,9 @@ public sealed partial class EffectEngine : IDisposable
     /// <summary>Every effect that can be run.</summary>
     public static IReadOnlyList<EffectDefinition> Available => EffectCatalog.All;
 
+    /// <summary>Music effects can run (sound capture is on and available).</summary>
+    public bool MusicAvailable => _sound?.CanCapture == true;
+
     /// <summary>The running effects in priority order.</summary>
     public IReadOnlyList<ActiveEffect> Active
     {
@@ -124,15 +140,20 @@ public sealed partial class EffectEngine : IDisposable
     /// Runs <paramref name="name"/> at <paramref name="priority"/> for <paramref name="durationMs"/> ms (&lt;= 0: until
     /// cleared), replacing what ran there (C++ <c>runEffect</c>).
     /// </summary>
-    /// <returns>False when there is no such effect.</returns>
-    public bool Run(string name, int priority, long durationMs, string origin)
+    public EffectStart Run(string name, int priority, long durationMs, string origin)
     {
         ArgumentNullException.ThrowIfNull(origin);
         var definition = EffectCatalog.Find(name);
         if (definition is null)
         {
             LogUnknown(name ?? string.Empty);
-            return false;
+            return EffectStart.Unknown;
+        }
+
+        if (definition.IsMusic && !MusicAvailable)
+        {
+            LogNoSound(definition.Name);
+            return EffectStart.NoSound;
         }
 
         var source = new EffectSource(definition, priority, durationMs, _clock, MsvcRandom.CreateSeeded(), _sound);
@@ -142,7 +163,7 @@ public sealed partial class EffectEngine : IDisposable
             if (_disposed)
             {
                 source.Dispose();
-                return false;
+                return EffectStart.Unknown;
             }
 
             if (_running.Remove(priority, out replaced))
@@ -162,7 +183,7 @@ public sealed partial class EffectEngine : IDisposable
 
         _sources.SetActive(priority, durationMs);
         LogStarted(definition.Name, priority, durationMs);
-        return true;
+        return EffectStart.Started;
     }
 
     public void Dispose()
@@ -246,15 +267,49 @@ public sealed partial class EffectEngine : IDisposable
 
     private void OnSettingsChanged(SettingsChange change)
     {
-        if (change.Sections.TryGetValue(SoundSettings.SectionName, out var sound))
+        var soundChanged = change.Sections.TryGetValue(SoundSettings.SectionName, out var sound);
+        if (soundChanged)
         {
             _sound?.Configure(SoundSettings.FromJson(sound));
+            if (!MusicAvailable)
+            {
+                StopMusic();
+            }
         }
 
         if (change.Sections.TryGetValue("backgroundEffect", out var background))
         {
             ApplyBackground(background);
         }
+        else if (soundChanged && IsMusic(_settings.GetSection("backgroundEffect")))
+        {
+            // a music background effect ends with the sound capture and comes back with it
+            ApplyBackground(_settings.GetSection("backgroundEffect"));
+        }
+    }
+
+    // Sound capture went off: music effects would freeze on their last picture, so they end and what is below shows.
+    private void StopMusic()
+    {
+        int[] priorities;
+        lock (_lock)
+        {
+            priorities = [.. _running.Values.Where(e => e.Definition.IsMusic).Select(e => e.Priority)];
+        }
+
+        foreach (var priority in priorities)
+        {
+            _sources.Clear(priority);
+            LogMusicStopped(priority);
+        }
+    }
+
+    private static bool IsMusic(JsonNode? section)
+    {
+        var o = section as JsonObject;
+        var type = o?["type"] is JsonValue t && t.TryGetValue(out string? s) ? s : "effect";
+        return !type.Contains("color", StringComparison.Ordinal) && o?["effect"] is JsonValue e && e.TryGetValue(out string? n) &&
+            EffectCatalog.Find(n)?.IsMusic == true;
     }
 
     private void RunForeground()
@@ -313,7 +368,12 @@ public sealed partial class EffectEngine : IDisposable
         {
             var name = section?["effect"] is JsonValue e && e.TryGetValue(out string? n) ? n : "Rainbow swirl fast";
             var started = Run(name, priority, durationMs, SystemOrigin);
-            LogSystemEffect(what, name, started ? "started" : "failed");
+            LogSystemEffect(what, name, started switch
+            {
+                EffectStart.Started => "started",
+                EffectStart.NoSound => "not started: sound capture is off",
+                _ => "failed",
+            });
         }
     }
 
@@ -328,6 +388,12 @@ public sealed partial class EffectEngine : IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "There is no effect named '{Name}'")]
     private partial void LogUnknown(string name);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Music effect '{Name}' not started: sound capture is off")]
+    private partial void LogNoSound(string name);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Sound capture is off: the music effect at priority {Priority} ends")]
+    private partial void LogMusicStopped(int priority);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "A startup effect can't run forever; it runs {Duration} ms")]
     private partial void LogForegroundForever(long duration);

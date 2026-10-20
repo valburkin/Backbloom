@@ -24,7 +24,7 @@ public sealed class EventSubscriptions(
     [
         "components-update", "performance-update", "sessions-update", "priorities-update", "imageToLedMapping-update",
         "adjustment-update", "leds-colors", "live-video", "settings-update", "leds-update", "instance-update", "token-update",
-        "controllers-update", "capture-update", "setup-update",
+        "controllers-update", "capture-update", "setup-update", "sound-update",
     ];
 
     private static readonly TimeSpan s_performanceInterval = TimeSpan.FromSeconds(4);
@@ -134,6 +134,26 @@ public sealed class EventSubscriptions(
                     void Handler(IReadOnlyList<TokenInfo> tokens) => session.Send(RpcReplies.Event(name, AuthorizeCommand.TokenList(tokens)));
                     auth.TokensChanged += Handler;
                     return new Subscription(() => auth.TokensChanged -= Handler);
+                }
+
+            case "sound-update":
+                {
+                    // serverinfo.sound again when the sound capture starts, stops, fails, recovers or hears sound
+                    if (engine.Sound is not { } sound)
+                    {
+                        return new Subscription(() => { });
+                    }
+
+                    void Handler()
+                    {
+                        if (payloads.Sound() is { } info)
+                        {
+                            session.Send(RpcReplies.Event(name, info));
+                        }
+                    }
+
+                    sound.Changed += Handler;
+                    return new Subscription(() => sound.Changed -= Handler);
                 }
 
             case "setup-update":

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Backbloom.App;
+using Backbloom.App.Logging;
 using Backbloom.App.Updates;
 using Backbloom.Platform.Windows.Desktop;
 using Backbloom.Server;
@@ -62,14 +63,63 @@ static async Task<int> RunAsync(string[] args)
         Desktop: !commandLine.Service && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763),
         OpenWindow: !commandLine.NoWindow,
         ConsoleLogging: hasConsole);
-    await using var app = BackbloomHost.Build([.. commandLine.ConfigurationArgs], null, launch);
-    var shutdown = app.Services.GetRequiredService<GracefulShutdown>();
-    if (hasConsole)
+
+    // Errors that would otherwise end the process without a word go to the log, the console and a message box.
+    int Fail(string summary, Exception exception)
     {
-        shutdown.HandleConsoleSignals();
+        var log = CrashReport.Write(options.DataDirectory, summary, exception);
+        if (hasConsole)
+        {
+            Console.Error.WriteLine($"{summary}: {exception}");
+        }
+
+        if (launch.Desktop && OperatingSystem.IsWindows())
+        {
+            var details = log is null ? string.Empty : $"\n\nDetails are in {log}";
+            ErrorDialog.Show("Backbloom", $"{summary}:\n\n{exception.Message}{details}");
+        }
+
+        return 1;
     }
 
-    await app.StartAsync();
+    AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+    {
+        if (e.ExceptionObject is Exception exception)
+        {
+            _ = Fail("Backbloom stopped after an unexpected error", exception);
+        }
+    };
+
+    WebApplication? app = null;
+    try
+    {
+        app = BackbloomHost.Build([.. commandLine.ConfigurationArgs], null, launch);
+        if (hasConsole)
+        {
+            app.Services.GetRequiredService<GracefulShutdown>().HandleConsoleSignals();
+        }
+
+        await app.StartAsync();
+    }
+    catch (Exception ex) when (ex is not OutOfMemoryException)
+    {
+        try
+        {
+            // writes what the log still has queued and releases the data directory
+            if (app is not null)
+            {
+                await app.DisposeAsync();
+            }
+        }
+        catch (Exception cleanup) when (cleanup is not OutOfMemoryException)
+        {
+            // the failed start is what gets reported
+        }
+
+        return Fail("Backbloom couldn't start", ex);
+    }
+
+    await using var running = app;
     var url = AppUrls.Ui(options);
     instance.Listen(request => Launcher.Answer(app, request, url));
     var server = app.Services.GetRequiredService<ServerOptions>();

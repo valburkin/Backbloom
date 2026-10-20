@@ -6,7 +6,7 @@
       "type": "boolean",
       "format": "checkbox",
       "title": "edt_conf_general_enable_title",
-      "default": false,
+      "default": true,
       "required": true,
       "propertyOrder": 1
     },

@@ -32,6 +32,35 @@ public sealed class LoggingTests : IDisposable
     }
 
     [Fact]
+    public void CrashReport_AppendsAFatalEntryToTheDaysLog_WhileTheLoggerHasItOpen()
+    {
+        var logs = Path.Combine(_dir, "logs");
+        string? path;
+        using (var provider = new RollingFileLoggerProvider(logs, _time))
+        {
+            var logger = provider.CreateLogger("Backbloom.Test");
+            Log.Hello(logger, "world");
+            provider.Flush();
+            path = CrashReport.Write(_dir, "Backbloom couldn't start", new InvalidDataException("settings.db isn't readable"), _time);
+        }
+
+        Assert.Equal(Path.Combine(logs, "backbloom-20261019.log"), path);
+        var lines = File.ReadAllLines(path!);
+        Assert.Equal("2026-10-19 21:00:00.000 INFO  Backbloom.Test: Hello world", lines[0]);
+        Assert.Equal("2026-10-19 21:00:00.000 FATAL Backbloom: Backbloom couldn't start", lines[1]);
+        Assert.StartsWith("    System.IO.InvalidDataException: settings.db isn't readable", lines[2], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CrashReport_CreatesTheLogFolderWhenNothingWasLoggedYet()
+    {
+        var path = CrashReport.Write(Path.Combine(_dir, "new"), "Backbloom couldn't start", new InvalidOperationException("boom"), _time);
+
+        Assert.Equal(Path.Combine(_dir, "new", "logs", "backbloom-20261019.log"), path);
+        Assert.Contains("FATAL Backbloom: Backbloom couldn't start", File.ReadAllText(path!), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Files_RollByDayAndSize_AndOnlyTheNewestAreKept()
     {
         for (var i = 0; i < 12; i++)

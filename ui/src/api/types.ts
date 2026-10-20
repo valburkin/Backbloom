@@ -144,12 +144,19 @@ export interface ServerInfo {
   priorities_autoselect?: boolean;
   leds?: Array<{ hmin: number; hmax: number; vmin: number; vmax: number; group?: number; disabled?: boolean }>;
   ledDevices?: { available: Array<{ name: string; group: string }> };
-  effects?: Array<{ name: string }>;
+  /** Runnable effects; `description` is a Backbloom addition. */
+  effects?: Array<{ name: string; description?: string }>;
   activeEffects?: Array<{ name: string; priority: number; timeout: number }>;
   adjustment?: ChannelAdjustment[];
   /** Sound capture; the Backbloom .NET backend adds display names in `sound_devices` (`sound_available` holds ids then). */
   sound?: {
     active?: boolean;
+    /** Music effects can run: capture is on, with a device (Backbloom addition; the backend refuses them otherwise). */
+    available?: boolean;
+    /** True while sound arrives from the device (Backbloom addition). */
+    running?: boolean;
+    /** Why the device couldn't be opened (Backbloom addition). */
+    error?: string;
     device?: string;
     sound_available?: string[];
     sound_devices?: Array<{ id: string; name: string; kind?: 'loopback' | 'microphone' }>;
@@ -302,4 +309,16 @@ export type BackendConfig = Record<string, unknown>;
 /** `config getschema`: the settings schema with every LED driver's schema under `properties.alldevices`. */
 export interface SettingsSchema extends JsonSchema {
   properties: Record<string, JsonSchema> & { alldevices?: Record<string, JsonSchema> };
+}
+
+/**
+ * A few looping seconds of effects on the user's LEDs (`effects previews`, Backbloom addition): RGB bytes per LED in
+ * the order of `leds`, frame after frame. `standard`: there were no LEDs, so the backend used its standard frame (16
+ * LEDs along the top and bottom, 9 per side, clockwise from the top left).
+ */
+export interface EffectPreviews {
+  fps: number;
+  ledCount: number;
+  standard: boolean;
+  frames: Map<string, Uint8Array>;
 }

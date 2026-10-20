@@ -4,6 +4,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
+using Backbloom.Engine;
 using Backbloom.Server.Rpc;
 using Backbloom.Settings;
 using Backbloom.Settings.Storage;
@@ -552,6 +553,45 @@ public sealed class JsonRpcTests
     }
 
     [Fact]
+    public async Task EffectPreviews_CoverEveryEffect()
+    {
+        await using var server = await TestServer.StartAsync();
+        await using var client = await server.ConnectAsync();
+
+        var reply = await client.CallAsync("effects", "previews");
+        Assert.Equal("effects-previews", reply["command"]!.GetValue<string>());
+        var info = reply["info"]!;
+        var leds = info["ledCount"]!.GetValue<int>();
+        Assert.Equal(server.Services.GetRequiredService<ISettingsStore>().GetSection("leds")!.AsArray().Count, leds);
+        Assert.False(info["standard"]!.GetValue<bool>());
+        var previews = info["previews"]!.AsArray();
+        Assert.Equal(EffectEngine.Available.Select(e => e.Name), previews.Select(p => p!["name"]!.GetValue<string>()));
+        foreach (var preview in previews)
+        {
+            var frames = Convert.FromBase64String(preview!["frames"]!.GetValue<string>());
+            Assert.True(frames.Length > 0 && frames.Length % (leds * 3) == 0);
+        }
+
+        var one = (await client.CallAsync("effects", "previews", Obj("""{ "name": "Candle" }""")))["info"]!["previews"]!.AsArray();
+        Assert.Equal("Candle", Assert.Single(one)!["name"]!.GetValue<string>());
+        Assert.Equal("Effect 'Nope' not found", Error(await client.CallAsync("effects", "previews", Obj("""{ "name": "Nope" }"""))));
+        Assert.Equal("unknown or missing subcommand", Error(await client.CallAsync("effects", "nope")));
+    }
+
+    [Fact]
+    public async Task SoundState_IsPushedWhenItChanges()
+    {
+        await using var server = await TestServer.StartAsync();
+        await using var client = await server.ConnectAsync();
+        await client.CallAsync("serverinfo", null, Obj("""{ "subscribe": ["sound-update"] }"""));
+
+        Assert.True(Success(await client.CallAsync("config", "setconfig", Obj("""{ "config": { "soundEffect": { "enable": true, "device": "input:none", "enable_smoothing": true } } }"""))));
+        var update = client.NextEvent("sound-update", e => e["data"]!["device"]!.GetValue<string>() == "input:none");
+        Assert.Equal(OperatingSystem.IsWindows(), update["data"]!["active"]!.GetValue<bool>());
+        Assert.False(update["data"]!["running"]!.GetValue<bool>());
+    }
+
+    [Fact]
     public async Task Effect_RunsIsListedAndClears()
     {
         await using var server = await TestServer.StartAsync();
@@ -559,12 +599,15 @@ public sealed class JsonRpcTests
 
         var info = (await client.CallAsync("serverinfo"))["info"]!;
         var effects = info["effects"]!.AsArray().Select(e => e!["name"]!.GetValue<string>()).ToList();
-        Assert.Equal(10, effects.Count);
+        Assert.Equal(15, effects.Count);
+        Assert.All(info["effects"]!.AsArray(), e => Assert.NotEmpty(e!["description"]!.GetValue<string>()));
         Assert.Contains("Rainbow swirl fast", effects);
-        Assert.Equal(4, effects.Count(e => e.StartsWith("Music: ", StringComparison.Ordinal)));
+        Assert.Equal(9, effects.Count(e => e.StartsWith("Music: ", StringComparison.Ordinal)));
         Assert.Empty(info["activeEffects"]!.AsArray());
         var sound = info["sound"]!;
-        Assert.False(sound["active"]!.GetValue<bool>());
+
+        // capture is on by default (it runs only while a music effect does); without a platform capture it's inactive
+        Assert.Equal(OperatingSystem.IsWindows(), sound["active"]!.GetValue<bool>());
         Assert.Equal("default", sound["device"]!.GetValue<string>());
         if (OperatingSystem.IsWindows())
         {

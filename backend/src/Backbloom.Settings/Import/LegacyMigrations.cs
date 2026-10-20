@@ -46,6 +46,7 @@ public static class LegacyMigrations
     public static readonly IReadOnlyList<string> RemovedNetworkOptions =
         ["apiAuth", "localApiAuth", "localAdminAuth", "internetAccessAPI", "restirctedInternetAccessAPI", "ipWhitelist"];
 
+    private const string DefaultSoundDevice = "default";
     private const string RainbowSwirl = "Rainbow swirl";
     private const string FullColorMoodBlobs = "Full color mood blobs";
     private const string WarmMoodBlobs = "Warm mood blobs";
@@ -125,6 +126,7 @@ public static class LegacyMigrations
         RenameFactoryName(config, changes);
         DropEmptyLayout(config, changes);
         RemoveAccessOptions(config, changes);
+        UseDefaultSoundDevice(config, changes);
 
         if (config["systemGrabber"] is JsonObject capture)
         {
@@ -282,6 +284,33 @@ public static class LegacyMigrations
         {
             changes.Add($"Removed the network access options ({string.Join(", ", removed)}): this computer always has full access, other devices always need the password");
         }
+    }
+
+    /// <summary>
+    /// HyperHDR could only capture recording devices (waveIn), so <c>soundEffect.device</c> holds a microphone name
+    /// (or none) because nothing else was offered. Music on a PC plays through its output, so the device becomes
+    /// <c>default</c>: what the current default output plays, following the switch between speakers and headphones.
+    /// Ids this version stores (<c>loopback:</c>, <c>input:</c>) are kept.
+    /// </summary>
+    public static void UseDefaultSoundDevice(JsonObject config, List<string> changes)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(changes);
+        if (config["soundEffect"] is not JsonObject sound)
+        {
+            return;
+        }
+
+        var device = sound["device"] is JsonValue d && d.TryGetValue(out string? s) ? s.Trim() : string.Empty;
+        if (device is DefaultSoundDevice || device.StartsWith("loopback:", StringComparison.Ordinal) || device.StartsWith("input:", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        sound["device"] = DefaultSoundDevice;
+        changes.Add(device.Length > 0
+            ? $"The music effects listened to the recording device '{device}'; they now listen to what this PC plays (the default output). Pick a microphone in the music settings to react to the room instead"
+            : "The music effects now listen to what this PC plays (the default output)");
     }
 
     /// <summary>HyperHDR's factory configuration name becomes this product's (a name the user chose is kept).</summary>

@@ -9,7 +9,7 @@ The data directory holds everything that belongs to one user's setup:
 | `settings.db` | SQLite: settings sections, controllers, credentials (hashes), instance id |
 | `backups/` | settings saved before an import or a restore |
 | `imported/` | copies of imported databases (only the copy is opened) |
-| `logs/` | `backbloom-yyyyMMdd.log`, a new file per day and per 10 MB, the newest 10 kept |
+| `logs/` | `backbloom-yyyyMMdd.log`, a new file per day and per 10 MB, the newest 10 kept; a failed start or a crash is recorded there as a `FATAL` entry (and shown in a message box) |
 | `window.json`, `webview/` | window placement, the window's browser profile |
 | `lut_lin_tables.3d` | HDR tone mapping table, created on first use |
 

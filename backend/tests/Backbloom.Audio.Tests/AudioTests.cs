@@ -142,16 +142,40 @@ public sealed class SoundCaptureTests
         Assert.True(platform.Sessions[1].Disposed);
         Assert.False(sound.Analysis.Running);
 
-        // failures are reported as inactive until the device opens again
+        // failures are reported as inactive, with the reason, until the device opens again
         sound.Open();
-        ((IAudioCaptureObserver)sound).Failed("gone");
+        platform.Sessions[^1].Observer.Failed("gone");
         Assert.False(sound.GetInfo().Active);
-        ((IAudioCaptureObserver)sound).Opened("Mic", new AudioFormat(48000, 1, AudioSampleFormat.IeeeFloat));
+        Assert.Equal("gone", sound.GetInfo().Error);
+        platform.Sessions[^1].Observer.Opened("Mic", new AudioFormat(48000, 1, AudioSampleFormat.IeeeFloat));
         var info = sound.GetInfo();
         Assert.True(info.Active);
+        Assert.Null(info.Error);
         Assert.Equal("input:mic", info.Device);
         Assert.Equal(2, info.Devices.Count);
         Assert.True(changes >= 6);
+    }
+
+    [Fact]
+    public void ReplacedSession_CannotMarkTheNewDeviceAsFailed()
+    {
+        var platform = new RecordingCapture();
+        using var sound = new SoundCapture(platform, NullLogger<SoundCapture>.Instance);
+        sound.Configure(new SoundSettings(true, "input:mic", true));
+        sound.Open();
+        var failing = platform.Sessions[0].Observer;
+        failing.Failed("blocked");
+        Assert.False(sound.GetInfo().Active);
+
+        // switching devices clears the failure; the old session still reporting while it shuts down changes nothing
+        sound.Configure(new SoundSettings(true, "default", true));
+        failing.Failed("blocked");
+        failing.Opened("Mic", new AudioFormat(48000, 1, AudioSampleFormat.IeeeFloat));
+        Assert.True(sound.GetInfo().Active);
+        platform.Sessions[1].Observer.Failed("lost");
+        Assert.Equal("lost", sound.GetInfo().Error);
+        failing.Opened("Mic", new AudioFormat(48000, 1, AudioSampleFormat.IeeeFloat));
+        Assert.Equal("lost", sound.GetInfo().Error);
     }
 
     [Fact]
@@ -173,14 +197,16 @@ public sealed class SoundCaptureTests
 
         public IDisposable Start(string deviceId, AudioBlockWriter writer, IAudioCaptureObserver observer)
         {
-            var session = new Session(deviceId);
+            var session = new Session(deviceId, observer);
             Sessions.Add(session);
             return session;
         }
 
-        public sealed class Session(string device) : IDisposable
+        public sealed class Session(string device, IAudioCaptureObserver observer) : IDisposable
         {
             public string Device => device;
+
+            public IAudioCaptureObserver Observer => observer;
 
             public bool Disposed { get; private set; }
 

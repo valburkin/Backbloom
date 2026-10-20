@@ -80,34 +80,64 @@
  "currentInstance": 0,
  "effects": [
   {
+   "description": "A rainbow slowly circles around the screen.",
    "name": "Rainbow swirl"
   },
   {
+   "description": "The rainbow swirl at a lively pace.",
    "name": "Rainbow swirl fast"
   },
   {
+   "description": "Soft blobs of every color drift around the frame.",
    "name": "Full color mood blobs"
   },
   {
+   "description": "Soft blobs in reds and oranges drift around the frame.",
    "name": "Warm mood blobs"
   },
   {
+   "description": "White light slowly brightens and dims, like breathing.",
    "name": "Breath"
   },
   {
+   "description": "A warm flicker, like candlelight.",
    "name": "Candle"
   },
   {
+   "description": "The whole frame pulses in the music's color.",
    "name": "Music: fullscreen pulse (MULTI COLOR)"
   },
   {
+   "description": "Bars grow from the middle of all four sides with the volume.",
    "name": "Music: quatro for LED strip (MULTI COLOR)"
   },
   {
+   "description": "Bars grow from the middle of the left and right sides with the volume.",
    "name": "Music: stereo for LED strip (MULTI COLOR)"
   },
   {
+   "description": "The latest colors run as waves from the middle of each side to the corners.",
    "name": "Music: pulse waves for LED strip (MULTI COLOR)"
+  },
+  {
+   "description": "Every frequency in its own color: bass at the bottom, treble at the top.",
+   "name": "Music: spectrum"
+  },
+  {
+   "description": "Both sides fill up with the volume, from green to red, with a falling peak.",
+   "name": "Music: VU meter"
+  },
+  {
+   "description": "Every beat sends a ring of color out from the middle of the screen.",
+   "name": "Music: beat ripple"
+  },
+  {
+   "description": "The music's colors rise from the bottom up both sides.",
+   "name": "Music: waterfall"
+  },
+  {
+   "description": "A calm glow in slowly changing colors that swells with the bass.",
+   "name": "Music: bass glow"
   }
  ],
  "hostname": "GAMING-PC",

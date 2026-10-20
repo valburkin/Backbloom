@@ -26,6 +26,30 @@ describe('MockBackend like the .NET app', () => {
     expect(((await api.getConfig()).smoothing as Record<string, unknown>).time_ms).toBe(smoothing.time_ms);
   });
 
+  it('runs music effects only while sound capture is on, and ends them when it goes off', async () => {
+    const { api } = await connected();
+    const sound = { ...((await api.getConfig()).soundEffect as Record<string, unknown>) };
+    await api.setConfig({ soundEffect: { ...sound, enable: false } });
+    expect((await api.serverInfo()).sound?.available).toBe(false);
+    await expect(api.runEffect('Music: spectrum')).rejects.toThrow('Turn on sound capture to use music effects');
+    await expect(api.runEffect('Candle')).resolves.toBeUndefined();
+
+    await api.setConfig({ soundEffect: { ...sound, enable: true } });
+    await api.runEffect('Music: spectrum');
+    expect((await api.serverInfo()).activeEffects?.map((e) => e.name)).toEqual(['Music: spectrum']);
+    await api.setConfig({ soundEffect: { ...sound, enable: false } });
+    expect((await api.serverInfo()).activeEffects).toEqual([]);
+  });
+
+  it('serves one effect preview per LED, in the order of leds', async () => {
+    const { api } = await connected();
+    const leds = (await api.serverInfo()).leds?.length ?? 0;
+    const preview = await api.effectPreviews('Candle');
+    expect([...preview.frames.keys()]).toEqual(['Candle']);
+    expect(preview.ledCount).toBe(leds || 50);
+    expect(preview.frames.get('Candle')!.length % (preview.ledCount * 3)).toBe(0);
+  });
+
   it('saves while the lights are off and stores adjustments', async () => {
     const { api } = await connected();
     await api.setComponent('ALL', false);
