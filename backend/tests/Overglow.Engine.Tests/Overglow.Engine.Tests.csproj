@@ -3,4 +3,12 @@
     <ProjectReference Include="..\..\src\Overglow.Engine\Overglow.Engine.csproj" />
     <ProjectReference Include="..\..\src\Overglow.Platform.Windows\Overglow.Platform.Windows.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\FakeProcessList.cs" Link="Shared\FakeProcessList.cs" />
+  </ItemGroup>
 </Project>

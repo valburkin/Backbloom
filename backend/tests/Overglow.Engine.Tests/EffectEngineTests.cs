@@ -266,6 +266,31 @@ public sealed class EffectEngineTests : IDisposable
     }
 
     [Fact]
+    public void StartupEffect_WaitsWhileTheOutputIsHeld_AndRunsWhenItIsReleased()
+    {
+        var engine = Engine(new SolidSource(0, 0, 255), """{ "foregroundEffect": { "enable": true, "type": "effect", "color": [255, 0, 0], "effect": "Rainbow swirl fast", "duration_ms": 600 } }""");
+        engine.Components.SetHeld(true);
+        engine.Start();
+
+        // the first-run welcome (or HyperHDR) holds the lights: no startup effect, no controller opened
+        Thread.Sleep(300);
+        Assert.Empty(engine.Effects.Active);
+        Assert.All(engine.Devices, d => Assert.Equal(DeviceState.Off, d.State));
+        Assert.True(engine.Components.IsOn(Component.LedDevice));
+
+        engine.Components.SetHeld(false);
+        Assert.Equal(new ActiveEffect("Rainbow swirl fast", 0, 600), Assert.Single(engine.Effects.Active));
+        WaitUntil(() => engine.Devices.All(d => d.State == DeviceState.Ready));
+
+        // held again (HyperHDR started): the controllers are switched off, the startup effect doesn't repeat
+        engine.Components.SetHeld(true);
+        WaitUntil(() => engine.Devices.All(d => d.State == DeviceState.Off));
+        WaitUntil(() => engine.Effects.Active.Count == 0);
+        engine.Components.SetHeld(false);
+        Assert.Empty(engine.Effects.Active);
+    }
+
+    [Fact]
     public void StartupColor_IsShownForItsDuration()
     {
         var engine = Engine(new SolidSource(0, 0, 255), """{ "foregroundEffect": { "enable": true, "type": "color", "color": [255, 0, 0], "effect": "Rainbow swirl fast", "duration_ms": 0 } }""");

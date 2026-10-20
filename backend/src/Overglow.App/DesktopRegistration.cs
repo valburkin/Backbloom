@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using Overglow.Engine;
+using Overglow.Engine.Platform;
 using Overglow.Platform.Windows.Desktop;
 using Overglow.Settings;
 using Overglow.Shell;
@@ -86,11 +87,13 @@ internal static class DesktopRegistration
 
 /// <summary>
 /// Starts the power policy and, on the desktop, the tray icon; opens the window once the server listens (unless
-/// <c>--no-window</c>). The end of the Windows session stops the host from here and waits for the LEDs.
+/// <c>--no-window</c>, which is ignored until the first-run welcome was completed). The end of the Windows session
+/// stops the host from here and waits for the LEDs.
 /// </summary>
 internal sealed class ShellHostedService(
     IServiceProvider services,
     LaunchOptions launch,
+    ISetupState setup,
     ISystemEvents events,
     GracefulShutdown shutdown,
     IHostApplicationLifetime lifetime) : IHostedService
@@ -108,7 +111,8 @@ internal sealed class ShellHostedService(
             _menu = menu;
             _tray = services.GetRequiredService<ITrayIcon>();
             _tray.Show("Overglow", menu.Build, menu.OpenWindow);
-            if (launch.OpenWindow)
+            // the welcome must be seen: until the lighting was started once the window opens even with --no-window
+            if (launch.OpenWindow || !setup.FirstRunCompleted)
             {
                 lifetime.ApplicationStarted.Register(menu.OpenWindow);
             }

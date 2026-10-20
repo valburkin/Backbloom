@@ -12,6 +12,38 @@ import { hrefFor } from '../../app/router';
 import { validate, withDefaults } from '../../schema/schema';
 import { discoveryTarget, driverName, driverOptions, switchDriver } from './drivers';
 
+/** Shown once before the first search on the network: what Find sends and that it opens nothing. */
+export function DiscoveryDialog({ open, onCancel, onConfirm }: { open: boolean; onCancel(): void; onConfirm(): void }) {
+  return (
+    <Dialog
+      open={open}
+      title="Search your network for LED controllers?"
+      onClose={onCancel}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="primary" icon={<ScanSearch size={15} />} onClick={onConfirm}>
+            Search
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3 text-[13px] text-ink-muted">
+        <p>
+          Overglow asks the devices on your local network once whether they are LED controllers (the same kind of question your phone asks to find a
+          printer) and lists the ones that answer within a few seconds. Nothing found is changed or contacted otherwise.
+        </p>
+        <p>
+          It doesn’t open a port or wait for connections, so Windows normally doesn’t ask about network access. If Windows Security does ask, allow{' '}
+          <span className="font-medium text-ink">Private networks</span> only.
+        </p>
+      </div>
+    </Dialog>
+  );
+}
+
 /** The general `device` schema and every driver's schema (`alldevices`), once the settings schema is loaded. */
 export function useDriverSchemas(): { general?: JsonSchema; drivers?: Record<string, JsonSchema> } {
   const { schema } = useConfig();
@@ -45,7 +77,8 @@ export function DriverForm({
   dirty: boolean;
   onChange: (device: DriverSettings) => void;
 }) {
-  const { serverInfo, api } = useConnection();
+  const { serverInfo, api, setup, applySetup, auth } = useConnection();
+  const [explaining, setExplaining] = useState(false);
   const { config } = useConfig();
   const { run, busy } = useAction();
   const [found, setFound] = useState<DiscoveredDevice[] | null>(null);
@@ -60,10 +93,17 @@ export function DriverForm({
   const issues = driverSchema ? validate(driverSchema, shown) : [];
   const key = (k: string) => `${controllerId}-${k}`;
 
-  const discover = () =>
+  const search = () =>
     void run(key('discover'), 'Couldn’t search for devices', async () => {
       setFound(await api.discover(type));
     });
+  // a search on the network is explained once first (serial and USB enumeration stays on this computer)
+  const discover = () => (group === 'Network' && setup && !setup.acknowledged.includes('discovery') ? setExplaining(true) : search());
+  const confirmDiscovery = () => {
+    setExplaining(false);
+    if (auth === 'admin') void api.acknowledge('discovery').then(applySetup, () => undefined);
+    search();
+  };
 
   const known = options.some((o) => o.value === type);
   return (
@@ -137,6 +177,7 @@ export function DriverForm({
         </Button>
         {dirty && <Badge tone="warn">Save to apply</Badge>}
       </div>
+      <DiscoveryDialog open={explaining} onCancel={() => setExplaining(false)} onConfirm={confirmDiscovery} />
       <Dialog open={found !== null} title={`Devices found for ${driverName(type)}`} onClose={() => setFound(null)}>
         {found?.length ? (
           <ul className="space-y-1.5">

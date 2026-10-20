@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { RpcApi, SUBSCRIPTIONS } from '../api/rpcApi';
-import type { Backend, ChannelAdjustment, ComponentInfo, ConnectionStatus, InstanceInfo, PriorityInfo, ServerInfo, SysInfo, SystemGrabbers } from '../api/types';
+import type { Backend, ChannelAdjustment, ComponentInfo, ConnectionStatus, InstanceInfo, PriorityInfo, ServerInfo, SetupState, SysInfo, SystemGrabbers } from '../api/types';
 
 /**
  * - checking: talking to the backend to find out what's needed
@@ -23,6 +23,10 @@ export interface ConnectionContextValue {
   tokenRequired: boolean;
   serverInfo: ServerInfo | null;
   sysInfo: SysInfo | null;
+  /** First run, HyperHDR, autostart and remote access (null: not loaded, or a backend without the setup command). */
+  setup: SetupState | null;
+  /** Takes the state a `setup` reply returned (the matching `setup-update` event may come later). */
+  applySetup(state: SetupState): void;
   sessionError: string | null;
   login(password: string): Promise<void>;
   continueReadOnly(): void;
@@ -63,16 +67,18 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
   const [tokenRequired, setTokenRequired] = useState(false);
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null);
+  const [setup, setSetup] = useState<SetupState | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const readOnlyChosen = useRef(false);
   const generation = useRef(0);
 
   const loadInfo = useCallback(
     async (gen: number) => {
-      const [si, sys] = await Promise.all([api.serverInfo(SUBSCRIPTIONS), api.sysInfo().catch(() => null)]);
+      const [si, sys, st] = await Promise.all([api.serverInfo(SUBSCRIPTIONS), api.sysInfo().catch(() => null), api.setupState().catch(() => null)]);
       if (gen !== generation.current) return;
       setServerInfo(si);
       setSysInfo(sys);
+      setSetup(st);
     },
     [api],
   );
@@ -169,6 +175,10 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
         const d = e.data as SystemGrabbers | null;
         setServerInfo((si) => (si && d && typeof d === 'object' ? { ...si, systemGrabbers: d } : si));
       }),
+      backend.onEvent('setup-update', (e) => {
+        const d = e.data as SetupState | null;
+        if (d && typeof d === 'object' && typeof d.firstRunCompleted === 'boolean') setSetup(d);
+      }),
       backend.onEvent('controllers-update', (e) => {
         const d = e.data as { controllers?: ServerInfo['controllers'] };
         setServerInfo((si) => (si && Array.isArray(d.controllers) ? { ...si, controllers: d.controllers } : si));
@@ -230,6 +240,8 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
     tokenRequired,
     serverInfo,
     sysInfo,
+    setup,
+    applySetup: setSetup,
     sessionError,
     login,
     continueReadOnly,

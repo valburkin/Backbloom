@@ -9,7 +9,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Overglow.App;
 using Overglow.Devices;
+using Overglow.Engine.Platform;
 using Overglow.Settings;
+using Overglow.Tests.Platform;
 
 namespace Overglow.Server.Tests;
 
@@ -45,9 +47,10 @@ internal sealed class TestServer : IAsyncDisposable
 
     /// <summary>
     /// Starts a server in a new data directory; <paramref name="settings"/> (sections as JSON) are stored first, with
-    /// the startup effect off unless they contain <c>foregroundEffect</c>.
+    /// the startup effect off unless they contain <c>foregroundEffect</c>, and the first run completed unless
+    /// <paramref name="firstRun"/> (so the LEDs run as before the first-run welcome existed).
     /// </summary>
-    public static async Task<TestServer> StartAsync(string? settings = null)
+    public static async Task<TestServer> StartAsync(string? settings = null, bool firstRun = false, Action<AppOptions, IServiceCollection>? configure = null)
     {
         var dir = NewDataDirectory();
         var sections = JsonNode.Parse(settings ?? "{}")!.AsObject();
@@ -60,15 +63,28 @@ internal sealed class TestServer : IAsyncDisposable
         {
             var result = services.Store.Update(sections);
             Assert.True(result.Success, string.Join("; ", result.Errors));
+            if (!firstRun)
+            {
+                services.Setup.CompleteFirstRun();
+            }
         }
 
-        return await StartInAsync(dir, ownsDirectory: true);
+        return await StartInAsync(dir, ownsDirectory: true, configure: configure);
     }
 
-    /// <summary>Starts a server on an existing data directory, which is kept unless <paramref name="ownsDirectory"/>.</summary>
-    public static async Task<TestServer> StartInAsync(string dir, bool ownsDirectory = false)
+    /// <summary>
+    /// Starts a server on an existing data directory, which is kept unless <paramref name="ownsDirectory"/>. The
+    /// process list is a fake without HyperHDR unless <paramref name="configure"/> registers another one.
+    /// </summary>
+    public static async Task<TestServer> StartInAsync(string dir, bool ownsDirectory = false, string[]? args = null, Action<AppOptions, IServiceCollection>? configure = null)
     {
-        var app = OverglowHost.Build(["--data-dir", dir, "--legacy-data-dir", "none", "--bind", "127.0.0.1", "--port", "0", "--capture", "synthetic", "--fps", "60", "--ui-dir", Path.Combine(dir, "no-ui")]);
+        var app = OverglowHost.Build(
+            args ?? ["--data-dir", dir, "--legacy-data-dir", "none", "--bind", "127.0.0.1", "--port", "0", "--capture", "synthetic", "--fps", "60", "--ui-dir", Path.Combine(dir, "no-ui")],
+            (options, services) =>
+            {
+                services.AddSingleton<IProcessList>(new FakeProcessList());
+                configure?.Invoke(options, services);
+            });
         await app.StartAsync();
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
         return new TestServer(app, dir, new Uri(address), ownsDirectory);

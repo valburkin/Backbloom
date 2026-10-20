@@ -10,4 +10,8 @@
   <ItemGroup>
     <PackageReference Include="MQTTnet.Server" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\FakeProcessList.cs" Link="Shared\FakeProcessList.cs" />
+  </ItemGroup>
 </Project>

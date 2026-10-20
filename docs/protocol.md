@@ -11,8 +11,8 @@ UI uses (`ui/src/api/rpcApi.ts` is the reference client).
 | HTTP | `POST /json-rpc` | one request (or an array) per call, no events |
 | MQTT | `<topic>/JsonAPI` -> `<topic>/JsonAPI/response` | when the `mqtt` section enables it; runs with the rights of a local client |
 
-The web port is 18290 by default (`--port`). An installed copy listens on every interface, other builds on
-127.0.0.1 only (`--bind`).
+The web port is 18290 by default (`--port`). The app listens on 127.0.0.1 only; with the `network.remoteAccess`
+setting on (Settings > Network) it also listens on the computer's network addresses. `--bind` fixes one address.
 
 ## Messages
 
@@ -52,11 +52,12 @@ Passwords and tokens are stored as PBKDF2 hashes.
 | `logging` `start` / `stop` | log history and live log lines |
 | `performance-counters` | CPU, memory, frame and LED rates |
 | `instance` `switchTo` | kept for HyperHDR clients |
+| `setup` `getstate` / `start` / `autostart` / `acknowledge` | first-run welcome: whether the lighting was started once, HyperHDR running, what was imported, autostart, remote access addresses; `start` ends the first-run hold (admin) |
 
 Events: `components-update`, `priorities-update`, `adjustment-update`, `settings-update`, `leds-update`,
 `imageToLedMapping-update`, `performance-update`, `token-update`, `instance-update`, `sessions-update`,
 `controllers-update`, `capture-update` (screen capture started or stopped, monitor HDR mode and tone mapping),
-`logging-update`, and the LED color stream.
+`setup-update` (the `setup` state), `logging-update`, and the LED color stream.
 
 Differences from HyperHDR (rejected invalid settings, persisted `adjustment`, restore without restart, and others)
 are listed in [backend/README.md](../backend/README.md#json-rpc-protocol).

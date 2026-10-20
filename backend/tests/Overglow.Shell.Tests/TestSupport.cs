@@ -6,8 +6,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Overglow.App;
 using Overglow.Devices;
 using Overglow.Engine;
+using Overglow.Engine.Platform;
 using Overglow.Settings;
 using Overglow.Shell;
+using Overglow.Tests.Platform;
 
 namespace Overglow.Shell.Tests;
 
@@ -40,9 +42,10 @@ internal sealed class TestHost : IAsyncDisposable
 
     /// <summary>
     /// Starts a host; <paramref name="settings"/> (sections as JSON) are stored first. The startup effect is off unless
-    /// the settings contain <c>foregroundEffect</c>.
+    /// the settings contain <c>foregroundEffect</c>; the first run is completed unless <paramref name="firstRun"/>; the
+    /// process list is a fake without HyperHDR unless <paramref name="configure"/> registers another one.
     /// </summary>
-    public static async Task<TestHost> StartAsync(string? settings = null, Action<AppOptions, IServiceCollection>? configure = null)
+    public static async Task<TestHost> StartAsync(string? settings = null, Action<AppOptions, IServiceCollection>? configure = null, bool firstRun = false, string[]? extraArgs = null)
     {
         var dir = NewDirectory();
         var sections = settings is null ? new JsonObject() : JsonNode.Parse(settings)!.AsObject();
@@ -55,9 +58,18 @@ internal sealed class TestHost : IAsyncDisposable
         {
             var result = services.Store.Update(sections);
             Assert.True(result.Success, string.Join("; ", result.Errors));
+            if (!firstRun)
+            {
+                services.Setup.CompleteFirstRun();
+            }
         }
 
-        var app = OverglowHost.Build(["--data-dir", dir, "--legacy-data-dir", "none", "--bind", "127.0.0.1", "--port", "0", "--capture", "synthetic", "--ui-dir", Path.Combine(dir, "no-ui")], configure);
+        string[] args = ["--data-dir", dir, "--legacy-data-dir", "none", "--port", "0", "--capture", "synthetic", "--ui-dir", Path.Combine(dir, "no-ui"), .. extraArgs ?? ["--bind", "127.0.0.1"]];
+        var app = OverglowHost.Build(args, (options, services) =>
+        {
+            services.AddSingleton<IProcessList>(new FakeProcessList());
+            configure?.Invoke(options, services);
+        });
         await app.StartAsync(TestContext.Current.CancellationToken);
         return new TestHost(app, dir);
     }

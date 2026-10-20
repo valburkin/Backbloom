@@ -47,7 +47,7 @@ values are errors (exit code 2, with the usage); `--name value` and `--name=valu
 | Option | Default | |
 |---|---|---|
 | `--port` | `18290` | Web port (HTTP, WebSocket JSON-RPC, UI files). HyperHDR keeps 8090/8092. |
-| `--bind` | installed: `0.0.0.0`; otherwise `127.0.0.1` | Address to listen on. An installed copy listens on every interface so phones can open the UI (Windows asks once to allow it); builds, publish folders and tests listen on loopback only, so they never trigger a firewall prompt. |
+| `--bind` | `127.0.0.1`, plus every interface address while `network.remoteAccess` is on | The one address to listen on; it overrides the remote access setting (advanced use). Without it every copy, installed or not, listens on loopback only until the user turns remote access on (see [First run, HyperHDR and network access](#first-run-hyperhdr-and-network-access)), so nothing makes Windows ask for network access unannounced. |
 | `--data-dir` | per-user `Overglow` folder; `backend/.local/data` when run from the source tree | `settings.db` (settings, controllers, credentials as hashes, instance id), `backups/`, `imported/`, `logs/`, `window.json`, `webview/` (the window's browser profile). See [Settings](#settings-storage-and-hyperhdr-import). |
 | `--legacy-data-dir` | HyperHDR's data folder; none when run from the source tree | Where the first start looks for `db/hyperhdr.db` to import. `none` turns it off. |
 | `--ui-dir` | `ui/` next to the program, else `ui/dist` of the source tree | Built React UI to serve. |
@@ -97,7 +97,8 @@ src/
   Overglow.Discovery  mDNS client/responder, SSDP search, UDP broadcast probes, serial port and HID enumeration
   Overglow.Mqtt       the one MQTT broker connection (MQTTnet), shared by Zigbee2MQTT and the MQTT integration
   Overglow.Settings   settings schemas + validation, SQLite store, credential store, HyperHDR import, backups
-  Overglow.Engine     orchestration: frame loop, component switches, controllers, live preview feed, running effects
+  Overglow.Engine     orchestration: frame loop, component switches, controllers, live preview feed, running effects,
+                      the lighting gate (first run, HyperHDR running)
   Overglow.Server     Kestrel: JSON-RPC over WebSocket + POST /json-rpc, auth, UI files; the MQTT integration
   Overglow.Shell      desktop integration, platform-neutral: power/session policy, tray menu, window placement,
                       single instance, the contracts of tray, window, autostart and system events
@@ -134,7 +135,7 @@ the C++ fixtures by `Core.Tests`; `Audio` only gets the sound into that analysis
 | Sound capture (1 while a music effect runs, above-normal) | `WasapiSession` | read the device's buffers, convert them into blocks, analyze each block |
 | Smoothing (1, above-normal priority) | `OutputStage` | while smoothing runs: one tick per update interval (interpolate, anti-flicker filter, hand the frame to the controllers and the preview); idle otherwise |
 | One per controller | `LedDeviceRunner` | open (with retries), send the newest frame (its slice of the LEDs), refresh, blink, close |
-| Thread pool | ASP.NET Core | JSON-RPC requests (in order per connection), event pushes, LED stream timers |
+| Thread pool | ASP.NET Core, `OtherAppMonitor` | JSON-RPC requests (in order per connection), event pushes, LED stream timers, the HyperHDR process check every 2 s |
 | UI (1, STA, Windows) | `UiThread` | Win32 message loop: hidden message window (power/session notifications, tray callbacks), tray menu, WebView2 window |
 | Log file (1, below normal) | `RollingFileLoggerProvider` | writes queued log lines |
 
@@ -401,15 +402,23 @@ throws `DeviceLostException`; the runner goes to `WaitingToRetry` and reopens it
 | System.IO.Ports 10.0 | MIT | serial I/O | the platform's serial API |
 
 **Discovery** (`Overglow.Discovery`). Passive: it only sends queries (mDNS PTR, SSDP M-SEARCH, the LIFX/WiZ broadcast
-probes) and lists what answers; nothing found is configured or contacted by the discovery itself.
+probes) and lists what answers; nothing found is configured or contacted by the discovery itself. It runs only when
+asked (`leddevice discover`, the UI's Find) and listens nowhere in between: every query goes out from `QuerySockets`,
+one UDP socket per local IPv4 address bound to that address and an ephemeral port, closed when the query ends. The
+answers come back to that port (Windows Firewall lets unicast answers to a multicast or broadcast query in for a few
+seconds without an inbound rule), so nothing is bound to 0.0.0.0 or to a well-known port. Measured on the
+development machine: at startup only `127.0.0.1:<port>` (TCP); during a Find one ephemeral UDP port per interface
+address; afterwards loopback only again.
 - mDNS is implemented here (about 900 lines: DNS message codec, cache with TTLs and goodbyes, responder) instead of using a
   library: the maintained .NET options are browse-only (Zeroconf) or unmaintained since 2019 (Makaretu.Dns.Multicast),
-  and the protocol subset needed is small and fully testable without sockets (`IMdnsTransport`). The socket shares
-  UDP 5353 with the OS responder (address reuse, 224.0.0.251 joined per interface); if that fails, queries go out as
-  RFC 6762 legacy unicast queries and nothing is advertised. Own addresses are never reported.
-- The web UI is advertised as `<host>:<port>._overglow-http._tcp.local` (as the C++ build) when the server listens on
-  the network (`--bind` other than loopback, the default of an installed copy); on loopback it isn't.
-- SSDP: one M-SEARCH (C++ message, MX 1) and every answer within 3 s, headers parsed like `SSDPDiscover`.
+  and the protocol subset needed is small and fully testable without sockets (`IMdnsTransport`). A browse opens its own
+  `UdpMdnsQueryTransport`: queries from a port other than 5353 are RFC 6762 legacy unicast queries and carry the QU
+  bit, so responders answer the querier directly. The responder transport (`UdpMdnsTransport`: UDP 5353 shared with
+  the OS responder, 224.0.0.251 joined per interface) exists only while the web UI is advertised. Own addresses are
+  never reported.
+- The web UI is advertised as `<host>:<port>._overglow-http._tcp.local` (as the C++ build) only while the server
+  listens on the network (remote access on, or `--bind` with a network address); a goodbye is sent when it stops.
+- SSDP: one M-SEARCH (C++ message, MX 1) per interface and every answer within 3 s, headers parsed like `SSDPDiscover`.
 - Serial ports: HidSharp's serial device list (friendly name, USB ids from the Windows device path) plus
   `SerialPort.GetPortNames()`; HID devices: HidSharp with the top-level usage page/usage.
 
@@ -442,9 +451,9 @@ wires them (`DesktopRegistration`).
 | Single instance | One app per data directory (C++: one `overglow.exe` per machine, a second start failed). The first instance holds `overglow.lock` in the data directory exclusively (released by the OS even after a crash) and listens on a named pipe derived from the directory (current user only). A second start with the same directory asks it to show its window (headless: the second process opens the UI in the browser) and exits; `--quit` asks it to quit and waits. Instances with different data directories run side by side. |
 | Tray | `Shell_NotifyIcon` (version 4) with the Overglow icon (`branding/overglow.ico`, embedded; the best size is picked from the .ico). Menu, rebuilt on each open (`TrayMenu`): **Open Overglow** (default, also a click on the icon), **Lights** (`ALL`), **Screen sync** (removes colors and effects, capture on; checked while the screen shows or waits for its first frame), **Music** (the four music effects), **Effect** (the six effects), **Color** (the C++ colors) -- music, effects and colors run at priority 1 until something else is chosen, as C++ did; the running one is checked --, **Pause for 30 minutes** (then *Resume*; a switch elsewhere ends the pause), **Start with Windows**, **Quit**. The icon comes back after an Explorer restart (`TaskbarCreated`). C++'s "Instances" submenu is gone (one pipeline). |
 | Window | A plain Win32 window hosting the UI in WebView2 (`Microsoft.Web.WebView2.Core` only, BSD-3; no WinForms/WPF, their assemblies are kept out of the output by `Directory.Build.targets`). Dark title bar, the UI's background until the page draws, placement (normal bounds + maximized) in `window.json` (atomic write; restored only when it is on a monitor). Closing it destroys the window and its browser processes (no memory held while hidden); the app stays in the tray. Links to other sites open in the default browser. Without the WebView2 runtime (`GetAvailableBrowserVersionString`) or when it fails to start, the UI opens in the default browser. Profile in `<data>/webview`. |
-| Autostart | `RegistryAutostart`: value `Overglow` in `HKCU\...\CurrentVersion\Run` (as C++), command `"<exe>" --no-window` plus `--data-dir` when it isn't the default; enabled only when the entry starts this executable (also C++'s bare-path entries). The key is a constructor parameter; the tests use a scratch key and never write the real Run key. |
+| Autostart | `RegistryAutostart`: value `Overglow` in `HKCU\...\CurrentVersion\Run` (as C++), command `"<exe>" --no-window` plus `--data-dir` when it isn't the default; enabled only when the entry starts this executable (also C++'s bare-path entries). Off by default: only the user turns it on (tray menu, the welcome's checkbox, `setup autostart`). The key is a constructor parameter; the tests use a scratch key and never write the real Run key. |
 | Power and session | `WindowsSystemEvents` (hidden top-level window: `RegisterSuspendResumeNotification`, `RegisterPowerSettingNotification(GUID_SESSION_DISPLAY_STATUS)`, `WTSRegisterSessionNotification`, `WM_ENDSESSION`) raises `ISystemEvents`; `PowerPolicy` (port of `InstanceManager::hibernate`) reacts: sleep -> `ALL` off, wake-up -> on 3 s later; locked or display off with `general.disableOnLocked` -> `SYSTEMGRABBER` off (the screen source leaves, so the LEDs go dark unless a color or effect shows: an effect chosen by the user keeps running while locked, as in C++; without this setting the screen still leaves 800 ms after the lock screen stops its frames), unlocked and display on -> capture on 3 s later, and the screen shows again with its first frame. A lock in a remote desktop session is ignored (as C++). |
-| Startup | `general.disableLedsStartup` starts with `LEDDEVICE` off (engine, unchanged); `--no-window` keeps the window closed. |
+| Startup | `general.disableLedsStartup` starts with `LEDDEVICE` off (engine, unchanged); `--no-window` keeps the window closed, except until the first-run welcome was completed (the window always opens then, so the welcome is seen). |
 | Logging | Console (when there is one), `logs/overglow-yyyyMMdd.log` in the data directory and the UI's log view, at the level of the `logger` section (silent = errors only, warn, verbose = info, debug), applied at once when it changes. One plain-text line per message (time, level, category, rendered message template; exceptions indented below), written by a background thread; a new file per day and per 10 MB, the newest 10 kept. |
 | Shutdown | Quit, `--quit` and Ctrl+C stop the host: WebSocket clients are closed at once, the engine switches every controller off (black frame, then closed), then the tray icon goes. Where Windows ends the process as soon as a notification returns (`WM_ENDSESSION` at logoff/shutdown; console close and shutdown signals), the handler stops the host and waits up to 4.5 s for the LEDs (`GracefulShutdown`). C++ didn't handle the session end. |
 | Settings | Crash-safe as before: every change is one SQLite transaction (rollback journal, `synchronous=FULL` by default); `window.json` is written to a temporary file and moved over. |
@@ -463,6 +472,45 @@ Design choices:
   interop, so `Platform.Windows` is no longer marked AOT-compatible.
 - **One UI thread** (STA) owns every window: WebView2 and the menu loop need a message pump; it has a
   `SynchronizationContext`, so `await` in the window code returns to it.
+
+## First run, HyperHDR and network access
+
+A first install must not take over the lights or the network by itself: the HyperHDR import used to drive the LEDs
+at once (two senders, flickering, while HyperHDR still ran) and the installed copy listened on every interface
+(an unexplained Windows Firewall prompt).
+
+**Lighting gate** (`Overglow.Engine/LightingGate`). The output is held (`ComponentStates.SetHeld`: the controllers stay
+closed, nothing is sent; capture, mapping and the preview keep running, the protocol's switches keep the user's choice)
+
+- until the first run is completed: the meta key `first_run_completed` (`ISetupState`, in `settings.db`'s `meta`, not
+  in a settings section, so backups, restores and imports don't touch it), set by the welcome's "Start lighting"
+  (`setup start`). A new data directory and every first-start import wait for it; while it waits the window opens
+  even with `--no-window`. Schema migration 3 sets the key (value `upgrade`) for databases that existed before, so an
+  update never holds a configured setup (and never blocks an autostarted one);
+- while HyperHDR (`hyperhdr.exe`) or Hyperion (`hyperiond.exe`) runs: `OtherAppMonitor` asks `IProcessList` at start
+  and every 2 s (`WindowsProcessList`: one Toolhelp snapshot, image names only, no handles; elsewhere
+  `Process.GetProcessesByName`). When it quits the output follows within 2 s; when it starts later Overglow switches
+  its controllers off and lets go.
+
+The gate starts before the engine, so a held start never opens a controller. The startup effect waits for the
+release and runs then, as if the app had started at that moment.
+
+**Network access** (`Overglow.App/RemoteAccess`, setting `network.remoteAccess`, default off, also for imports). Off:
+Kestrel listens on 127.0.0.1 only and nothing is advertised. On: an endpoint per IPv4 interface address
+(`<address>:<port>`) comes from a reloadable configuration (`NetworkEndpointConfiguration`, Kestrel
+`Configure(..., reloadOnChange: true)`), so they are bound and unbound live and follow address changes
+(`NetworkChange.NetworkAddressChanged`); the loopback endpoint is configured in code and never touched (the app's own
+window stays connected). Specific addresses rather than 0.0.0.0, so they never overlap the loopback endpoint and the
+tests (127.0.0.2 as the "network" address, `RemoteAccessOptions`) exercise the same binding. Unbinding waits for open
+connections on those endpoints to end (a few seconds). The mDNS responder starts and stops with them. `--bind` fixes
+one address instead and the setting has no effect. The UI explains what turning it on does (and that Windows asks
+next, Private networks only) before it sets the setting.
+
+**Protocol.** `setup` (Overglow addition): `getstate` for any authorized session; `start` `{ autostart? }`,
+`autostart` `{ enabled }`, `acknowledge` `{ topic: "discovery" }` for admins. Each replies with
+`{ firstRunCompleted, outputHeld, otherApp: { name, executable } | null, importedFrom, autostart: { available, enabled },
+remoteAccess: { enabled, fixedByCommandLine, port, urls, advertised }, acknowledged }`, which the `setup-update` event
+pushes on every change.
 
 ## MQTT integration
 
@@ -564,6 +612,7 @@ Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): r
 | `color`, `clear`, `clearall`, `sourceselect` | done (see [Sources and priorities](#sources-and-priorities)) |
 | `adjustment`, `ledcolors` ledstream-start/stop, `leddevice` identify/discover/getProperties, `logging`, `instance` switchTo | done (several controllers: see [LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)) |
 | `effect` (`priority` 1..253, `effect.name`, `duration`, `origin`) | done (see [Effects](#effects)); `effect.args`, `pythonScript` and `imageData` are rejected (C++ rejected arguments too) |
+| `setup` getstate, start, autostart, acknowledge (+ `setup-update`) | new (see [First run, HyperHDR and network access](#first-run-hyperhdr-and-network-access)) |
 | `image`, imagestream | not yet ("Command not implemented") |
 
 Deliberate differences from the C++ backend (its bug backlog):
@@ -588,8 +637,8 @@ before the controller's color order (so it is really red, green, blue on GRB str
 **Sections and validation.** Every settings type the C++ build kept is a section: `general`, `logger`, `device`,
 `color`, `smoothing`, `systemGrabber`, `blackborderdetector`, `foregroundEffect`, `backgroundEffect`, `soundEffect`,
 `webConfig`, `effects`, `systemControl`, `network`, `ledConfig`, `leds`, `mqtt`, `layout`. Their schemas are the C++
-files (`sources/base/schema`, copied into `Overglow.Settings/Schemas`; the only addition is
-`mqtt.homeAssistantDiscovery`), the LED driver schemas come from `Overglow.Devices`, and defaults exist only there. The in-house validator stays: the schemas use the draft-03
+files (`sources/base/schema`, copied into `Overglow.Settings/Schemas`; the additions are
+`mqtt.homeAssistantDiscovery` and `network.remoteAccess`), the LED driver schemas come from `Overglow.Devices`, and defaults exist only there. The in-house validator stays: the schemas use the draft-03
 `required: true` form that the standard validators don't support. `setconfig` uses it strictly (reject, per-field
 errors); only imports and stored data from an older schema use its repair mode (clamp numbers, reset values of the wrong
 type or outside an enum to their default, drop unknown fields, report every fix).
@@ -598,7 +647,8 @@ type or outside an enum to their default, drop unknown fields, report every fix)
 a validated in-memory copy, every update is one transaction written before the copy changes. `PRAGMA application_id`
 marks the file, `PRAGMA user_version` is the schema version: `SettingsDatabase.Migrations` lists the forward steps, each
 applied once in its own transaction; a file from a newer version is refused, never rewritten. Schema 2 converts a stored
-`systemGrabber.hdrToneMapping` switch into the mode, as the import does. Schema 1:
+`systemGrabber.hdrToneMapping` switch into the mode, as the import does; schema 3 marks a database that was already in
+use as past its first run (see [First run](#first-run-hyperhdr-and-network-access)). Schema 1:
 
 | Table | Holds |
 |---|---|
@@ -649,7 +699,8 @@ Converting is a pure function of the source, so importing the same file again ch
 first existing of `<data>/db/overglow.db` (the C++ build's database in the same folder) and
 `<legacy>/db/hyperhdr.db` is imported (`--legacy-data-dir`, default HyperHDR's folder: `~/.hyperhdr` if it exists,
 else `%LOCALAPPDATA%\HyperHDR` / `~/Library/Preferences/HyperHDR` / `~/.config/HyperHDR`; source-tree builds don't look
-unless told). A failed import is logged and the app starts with defaults; it isn't retried automatically.
+unless told). A failed import is logged and the app starts with defaults; it isn't retried automatically. Either
+way the lights wait for the first-run welcome; the imported file is remembered (`imported_from`) for its summary.
 `overglow --import <file> --data-dir <dir>` imports a database explicitly (the current settings go to `backups/` first).
 
 **Backups.** `save-db` returns the C++ export format (`Overglow_export_format_v1`: `instances` + `settings` rows with

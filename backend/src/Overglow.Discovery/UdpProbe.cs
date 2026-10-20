@@ -1,6 +1,4 @@
 using System.Net;
-using System.Net.NetworkInformation;
-using System.Net.Sockets;
 
 namespace Overglow.Discovery;
 
@@ -13,88 +11,46 @@ public interface IUdpProbe
     Task<IReadOnlyList<UdpProbeReply>> ProbeAsync(byte[] request, int port, TimeSpan duration, CancellationToken cancellationToken);
 }
 
+/// <summary>A probe target: the local address to send from and where to send to.</summary>
+public sealed record UdpProbeTarget(IPAddress Local, IPEndPoint Target);
+
 /// <summary>
 /// Sends the request to the broadcast address of every IPv4 interface (as the C++ drivers did with
-/// QNetworkInterface::allInterfaces) from one socket and returns every datagram received within the duration.
+/// QNetworkInterface::allInterfaces), each from an ephemeral socket bound to that interface's address
+/// (<see cref="QuerySockets"/>), and returns every datagram received within the duration.
 /// </summary>
 /// <param name="targets">Where to send for a port; the interfaces' broadcast addresses by default (tests use loopback).</param>
-public sealed class UdpProbe(Func<int, IEnumerable<IPEndPoint>>? targets = null) : IUdpProbe
+public sealed class UdpProbe(Func<int, IEnumerable<UdpProbeTarget>>? targets = null) : IUdpProbe
 {
-    private readonly Func<int, IEnumerable<IPEndPoint>> _targets = targets ?? BroadcastTargets;
+    private readonly Func<int, IEnumerable<UdpProbeTarget>> _targets = targets ?? BroadcastTargets;
 
     public async Task<IReadOnlyList<UdpProbeReply>> ProbeAsync(byte[] request, int port, TimeSpan duration, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         var targetList = _targets(port).ToList();
-        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp) { EnableBroadcast = true };
-
-        // loopback targets (tests) get a loopback socket, so nothing listens on the network
-        socket.Bind(new IPEndPoint(targetList.Count > 0 && targetList.All(t => IPAddress.IsLoopback(t.Address)) ? IPAddress.Loopback : IPAddress.Any, 0));
-        foreach (var target in targetList)
-        {
-            try
-            {
-                await socket.SendToAsync(request, SocketFlags.None, target, cancellationToken);
-            }
-            catch (SocketException)
-            {
-                // an interface that can't broadcast (e.g. down in the meantime) is skipped
-            }
-        }
+        using var sockets = QuerySockets.Open(targetList.Select(t => t.Local), broadcast: true);
+        sockets.Send(request, local => targetList.FirstOrDefault(t => t.Local.Equals(local))?.Target);
 
         var replies = new List<UdpProbeReply>();
-        var buffer = new byte[4096];
         using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         window.CancelAfter(duration);
-        EndPoint any = new IPEndPoint(IPAddress.Any, 0);
-        while (true)
-        {
-            try
+        await sockets.ReceiveAsync(
+            (datagram, sender) =>
             {
-                var result = await socket.ReceiveFromAsync(buffer, SocketFlags.None, any, window.Token);
-                replies.Add(new UdpProbeReply((IPEndPoint)result.RemoteEndPoint, buffer.AsSpan(0, result.ReceivedBytes).ToArray()));
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                return replies;
-            }
-            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionReset)
-            {
-            }
-        }
+                lock (replies)
+                {
+                    replies.Add(new UdpProbeReply(sender, datagram));
+                }
+            },
+            window.Token);
+        cancellationToken.ThrowIfCancellationRequested();
+        return replies;
     }
 
-    /// <summary>The directed broadcast address of every IPv4 interface that is up.</summary>
-    public static IEnumerable<IPEndPoint> BroadcastTargets(int port)
-    {
-        var seen = new HashSet<IPAddress>();
-        foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
-        {
-            if (nic.OperationalStatus != OperationalStatus.Up || nic.NetworkInterfaceType == NetworkInterfaceType.Loopback)
-            {
-                continue;
-            }
-
-            foreach (var unicast in nic.GetIPProperties().UnicastAddresses)
-            {
-                if (unicast.Address.AddressFamily != AddressFamily.InterNetwork || unicast.IPv4Mask is null)
-                {
-                    continue;
-                }
-
-                var address = unicast.Address.GetAddressBytes();
-                var mask = unicast.IPv4Mask.GetAddressBytes();
-                for (var i = 0; i < 4; i++)
-                {
-                    address[i] = (byte)(address[i] | ~mask[i]);
-                }
-
-                var broadcast = new IPAddress(address);
-                if (seen.Add(broadcast))
-                {
-                    yield return new IPEndPoint(broadcast, port);
-                }
-            }
-        }
-    }
+    /// <summary>The directed broadcast address of every IPv4 interface that is up, sent from that interface's address.</summary>
+    public static IEnumerable<UdpProbeTarget> BroadcastTargets(int port) =>
+        LocalNetwork.Addresses()
+            .Where(a => a.Broadcast is not null)
+            .DistinctBy(a => a.Broadcast)
+            .Select(a => new UdpProbeTarget(a.Address, new IPEndPoint(a.Broadcast!, port)));
 }

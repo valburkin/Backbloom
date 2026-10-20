@@ -168,6 +168,7 @@
   "ipWhitelist": [],
   "localAdminAuth": true,
   "localApiAuth": false,
+  "remoteAccess": false,
   "restirctedInternetAccessAPI": false
  },
  "smoothing": {

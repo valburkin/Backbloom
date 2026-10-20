@@ -49,7 +49,7 @@ public sealed class DriverContext(
     public DiscoveryServices Discovery
     {
         get => _discovery ??= new DiscoveryServices(
-            new MdnsService(new UdpMdnsTransport(LoggerFactory.CreateLogger<UdpMdnsTransport>()), LoggerFactory.CreateLogger<MdnsService>()),
+            MdnsService.Create(LoggerFactory),
             new SsdpSearcher(),
             new SerialPortEnumerator(),
             new HidEnumerator(),

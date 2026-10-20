@@ -4,6 +4,7 @@ import type { PageSettings } from '../../app/config';
 import { useConnection } from '../../app/connection';
 import { deepEqual } from '../../settings/drafts';
 import { propertyAt, rangeOf } from '../../schema/schema';
+import { RemoteAccessSection } from './RemoteAccess';
 
 type Obj = Record<string, unknown>;
 
@@ -19,6 +20,7 @@ export function NetworkTab({ ps }: { ps: PageSettings }) {
 
   return (
     <>
+      <RemoteAccessSection ps={ps} />
       <Section title="Web interface" icon={<Globe size={18} />} description="The ports this page and apps use to reach Overglow.">
         <div className="grid gap-4 sm:grid-cols-2">
           <NumberField integer label="Port (http)" min={port.min} max={port.max} value={Number(web.port)} error={err('webConfig.port')} onChange={set('port')} />

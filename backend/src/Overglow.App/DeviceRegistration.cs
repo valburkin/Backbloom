@@ -1,6 +1,5 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Overglow.Devices;
 using Overglow.Discovery;
@@ -8,7 +7,6 @@ using Overglow.Discovery.Mdns;
 using Overglow.Discovery.Ssdp;
 using Overglow.Discovery.Usb;
 using Overglow.Mqtt;
-using Overglow.Server;
 
 namespace Overglow.App;
 
@@ -19,8 +17,8 @@ internal static class DeviceRegistration
     {
         services.AddSingleton(_ => new DriverRegistry().RegisterAll());
         services.AddSingleton(_ => new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) }));
-        services.AddSingleton(sp => new MdnsService(
-            new UdpMdnsTransport(sp.GetRequiredService<ILogger<UdpMdnsTransport>>()), sp.GetRequiredService<ILogger<MdnsService>>()));
+        // Browsing opens ephemeral sockets per query; the 5353 responder only exists while remote access advertises the UI.
+        services.AddSingleton(sp => MdnsService.Create(sp.GetRequiredService<ILoggerFactory>()));
         services.AddSingleton(sp => new DiscoveryServices(
             sp.GetRequiredService<MdnsService>(), new SsdpSearcher(), new SerialPortEnumerator(), new HidEnumerator(), new UdpProbe()));
         services.AddSingleton<MqttConnection>();
@@ -31,7 +29,6 @@ internal static class DeviceRegistration
             Mqtt = sp.GetRequiredService<MqttConnection>(),
         });
         services.AddSingleton<DeviceTools>();
-        services.AddHostedService<NetworkHostedService>();
         return services;
     }
 
@@ -70,37 +67,4 @@ internal static class DeviceRegistration
         var b = address.GetAddressBytes();
         return b[0] == 10 || b[0] == 127 || (b[0] == 172 && b[1] is >= 16 and <= 31) || (b[0] == 192 && b[1] == 168) || (b[0] == 169 && b[1] == 254);
     }
-}
-
-/// <summary>
-/// Advertises the web UI with mDNS when the server listens on the network (not when it is bound to loopback only).
-/// The MQTT connection is configured by the MQTT integration (<c>Overglow.Server.Mqtt.MqttIntegration</c>).
-/// </summary>
-internal sealed partial class NetworkHostedService(
-    AppOptions options,
-    ServerOptions server,
-    MdnsService mdns,
-    ILogger<NetworkHostedService> logger) : IHostedService
-{
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
-        if (!IPAddress.IsLoopback(options.BindAddress))
-        {
-            var addresses = options.BindAddress.Equals(IPAddress.Any) ? [.. UdpMdnsTransport.InterfaceAddresses()] : new List<IPAddress> { options.BindAddress };
-            var host = Environment.MachineName;
-            mdns.Advertise(new MdnsAdvertisement(KnownServices.WebUi, $"{host}:{options.Port}", $"{host}.local.", options.Port, [$"version={server.Version}"], addresses));
-        }
-        else
-        {
-            LogNotAdvertised(options.BindAddress);
-        }
-
-        return Task.CompletedTask;
-    }
-
-    /// <summary>The container disposes the mDNS service (goodbye) and the MQTT connection (shutdown messages).</summary>
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "The web UI isn't advertised with mDNS: the server only listens on {Address}")]
-    private partial void LogNotAdvertised(IPAddress address);
 }

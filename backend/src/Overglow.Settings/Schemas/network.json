@@ -3,6 +3,14 @@
   "title": "edt_conf_net_heading_title",
   "required": true,
   "properties": {
+    "remoteAccess": {
+      "type": "boolean",
+      "format": "checkbox",
+      "title": "Control from your phone and other devices (listen on the local network)",
+      "required": true,
+      "default": false,
+      "propertyOrder": 0
+    },
     "apiAuth": {
       "type": "boolean",
       "format": "checkbox",

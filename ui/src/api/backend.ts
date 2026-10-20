@@ -42,8 +42,9 @@ export function createBackend(): Backend {
   const loc = window.location;
   const env = import.meta.env;
   if (isMockEnabled(loc, env.VITE_MOCK as string | undefined)) {
+    // ?mock=auth: password needed; ?mock=welcome: a fresh install's welcome; ?mock=hyperhdr: welcome while HyperHDR runs
     const mode = new URLSearchParams(loc.search).get('mock');
-    return new MockBackend({ requireAuth: mode === 'auth' });
+    return new MockBackend({ requireAuth: mode === 'auth', firstRun: mode === 'welcome' || mode === 'hyperhdr', otherApp: mode === 'hyperhdr' });
   }
   return new WsClient({ url: resolveBackendUrl(loc, env.VITE_BACKEND as string | undefined, env.DEV) });
 }

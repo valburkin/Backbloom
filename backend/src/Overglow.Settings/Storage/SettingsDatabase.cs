@@ -55,6 +55,14 @@ public sealed class SettingsDatabase : IDisposable
             SET value = json_set(value, '$.hdrToneMapping', CASE json_type(value, '$.hdrToneMapping') WHEN 'true' THEN 'auto' ELSE 'off' END)
             WHERE section = 'systemGrabber' AND json_valid(value) AND json_type(value, '$.hdrToneMapping') IN ('true', 'false');
             """)),
+
+        // The first-run welcome holds the lights until the user starts them. A database that was already set up
+        // (it has its first-start marker) counts as started, so updating never leaves the lights off; a new one
+        // (no meta rows yet while it is created) doesn't. See SqliteSetupState.
+        new(3, "first run: databases already in use count as started", (c, t) => Execute(c, t, """
+            INSERT INTO meta (key, value)
+            SELECT 'first_run_completed', 'upgrade' WHERE EXISTS (SELECT 1 FROM meta WHERE key = 'initialized_at');
+            """)),
     ];
 
     private readonly SqliteConnection _connection;

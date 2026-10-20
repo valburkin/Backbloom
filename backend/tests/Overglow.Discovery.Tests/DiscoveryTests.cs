@@ -78,13 +78,13 @@ public sealed class DiscoveryTests
     public async Task Browse_QueriesAndReportsResolvedInstances()
     {
         var transport = new FakeTransport();
-        using var mdns = new MdnsService(transport, NullLogger<MdnsService>.Instance, isOwnAddress: a => a.Equals(IPAddress.Parse("10.0.0.2")));
+        using var mdns = new MdnsService(() => transport, () => transport, NullLogger<MdnsService>.Instance, isOwnAddress: a => a.Equals(IPAddress.Parse("10.0.0.2")));
         transport.OnSend = _ => transport.Deliver(WledAnnouncement(120), new IPEndPoint(s_wled, 5353));
 
         var found = await mdns.BrowseAsync("_wled._tcp.local", TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
         var query = DnsMessage.Decode(transport.Multicast.First());
-        Assert.Equal(new DnsQuestion("_wled._tcp.local.", DnsType.NamePointer), Assert.Single(query.Questions));
+        Assert.Equal(new DnsQuestion("_wled._tcp.local.", DnsType.NamePointer, UnicastResponse: true), Assert.Single(query.Questions));
         Assert.Equal(new MdnsServiceInstance(KnownServices.Wled, "wled-desk._wled._tcp.local.", "wled-desk.local", s_wled, 80, []), Assert.Single(found));
 
         transport.OnSend = null;
@@ -96,7 +96,7 @@ public sealed class DiscoveryTests
     public async Task Browse_SkipsOwnAddresses()
     {
         var transport = new FakeTransport();
-        using var mdns = new MdnsService(transport, NullLogger<MdnsService>.Instance, isOwnAddress: a => a.Equals(s_wled));
+        using var mdns = new MdnsService(() => transport, () => transport, NullLogger<MdnsService>.Instance, isOwnAddress: a => a.Equals(s_wled));
         transport.OnSend = _ => transport.Deliver(WledAnnouncement(120), new IPEndPoint(s_wled, 5353));
 
         Assert.Empty(await mdns.BrowseAsync(KnownServices.Wled, TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken));
@@ -122,7 +122,7 @@ public sealed class DiscoveryTests
     public void Responder_AnnouncesAndAnswersLegacyQueriesDirectly()
     {
         var transport = new FakeTransport();
-        using (var mdns = new MdnsService(transport, NullLogger<MdnsService>.Instance))
+        using (var mdns = new MdnsService(() => transport, () => transport, NullLogger<MdnsService>.Instance))
         {
             mdns.Advertise(s_webUi);
             var announcement = DnsMessage.Decode(transport.Multicast.First());
@@ -137,6 +137,91 @@ public sealed class DiscoveryTests
 
         var goodbye = DnsMessage.Decode(transport.Multicast.Last());
         Assert.All(goodbye.Answers, r => Assert.Equal(0u, r.Ttl));
+    }
+
+    [Fact]
+    public async Task Browse_OpensItsOwnTransportAndClosesIt_TheResponderOnlyWhileAdvertising()
+    {
+        var responder = new FakeTransport();
+        var queries = new List<FakeTransport>();
+        using var mdns = new MdnsService(() => responder, () =>
+        {
+            var t = new FakeTransport();
+            queries.Add(t);
+            return t;
+        }, NullLogger<MdnsService>.Instance);
+
+        await mdns.BrowseAsync(KnownServices.Wled, TimeSpan.FromMilliseconds(20), TestContext.Current.CancellationToken);
+        await mdns.BrowseAsync(KnownServices.PhilipsHue, TimeSpan.FromMilliseconds(20), TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, queries.Count);
+        Assert.All(queries, q => Assert.Equal((1, 1), (q.Starts, q.Disposals)));
+        Assert.Equal(0, responder.Starts);
+        Assert.False(mdns.IsAdvertising);
+
+        Assert.True(mdns.Advertise(s_webUi));
+        Assert.True(mdns.IsAdvertising);
+        Assert.Equal((1, 0), (responder.Starts, responder.Disposals));
+        mdns.StopAdvertising();
+        Assert.Equal((1, 1), (responder.Starts, responder.Disposals));
+        Assert.All(DnsMessage.Decode(responder.Multicast.Last()).Answers, r => Assert.Equal(0u, r.Ttl));
+        Assert.False(mdns.IsAdvertising);
+    }
+
+    [Fact]
+    public void Advertise_WithoutTheMdnsPort_AdvertisesNothing()
+    {
+        var responder = new FakeTransport(canAdvertise: false);
+        using var mdns = new MdnsService(() => responder, () => new FakeTransport(), NullLogger<MdnsService>.Instance);
+
+        Assert.False(mdns.Advertise(s_webUi));
+        Assert.False(mdns.IsAdvertising);
+        Assert.Equal(1, responder.Disposals);
+        Assert.Empty(responder.Multicast);
+    }
+
+    /// <summary>
+    /// A real browse against a responder on loopback: the query goes out from an ephemeral socket bound to the given
+    /// address (never port 5353, never 0.0.0.0), the legacy unicast answer arrives there, and the socket is closed
+    /// when the browse ends.
+    /// </summary>
+    [Fact]
+    public async Task QueryTransport_UsesEphemeralSocketsOnlyDuringTheBrowse()
+    {
+        using var device = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        device.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        var deviceEndPoint = (IPEndPoint)device.LocalEndPoint!;
+        var bound = new TaskCompletionSource<IReadOnlyList<IPEndPoint>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        UdpMdnsQueryTransport? current = null;
+        _ = Task.Run(async () =>
+        {
+            var buffer = new byte[2048];
+            var r = await device.ReceiveFromAsync(buffer, SocketFlags.None, new IPEndPoint(IPAddress.Any, 0));
+            bound.TrySetResult(current!.LocalEndPoints);
+            var question = Assert.Single(DnsMessage.Decode(buffer.AsSpan(0, r.ReceivedBytes).ToArray()).Questions);
+            Assert.True(question.UnicastResponse);
+            await device.SendToAsync(WledAnnouncement(10), SocketFlags.None, r.RemoteEndPoint);
+        }, TestContext.Current.CancellationToken);
+
+        using var mdns = new MdnsService(() => new FakeTransport(), () => current = new UdpMdnsQueryTransport(() => [IPAddress.Loopback], deviceEndPoint), NullLogger<MdnsService>.Instance, isOwnAddress: _ => false);
+        var found = await mdns.BrowseAsync(KnownServices.Wled, TimeSpan.FromMilliseconds(300), TestContext.Current.CancellationToken);
+
+        Assert.Equal("wled-desk.local", Assert.Single(found).HostName);
+        var sockets = await bound.Task;
+        var socket = Assert.Single(sockets);
+        Assert.Equal(IPAddress.Loopback, socket.Address);
+        Assert.NotEqual(UdpMdnsTransport.MdnsPort, socket.Port);
+        Assert.DoesNotContain(socket, System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveUdpListeners());
+    }
+
+    [Fact]
+    public void QuerySockets_BindEachAddressToAnEphemeralPort()
+    {
+        using var sockets = QuerySockets.Open([IPAddress.Loopback, IPAddress.Parse("127.0.0.2"), IPAddress.Loopback], multicastTtl: 4);
+
+        Assert.Equal([IPAddress.Loopback, IPAddress.Parse("127.0.0.2")], sockets.LocalEndPoints.Select(e => e.Address));
+        Assert.All(sockets.LocalEndPoints, e => Assert.NotEqual(0, e.Port));
+        Assert.Equal(IPAddress.Parse("10.0.0.255"), LocalNetwork.BroadcastOf(IPAddress.Parse("10.0.0.7"), IPAddress.Parse("255.255.255.0")));
     }
 
     [Fact]
@@ -187,7 +272,7 @@ public sealed class DiscoveryTests
             await lamp.SendToAsync(buffer.AsMemory(0, r.ReceivedBytes), SocketFlags.None, r.RemoteEndPoint);
         }, TestContext.Current.CancellationToken);
 
-        var probe = new UdpProbe(p => [new IPEndPoint(IPAddress.Loopback, p)]);
+        var probe = new UdpProbe(p => [new UdpProbeTarget(IPAddress.Loopback, new IPEndPoint(IPAddress.Loopback, p))]);
         var replies = await probe.ProbeAsync("hello"u8.ToArray(), port, TimeSpan.FromMilliseconds(400), TestContext.Current.CancellationToken);
 
         Assert.Equal("hello", Encoding.UTF8.GetString(Assert.Single(replies).Data));
@@ -214,11 +299,15 @@ public sealed class DiscoveryTests
         Assert.True(new SerialPortInfo("COM4", "", "", 0x10c4, 0xea60).IsLikelyEsp);
     }
 
-    private sealed class FakeTransport : IMdnsTransport
+    private sealed class FakeTransport(bool canAdvertise = true) : IMdnsTransport
     {
         private Action<byte[], IPEndPoint>? _received;
 
-        public bool CanAdvertise => true;
+        public bool CanAdvertise => canAdvertise;
+
+        public int Starts { get; private set; }
+
+        public int Disposals { get; private set; }
 
         public ConcurrentQueue<byte[]> Multicast { get; } = new();
 
@@ -226,7 +315,11 @@ public sealed class DiscoveryTests
 
         public Action<byte[]>? OnSend { get; set; }
 
-        public void Start(Action<byte[], IPEndPoint> received) => _received = received;
+        public void Start(Action<byte[], IPEndPoint> received)
+        {
+            Starts++;
+            _received = received;
+        }
 
         public void SendMulticast(byte[] message)
         {
@@ -238,8 +331,6 @@ public sealed class DiscoveryTests
 
         public void Deliver(byte[] message, IPEndPoint from) => _received!(message, from);
 
-        public void Dispose()
-        {
-        }
+        public void Dispose() => Disposals++;
     }
 }

@@ -229,6 +229,30 @@ export interface PerformanceReport {
   latencyMs?: number;
 }
 
+/** `setup getstate` / `setup-update`: the first-run welcome, HyperHDR coexistence, autostart and remote access. */
+export interface SetupState {
+  /** The user started the lighting once; until then nothing is sent to the LED controllers. */
+  firstRunCompleted: boolean;
+  /** Nothing reaches the controllers now (first run pending, or another lighting app runs). */
+  outputHeld: boolean;
+  /** Another lighting app that drives the LEDs right now (HyperHDR), or null. */
+  otherApp: { name: string; executable: string } | null;
+  /** The HyperHDR database imported at the first start, or null. */
+  importedFrom: string | null;
+  autostart: { available: boolean; enabled: boolean };
+  remoteAccess: {
+    enabled: boolean;
+    /** `--bind` decides where the service listens; the setting has no effect. */
+    fixedByCommandLine: boolean;
+    port: number;
+    /** Addresses other devices can open (empty while off). */
+    urls: string[];
+    advertised: boolean;
+  };
+  /** Explanations the user has read ("discovery"). */
+  acknowledged: string[];
+}
+
 export interface DiscoveredDevice {
   name: string;
   value: string;

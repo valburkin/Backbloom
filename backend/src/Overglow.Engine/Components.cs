@@ -68,6 +68,7 @@ public static class Components
 public sealed class ComponentStates
 {
     private readonly bool[] _states;
+    private bool _held;
 
     public ComponentStates(bool ledDeviceOn = true, bool smoothingOn = false, bool blackBorderOn = false)
     {
@@ -82,13 +83,22 @@ public sealed class ComponentStates
     /// <summary>Raised after a component changed (on the thread that changed it).</summary>
     public event Action<Component, bool>? Changed;
 
+    /// <summary>Raised after <see cref="OutputHeld"/> changed (on the thread that changed it).</summary>
+    public event Action<bool>? HoldChanged;
+
+    /// <summary>
+    /// True while the controllers must stay off whatever the switches say: the first-run welcome wasn't completed
+    /// yet, or another lighting app drives the LEDs (see <see cref="LightingGate"/>). Not a protocol component.
+    /// </summary>
+    public bool OutputHeld => Volatile.Read(ref _held);
+
     public bool IsOn(Component component) => Volatile.Read(ref _states[(int)component]);
 
     /// <summary>True when the frame source should run.</summary>
     public bool CaptureActive => IsOn(Component.All) && IsOn(Component.SystemGrabber);
 
     /// <summary>True when the controllers should be on.</summary>
-    public bool OutputActive => IsOn(Component.All) && IsOn(Component.LedDevice);
+    public bool OutputActive => IsOn(Component.All) && IsOn(Component.LedDevice) && !OutputHeld;
 
     /// <summary>Sets a component; returns false when it already had that state.</summary>
     public bool Set(Component component, bool on)
@@ -99,6 +109,18 @@ public sealed class ComponentStates
         }
 
         Changed?.Invoke(component, on);
+        return true;
+    }
+
+    /// <summary>Holds or releases the output; returns false when it already had that state.</summary>
+    public bool SetHeld(bool held)
+    {
+        if (Interlocked.Exchange(ref _held, held) == held)
+        {
+            return false;
+        }
+
+        HoldChanged?.Invoke(held);
         return true;
     }
 }

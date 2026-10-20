@@ -16,13 +16,13 @@ public sealed record LaunchOptions(bool Desktop, bool OpenWindow, bool ConsoleLo
 public static class AppUrls
 {
     /// <summary>
-    /// The web UI as this computer reaches it: loopback when the server listens on all addresses (127.0.0.1 rather
-    /// than "localhost", which may resolve to ::1 first while the server listens on IPv4 only).
+    /// The web UI as this computer reaches it: loopback unless <c>--bind</c> names another single address (127.0.0.1
+    /// rather than "localhost", which may resolve to ::1 first while the server listens on IPv4 only).
     /// </summary>
     public static Uri Ui(AppOptions options, int? port = null)
     {
         ArgumentNullException.ThrowIfNull(options);
-        var address = options.BindAddress;
+        var address = options.BindAddress ?? IPAddress.Loopback;
         var host = address.Equals(IPAddress.Any) || IPAddress.IsLoopback(address) ? "127.0.0.1"
             : address.Equals(IPAddress.IPv6Any) ? "[::1]"
             : address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? $"[{address}]"

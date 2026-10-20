@@ -27,15 +27,38 @@ The script
 The version is the `<Version>` in `backend/Directory.Build.props` (the only place it is set). Nothing is installed or
 uploaded by the script.
 
-## What the installer does
+## Install, first run, reinstall, uninstall
 
-- Installs into `%LOCALAPPDATA%\OverglowApp` (`Update.exe`, `current\` with the app), adds the Start menu shortcut and
-  the uninstall entry, and starts Overglow. The package id is `OverglowApp` rather than `Overglow` because Velopack
-  deletes its whole folder on uninstall, and `%LOCALAPPDATA%\Overglow` is the data directory, which must survive.
-- An installed copy listens on every interface (so phones can open the UI; Windows asks once whether to allow it) and
-  imports HyperHDR's settings on the first start.
-- Uninstalling first asks the running app to quit (so the LEDs are switched off) and removes the "Start with Windows"
-  entry; the data directory is kept.
+Velopack installs without a wizard: `Setup.exe` shows its splash screen, installs and starts Overglow, so the app's
+first window is the installer's "finish page".
+
+1. **Install.** Into `%LOCALAPPDATA%\OverglowApp` (`Update.exe`, `current\` with the app), with a Start menu shortcut
+   and an entry in Apps & features; no administrator rights, nothing else is registered (no autostart, no firewall
+   rule). The package id is `OverglowApp` rather than `Overglow` because Velopack deletes its whole folder on
+   uninstall, and `%LOCALAPPDATA%\Overglow` is the data directory, which must survive.
+2. **First start.** HyperHDR's settings are imported (from `%LOCALAPPDATA%\HyperHDR`, only copied) and the window opens
+   in front with the **welcome**: what was imported (LEDs, controllers with driver and address, captured monitor,
+   effects), an unticked "Start Overglow when I sign in to Windows" box and **Start lighting**. Nothing is sent to the
+   LEDs and the startup effect doesn't run before that. While HyperHDR runs, the welcome says so (quit it from its
+   tray icon; turn off its autostart under Windows Settings > Apps > Startup) and Start lighting waits until it has
+   quit. The welcome comes back on every start until the lighting was started once (the window opens even when
+   started with `--no-window`); the flag is kept in the data directory, so the installer doesn't need a first-run
+   hook.
+3. **Network.** The app listens on 127.0.0.1 only, so Windows doesn't ask about network access. Only when the user
+   turns on Settings > Network > "Control from your phone / other devices" (after an explanation that Windows asks
+   next and that Private networks are enough) does it listen on the network and advertise itself with mDNS. Device
+   discovery runs only on Find and uses short-lived ephemeral sockets.
+4. **Reinstall.** Running `Setup.exe` again on a computer where Overglow is installed: Velopack reports that it is
+   already installed and offers to repair (reinstall) it. Either way only the program folder is replaced; settings,
+   logs, the first-run flag and the window position in `%LOCALAPPDATA%\Overglow` are kept, so a reinstall neither
+   imports HyperHDR again nor shows the welcome again. To start over completely, uninstall, delete
+   `%LOCALAPPDATA%\Overglow` and install again.
+5. **Update.** A newer release is applied at the next start (see below); an update from 0.1.0 counts as past its
+   first run (the database migration marks it), so the lights start as before unless HyperHDR runs.
+6. **Uninstall** (Apps & features). It first asks the running app to quit (so the LEDs are switched off) and removes
+   the "Start with Windows" entry; the data directory is kept. A firewall rule Windows created when the user allowed
+   remote access stays until removed under Windows Security > Firewall & network protection > Allow an app through
+   firewall.
 
 ## Updates
 

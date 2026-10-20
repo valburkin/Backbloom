@@ -72,6 +72,7 @@ public sealed partial class LightingEngine : IDisposable
         Effects = new EffectEngine(Sources, Components, settings, AddSmoothingConfig, clock, sound, loggerFactory.CreateLogger<EffectEngine>());
 
         Components.Changed += OnComponentChanged;
+        Components.HoldChanged += OnHoldChanged;
         Sources.VisibleChanged += OnVisibleChanged;
         Sources.PrioritiesChanged += OnPrioritiesChanged;
         settings.Changed += OnSettingsChanged;
@@ -219,6 +220,7 @@ public sealed partial class LightingEngine : IDisposable
         _disposed = true;
         _settings.Changed -= OnSettingsChanged;
         Components.Changed -= OnComponentChanged;
+        Components.HoldChanged -= OnHoldChanged;
         Sources.VisibleChanged -= OnVisibleChanged;
         Sources.PrioritiesChanged -= OnPrioritiesChanged;
         _pipeline.Dispose();
@@ -306,6 +308,19 @@ public sealed partial class LightingEngine : IDisposable
         }
 
         LogComponent(component, on);
+    }
+
+    private void OnHoldChanged(bool held)
+    {
+        lock (_applyLock)
+        {
+            if (!_disposed)
+            {
+                UpdateOutput();
+            }
+        }
+
+        LogHold(held);
     }
 
     private void OnVisibleChanged(VisibleSource visible)
@@ -445,6 +460,9 @@ public sealed partial class LightingEngine : IDisposable
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Component {Component} enabled: {On}")]
     private partial void LogComponent(Component component, bool on);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "LED output held (nothing is sent to the controllers): {Held}")]
+    private partial void LogHold(bool held);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Visible source: priority {Priority} ({Component})")]
     private partial void LogVisible(int priority, SourceComponent component);

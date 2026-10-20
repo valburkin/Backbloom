@@ -19,6 +19,7 @@ public static class OverglowServer
         services.AddSingleton<PerformanceMonitor>();
         services.AddSingleton<EventSubscriptions>();
         services.AddSingleton<RpcDispatcher>();
+        services.AddSingleton<SetupService>();
         services.AddSingleton<WebSocketRpcEndpoint>();
         services.AddSingleton<HttpRpcEndpoint>();
         services.AddSingleton<MqttIntegration>();
@@ -42,6 +43,7 @@ public static class OverglowServer
         services.AddSingleton<IRpcCommand, LoggingCommand>();
         services.AddSingleton<IRpcCommand, PerformanceCountersCommand>();
         services.AddSingleton<IRpcCommand, InstanceCommand>();
+        services.AddSingleton<IRpcCommand, SetupCommand>();
         return services;
     }
 

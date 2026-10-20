@@ -1,6 +1,6 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { Cpu, House, Loader2, MonitorSmartphone, Palette, ScreenShare, Settings as SettingsIcon, Sparkles, WifiOff } from 'lucide-react';
-import { cx, StatusDot } from '../components/ui';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Cpu, House, Loader2, MonitorSmartphone, Palette, Power, ScreenShare, Settings as SettingsIcon, Sparkles, WifiOff } from 'lucide-react';
+import { Button, cx, StatusDot } from '../components/ui';
 import { Logo } from '../components/Logo';
 import { isPageDirty } from '../settings/drafts';
 import { useConnection } from './connection';
@@ -15,6 +15,9 @@ import { CapturePage } from '../pages/CapturePage';
 import { ColorsPage } from '../pages/ColorsPage';
 import { EffectsPage } from '../pages/EffectsPage';
 import { SettingsPage } from '../pages/settings/SettingsPage';
+import { WelcomeScreen } from '../pages/welcome/WelcomeScreen';
+import { OtherAppNotice } from '../pages/welcome/OtherAppNotice';
+import { useAction } from './useAction';
 
 const NAV: Array<{ route: Route; label: string; icon: ReactNode }> = [
   { route: 'home', label: 'Home', icon: <House size={20} /> },
@@ -112,6 +115,7 @@ function Shell() {
       </nav>
       <main id="main" ref={main} tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none">
         <ReconnectBanner />
+        <SetupBanner />
         <div className="min-h-0 flex-1">
           {loc.route === 'home' && <HomePage />}
           {loc.route === 'layout' && <LayoutPage />}
@@ -137,6 +141,34 @@ function ReconnectBanner() {
   );
 }
 
+/** Why the LEDs are off although everything is switched on: HyperHDR runs, or the lighting wasn't started yet. */
+function SetupBanner() {
+  const { setup, api, applySetup, auth } = useConnection();
+  const { run, busy } = useAction();
+  if (!setup?.outputHeld) return null;
+  if (setup.otherApp)
+    return (
+      <div className="border-b border-line px-4 py-3 sm:px-6">
+        <OtherAppNotice app={setup.otherApp} compact />
+      </div>
+    );
+  if (setup.firstRunCompleted) return null;
+  return (
+    <div role="status" className="flex flex-wrap items-center gap-3 border-b border-accent/30 bg-accent/10 px-6 py-2 text-[13px] text-ink">
+      <Power size={15} className="text-accent-strong" aria-hidden />
+      <span className="flex-1">Overglow hasn’t started your lights yet: nothing is sent to the LEDs until you start the lighting.</span>
+      <Button
+        size="sm"
+        variant="primary"
+        disabled={auth !== 'admin' || busy === 'start-lighting'}
+        onClick={() => void run('start-lighting', 'Couldn’t start the lighting', async () => applySetup(await api.startLighting()))}
+      >
+        Start lighting
+      </Button>
+    </div>
+  );
+}
+
 function Splash({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
@@ -147,8 +179,9 @@ function Splash({ children }: { children: ReactNode }) {
 }
 
 export function App() {
-  const { status, auth, sessionError, backend, serverInfo } = useConnection();
+  const { status, auth, sessionError, backend, serverInfo, setup } = useConnection();
   const everReady = useRef(false);
+  const [lookingAround, setLookingAround] = useState(false);
   if (serverInfo) everReady.current = true;
 
   if (auth === 'login' && status === 'open') return <LoginScreen />;
@@ -174,5 +207,6 @@ export function App() {
       </Splash>
     );
   }
+  if (setup && !setup.firstRunCompleted && !lookingAround) return <WelcomeScreen onLookAround={() => setLookingAround(true)} />;
   return <Shell />;
 }

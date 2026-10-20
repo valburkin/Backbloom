@@ -39,18 +39,6 @@ public interface IAppWindow : IDisposable
     void Show();
 }
 
-/// <summary>Starting the app when the user signs in (Windows: the per-user Run key).</summary>
-public interface IAutostart
-{
-    /// <summary>Menu label, e.g. "Start with Windows".</summary>
-    string Label { get; }
-
-    /// <summary>True when the entry exists and starts this executable.</summary>
-    bool IsEnabled { get; }
-
-    void SetEnabled(bool enabled);
-}
-
 /// <summary>Opens a page in the user's default browser.</summary>
 public interface IBrowserLauncher
 {

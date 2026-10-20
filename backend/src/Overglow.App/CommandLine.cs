@@ -36,7 +36,8 @@ internal sealed record CommandLine(LaunchMode Mode, IReadOnlyList<string> Config
           --data-dir <dir>          Settings, logs and window state (default: the per-user Overglow folder)
           --legacy-data-dir <dir>   HyperHDR's data folder to import on the first start ("none": don't)
           --port <port>             Web port: UI, WebSocket and HTTP JSON-RPC (default 18290)
-          --bind <address>          Address to listen on (installed: 0.0.0.0, all networks; otherwise 127.0.0.1)
+          --bind <address>          The one address to listen on (default: 127.0.0.1, and the local network
+                                    only while remote access is on in Settings)
           --ui-dir <dir>            Built web UI to serve (default: ui next to the program, or ui/dist)
           --capture screen|synthetic  Frame source (default screen)
           --fps <n>                 Rate of the synthetic test pattern (default 60)

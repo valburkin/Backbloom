@@ -4,6 +4,7 @@ using Overglow.Core.Color;
 using Overglow.Core.Effects;
 using Overglow.Core.Priorities;
 using Overglow.Engine;
+using Overglow.Engine.Platform;
 
 namespace Overglow.Shell;
 

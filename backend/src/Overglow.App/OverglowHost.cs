@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -38,7 +39,17 @@ public static class OverglowHost
         var options = AppOptions.FromConfiguration(builder.Configuration);
         Directory.CreateDirectory(options.DataDirectory);
 
-        builder.WebHost.UseKestrel(k => k.Listen(options.BindAddress, options.Port));
+        // Loopback always (in code, never reloaded); the network endpoint only while remote access is on (RemoteAccess),
+        // from configuration that Kestrel rebinds live. --bind fixes one address instead.
+        var networkEndpoint = new NetworkEndpointConfiguration();
+        builder.WebHost.UseKestrel(k =>
+        {
+            k.Listen(options.BindAddress ?? IPAddress.Loopback, options.Port);
+            if (options.BindAddress is null)
+            {
+                k.Configure(networkEndpoint.Configuration, reloadOnChange: true);
+            }
+        });
 
         // Console (when there is one), the rolling file in the data directory and the UI's log view, all at the
         // level of the "logger" settings section.
@@ -74,7 +85,15 @@ public static class OverglowHost
             new SettingsOptions(options.DataDirectory, options.LegacyDataDirectory), sp.GetRequiredService<SettingsSchema>(), sp.GetRequiredService<ILoggerFactory>()));
         services.AddSingleton<ISettingsStore>(sp => sp.GetRequiredService<SettingsServices>().Store);
         services.AddSingleton<IAuthStore>(sp => sp.GetRequiredService<SettingsServices>().Auth);
+        services.AddSingleton<ISetupState>(sp => sp.GetRequiredService<SettingsServices>().Setup);
         services.AddSingleton(sp => CreateServerOptions(options, sp.GetRequiredService<SettingsServices>().Database));
+
+        // Network access is opt-in (network.remoteAccess): loopback only until the user turns it on.
+        services.AddSingleton(networkEndpoint);
+        services.AddSingleton(RemoteAccessOptions.Default);
+        services.AddSingleton<RemoteAccess>();
+        services.AddSingleton<INetworkAccess>(sp => sp.GetRequiredService<RemoteAccess>());
+        services.AddHostedService(sp => sp.GetRequiredService<RemoteAccess>());
 
         // The lighting: frame source -> pipeline -> controllers.
         services.AddPlatform();
@@ -82,6 +101,14 @@ public static class OverglowHost
         services.AddAudio();
         services.AddSingleton<DeviceManager>();
         services.AddSingleton<LightingEngine>();
+
+        // No LED output before the first-run welcome is completed, nor while HyperHDR runs.
+        services.AddSingleton<OtherAppMonitor>();
+        services.AddSingleton(sp => new LightingGate(
+            sp.GetRequiredService<LightingEngine>().Components,
+            sp.GetRequiredService<ISetupState>(),
+            sp.GetRequiredService<OtherAppMonitor>(),
+            sp.GetRequiredService<ILogger<LightingGate>>()));
 
         // Registered before the engine so that it stops after it: the tray icon goes once the LEDs are off.
         services.AddDesktop(options, launch);

@@ -32,9 +32,15 @@ public interface IMdnsBrowser
 /// <summary>
 /// Minimal mDNS / DNS-SD client and responder (port of the browsing and the web UI announcement of
 /// sources/bonjour/BonjourServiceHelper.cpp and DiscoveryWrapper.cpp, which used the mdns.h library). It keeps a cache
-/// of every PTR/SRV/TXT/A record it hears (with their TTLs; a TTL of 0 removes a record), so instances announced
-/// while nobody was browsing are found too. Own addresses are never reported as devices.
+/// of every PTR/SRV/TXT/A record it hears (with their TTLs; a TTL of 0 removes a record). Own addresses are never
+/// reported as devices.
 /// </summary>
+/// <remarks>
+/// Nothing listens while nothing is asked for: each browse opens its own query transport (ephemeral sockets, see
+/// <see cref="UdpMdnsQueryTransport"/>) and closes it afterwards, and the responder transport (port 5353) exists only
+/// between <see cref="Advertise"/> and <see cref="StopAdvertising"/>. HyperHDR kept a 5353 listener open all the
+/// time, which is what makes Windows Firewall ask.
+/// </remarks>
 public sealed partial class MdnsService : IMdnsBrowser, IDisposable
 {
     public const string ServicesMetaQuery = "_services._dns-sd._udp.local.";
@@ -42,7 +48,8 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
     private const uint HostTtl = 120;
     private const uint ServiceTtl = 4500;
 
-    private readonly IMdnsTransport _transport;
+    private readonly Func<IMdnsTransport> _responderFactory;
+    private readonly Func<IMdnsTransport> _queryFactory;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
     private readonly Func<IPAddress, bool> _isOwnAddress;
@@ -52,30 +59,45 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
     private readonly Dictionary<string, IReadOnlyList<string>> _texts = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, (IPAddress Address, DateTimeOffset Expires)> _hosts = new(StringComparer.OrdinalIgnoreCase);
     private MdnsAdvertisement? _advertisement;
-    private bool _started;
+    private IMdnsTransport? _responder;
 
-    public MdnsService(IMdnsTransport transport, ILogger<MdnsService> logger, TimeProvider? time = null, Func<IPAddress, bool>? isOwnAddress = null)
+    /// <param name="responder">Creates the responder transport (port 5353) when advertising starts.</param>
+    /// <param name="queries">Creates the transport of one browse (disposed when the browse ends).</param>
+    public MdnsService(Func<IMdnsTransport> responder, Func<IMdnsTransport> queries, ILogger<MdnsService> logger, TimeProvider? time = null, Func<IPAddress, bool>? isOwnAddress = null)
     {
-        ArgumentNullException.ThrowIfNull(transport);
+        ArgumentNullException.ThrowIfNull(responder);
+        ArgumentNullException.ThrowIfNull(queries);
         ArgumentNullException.ThrowIfNull(logger);
-        _transport = transport;
+        _responderFactory = responder;
+        _queryFactory = queries;
         _logger = logger;
         _time = time ?? TimeProvider.System;
         _isOwnAddress = isOwnAddress ?? IsOwnAddress;
+    }
+
+    /// <summary>The real transports: ephemeral query sockets per browse, the 5353 responder only while advertising.</summary>
+    public static MdnsService Create(ILoggerFactory loggerFactory)
+    {
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+        return new MdnsService(
+            () => new UdpMdnsTransport(loggerFactory.CreateLogger<UdpMdnsTransport>()),
+            () => new UdpMdnsQueryTransport(),
+            loggerFactory.CreateLogger<MdnsService>());
     }
 
     public async Task<IReadOnlyList<MdnsServiceInstance>> BrowseAsync(string serviceType, TimeSpan wait, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceType);
         var type = Fqdn(serviceType);
-        EnsureStarted();
-        var query = DnsMessage.Query(new DnsQuestion(type, DnsType.NamePointer)).Encode();
-        _transport.SendMulticast(query);
+        using var transport = _queryFactory();
+        transport.Start(Handle);
+        var query = DnsMessage.Query(new DnsQuestion(type, DnsType.NamePointer, UnicastResponse: true)).Encode();
+        transport.SendMulticast(query);
         if (wait > TimeSpan.FromSeconds(1))
         {
             // mDNS answers can get lost; ask once more halfway (RFC 6762 5.2 asks for repeated queries).
             await Task.Delay(wait / 2, _time, cancellationToken);
-            _transport.SendMulticast(query);
+            transport.SendMulticast(query);
             await Task.Delay(wait - (wait / 2), _time, cancellationToken);
         }
         else
@@ -88,7 +110,7 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
         if (unresolved.Count > 0)
         {
             // Some responders only send the SRV record: ask for the missing host addresses.
-            _transport.SendMulticast(DnsMessage.Query([.. unresolved.Select(h => new DnsQuestion(h, DnsType.A))]).Encode());
+            transport.SendMulticast(DnsMessage.Query([.. unresolved.Select(h => new DnsQuestion(h, DnsType.A, UnicastResponse: true))]).Encode());
             await Task.Delay(TimeSpan.FromMilliseconds(300), _time, cancellationToken);
             found = Instances(type, []);
         }
@@ -96,43 +118,81 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
         return found;
     }
 
-    /// <summary>Announces <paramref name="advertisement"/> and answers queries for it until disposed.</summary>
-    public void Advertise(MdnsAdvertisement advertisement)
+    /// <summary>True while a service is advertised (the responder listens on port 5353).</summary>
+    public bool IsAdvertising
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _advertisement is not null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Opens the responder (port 5353), announces <paramref name="advertisement"/> and answers queries for it until
+    /// <see cref="StopAdvertising"/>. A second call replaces the advertisement.
+    /// </summary>
+    /// <returns>False when the mDNS port can't be shared (nothing is advertised).</returns>
+    public bool Advertise(MdnsAdvertisement advertisement)
     {
         ArgumentNullException.ThrowIfNull(advertisement);
-        EnsureStarted();
-        if (!_transport.CanAdvertise)
-        {
-            return;
-        }
-
+        IMdnsTransport responder;
         lock (_lock)
         {
+            if (_responder is null)
+            {
+                var created = _responderFactory();
+                created.Start(Handle);
+                if (!created.CanAdvertise)
+                {
+                    created.Dispose();
+                    return false;
+                }
+
+                _responder = created;
+            }
+
+            responder = _responder;
             _advertisement = advertisement;
         }
 
         var announcement = Announcement(advertisement, HostTtl, ServiceTtl).Encode();
-        _transport.SendMulticast(announcement);
-        _ = Task.Delay(TimeSpan.FromSeconds(1), _time).ContinueWith(_ => SendQuietly(announcement), TaskScheduler.Default);
+        SendQuietly(responder, announcement);
+        _ = Task.Delay(TimeSpan.FromSeconds(1), _time).ContinueWith(_ => SendQuietly(responder, announcement), TaskScheduler.Default);
         LogAdvertising(advertisement.InstanceName, advertisement.Port);
+        return true;
     }
 
-    public void Dispose()
+    /// <summary>Says goodbye (TTL 0) for the advertised service and closes the responder.</summary>
+    public void StopAdvertising()
     {
         MdnsAdvertisement? advertisement;
+        IMdnsTransport? responder;
         lock (_lock)
         {
             advertisement = _advertisement;
+            responder = _responder;
             _advertisement = null;
+            _responder = null;
         }
 
-        if (advertisement is not null && _started)
+        if (responder is null)
         {
-            SendQuietly(Announcement(advertisement, 0, 0).Encode());
+            return;
         }
 
-        _transport.Dispose();
+        if (advertisement is not null)
+        {
+            SendQuietly(responder, Announcement(advertisement, 0, 0).Encode());
+            LogStopped(advertisement.InstanceName);
+        }
+
+        responder.Dispose();
     }
+
+    public void Dispose() => StopAdvertising();
 
     /// <summary>Processes one received datagram (internal for the protocol tests).</summary>
     internal void Handle(byte[] datagram, IPEndPoint from)
@@ -160,7 +220,7 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
     private static string Fqdn(string name) => name.EndsWith('.') ? name : name + ".";
 
     private static bool IsOwnAddress(IPAddress address) =>
-        IPAddress.IsLoopback(address) || UdpMdnsTransport.InterfaceAddresses().Any(a => a.Equals(address));
+        IPAddress.IsLoopback(address) || LocalNetwork.Addresses().Any(a => a.Address.Equals(address));
 
     private static DnsMessage Announcement(MdnsAdvertisement ad, uint hostTtl, uint serviceTtl) => new()
     {
@@ -174,26 +234,11 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
         ],
     };
 
-    private void EnsureStarted()
-    {
-        lock (_lock)
-        {
-            if (_started)
-            {
-                return;
-            }
-
-            _started = true;
-        }
-
-        _transport.Start(Handle);
-    }
-
-    private void SendQuietly(byte[] message)
+    private static void SendQuietly(IMdnsTransport transport, byte[] message)
     {
         try
         {
-            _transport.SendMulticast(message);
+            transport.SendMulticast(message);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
         {
@@ -300,12 +345,14 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
     private void Answer(DnsMessage query, IPEndPoint from)
     {
         MdnsAdvertisement? ad;
+        IMdnsTransport? responder;
         lock (_lock)
         {
             ad = _advertisement;
+            responder = _responder;
         }
 
-        if (ad is null)
+        if (ad is null || responder is null)
         {
             return;
         }
@@ -322,7 +369,7 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
             // Legacy unicast queriers (not sending from port 5353) and the QU bit get a direct answer.
             if (q.UnicastResponse || from.Port != UdpMdnsTransport.MdnsPort)
             {
-                _transport.SendUnicast(from.Port != UdpMdnsTransport.MdnsPort ? new DnsMessage
+                responder.SendUnicast(from.Port != UdpMdnsTransport.MdnsPort ? new DnsMessage
                 {
                     Id = query.Id,
                     IsResponse = true,
@@ -333,7 +380,7 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
             }
             else
             {
-                _transport.SendMulticast(bytes);
+                SendQuietly(responder, bytes);
             }
         }
     }
@@ -376,4 +423,7 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Advertising the web UI as {Instance} (port {Port}) with mDNS")]
     private partial void LogAdvertising(string instance, int port);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Stopped advertising {Instance} with mDNS")]
+    private partial void LogStopped(string instance);
 }

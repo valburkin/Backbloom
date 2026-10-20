@@ -5,7 +5,7 @@ using Overglow.Platform.Windows;
 
 namespace Overglow.App;
 
-/// <summary>Registers the platform's clock and system metrics (portable fallbacks elsewhere).</summary>
+/// <summary>Registers the platform's clock, system metrics and process list (portable fallbacks elsewhere).</summary>
 internal static class PlatformRegistration
 {
     public static IServiceCollection AddPlatform(this IServiceCollection services)
@@ -18,6 +18,7 @@ internal static class PlatformRegistration
         {
             services.AddSingleton<IClock, SystemClock>();
             services.AddSingleton<ISystemMetrics, ProcessMetrics>();
+            services.AddSingleton<IProcessList, PortableProcessList>();
         }
 
         return services;
@@ -28,5 +29,6 @@ internal static class PlatformRegistration
     {
         services.AddSingleton<IClock, WindowsClock>();
         services.AddSingleton<ISystemMetrics, WindowsSystemMetrics>();
+        services.AddSingleton<IProcessList, WindowsProcessList>();
     }
 }

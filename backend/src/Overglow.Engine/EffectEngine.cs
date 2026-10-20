@@ -86,6 +86,7 @@ public sealed partial class EffectEngine : IDisposable
         _sound?.Configure(SoundSettings.FromJson(settings.GetSection(SoundSettings.SectionName)));
         sources.PrioritiesChanged += Prune;
         components.Changed += OnComponentChanged;
+        components.HoldChanged += OnHoldChanged;
         settings.Changed += OnSettingsChanged;
     }
 
@@ -104,7 +105,11 @@ public sealed partial class EffectEngine : IDisposable
         }
     }
 
-    /// <summary>Starts the background effect and the startup effect (when the LEDs are on).</summary>
+    /// <summary>
+    /// Starts the background effect and the startup effect (when the LEDs are on). While the output is held
+    /// (<see cref="ComponentStates.OutputHeld"/>) the startup effect waits: it runs when the output is released, as if
+    /// the app had started then.
+    /// </summary>
     public void Start()
     {
         _startedAt = _clock.NowMilliseconds;
@@ -178,6 +183,7 @@ public sealed partial class EffectEngine : IDisposable
 
         _settings.Changed -= OnSettingsChanged;
         _components.Changed -= OnComponentChanged;
+        _components.HoldChanged -= OnHoldChanged;
         _sources.PrioritiesChanged -= Prune;
         foreach (var source in running)
         {
@@ -218,6 +224,21 @@ public sealed partial class EffectEngine : IDisposable
         // HyperHDR started the boot effect when the LED device came on within 5 s of the start
         if (on && component is Component.LedDevice or Component.All && _components.OutputActive &&
             _startedAt != long.MinValue && _clock.NowMilliseconds - _startedAt < ForegroundWindowMs)
+        {
+            RunForeground();
+        }
+    }
+
+    // The lights start when the hold ends (first run completed, HyperHDR quit): the startup effect belongs there.
+    private void OnHoldChanged(bool held)
+    {
+        if (held || _startedAt == long.MinValue)
+        {
+            return;
+        }
+
+        _startedAt = _clock.NowMilliseconds;
+        if (_components.OutputActive)
         {
             RunForeground();
         }

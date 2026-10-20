@@ -16,14 +16,15 @@ public sealed class EventSubscriptions(
     ISettingsStore settings,
     AuthService auth,
     Payloads payloads,
-    PerformanceMonitor performance)
+    PerformanceMonitor performance,
+    SetupService setup)
 {
     /// <summary>Every name the protocol knows; unknown names are ignored like in HyperHDR.</summary>
     public static readonly IReadOnlyList<string> Available =
     [
         "components-update", "performance-update", "sessions-update", "priorities-update", "imageToLedMapping-update",
         "adjustment-update", "leds-colors", "live-video", "settings-update", "leds-update", "instance-update", "token-update",
-        "controllers-update", "capture-update",
+        "controllers-update", "capture-update", "setup-update",
     ];
 
     private static readonly TimeSpan s_performanceInterval = TimeSpan.FromSeconds(4);
@@ -133,6 +134,14 @@ public sealed class EventSubscriptions(
                     void Handler(IReadOnlyList<TokenInfo> tokens) => session.Send(RpcReplies.Event(name, AuthorizeCommand.TokenList(tokens)));
                     auth.TokensChanged += Handler;
                     return new Subscription(() => auth.TokensChanged -= Handler);
+                }
+
+            case "setup-update":
+                {
+                    // the setup command's state: first run, HyperHDR running, autostart, remote access
+                    void Handler() => session.Send(RpcReplies.Event(name, setup.State()));
+                    setup.Changed += Handler;
+                    return new Subscription(() => setup.Changed -= Handler);
                 }
 
             case "performance-update":

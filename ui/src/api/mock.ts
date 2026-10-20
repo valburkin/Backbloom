@@ -16,6 +16,7 @@ import {
   type RpcEvent,
   type RpcReply,
   type ServerInfo,
+  type SetupState,
   type SystemGrabbers,
 } from './types';
 import { validate, type Issue } from '../schema/schema';
@@ -28,7 +29,16 @@ export interface MockOptions {
   latencyMs?: number;
   /** Seed config overrides (e.g. a saved `layout`). */
   config?: BackendConfig;
+  /** Start like a fresh install: the lights wait for the welcome's "Start lighting" (`?mock=welcome`). */
+  firstRun?: boolean;
+  /** HyperHDR runs and drives the LEDs until `quitOtherApp()` (`?mock=hyperhdr`). */
+  otherApp?: boolean;
+  /** The app can start with Windows (default true). */
+  autostart?: boolean;
 }
+
+/** Where the demo pretends to be reachable once remote access is on. */
+export const MOCK_LAN_URL = 'http://192.168.1.20:18290/';
 
 export const MOCK_PASSWORD = 'password';
 export const MOCK_WLED_HOST = 'wled-mock.local';
@@ -93,6 +103,7 @@ export class MockBackend implements Backend {
     { id: 'a1b2c', comment: 'Stream Deck plugin', last_use: '2026-10-12T19:41:00' },
   ];
   private timers = new Map<string, ReturnType<typeof setInterval>>();
+  private setup: SetupState;
   private logSeq = 0;
   /** Log of LEDs blinked (controller id, or none for an index over all LEDs), for tests / debugging. */
   readonly blinks: Array<{ index: number; controller?: string }> = [];
@@ -101,6 +112,20 @@ export class MockBackend implements Backend {
     this.latencyMs = options.latencyMs ?? 60;
     this.requireAuth = options.requireAuth ?? false;
     this.seed = clone(options.config ?? {});
+    this.setup = {
+      firstRunCompleted: !options.firstRun,
+      outputHeld: !!options.firstRun || !!options.otherApp,
+      otherApp: options.otherApp ? { name: 'HyperHDR', executable: 'hyperhdr.exe' } : null,
+      importedFrom: options.firstRun ? 'C:\\Users\\demo\\AppData\\Local\\HyperHDR\\db\\hyperhdr.db' : null,
+      autostart: { available: options.autostart ?? true, enabled: false },
+      remoteAccess: { enabled: false, fixedByCommandLine: false, port: 18290, urls: [], advertised: false },
+      acknowledged: [],
+    };
+  }
+
+  /** The demo's HyperHDR quits: the lights may start (like the app noticing the process is gone). */
+  quitOtherApp(): void {
+    this.updateSetup({ otherApp: null });
   }
 
   get status(): ConnectionStatus {
@@ -232,6 +257,9 @@ export class MockBackend implements Backend {
         return ok();
       case 'leddevice':
         return ok(this.ledDevice(subcommand, params, fail));
+      case 'setup':
+        if (subcommand !== 'getstate') needAdmin();
+        return ok(this.setupCommand(subcommand, params, fail));
       case 'save-db':
         needAdmin();
         return ok({
@@ -308,6 +336,34 @@ export class MockBackend implements Backend {
     }
   }
 
+  private setupCommand(subcommand: string | undefined, params: Record<string, unknown>, fail: (e: string) => never): SetupState {
+    switch (subcommand) {
+      case 'getstate':
+        return clone(this.setup);
+      case 'start':
+        if (typeof params.autostart === 'boolean') this.setup.autostart = { ...this.setup.autostart, enabled: params.autostart && this.setup.autostart.available };
+        return this.updateSetup({ firstRunCompleted: true });
+      case 'autostart':
+        if (!this.setup.autostart.available) return fail("This copy of Overglow can't start with the system");
+        if (typeof params.enabled !== 'boolean') return fail('enabled (true or false) is required');
+        return this.updateSetup({ autostart: { available: true, enabled: params.enabled } });
+      case 'acknowledge':
+        if (params.topic !== 'discovery') return fail("topic must be 'discovery'");
+        return this.updateSetup({ acknowledged: [...new Set([...this.setup.acknowledged, 'discovery'])] });
+      default:
+        return fail('unknown or missing subcommand');
+    }
+  }
+
+  /** Like the backend: the output is held until the first run is completed and while HyperHDR runs. */
+  private updateSetup(change: Partial<SetupState>): SetupState {
+    const next = { ...this.setup, ...change };
+    next.outputHeld = !next.firstRunCompleted || next.otherApp !== null;
+    this.setup = next;
+    this.emit('setup-update', clone(next));
+    return clone(next);
+  }
+
   private ledDevice(subcommand: string | undefined, params: Record<string, unknown>, fail: (e: string) => never): unknown {
     const type = String(params.ledDeviceType ?? '');
     switch (subcommand) {
@@ -382,6 +438,10 @@ export class MockBackend implements Backend {
       if (section === 'leds') this.emit('leds-update', { leds: value });
       if (section === 'color') this.emit('adjustment-update', (value as { channelAdjustment: unknown }).channelAdjustment);
       if (section === 'systemGrabber') this.emit('capture-update', this.systemGrabbers());
+      if (section === 'network') {
+        const on = (value as { remoteAccess?: boolean }).remoteAccess === true;
+        this.updateSetup({ remoteAccess: { ...this.setup.remoteAccess, enabled: on, urls: on ? [MOCK_LAN_URL] : [], advertised: on } });
+      }
     }
   }
 
@@ -478,7 +538,7 @@ export class MockBackend implements Backend {
         const leds = (this.config.leds ?? []) as Array<{ hmin: number; hmax: number; vmin: number; vmax: number }>;
         const scale = Math.min(1, Number(this.activeAdjustment().scaleOutput ?? 1));
         const t = Date.now() - started;
-        const on = this.components.get('ALL') && this.components.get('LEDDEVICE');
+        const on = this.components.get('ALL') && this.components.get('LEDDEVICE') && !this.setup.outputHeld;
         const out: number[] = [];
         leds.forEach((r, i) => {
           const x = (r.hmin + r.hmax) / 2;

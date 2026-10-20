@@ -27,6 +27,7 @@ npm ci
 npx tsc --noEmit
 npm test                           # vitest
 npm run dev                        # Vite dev server; open http://localhost:5173/?backend=127.0.0.1:18290
+                                   # ?mock (demo), ?mock=welcome (first run), ?mock=hyperhdr (first run, HyperHDR running)
 npm run build                      # ui/dist, copied next to the app by the backend build
 ```
 
@@ -53,9 +54,12 @@ at a real LED controller.
 - Golden fixtures in `backend/tests/fixtures` pin the behavior ported from HyperHDR. They are frozen (the C++ exporter
   is gone); change one only for a deliberate deviation and document it in its README.
 - Allocation tests guard the hot path; new per-frame code must not allocate.
-- Tests never listen on the network: hosts use `--bind 127.0.0.1`, fakes bind to loopback, and the
-  `NetworkListenerGuard` assembly fixture fails any test assembly whose process listens on another address (Windows
-  Firewall would prompt for each test executable).
+- Tests never listen on the network: hosts use `--bind 127.0.0.1` (or the default, loopback only; remote access tests
+  use 127.0.0.2 as the "network" address), fakes bind to loopback, and the `NetworkListenerGuard` assembly fixture
+  fails any test assembly whose process listens on another address (Windows Firewall would prompt for each test
+  executable).
+- HyperHDR runs on the development machine, so test hosts replace the process list with `FakeProcessList`
+  (`tests/Shared`) and complete the first run in the data directory they create; otherwise their LEDs would be held.
 - Tests that need hardware (desktop capture, sound devices) skip when it isn't available.
 
 ## Code conventions

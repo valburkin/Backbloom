@@ -21,6 +21,10 @@ public enum CaptureKind
 /// (<c>OVERGLOW_DATA_DIR</c> and <c>OVERGLOW_LEGACY_DATA_DIR</c> as in the C++ build).
 /// </summary>
 /// <param name="LegacyDataDirectory">HyperHDR's data directory to import on the first start; null: none.</param>
+/// <param name="BindAddress">
+/// <c>--bind</c>: the one address to listen on, which overrides the <c>network.remoteAccess</c> setting; null (the
+/// default): loopback, plus every interface while remote access is on (see <see cref="RemoteAccess"/>).
+/// </param>
 /// <param name="Capture">Frame source: screen capture (default) or the synthetic test pattern.</param>
 /// <param name="SyntheticFps">Rate of the synthetic test pattern.</param>
 /// <param name="LutDirectories">Directories searched for <c>lut_lin_tables.3d</c>, in order; the default table is created in the first.</param>
@@ -28,7 +32,7 @@ public sealed record AppOptions(
     string DataDirectory,
     string? LegacyDataDirectory,
     int Port,
-    IPAddress BindAddress,
+    IPAddress? BindAddress,
     string? UiDirectory,
     CaptureKind Capture,
     double SyntheticFps,
@@ -44,7 +48,7 @@ public sealed record AppOptions(
     {
         ArgumentNullException.ThrowIfNull(configuration);
         var port = int.TryParse(configuration["port"], NumberStyles.None, CultureInfo.InvariantCulture, out var p) ? p : DefaultPort;
-        var bind = IPAddress.TryParse(Read(configuration, "bind", "BIND"), out var b) ? b : DefaultBindAddress(AppContext.BaseDirectory);
+        var bind = IPAddress.TryParse(Read(configuration, "bind", "BIND"), out var b) ? b : null;
         var capture = Enum.TryParse<CaptureKind>(configuration["capture"], ignoreCase: true, out var c) ? c : CaptureKind.Screen;
         var fps = double.TryParse(configuration["fps"], NumberStyles.Float, CultureInfo.InvariantCulture, out var f) && f > 0 ? f : 60;
         var backend = FindBackendDirectory();
@@ -64,14 +68,6 @@ public sealed record AppOptions(
             fps,
             lutDirs);
     }
-
-    /// <summary>
-    /// Where the server listens unless <c>--bind</c> says otherwise: an installed copy on every interface, so phones and
-    /// other computers can open the UI (Windows asks once whether to allow it); any other copy (a build, a publish
-    /// folder, the tests) on loopback only, so development runs never trigger a firewall prompt.
-    /// </summary>
-    public static IPAddress DefaultBindAddress(string appDirectory) =>
-        Updates.InstalledLayout.IsInstalled(appDirectory) ? IPAddress.Any : IPAddress.Loopback;
 
     private static string? Read(IConfiguration configuration, string option, string environment) =>
         configuration[option] is { Length: > 0 } value ? value : configuration[environment] is { Length: > 0 } env ? env : null;

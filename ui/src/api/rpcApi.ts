@@ -5,6 +5,7 @@ import type {
   DiscoveredDevice,
   ServerInfo,
   SettingsSchema,
+  SetupState,
   SysInfo,
   TokenInfo,
 } from './types';
@@ -21,6 +22,7 @@ export const SUBSCRIPTIONS = [
   'controllers-update',
   'capture-update',
   'performance-update',
+  'setup-update',
 ] as const;
 
 /** Priority and origin the UI uses for colors and effects it starts (the backend's web-UI slot). */
@@ -187,6 +189,26 @@ export class RpcApi {
   /** Asks for a fresh round of `performance-update` events. */
   async requestPerformance(): Promise<void> {
     await this.backend.call('performance-counters', 'all');
+  }
+
+  // ---- first run, network access ----
+
+  async setupState(): Promise<SetupState> {
+    return info<SetupState>(await this.backend.call('setup', 'getstate'));
+  }
+
+  /** "Start lighting": ends the first-run hold (the LEDs still wait while HyperHDR runs); optionally sets autostart. */
+  async startLighting(autostart?: boolean): Promise<SetupState> {
+    return info<SetupState>(await this.backend.call('setup', 'start', autostart === undefined ? {} : { autostart }));
+  }
+
+  async setAutostart(enabled: boolean): Promise<SetupState> {
+    return info<SetupState>(await this.backend.call('setup', 'autostart', { enabled }));
+  }
+
+  /** Remembers that the user has read an explanation ("discovery"). */
+  async acknowledge(topic: 'discovery'): Promise<SetupState> {
+    return info<SetupState>(await this.backend.call('setup', 'acknowledge', { topic }));
   }
 
   // ---- devices ----

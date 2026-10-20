@@ -49,6 +49,21 @@ What the import does (idempotent, one log line per change, never logging secrets
 - the admin password and API tokens keep working (their HyperHDR hashes are replaced by PBKDF2 at the first sign-in);
   a factory password becomes Overglow's factory password `overglow`.
 
+## First run
+
+A new data directory, and every first-start import, starts with the LEDs held: nothing is sent to the LED controllers
+and the startup effect waits until the user presses **Start lighting** in the welcome window (which opens on every
+start until then, even from autostart). The flag lives in the database's metadata (`first_run_completed`), so a
+backup restore or an import doesn't reset it. Databases from an earlier Overglow version count as started (schema
+migration 3), so an update never leaves a configured setup dark.
+
+Independently of the first run, the LEDs are held while HyperHDR (`hyperhdr.exe`) or Hyperion (`hyperiond.exe`) runs;
+Overglow checks every 2 seconds and takes over when it has quit.
+
+`network.remoteAccess` (default off, also for imports): off, the web UI only accepts connections from this computer;
+on, it also listens on the computer's network addresses and announces itself with mDNS. Autostart is off unless the
+user turns it on (welcome checkbox, tray menu).
+
 Backups (`save-db`) use the `Overglow_export_format_v1` JSON format; `load-db` also accepts HyperHDR's v17/v20
 exports. Credentials are never part of a backup.
 

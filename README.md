@@ -2,8 +2,8 @@
 
 Overglow is an ambient lighting app for Windows. It captures the screen (including HDR displays) or the sound that is
 playing, maps the picture to the LEDs around your TV or monitor and drives them in real time, with color calibration,
-smoothing and effects. It runs in the tray and is configured from a web UI that phones on the same network can open
-too.
+smoothing and effects. It runs in the tray and is configured from a web UI, which phones on the same network can open
+too once you allow it (Settings > Network).
 
 Overglow started as a fork of [HyperHDR](https://github.com/awawa-dev/HyperHDR) and is now a C# / .NET 10 app with a
 React UI; see [Credits](#credits).
@@ -19,10 +19,14 @@ React UI; see [Credits](#credits).
 - **Effects and music mode**: rainbow swirls, mood blobs, breath, candle, and four music effects driven by WASAPI
   loopback or a microphone.
 - **Desktop app**: tray menu (lights, screen sync, music, effects, colors, pause), window with the UI, start with
-  Windows, sleep and lock handling, single instance, automatic updates.
+  Windows (opt-in), sleep and lock handling, single instance, automatic updates.
 - **Control**: JSON-RPC over WebSocket and HTTP (compatible with HyperHDR clients for the commands the UI uses), MQTT
-  with Home Assistant discovery, mDNS advertisement of the UI.
-- **Import**: HyperHDR v17-v24 settings databases are imported on the first start.
+  with Home Assistant discovery; other devices and mDNS advertisement only after you turn remote access on.
+- **Import and first run**: HyperHDR v17-v24 settings databases are imported on the first start; a welcome window
+  shows what was imported, and the LEDs stay off until you press Start lighting. While HyperHDR runs, Overglow sends
+  nothing to the LEDs and asks you to quit HyperHDR.
+- **Network only when asked**: the app listens on 127.0.0.1 until you turn remote access on (with an explanation of
+  the Windows Firewall question that follows); device discovery runs only when you press Find.
 
 ## Supported devices
 
@@ -69,8 +73,8 @@ cd ..
 ./packaging/build.ps1
 ```
 
-A build run from the source tree keeps its settings in `backend/.local/data`, listens on `127.0.0.1:18290` only and
-doesn't import HyperHDR settings unless told to (`--legacy-data-dir`). `overglow --help` lists every option. More in
+A build run from the source tree keeps its settings in `backend/.local/data` and doesn't import HyperHDR settings
+unless told to (`--legacy-data-dir`). Every copy listens on `127.0.0.1:18290` only unless remote access is turned on. `overglow --help` lists every option. More in
 [docs/development.md](docs/development.md) and [packaging/README.md](packaging/README.md).
 
 ## Documentation

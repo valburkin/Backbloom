@@ -22,7 +22,6 @@ public sealed record ImportOutcome(ImportResult Result, SettingsUpdateResult Sto
 public sealed partial class SettingsServices : IDisposable
 {
     private const string InitializedKey = "initialized_at";
-    private const string ImportedFromKey = "imported_from";
 
     private readonly SettingsImporter _importer;
     private readonly ILogger _logger;
@@ -33,6 +32,7 @@ public sealed partial class SettingsServices : IDisposable
         Database = database;
         Store = new SqliteSettingsStore(database, schema, loggerFactory.CreateLogger<SqliteSettingsStore>(), time);
         Auth = new SqliteAuthStore(database, time);
+        Setup = new SqliteSetupState(database, time);
         _importer = new SettingsImporter(schema);
         _logger = loggerFactory.CreateLogger<SettingsServices>();
         _time = time;
@@ -43,6 +43,9 @@ public sealed partial class SettingsServices : IDisposable
     public SqliteSettingsStore Store { get; }
 
     public SqliteAuthStore Auth { get; }
+
+    /// <summary>First-run state: whether the lighting was started once, what was imported.</summary>
+    public SqliteSetupState Setup { get; }
 
     /// <summary>
     /// Opens <c>settings.db</c> in the data directory. On the first start (no settings yet) it imports, in this
@@ -150,7 +153,7 @@ public sealed partial class SettingsServices : IDisposable
                 Database.SetMeta("instance_id", id);
             }
 
-            Database.SetMeta(ImportedFromKey, snapshot.Source);
+            Database.SetMeta(SqliteSetupState.ImportedFromKey, snapshot.Source);
         }
 
         LogImported(result.Content.Sections.Count, result.Content.Controllers.Count, result.Changes.Count);

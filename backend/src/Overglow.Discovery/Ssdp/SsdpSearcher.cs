@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -25,9 +24,12 @@ public interface ISsdpSearcher
 
 /// <summary>
 /// Port of <c>SSDPDiscover</c> (sources/ssdp/SSDPDiscover.cpp): one M-SEARCH to 239.255.255.250, then every answer
-/// within the timeout. Passive in the sense that it only asks who is there.
+/// within the timeout. Passive in the sense that it only asks who is there. The search goes out from
+/// <see cref="QuerySockets"/> (one ephemeral socket per interface, closed afterwards), where the answers arrive.
 /// </summary>
-public sealed partial class SsdpSearcher(Func<int, IPEndPoint>? destination = null) : ISsdpSearcher
+/// <param name="destination">Where to send for a port; the SSDP group by default (tests: a loopback responder).</param>
+/// <param name="locals">Addresses to send from; every interface that can multicast by default (loopback for a loopback destination).</param>
+public sealed partial class SsdpSearcher(Func<int, IPEndPoint>? destination = null, Func<IEnumerable<IPAddress>>? locals = null) : ISsdpSearcher
 {
     public static readonly IPAddress MulticastAddress = IPAddress.Parse("239.255.255.250");
 
@@ -71,43 +73,24 @@ public sealed partial class SsdpSearcher(Func<int, IPEndPoint>? destination = nu
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(searchTarget);
         var destination = _destination(port);
-        using var socket = new Socket(destination.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-        var local = IPAddress.IsLoopback(destination.Address)
-            ? destination.Address // tests: nothing listens on the network
-            : destination.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any;
-        socket.Bind(new IPEndPoint(local, 0));
-        if (destination.Address.Equals(MulticastAddress))
-        {
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 4);
-        }
-
-        await socket.SendToAsync(Encoding.UTF8.GetBytes(SearchRequest(destination, searchTarget)), SocketFlags.None, destination, cancellationToken);
+        var from = locals?.Invoke() ?? (IPAddress.IsLoopback(destination.Address) ? [destination.Address] : LocalNetwork.MulticastAddresses());
+        using var sockets = QuerySockets.Open(from, multicastTtl: destination.Address.Equals(MulticastAddress) ? 4 : null);
+        var request = Encoding.UTF8.GetBytes(SearchRequest(destination, searchTarget));
+        sockets.Send(request, local => local.AddressFamily == destination.AddressFamily ? destination : null);
 
         var responses = new List<SsdpResponse>();
-        var buffer = new byte[4096];
         using var window = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         window.CancelAfter(timeout);
-        EndPoint any = new IPEndPoint(IPAddress.Any, 0);
-        while (true)
-        {
-            SocketReceiveFromResult result;
-            try
+        await sockets.ReceiveAsync(
+            (datagram, sender) =>
             {
-                result = await socket.ReceiveFromAsync(buffer, SocketFlags.None, any, window.Token);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionReset)
-            {
-                continue;
-            }
-
-            var text = Encoding.UTF8.GetString(buffer, 0, result.ReceivedBytes);
-            responses.Add(new SsdpResponse((IPEndPoint)result.RemoteEndPoint, ParseHeaders(text)));
-        }
-
+                lock (responses)
+                {
+                    responses.Add(new SsdpResponse(sender, ParseHeaders(Encoding.UTF8.GetString(datagram))));
+                }
+            },
+            window.Token);
+        cancellationToken.ThrowIfCancellationRequested();
         return responses;
     }
 
