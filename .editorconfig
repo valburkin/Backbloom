@@ -1,36 +1,31 @@
 root = true
 
-# Unix-style newlines with a newline ending every file
+# UTF-8, LF line endings and a final newline everywhere
 [*]
 charset = utf-8
-trim_trailing_whitespace = true
 end_of_line = lf
 insert_final_newline = true
+trim_trailing_whitespace = true
 
-# Tab indentation (no size specified)
-[Makefile]
-indent_style = tab
-
-[*.{c,h,cpp,hpp}]
-indent_style = tab
-indent_size = 4
-
-# js and webui
-[*.{ts,js,html}]
-indent_style = tab
-indent_size = 4
-
-# version file
-[version]
-insert_final_newline = false
-
-[*.{json,yml,yaml}]
+# Web UI (ui/)
+[*.{ts,tsx,js,mjs,css,html}]
 indent_style = space
 indent_size = 2
 
-[{CMakeLists.txt,*.cmake}]
-indent_style = tab
+[*.{json,yml,yaml,webmanifest}]
+indent_style = space
+indent_size = 2
+
+# Packaging scripts
+[*.ps1]
+indent_style = space
+indent_size = 4
+
+[*.py]
+indent_style = space
 indent_size = 4
 
 [*.md]
 trim_trailing_whitespace = false
+
+# backend/.editorconfig adds the C# and MSBuild rules

@@ -22,7 +22,7 @@ public sealed class MqttIntegrationTests : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        _broker = new MqttServerFactory().CreateMqttServer(new MqttServerOptionsBuilder().WithDefaultEndpoint().WithDefaultEndpointPort(_port).Build());
+        _broker = new MqttServerFactory().CreateMqttServer(new MqttServerOptionsBuilder().WithDefaultEndpoint().WithDefaultEndpointBoundIPAddress(IPAddress.Loopback).WithDefaultEndpointBoundIPV6Address(IPAddress.None).WithDefaultEndpointPort(_port).Build());
         await _broker.StartAsync();
         _client = new MqttClientFactory().CreateMqttClient();
         _client.ApplicationMessageReceivedAsync += e =>

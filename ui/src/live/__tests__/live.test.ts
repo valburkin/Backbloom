@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import legacyLeds from '../../layout/__fixtures__/my-layout.json';
 import { appendLogs, filterLogs, formatLogs, normalizeLevel, type LogState } from '../logs';
-import { averageColor, ledColor, PREVIEW_FRAME, previewPoints } from '../ledPreview';
+import { ledColor, PREVIEW_FRAME, previewPoints } from '../ledPreview';
 import { performanceReducer, summarize } from '../performance';
 
 const report = (type: number, extra: object = {}) => ({ type, id: 0, name: '', param1: 0, param2: 0, param3: 0, param4: 0, token: 1, remove: 0, ...extra });
@@ -89,6 +89,5 @@ describe('led preview', () => {
   it('reads colors from a flat frame', () => {
     expect(ledColor([1, 2, 3, 4, 5, 6], 1)).toBe('rgb(4,5,6)');
     expect(ledColor(null, 0)).toBe('rgb(30,34,46)');
-    expect(averageColor([0, 0, 0, 255, 255, 255])).toEqual([128, 128, 128]);
   });
 });

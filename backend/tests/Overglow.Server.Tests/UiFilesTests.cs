@@ -21,7 +21,7 @@ public sealed class UiFilesTests : IAsyncLifetime
         await File.WriteAllTextAsync(Path.Combine(ui, "index.html"), Index, TestContext.Current.CancellationToken);
         await File.WriteAllTextAsync(Path.Combine(ui, "assets", "index-AbC123.js"), "console.log(1)", TestContext.Current.CancellationToken);
         await File.WriteAllTextAsync(Path.Combine(ui, "manifest.webmanifest"), "{}", TestContext.Current.CancellationToken);
-        _app = OverglowHost.Build(["--data-dir", _dir, "--legacy-data-dir", "none", "--port", "0", "--capture", "synthetic", "--ui-dir", ui]);
+        _app = OverglowHost.Build(["--data-dir", _dir, "--legacy-data-dir", "none", "--bind", "127.0.0.1", "--port", "0", "--capture", "synthetic", "--ui-dir", ui]);
         await _app.StartAsync(TestContext.Current.CancellationToken);
         var address = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
         _http = new HttpClient { BaseAddress = new Uri(address) };

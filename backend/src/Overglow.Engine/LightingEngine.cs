@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Overglow.Audio;
 using Overglow.Capture;
+using Overglow.Capture.Hdr;
 using Overglow.Core.Borders;
 using Overglow.Core.Color;
 using Overglow.Core.Layout;
@@ -131,6 +132,29 @@ public sealed partial class LightingEngine : IDisposable
     public string SourceName => _source.Name;
 
     public string SourceDevice => _source.Device;
+
+    /// <summary>HDR state of the screen capture; null when the frame source isn't a screen (synthetic test pattern).</summary>
+    public CaptureHdrStatus? CaptureHdr => (_source as IScreenCaptureSource)?.HdrStatus;
+
+    /// <summary>Raised on the frame loop when <see cref="CaptureHdr"/> changed.</summary>
+    public event Action<CaptureHdrStatus>? CaptureHdrChanged
+    {
+        add
+        {
+            if (_source is IScreenCaptureSource screen)
+            {
+                screen.HdrStatusChanged += value;
+            }
+        }
+
+        remove
+        {
+            if (_source is IScreenCaptureSource screen)
+            {
+                screen.HdrStatusChanged -= value;
+            }
+        }
+    }
 
     public IReadOnlyList<DeviceInfo> Devices => _devices.Devices;
 

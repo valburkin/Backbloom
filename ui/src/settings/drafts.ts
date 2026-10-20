@@ -3,8 +3,6 @@
 // the user left it until they save or discard. `baseline` is the section as it was when editing started; it is
 // what Discard returns to (and what a live preview has to be rolled back to).
 
-import type { BackendConfig } from '../api/types';
-
 export interface PageDraft {
   edits: Record<string, unknown>;
   baseline: Record<string, unknown>;
@@ -89,29 +87,4 @@ export function setIn<T>(obj: T, path: ReadonlyArray<string | number>, value: un
   return { ...src, [head]: setIn(src[head], rest, value) } as T;
 }
 
-export interface Adjustment {
-  path: string;
-  sent: unknown;
-  stored: unknown;
-}
 
-/**
- * Values the backend changed while saving. It doesn't report validation problems; it replaces invalid values with
- * defaults, so comparing what was sent with what it stored is the only way to notice.
- */
-export function findAdjustments(sent: BackendConfig, stored: BackendConfig): Adjustment[] {
-  const out: Adjustment[] = [];
-  const walk = (a: unknown, b: unknown, path: string) => {
-    if (a && typeof a === 'object' && !Array.isArray(a) && b && typeof b === 'object' && !Array.isArray(b)) {
-      for (const k of Object.keys(a as object)) walk((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], path ? `${path}.${k}` : k);
-      return;
-    }
-    if (Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.some((x) => x && typeof x === 'object')) {
-      a.forEach((x, i) => walk(x, b[i], `${path}.${i}`));
-      return;
-    }
-    if (!deepEqual(a, b)) out.push({ path, sent: a, stored: b });
-  };
-  for (const section of Object.keys(sent)) walk(sent[section], stored[section], section);
-  return out;
-}

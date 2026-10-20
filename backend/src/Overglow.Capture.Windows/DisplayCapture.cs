@@ -40,11 +40,12 @@ internal sealed unsafe class DisplayCapture : IDisposable
     private IDXGIOutputDuplication* _duplication;
     private bool _hasImage;
 
-    private DisplayCapture(IDXGIOutputDuplication* duplication, MonitorInfo monitor, bool wideGamut, DXGI_OUTDUPL_DESC desc, IScaler scaler, CaptureRegion region)
+    private DisplayCapture(IDXGIOutputDuplication* duplication, MonitorInfo monitor, bool wideGamut, bool appliesLut, DXGI_OUTDUPL_DESC desc, IScaler scaler, CaptureRegion region)
     {
         _duplication = duplication;
         Monitor = monitor;
         WideGamut = wideGamut;
+        AppliesLut = appliesLut;
         Format = desc.ModeDesc.Format;
         Rotation = desc.Rotation;
         _scaler = scaler;
@@ -55,6 +56,9 @@ internal sealed unsafe class DisplayCapture : IDisposable
 
     /// <summary>True when the desktop is captured as HDR (FP16 scRGB or 10-bit PQ) and converted by the shader.</summary>
     public bool WideGamut { get; }
+
+    /// <summary>True when the tone mapping table is applied to this monitor's 8-bit image.</summary>
+    public bool AppliesLut { get; }
 
     /// <summary>Format of the duplicated desktop.</summary>
     public DXGI_FORMAT Format { get; }
@@ -72,7 +76,8 @@ internal sealed unsafe class DisplayCapture : IDisposable
     /// <summary>
     /// Starts duplicating <paramref name="output"/>. HDR (wide gamut) capture is used when Windows HDR is on for the
     /// monitor, <c>monitor_nits</c> isn't 0 and the shaders are available; otherwise the desktop is captured as 8-bit
-    /// BGRA, which Windows converts to SDR.
+    /// BGRA, which Windows converts to SDR. Whether the tone mapping table applies is decided here too, so a change of
+    /// the monitor's HDR mode (which ends the duplication) takes effect when it is reopened.
     /// </summary>
     public static DisplayCapture Open(GpuDevice gpu, IDXGIOutput6* output, MonitorInfo monitor, CaptureSettings settings)
     {
@@ -103,10 +108,11 @@ internal sealed unsafe class DisplayCapture : IDisposable
             var width = (int)desc.ModeDesc.Width;
             var height = (int)desc.ModeDesc.Height;
             var region = CaptureRegion.Compute(width, height, settings.Crop, settings.MaxWidth);
+            var appliesLut = ToneMapping.AppliesLut(settings.ToneMapping, monitor.Hdr, wideGamut);
             scaler = useGpu
-                ? new GpuScaler(gpu, width, height, region, desc.ModeDesc.Format, wideGamut, settings.MonitorNits, settings.HdrToneMapping)
-                : new CpuScaler(gpu, width, height, region, settings.HdrToneMapping);
-            return new DisplayCapture(duplication, monitor, wideGamut, desc, scaler, region);
+                ? new GpuScaler(gpu, width, height, region, desc.ModeDesc.Format, wideGamut, settings.MonitorNits, appliesLut)
+                : new CpuScaler(gpu, width, height, region, appliesLut);
+            return new DisplayCapture(duplication, monitor, wideGamut, appliesLut, desc, scaler, region);
         }
         catch
         {

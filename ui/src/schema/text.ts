@@ -3,7 +3,6 @@
 // a readable version of the property name (see label() in schema.ts).
 export const SCHEMA_TEXT: Record<string, readonly [label: string, help?: string]> = {
   "edt_append_ms": ["ms"],
-  "edt_append_s": ["s"],
   "edt_append_hz": ["Hz"],
   "edt_append_nits": ["nits"],
   "edt_append_pixel": ["px"],
@@ -33,7 +32,7 @@ export const SCHEMA_TEXT: Record<string, readonly [label: string, help?: string]
   "edt_conf_enum_transeffect_smooth": ["Smooth"],
   "edt_conf_enum_transeffect_sudden": ["Sudden"],
   "edt_conf_gen_disableLedsStartup_title": ["Turn off LEDs at startup", "Disable LEDs and all components on startup, you must re-enable them manually on the main page or via the JSON API (COMP_ALL component)."],
-  "edt_conf_gen_disableOnLocked_title": ["Disable on OS lock or monitor off", "Stops software grabber processing during OS lock or monitor-off events. A restart is required for the changes to take effect."],
+  "edt_conf_gen_disableOnLocked_title": ["Disable on OS lock or monitor off", "Stops the screen capture while Windows is locked or the display is off."],
   "edt_conf_gen_heading_title": ["General Settings"],
   "edt_conf_gen_name_title": ["Configuration name", "A user defined name which is used to detect Overglow. (Helpful with more than one Overglow instance)."],
   "edt_conf_gen_showOptHelp_title": ["Show explanations", "Show all available explanations in each section. Highly recommended for beginners!"],
@@ -95,7 +94,6 @@ export const SCHEMA_TEXT: Record<string, readonly [label: string, help?: string]
   "edt_dev_spec_entertainmentConfigurationId_title": ["Entertainment Configuration ID"],
   "edt_dev_spec_forceSerialDetection": ["Force HyperSerial detection (ignore board ProductId/VendorId)"],
   "edt_dev_spec_groupId_title": ["Group ID"],
-  "edt_dev_spec_header_title": ["Driver settings"],
   "edt_dev_spec_lightid_itemtitle": ["ID"],
   "edt_dev_spec_lightid_title": ["Light ID(s)"],
   "edt_dev_spec_lights_itemtitle": ["Light"],

@@ -54,8 +54,9 @@ public sealed class ImporterTests : IDisposable
         Assert.Equal("Rainbow swirl fast", store.GetSection("backgroundEffect")!["effect"]!.GetValue<string>());
 
         var capture = store.GetSection("systemGrabber")!.AsObject();
-        Assert.Equal((30, 512, true, true, 200), (
-            capture["fps"]!.GetValue<int>(), capture["videoMode"]!.GetValue<int>(), capture["hdrToneMapping"]!.GetValue<bool>(),
+        // the owner had tone mapping on for an SDR monitor, which oversaturated the LEDs: it becomes "auto"
+        Assert.Equal((30, 512, "auto", true, 200), (
+            capture["fps"]!.GetValue<int>(), capture["videoMode"]!.GetValue<int>(), capture["hdrToneMapping"]!.GetValue<string>(),
             capture["hardware"]!.GetValue<bool>(), capture["monitor_nits"]!.GetValue<int>()));
         Assert.False(capture.ContainsKey("signalDetection"));
         Assert.False(store.GetSection("systemControl")!.AsObject().ContainsKey("cecControl"));

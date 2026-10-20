@@ -1,0 +1,61 @@
+# Architecture
+
+One process (`overglow.exe`) does everything: capture, color processing, smoothing, LED output, the web server for the
+UI and the API, the tray and the window. [backend/README.md](../backend/README.md) describes each subsystem in detail;
+this page is the overview.
+
+## Pipeline
+
+```
+frame source (DXGI screen capture | effect | static color | synthetic test pattern)
+  -> priorities (the lowest active priority is visible; 255 = nothing, LEDs off)
+  -> image-to-LED map (LED layout, black border, sparse sampling)  [pictures only]
+  -> color processing (temperature, calibration, gamma, gains, backlight, power limit)
+  -> smoothing (optional, own thread and rate)
+  -> anti-flicker filter
+  -> every enabled controller (LED device runner, one thread each) and the UI's live preview
+```
+
+HyperHDR ran one complete pipeline per "instance"; Overglow runs one pipeline that fans out to several controllers.
+
+## Projects and dependency rules
+
+| Layer | Projects | Contents |
+|---|---|---|
+| 1 | `Overglow.Core`, `Overglow.Settings`, `Overglow.Discovery`, `Overglow.Mqtt` | Pure logic (layout, mapping, color, smoothing, priorities, effects, music analysis); settings schemas, SQLite store, HyperHDR import; mDNS/SSDP; the MQTT connection. No references to each other. |
+| 2 | `Overglow.Capture`, `Overglow.Audio`, `Overglow.Devices`; `Overglow.Capture.Windows`, `Overglow.Audio.Windows` | Frame and sound source abstractions; LED drivers and their lifecycle; the Windows implementations (TerraFX interop). |
+| 3 | `Overglow.Engine` | Orchestration: frame loop, component switches, sources, controllers, effects, preview feed. |
+| 4 | `Overglow.Server`, `Overglow.Shell`; `Overglow.Platform.Windows` | Kestrel JSON-RPC + UI files + MQTT integration; tray menu, window placement, power policy, single instance; Windows tray, WebView2 window, autostart, power and session events. |
+| 5 | `Overglow.App` | Composition root (the only place that creates services), command line, logging, installer hooks and updates. |
+
+A project may only reference projects of lower layers. Platform code lives only in `*.Windows` projects behind
+interfaces defined above them, so macOS and Linux get their own projects later.
+
+## Threading
+
+| Thread | Does |
+|---|---|
+| Frame loop (above normal) | capture or step the visible effect, map, process, hand the frame to the controllers and the preview |
+| Smoothing (above normal) | one tick per update interval while smoothing runs; idle otherwise |
+| One per controller | open with retries, send the newest frame, refresh, close |
+| Sound capture | while a music effect runs: read WASAPI buffers, analyze blocks |
+| Thread pool | JSON-RPC requests (in order per connection), event pushes, update checks |
+| UI thread (STA) | Win32 message loop: tray, WebView2 window, power and session notifications |
+| Log writer | the rolling log file |
+
+The frame loop never waits on a controller or a client: a controller that hasn't sent the previous frame drops it.
+Settings changes build new immutable objects and swap them in with one reference write.
+
+## Hot path
+
+The frame loop, the controller submit path and the sound capture loop don't allocate in steady state: buffers are
+sized when the LED count or frame size changes, lookup tables are precomputed, drivers send from preallocated packet
+buffers over connected sockets, and logging uses `[LoggerMessage]` methods never called per frame. Allocation tests in
+Core, Devices, Engine, Capture, Capture.Windows and Audio enforce it. Measured with 168 LEDs at 60 fps: about 1.3 % of
+one core, 62 MB working set.
+
+## Behavior references
+
+Behavior ported from HyperHDR is pinned by golden fixtures exported from the C++ code
+([backend/tests/fixtures](../backend/tests/fixtures/README.md)); they are frozen now that the C++ code is gone. The
+deliberate deviations from HyperHDR are listed there and in [backend/README.md](../backend/README.md).

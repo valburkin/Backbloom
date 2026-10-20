@@ -139,9 +139,8 @@ function typeOk(schema: JsonSchema, v: unknown): boolean {
 }
 
 /**
- * Checks a value against the schema the way the backend would, so problems are shown before saving
- * (the backend silently resets invalid values to their defaults). Fields hidden by unmet dependencies
- * are not checked.
+ * Checks a value against the schema the way the backend would, so problems are shown while editing, before the
+ * backend would reject the save. Fields hidden by unmet dependencies are not checked.
  */
 export function validate(schema: JsonSchema, value: unknown, path = '', required = false): Issue[] {
   const at = (message: string): Issue[] => [{ path, message }];

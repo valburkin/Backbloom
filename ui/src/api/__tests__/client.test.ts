@@ -43,7 +43,7 @@ const latest = () => FakeSocket.instances[FakeSocket.instances.length - 1];
 
 function makeClient(opts: Partial<ConstructorParameters<typeof WsClient>[0]> = {}) {
   const statuses: ConnectionStatus[] = [];
-  const c = new WsClient({ url: 'ws://test:8090', createSocket: (u) => new FakeSocket(u), timeoutMs: 1000, minDelayMs: 100, maxDelayMs: 400, ...opts });
+  const c = new WsClient({ url: 'ws://test:18290', createSocket: (u) => new FakeSocket(u), timeoutMs: 1000, minDelayMs: 100, maxDelayMs: 400, ...opts });
   c.onStatus((s) => statuses.push(s));
   return { c, statuses };
 }
@@ -60,7 +60,7 @@ describe('WsClient', () => {
   it('connects and reports status transitions', () => {
     const { c, statuses } = makeClient();
     c.connect();
-    expect(latest().url).toBe('ws://test:8090');
+    expect(latest().url).toBe('ws://test:18290');
     expect(c.status).toBe('connecting');
     latest().open();
     expect(c.status).toBe('open');
@@ -144,18 +144,19 @@ describe('WsClient', () => {
     expect(got).toEqual(['p:{"priorities":[]}', '*:priorities-update']);
   });
 
-  it('treats stream events that echo the request tan as events (log history before the logging reply)', async () => {
+  it('treats LED stream messages, which carry the ledstream-start tan, as events', async () => {
     const { c } = makeClient();
     const got: unknown[] = [];
-    c.onEvent('logging-update', (e) => got.push(e.data));
+    c.onEvent('ledcolors-ledstream-update', (e) => got.push(e.data));
     c.connect();
     latest().open();
-    const p = c.call('logging', 'start');
+    const p = c.call('ledcolors', 'ledstream-start');
     const { tan } = latest().last as { tan: number };
-    latest().receive({ command: 'logging-update', result: { messages: [{ message: 'old' }] }, tan });
-    latest().receive({ command: 'logging-start', success: true, tan });
-    await expect(p).resolves.toMatchObject({ command: 'logging-start' });
-    expect(got).toEqual([{ messages: [{ message: 'old' }] }]);
+    latest().receive({ command: 'ledcolors-ledstream-update', result: { leds: [1, 2, 3] }, tan });
+    latest().receive({ command: 'ledcolors-ledstream-start', success: true, tan });
+    latest().receive({ command: 'ledcolors-ledstream-update', result: { leds: [4, 5, 6] }, tan });
+    await expect(p).resolves.toMatchObject({ command: 'ledcolors-ledstream-start' });
+    expect(got).toEqual([{ leds: [1, 2, 3] }, { leds: [4, 5, 6] }]);
   });
 
   it('ignores binary frames and malformed JSON', () => {
@@ -244,24 +245,24 @@ describe('WsClient', () => {
 describe('backend URL resolution', () => {
   const loc = (over: Partial<{ protocol: string; host: string; hostname: string; search: string }> = {}) => ({
     protocol: 'http:',
-    host: 'pc.local:8090',
+    host: 'pc.local:18290',
     hostname: 'pc.local',
     search: '',
     ...over,
   });
 
   it('defaults to the page host (backend serves UI + WebSocket on one port)', () => {
-    expect(resolveBackendUrl(loc())).toBe('ws://pc.local:8090');
-    expect(resolveBackendUrl(loc({ protocol: 'https:', host: 'pc.local:8092' }))).toBe('wss://pc.local:8092');
+    expect(resolveBackendUrl(loc())).toBe('ws://pc.local:18290');
+    expect(resolveBackendUrl(loc({ protocol: 'https:', host: 'pc.local:18291' }))).toBe('wss://pc.local:18291');
   });
 
-  it('uses port 8090 on the page hostname in dev', () => {
-    expect(resolveBackendUrl(loc({ host: 'localhost:5173', hostname: 'localhost' }), undefined, true)).toBe('ws://localhost:8090');
+  it('uses port 18290 on the page hostname in dev', () => {
+    expect(resolveBackendUrl(loc({ host: 'localhost:5173', hostname: 'localhost' }), undefined, true)).toBe('ws://localhost:18290');
   });
 
   it('prefers ?backend over VITE_BACKEND over the default', () => {
-    expect(resolveBackendUrl(loc(), '10.0.0.2:8090')).toBe('ws://10.0.0.2:8090');
-    expect(resolveBackendUrl(loc({ search: '?backend=10.0.0.3:8090' }), '10.0.0.2:8090')).toBe('ws://10.0.0.3:8090');
+    expect(resolveBackendUrl(loc(), '10.0.0.2:18290')).toBe('ws://10.0.0.2:18290');
+    expect(resolveBackendUrl(loc({ search: '?backend=10.0.0.3:18290' }), '10.0.0.2:18290')).toBe('ws://10.0.0.3:18290');
   });
 
   it('normalizes http/ws/bare forms', () => {

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { RpcApi, SUBSCRIPTIONS } from '../api/rpcApi';
-import type { Backend, ChannelAdjustment, ComponentInfo, ConnectionStatus, InstanceInfo, PriorityInfo, ServerInfo, SysInfo } from '../api/types';
+import type { Backend, ChannelAdjustment, ComponentInfo, ConnectionStatus, InstanceInfo, PriorityInfo, ServerInfo, SysInfo, SystemGrabbers } from '../api/types';
 
 /**
  * - checking: talking to the backend to find out what's needed
@@ -164,6 +164,10 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
       backend.onEvent('leds-update', (e) => {
         const d = e.data as { leds?: ServerInfo['leds'] };
         setServerInfo((si) => (si && Array.isArray(d.leds) ? { ...si, leds: d.leds } : si));
+      }),
+      backend.onEvent('capture-update', (e) => {
+        const d = e.data as SystemGrabbers | null;
+        setServerInfo((si) => (si && d && typeof d === 'object' ? { ...si, systemGrabbers: d } : si));
       }),
       backend.onEvent('controllers-update', (e) => {
         const d = e.data as { controllers?: ServerInfo['controllers'] };

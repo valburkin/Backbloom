@@ -79,14 +79,14 @@
   "sparse_processing": false
  },
  "device": {
-  "type": "wled",
-  "host": "wled-mock.local",
-  "colorOrder": "rgb",
-  "refreshTime": 0,
   "brightnessMax": true,
   "brightnessMaxLevel": 255,
+  "colorOrder": "rgb",
+  "host": "wled-mock.local",
   "maxRetry": 60,
-  "restoreOriginalState": false
+  "refreshTime": 0,
+  "restoreOriginalState": false,
+  "type": "wled"
  },
  "effects": {
   "disable": [
@@ -147,12 +147,13 @@
   }
  },
  "logger": {
-  "level": "warn"
+  "level": "debug"
  },
  "mqtt": {
   "custom_topic": "",
   "disableApiAccess": false,
   "enable": false,
+  "homeAssistantDiscovery": true,
   "host": "",
   "ignore_ssl_errors": true,
   "is_ssl": false,
@@ -173,15 +174,16 @@
   "antiFlickeringFilter": true,
   "continuousOutput": false,
   "damping": 26,
-  "enable": true,
+  "enable": false,
   "smoothingFactor": 0,
   "stiffness": 150,
   "time_ms": 150,
   "type": "HybridRgbInterpolator",
-  "updateFrequency": 50
+  "updateFrequency": 50,
+  "y_limit": 0.03
  },
  "soundEffect": {
-  "device": "Microphone (HD Pro Webcam C920)",
+  "device": "default",
   "enable": false,
   "enable_smoothing": false
  },
@@ -197,10 +199,9 @@
   "device": "\\\\.\\DISPLAY5|NVIDIA GeForce RTX 5080",
   "fps": 30,
   "hardware": true,
-  "hdrToneMapping": true,
+  "hdrToneMapping": "auto",
   "monitor_nits": 200,
   "reorder_displays": 0,
-  "signalDetection": false,
   "videoMode": 512
  },
  "webConfig": {

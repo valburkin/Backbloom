@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
 using Overglow.Capture;
+using Overglow.Capture.Hdr;
 using Overglow.Core.Color;
 using Overglow.Core.Imaging;
 using Overglow.Core.Layout;
@@ -81,6 +82,38 @@ internal sealed class SolidSource(byte r, byte g, byte b, int width = 64, int he
 
         return true;
     }
+
+    public void Dispose()
+    {
+    }
+}
+
+/// <summary>A screen source whose HDR state the test sets.</summary>
+internal sealed class FakeScreenSource : IScreenCaptureSource
+{
+    public string Name => "Fake screen";
+
+    public string Device => "test";
+
+    public (int Width, int Height) FrameSize => (16, 9);
+
+    public IReadOnlyList<MonitorInfo> Monitors => [];
+
+    public CaptureHdrStatus HdrStatus { get; private set; } = CaptureHdrStatus.Idle(ToneMappingMode.Auto);
+
+    public event Action<CaptureHdrStatus>? HdrStatusChanged;
+
+    public void Configure(CaptureSettings settings)
+    {
+    }
+
+    public void SetHdrStatus(CaptureHdrStatus status)
+    {
+        HdrStatus = status;
+        HdrStatusChanged?.Invoke(status);
+    }
+
+    public bool TryCapture(Frame frame, CancellationToken cancellationToken) => !cancellationToken.WaitHandle.WaitOne(5);
 
     public void Dispose()
     {
@@ -230,6 +263,28 @@ public sealed class EngineTests : IDisposable
         var lines = File.ReadAllLines(output);
         Assert.Contains(" [{1,255,1}{1,255,1}]", lines);
         Assert.Equal(" [{0,0,0}{0,0,0}]", lines[^1]);
+    }
+
+    [Fact]
+    public void Engine_ReportsTheScreenCapturesHdrStateAndItsChanges()
+    {
+        var registry = Registry();
+        var store = Store(registry);
+        var screen = new FakeScreenSource();
+        using var engine = new LightingEngine(store, screen, Devices(registry), new SystemClock(), NullLoggerFactory.Instance);
+        var changes = new List<CaptureHdrStatus>();
+        void Handler(CaptureHdrStatus s) => changes.Add(s);
+        engine.CaptureHdrChanged += Handler;
+
+        var hdr = new CaptureHdrStatus(ToneMappingMode.Auto, Capturing: true, MonitorHdr: true, ToneMapped: true);
+        screen.SetHdrStatus(hdr);
+        engine.CaptureHdrChanged -= Handler;
+        screen.SetHdrStatus(CaptureHdrStatus.Idle(ToneMappingMode.Auto));
+
+        Assert.Equal([hdr], changes);
+        Assert.Equal(CaptureHdrStatus.Idle(ToneMappingMode.Auto), engine.CaptureHdr);
+        using var synthetic = new LightingEngine(store, new SolidSource(0, 0, 0), Devices(registry), new SystemClock(), NullLoggerFactory.Instance);
+        Assert.Null(synthetic.CaptureHdr);
     }
 
     [Fact]

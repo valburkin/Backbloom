@@ -48,6 +48,13 @@ public sealed class SettingsDatabase : IDisposable
                 iterations INTEGER NOT NULL,
                 last_use TEXT);
             """)),
+
+        // The switch became a mode; see LegacyMigrations.ConvertToneMapping for why on becomes "auto".
+        new(2, "systemGrabber.hdrToneMapping: switch to mode", (c, t) => Execute(c, t, """
+            UPDATE settings
+            SET value = json_set(value, '$.hdrToneMapping', CASE json_type(value, '$.hdrToneMapping') WHEN 'true' THEN 'auto' ELSE 'off' END)
+            WHERE section = 'systemGrabber' AND json_valid(value) AND json_type(value, '$.hdrToneMapping') IN ('true', 'false');
+            """)),
     ];
 
     private readonly SqliteConnection _connection;

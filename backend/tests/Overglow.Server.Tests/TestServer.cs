@@ -68,7 +68,7 @@ internal sealed class TestServer : IAsyncDisposable
     /// <summary>Starts a server on an existing data directory, which is kept unless <paramref name="ownsDirectory"/>.</summary>
     public static async Task<TestServer> StartInAsync(string dir, bool ownsDirectory = false)
     {
-        var app = OverglowHost.Build(["--data-dir", dir, "--legacy-data-dir", "none", "--port", "0", "--capture", "synthetic", "--fps", "60", "--ui-dir", Path.Combine(dir, "no-ui")]);
+        var app = OverglowHost.Build(["--data-dir", dir, "--legacy-data-dir", "none", "--bind", "127.0.0.1", "--port", "0", "--capture", "synthetic", "--fps", "60", "--ui-dir", Path.Combine(dir, "no-ui")]);
         await app.StartAsync();
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
         return new TestServer(app, dir, new Uri(address), ownsDirectory);

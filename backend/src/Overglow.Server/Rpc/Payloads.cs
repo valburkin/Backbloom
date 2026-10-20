@@ -1,6 +1,7 @@
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
+using Overglow.Capture.Hdr;
 using Overglow.Core.Mapping;
 using Overglow.Devices;
 using Overglow.Engine;
@@ -36,13 +37,35 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
         }
 
         info["ledDevices"] = new JsonObject { ["available"] = available };
-        info["systemGrabbers"] = new JsonObject { ["device"] = engine.SourceName, ["modes"] = new JsonArray(engine.SourceDevice) };
+        info["systemGrabbers"] = SystemGrabbers();
         info["sessions"] = new JsonArray();
         info["instance"] = Instances();
         info["currentInstance"] = 0;
         info["hostname"] = Dns.GetHostName();
         info["lastError"] = string.Empty;
         return info;
+    }
+
+    /// <summary>
+    /// <c>systemGrabbers</c> (also the <c>capture-update</c> event): <c>{ device, modes }</c> as in HyperHDR plus, for
+    /// screen capture, <c>hdr: { mode, capturing, monitorHdr, toneMapping }</c>: the <c>hdrToneMapping</c> setting,
+    /// whether a monitor is captured, whether Windows drives it in HDR mode and whether its colors are tone mapped.
+    /// </summary>
+    public JsonObject SystemGrabbers()
+    {
+        var grabbers = new JsonObject { ["device"] = engine.SourceName, ["modes"] = new JsonArray(engine.SourceDevice) };
+        if (engine.CaptureHdr is { } hdr)
+        {
+            grabbers["hdr"] = new JsonObject
+            {
+                ["mode"] = hdr.Mode.ToSettingString(),
+                ["capturing"] = hdr.Capturing,
+                ["monitorHdr"] = hdr.MonitorHdr,
+                ["toneMapping"] = hdr.ToneMapped,
+            };
+        }
+
+        return grabbers;
     }
 
     /// <summary>The part of serverinfo that <c>priorities-update</c> repeats (LightingInstance::getJsonInfo).</summary>

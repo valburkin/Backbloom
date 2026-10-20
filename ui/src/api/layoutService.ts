@@ -112,9 +112,8 @@ function fromLegacy(rects: LedRect[], controller: Controller, note?: string): Lo
 export async function loadLayout(api: RpcApi, opts: { admin: boolean; serverInfo?: ServerInfo | null }): Promise<LoadedLayout> {
   if (opts.admin) {
     const config = await api.getConfig();
-    // An empty layout (older backends' default) means "never saved", so use the LED positions instead.
-    const saved = isLayoutSpec(config.layout) && (config.layout.controllers.length > 0 || config.layout.strips.length > 0);
-    if (saved) return { spec: config.layout as LayoutSpec, source: 'saved' };
+    // Until a layout is saved the backend has none (`layout` is absent); the LED positions describe the LEDs then.
+    if (isLayoutSpec(config.layout)) return { spec: config.layout, source: 'saved' };
     const rects = isRectArray(config.leds) ? config.leds : [];
     const { controller, note } = await controllerForDevice(api, config.device, rects.length);
     return fromLegacy(rects, controller, note);

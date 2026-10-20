@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Overglow.Capture.Hdr;
 using Overglow.Engine;
 using Overglow.Server.Auth;
 using Overglow.Server.Diagnostics;
@@ -22,7 +23,7 @@ public sealed class EventSubscriptions(
     [
         "components-update", "performance-update", "sessions-update", "priorities-update", "imageToLedMapping-update",
         "adjustment-update", "leds-colors", "live-video", "settings-update", "leds-update", "instance-update", "token-update",
-        "controllers-update",
+        "controllers-update", "capture-update",
     ];
 
     private static readonly TimeSpan s_performanceInterval = TimeSpan.FromSeconds(4);
@@ -103,6 +104,14 @@ public sealed class EventSubscriptions(
                         engine.ControllersChanged -= Handler;
                         engine.DeviceChanged -= DeviceHandler;
                     });
+                }
+
+            case "capture-update":
+                {
+                    // serverinfo.systemGrabbers again when the screen capture starts or stops or the monitor's HDR mode changed
+                    void Handler(CaptureHdrStatus _) => session.Send(RpcReplies.Event(name, payloads.SystemGrabbers()));
+                    engine.CaptureHdrChanged += Handler;
+                    return new Subscription(() => engine.CaptureHdrChanged -= Handler);
                 }
 
             case "settings-update":

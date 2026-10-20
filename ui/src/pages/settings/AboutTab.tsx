@@ -39,8 +39,7 @@ export function AboutTab() {
     `Overglow ${o?.version ?? '?'} ${o?.build ?? ''}`.trim(),
     o?.time ? `Built ${o.time}` : '',
     s ? `${s.prettyName ?? s.productType ?? ''} (${s.kernelType ?? ''} ${s.kernelVersion ?? ''}, ${s.architecture ?? ''})` : '',
-    s?.qtVersion ? `Qt ${s.qtVersion}` : '',
-    s?.openssl ?? '',
+    s?.runtimeVersion ?? '',
     serverInfo?.systemGrabbers?.device ? `Screen capture: ${serverInfo.systemGrabbers.device}` : '',
     `LEDs: ${serverInfo?.leds?.length ?? 0}`,
   ]
@@ -72,7 +71,7 @@ export function AboutTab() {
           <Row label="Computer">{s?.hostName ?? '—'}</Row>
           <Row label="System">{[s?.prettyName, s?.architecture].filter(Boolean).join(' · ') || '—'}</Row>
           <Row label="Kernel">{[s?.kernelType, s?.kernelVersion].filter(Boolean).join(' ') || '—'}</Row>
-          <Row label="Qt / OpenSSL">{[s?.qtVersion && `Qt ${s.qtVersion}`, s?.openssl].filter(Boolean).join(' · ') || '—'}</Row>
+          <Row label="Runtime">{s?.runtimeVersion ?? '—'}</Row>
           <Row label="Screen capture">{serverInfo?.systemGrabbers?.device ?? '—'}</Row>
         </dl>
       </Section>

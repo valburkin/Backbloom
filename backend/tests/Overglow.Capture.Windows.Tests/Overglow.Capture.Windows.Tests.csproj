@@ -8,6 +8,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Overglow.Core.Tests\Allocations.cs" Link="Allocations.cs" />
     <Compile Include="..\Overglow.Core.Tests\Golden\TestImages.cs" Link="Golden\TestImages.cs" />
     <Compile Include="..\Overglow.Capture.Tests\HdrGolden.cs" Link="Golden\HdrGolden.cs" />
   </ItemGroup>

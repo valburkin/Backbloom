@@ -1,0 +1,105 @@
+<#
+.SYNOPSIS
+    Builds the web UI, publishes the backend and packs the Windows installer (Velopack).
+
+.DESCRIPTION
+    1. ui/: npm ci (when node_modules is missing) and npm run build -> ui/dist
+    2. backend/: dotnet publish of Overglow.App, self-contained win-x64, ReadyToRun, with ui/dist as ui/
+    3. Velopack (vpk, pinned in packaging/dotnet-tools.json): Setup.exe, the full package, the portable zip and the
+       release feed files for the channel, in artifacts/releases.
+
+    The version comes from backend/Directory.Build.props. Nothing is installed and nothing is uploaded.
+
+.PARAMETER Channel
+    Release channel the package belongs to (an installed copy follows it). Default: stable.
+
+.PARAMETER SignTemplate
+    Code signing hook, passed to vpk as --signTemplate: a command with {{file}} where the file to sign goes, e.g.
+    'signtool sign /fd sha256 /tr http://timestamp.digicert.com /td sha256 /a {{file}}'. vpk signs every program
+    and library of the package and Setup.exe. Without it the package is unsigned (SmartScreen warns on download).
+
+.PARAMETER Output
+    Output folder (default: artifacts/ at the repository root): publish/ and releases/ are recreated.
+
+.PARAMETER SkipUi
+    Use the existing ui/dist instead of building the UI.
+
+.EXAMPLE
+    ./packaging/build.ps1
+    ./packaging/build.ps1 -Channel beta -SignTemplate 'signtool sign /fd sha256 /a {{file}}'
+#>
+[CmdletBinding()]
+param(
+    [string] $Channel = 'stable',
+    [string] $SignTemplate,
+    [string] $Output,
+    [switch] $SkipUi
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+$repo = Split-Path -Parent $PSScriptRoot
+if (-not $Output) { $Output = Join-Path $repo 'artifacts' }
+$publish = Join-Path $Output 'publish'
+$releases = Join-Path $Output 'releases'
+
+# The SDK pinned by backend/global.json: DOTNET_ROOT when set (the development machine keeps it outside PATH).
+$dotnet = if ($env:DOTNET_ROOT -and (Test-Path (Join-Path $env:DOTNET_ROOT 'dotnet.exe'))) { Join-Path $env:DOTNET_ROOT 'dotnet.exe' } else { 'dotnet' }
+
+function Invoke-Step([string] $Name, [scriptblock] $Action) {
+    Write-Host "==> $Name" -ForegroundColor Cyan
+    & $Action
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "$Name failed (exit code $LASTEXITCODE)." }
+}
+
+[xml] $props = Get-Content (Join-Path $repo 'backend/Directory.Build.props')
+$version = ($props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1)
+if (-not $version) { throw 'No <Version> in backend/Directory.Build.props.' }
+Write-Host "Overglow $version, channel $Channel"
+
+if (-not $SkipUi) {
+    Push-Location (Join-Path $repo 'ui')
+    try {
+        if (-not (Test-Path 'node_modules')) { Invoke-Step 'npm ci' { npm ci --no-audit --no-fund } }
+        Invoke-Step 'Build the UI' { npm run build }
+    }
+    finally { Pop-Location }
+}
+if (-not (Test-Path (Join-Path $repo 'ui/dist/index.html'))) { throw 'ui/dist/index.html is missing: build the UI first.' }
+
+Remove-Item $publish, $releases -Recurse -Force -ErrorAction SilentlyContinue
+Invoke-Step 'Publish the backend' {
+    & $dotnet publish (Join-Path $repo 'backend/src/Overglow.App/Overglow.App.csproj') -c Release -r win-x64 -o $publish --nologo
+}
+foreach ($required in 'overglow.exe', 'ui/index.html', 'LICENSE.txt', 'NOTICE.md', 'THIRD-PARTY-NOTICES.md') {
+    if (-not (Test-Path (Join-Path $publish $required))) { throw "The published folder lacks $required." }
+}
+
+Push-Location $PSScriptRoot
+try {
+    Invoke-Step 'Restore vpk' { & $dotnet tool restore }
+    $pack = @(
+        'vpk', 'pack',
+        '--packId', 'OverglowApp',
+        '--packTitle', 'Overglow',
+        '--packAuthors', 'Overglow',
+        '--packVersion', $version,
+        '--packDir', $publish,
+        '--mainExe', 'overglow.exe',
+        '--runtime', 'win-x64',
+        '--channel', $Channel,
+        '--icon', (Join-Path $repo 'branding/overglow.ico'),
+        '--splashImage', (Join-Path $repo 'branding/installer/splash.png'),
+        '--shortcuts', 'StartMenuRoot',
+        '--outputDir', $releases
+    )
+    if ($SignTemplate) { $pack += @('--signTemplate', $SignTemplate) }
+    Invoke-Step 'Pack the installer' { & $dotnet @pack }
+}
+finally { Pop-Location }
+
+Write-Host ''
+Get-ChildItem $releases -File | Sort-Object Name | ForEach-Object {
+    '{0,-45} {1,8:N1} MB' -f $_.Name, ($_.Length / 1MB)
+}

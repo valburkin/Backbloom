@@ -113,14 +113,43 @@ public sealed class CpuPathTests
     {
         var owner = JsonNode.Parse("""
             {"cropBottom":4,"cropLeft":2,"cropRight":0,"cropTop":0,"device":"\\\\.\\DISPLAY5|NVIDIA GeForce RTX 5080","fps":30,
-             "hardware":true,"hdrToneMapping":true,"monitor_nits":200,"reorder_displays":0,"videoMode":512}
+             "hardware":true,"hdrToneMapping":"auto","monitor_nits":200,"reorder_displays":0,"videoMode":512}
             """);
         var settings = CaptureSettings.FromJson(owner);
         Assert.Equal(@"\\.\DISPLAY5|NVIDIA GeForce RTX 5080", settings.Device);
-        Assert.Equal((512, 30, true, true, 200), (settings.MaxWidth, settings.FramesPerSecond, settings.HdrToneMapping, settings.Hardware, settings.MonitorNits));
+        Assert.Equal((512, 30, ToneMappingMode.Auto, true, 200), (settings.MaxWidth, settings.FramesPerSecond, settings.ToneMapping, settings.Hardware, settings.MonitorNits));
         Assert.Equal(new CropMargins(2, 0, 0, 4), settings.Crop);
 
         Assert.Equal(new CaptureSettings(), CaptureSettings.FromJson(null));
         Assert.Equal("systemGrabber", CaptureSettings.SectionName);
+        Assert.Equal(ToneMappingMode.On, CaptureSettings.FromJson(JsonNode.Parse("""{"hdrToneMapping":"on"}""")).ToneMapping);
+        Assert.Equal(ToneMappingMode.Off, CaptureSettings.FromJson(JsonNode.Parse("""{"hdrToneMapping":"off"}""")).ToneMapping);
+    }
+
+    [Theory]
+    // mode, Windows HDR on for the monitor, captured in HDR (FP16 / 10-bit, converted by the shader), table applied
+    [InlineData(ToneMappingMode.Auto, false, false, false)]
+    [InlineData(ToneMappingMode.Auto, true, false, true)]
+    [InlineData(ToneMappingMode.Auto, true, true, false)]
+    [InlineData(ToneMappingMode.On, false, false, true)]
+    [InlineData(ToneMappingMode.On, true, false, true)]
+    [InlineData(ToneMappingMode.On, true, true, false)]
+    [InlineData(ToneMappingMode.Off, false, false, false)]
+    [InlineData(ToneMappingMode.Off, true, false, false)]
+    [InlineData(ToneMappingMode.Off, true, true, false)]
+    public void ToneMapping_AppliesTheTableToEightBitCapturesOfHdrMonitorsUnlessForced(ToneMappingMode mode, bool monitorHdr, bool hdrCapture, bool expected)
+    {
+        Assert.Equal(expected, ToneMapping.AppliesLut(mode, monitorHdr, hdrCapture));
+    }
+
+    [Theory]
+    [InlineData("auto", ToneMappingMode.Auto)]
+    [InlineData("on", ToneMappingMode.On)]
+    [InlineData("off", ToneMappingMode.Off)]
+    public void ToneMapping_ModesRoundTripTheirSettingValues(string value, ToneMappingMode mode)
+    {
+        Assert.Equal(mode, ToneMapping.Parse(value));
+        Assert.Equal(value, mode.ToSettingString());
+        Assert.Equal(ToneMappingMode.Auto, ToneMapping.Parse(null));
     }
 }

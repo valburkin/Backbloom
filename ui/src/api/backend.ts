@@ -2,7 +2,7 @@ import { WsClient } from './client';
 import { MockBackend } from './mock';
 import type { Backend } from './types';
 
-export const DEFAULT_BACKEND_PORT = 8090;
+export const DEFAULT_BACKEND_PORT = 18290;
 
 interface LocationLike {
   protocol: string;
@@ -23,7 +23,7 @@ export function normalizeBackendUrl(value: string, secure = false): string {
 /**
  * Backend URL priority: `?backend=host:port` → VITE_BACKEND → the page's own host (the backend serves this UI
  * and its WebSocket on the same port). In the Vite dev server the page host is Vite itself, so dev falls back to
- * port 8090 on the same hostname.
+ * port 18290 on the same hostname.
  */
 export function resolveBackendUrl(loc: LocationLike, envBackend?: string, isDev = false): string {
   const secure = loc.protocol === 'https:';

@@ -136,9 +136,10 @@ public sealed partial class YeelightDriver : ILedDriver
         }
 
         CloseAll();
-        _musicServer = new TcpListener(IPAddress.Any, 0);
-        _musicServer.Start();
+        // Listen only on the address the lamps are told to connect to (C++ listened on every interface).
         _musicAddress = _localAddress() ?? throw new IOException("Failed to resolve an IP address for the music mode server.");
+        _musicServer = new TcpListener(_musicAddress, 0);
+        _musicServer.Start();
         _lights = [.. _options.Lights.Take(ledCount).Select(l => new YeelightLight(l.Host, l.Port, _options, _time, _logger))];
         var opened = 0;
         foreach (var light in _lights)

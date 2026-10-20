@@ -4,74 +4,88 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Overglow.App;
+using Overglow.App.Updates;
 using Overglow.Platform.Windows.Desktop;
 using Overglow.Server;
 using Overglow.Shell;
+using Velopack;
 
-var hasConsole = !OperatingSystem.IsWindows() || ParentConsole.Attach();
-var (commandLine, error) = CommandLine.Parse(args);
-if (commandLine is null)
+// Velopack's install/update/uninstall hooks (they end the process) and a pending update; installed copies only.
+// Main stays synchronous so that this is the first call of the entry point, as Velopack requires.
+if (OperatingSystem.IsWindows() && InstallerHooks.IsInstalledCopy)
 {
-    Console.Error.WriteLine(error);
-    Console.Error.WriteLine();
-    Console.Error.WriteLine(CommandLine.Usage);
-    return 2;
+    VelopackApp.Build().OnBeforeUninstallFastCallback(InstallerHooks.BeforeUninstall).Run();
 }
 
-switch (commandLine.Mode)
-{
-    case LaunchMode.Help:
-        Console.WriteLine(CommandLine.Usage);
-        return 0;
-    case LaunchMode.Version:
-        var (version, build) = OverglowHost.ProductVersion();
-        Console.Write(CommandLine.VersionText(version, build));
-        return 0;
-    case LaunchMode.Import:
-        return OverglowHost.Import(commandLine.ImportFile!, [.. commandLine.ConfigurationArgs]);
-}
+return RunAsync(args).GetAwaiter().GetResult();
 
-var configuration = new ConfigurationBuilder().AddEnvironmentVariables("OVERGLOW_").AddCommandLine([.. commandLine.ConfigurationArgs]).Build();
-var options = AppOptions.FromConfiguration(configuration);
-
-if (commandLine.Mode == LaunchMode.Quit)
+static async Task<int> RunAsync(string[] args)
 {
-    return await Launcher.QuitRunningAsync(options.DataDirectory);
-}
+    var hasConsole = !OperatingSystem.IsWindows() || ParentConsole.Attach();
+    var (commandLine, error) = CommandLine.Parse(args);
+    if (commandLine is null)
+    {
+        Console.Error.WriteLine(error);
+        Console.Error.WriteLine();
+        Console.Error.WriteLine(CommandLine.Usage);
+        return 2;
+    }
 
-using var instance = SingleInstance.TryAcquire(options.DataDirectory);
-if (instance is null)
-{
-    return await Launcher.ActivateRunningAsync(options.DataDirectory);
-}
+    switch (commandLine.Mode)
+    {
+        case LaunchMode.Help:
+            Console.WriteLine(CommandLine.Usage);
+            return 0;
+        case LaunchMode.Version:
+            var (version, build) = OverglowHost.ProductVersion();
+            Console.Write(CommandLine.VersionText(version, build));
+            return 0;
+        case LaunchMode.Import:
+            return OverglowHost.Import(commandLine.ImportFile!, [.. commandLine.ConfigurationArgs]);
+    }
 
-var launch = new LaunchOptions(
-    Desktop: !commandLine.Service && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763),
-    OpenWindow: !commandLine.NoWindow,
-    ConsoleLogging: hasConsole);
-await using var app = OverglowHost.Build([.. commandLine.ConfigurationArgs], null, launch);
-var shutdown = app.Services.GetRequiredService<GracefulShutdown>();
-if (hasConsole)
-{
-    shutdown.HandleConsoleSignals();
-}
+    var configuration = new ConfigurationBuilder().AddEnvironmentVariables("OVERGLOW_").AddCommandLine([.. commandLine.ConfigurationArgs]).Build();
+    var options = AppOptions.FromConfiguration(configuration);
 
-await app.StartAsync();
-var url = AppUrls.Ui(options);
-instance.Listen(request => Launcher.Answer(app, request, url));
-var server = app.Services.GetRequiredService<ServerOptions>();
-var startup = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Overglow");
-var ui = server.UiDirectory ?? "not found (build ui/ or pass --ui-dir)";
-StartupLog.Started(startup, server.Version, options.DataDirectory, ui, url.AbsoluteUri);
-try
-{
-    await app.WaitForShutdownAsync();
-}
-catch (Exception ex) when (ex is not OutOfMemoryException)
-{
-    StartupLog.StopFailed(startup, ex);
-    return 1;
-}
+    if (commandLine.Mode == LaunchMode.Quit)
+    {
+        return await Launcher.QuitRunningAsync(options.DataDirectory);
+    }
 
-StartupLog.Stopped(startup);
-return 0;
+    using var instance = SingleInstance.TryAcquire(options.DataDirectory);
+    if (instance is null)
+    {
+        return await Launcher.ActivateRunningAsync(options.DataDirectory);
+    }
+
+    var launch = new LaunchOptions(
+        Desktop: !commandLine.Service && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763),
+        OpenWindow: !commandLine.NoWindow,
+        ConsoleLogging: hasConsole);
+    await using var app = OverglowHost.Build([.. commandLine.ConfigurationArgs], null, launch);
+    var shutdown = app.Services.GetRequiredService<GracefulShutdown>();
+    if (hasConsole)
+    {
+        shutdown.HandleConsoleSignals();
+    }
+
+    await app.StartAsync();
+    var url = AppUrls.Ui(options);
+    instance.Listen(request => Launcher.Answer(app, request, url));
+    var server = app.Services.GetRequiredService<ServerOptions>();
+    var startup = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Overglow");
+    var ui = server.UiDirectory ?? "not found (build ui/ or pass --ui-dir)";
+    StartupLog.Started(startup, server.Version, options.DataDirectory, ui, url.AbsoluteUri);
+    try
+    {
+        await app.WaitForShutdownAsync();
+    }
+    catch (Exception ex) when (ex is not OutOfMemoryException)
+    {
+        StartupLog.StopFailed(startup, ex);
+        return 1;
+    }
+
+    StartupLog.Stopped(startup);
+    return 0;
+}

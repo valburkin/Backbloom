@@ -155,4 +155,38 @@ public sealed class MigrationTests
 
         Assert.Equal(kept, config.ContainsKey("layout"));
     }
+
+    [Theory]
+    [InlineData("true", "auto")]
+    [InlineData("false", "off")]
+    [InlineData("\"on\"", "on")]
+    [InlineData("\"auto\"", "auto")]
+    public void ConvertToneMapping_TurnsTheSwitchIntoAModeWhereOnBecomesAuto(string stored, string expected)
+    {
+        var config = Parse($$"""{ "systemGrabber": { "fps": 30, "hdrToneMapping": {{stored}} } }""");
+
+        var changes = Run((c, list) => LegacyMigrations.Apply(c, s_available, list), config);
+
+        Assert.Equal(expected, config["systemGrabber"]!["hdrToneMapping"]!.GetValue<string>());
+        Assert.Equal(stored is "true" or "false", changes.Exists(c => c.StartsWith("HDR tone mapping was", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void ConvertToneMapping_ImportedSettingsValidateAndLeaveAMissingValueToTheDefault()
+    {
+        var schema = Create();
+        foreach (var stored in new[] { """{ "hdrToneMapping": true }""", """{ "hdrToneMapping": false }""", "{}" })
+        {
+            var capture = Parse(stored);
+            LegacyMigrations.ConvertToneMapping(capture, []);
+            var fixes = new List<SettingsError>();
+
+            var repaired = schema.Repair("systemGrabber", capture, fixes)!;
+
+            Assert.DoesNotContain(fixes, f => f.Path.Contains("hdrToneMapping", StringComparison.Ordinal));
+            Assert.True(repaired["hdrToneMapping"]!.GetValue<string>() is "auto" or "off");
+        }
+
+        Assert.Equal("auto", schema.CreateDefault("systemGrabber")!["hdrToneMapping"]!.GetValue<string>());
+    }
 }

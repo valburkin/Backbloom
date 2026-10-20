@@ -1,3 +1,5 @@
+using Overglow.Capture.Hdr;
+
 namespace Overglow.Capture;
 
 /// <summary>A monitor that can be captured.</summary>
@@ -30,6 +32,12 @@ public interface IScreenCaptureSource : IFrameSource
 
     /// <summary>Applies new settings from the next captured frame on (thread-safe).</summary>
     void Configure(CaptureSettings settings);
+
+    /// <summary>Whether a monitor in HDR mode is captured and its colors are tone mapped (thread-safe).</summary>
+    CaptureHdrStatus HdrStatus { get; }
+
+    /// <summary>Raised on the capture thread when <see cref="HdrStatus"/> changed (capture started or stopped, HDR switched).</summary>
+    event Action<CaptureHdrStatus>? HdrStatusChanged;
 }
 
 /// <summary>Order of the monitors in a multi-monitor capture.</summary>

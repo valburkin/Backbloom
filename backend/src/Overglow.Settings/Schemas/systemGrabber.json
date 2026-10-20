@@ -33,10 +33,21 @@
       "propertyOrder": 10
     },
     "hdrToneMapping": {
-      "type": "boolean",
-      "format": "checkbox",
+      "type": "string",
       "title": "edt_conf_stream_hdrToneMapping_title",
-      "default": false,
+      "enum": [
+        "auto",
+        "on",
+        "off"
+      ],
+      "default": "auto",
+      "options": {
+        "enum_titles": [
+          "edt_conf_enum_automatic",
+          "edt_conf_enum_on",
+          "edt_conf_enum_off"
+        ]
+      },
       "required": true,
       "propertyOrder": 23
     },

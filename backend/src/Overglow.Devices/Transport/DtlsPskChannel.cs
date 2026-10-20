@@ -35,6 +35,7 @@ public sealed class DtlsPskChannel : IDisposable
         var socket = new Socket(settings.Remote.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
         try
         {
+            LocalBinding.BindIfLoopback(socket, settings.Remote);
             socket.Connect(settings.Remote);
             var client = new PskClient(new BcTlsCrypto(new SecureRandom()), settings);
             var transport = new DtlsClientProtocol().Connect(client, new UdpTransport(socket));

@@ -29,7 +29,6 @@ export function currentSource(priorities: readonly PriorityInfo[] | undefined): 
     case 'EFFECT':
       return { mode: source.owner && isMusicEffect(source.owner) ? 'music' : 'effect', source };
     case 'SYSTEMGRABBER':
-    case 'VIDEOGRABBER':
       return { mode: 'screen', source };
     default:
       return { mode: null, source };
@@ -42,8 +41,6 @@ export function describeSource(source: PriorityInfo | null): string {
   switch (source.componentId) {
     case 'SYSTEMGRABBER':
       return 'Your screen';
-    case 'VIDEOGRABBER':
-      return 'Video capture';
     case 'COLOR': {
       const rgb = source.value?.RGB;
       return rgb ? `Static color (${rgb.join(', ')})` : 'Static color';

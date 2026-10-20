@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { Download, HardDrive, LogIn, LogOut, SlidersHorizontal, Upload, Wifi } from 'lucide-react';
 import { Button, Dialog, StatusDot } from '../../components/ui';
 import { Callout, Input, Section, Toggle } from '../../components/form';
-import type { PageSettings } from '../../app/config';
+import { useConfig, type PageSettings } from '../../app/config';
 import { useConnection } from '../../app/connection';
 import { useAction } from '../../app/useAction';
 import { useToast } from '../../app/toast';
@@ -29,6 +29,7 @@ function download(name: string, text: string, type = 'application/json') {
 
 export function GeneralTab({ ps }: { ps: PageSettings }) {
   const { status, backend, auth, sysInfo, logout, requestLogin, api } = useConnection();
+  const { reload } = useConfig();
   const toast = useToast();
   const { run, busy } = useAction();
   const general = ps.value<Obj>('general');
@@ -40,6 +41,20 @@ export function GeneralTab({ ps }: { ps: PageSettings }) {
     void run('export', 'Couldn’t export the settings', async () => {
       const data = await api.exportSettings();
       download(`overglow-settings-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data, null, 2));
+    });
+
+  // The backend applies a backup while running and lists what it adapted; sections the backup lacks (e.g. the
+  // layout) aren't announced by events, so the settings are read again afterwards.
+  const restoreSettings = (data: unknown) =>
+    void run('restore', 'Couldn’t restore the settings', async () => {
+      const changes = await api.importSettings(data);
+      setRestore(null);
+      reload();
+      toast(
+        'ok',
+        'Settings restored',
+        changes.length ? `Adapted to this version: ${changes.slice(0, 3).join('; ')}${changes.length > 3 ? ` (and ${changes.length - 3} more)` : ''}` : undefined,
+      );
     });
 
   const pickFile = async (file: File | undefined) => {
@@ -65,7 +80,7 @@ export function GeneralTab({ ps }: { ps: PageSettings }) {
         />
         <Toggle
           label="Pause while the PC is locked or the screen is off"
-          hint="Takes effect after Overglow restarts."
+          hint="Screen capture stops while Windows is locked or the display is off."
           checked={general.disableOnLocked === true}
           onChange={(v) => ps.setPath('general', ['disableOnLocked'], v)}
         />
@@ -134,15 +149,8 @@ export function GeneralTab({ ps }: { ps: PageSettings }) {
             <Button variant="ghost" onClick={() => setRestore(null)}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              disabled={busy === 'restore'}
-              onClick={() =>
-                restore &&
-                void run('restore', 'Couldn’t restore the settings', () => api.importSettings(restore.data), 'Settings restored').then((ok) => ok && setRestore(null))
-              }
-            >
-              Restore and close Overglow
+            <Button variant="primary" disabled={busy === 'restore'} onClick={() => restore && restoreSettings(restore.data)}>
+              Restore
             </Button>
           </>
         }
@@ -151,7 +159,7 @@ export function GeneralTab({ ps }: { ps: PageSettings }) {
           <p>
             All current settings will be replaced with the ones in <span className="font-medium">{restore?.name}</span>.
           </p>
-          <Callout tone="warn">Overglow closes to apply the backup. Start it again from the Start menu afterwards.</Callout>
+          <Callout tone="info">The lights switch to the restored settings right away. Your current settings are kept in the backups folder of Overglow’s data folder.</Callout>
         </div>
       </Dialog>
     </>

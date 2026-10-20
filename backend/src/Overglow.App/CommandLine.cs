@@ -28,7 +28,7 @@ internal enum LaunchMode
 /// </summary>
 internal sealed record CommandLine(LaunchMode Mode, IReadOnlyList<string> ConfigurationArgs, string? ImportFile, bool NoWindow, bool Service)
 {
-    private static readonly string[] s_settings = ["data-dir", "legacy-data-dir", "port", "bind", "ui-dir", "capture", "fps", "lut-dirs"];
+    private static readonly string[] s_settings = ["data-dir", "legacy-data-dir", "port", "bind", "ui-dir", "capture", "fps", "lut-dirs", "update-url", "update-channel"];
 
     public static string Usage => """
         Usage: overglow [options]
@@ -36,11 +36,13 @@ internal sealed record CommandLine(LaunchMode Mode, IReadOnlyList<string> Config
           --data-dir <dir>          Settings, logs and window state (default: the per-user Overglow folder)
           --legacy-data-dir <dir>   HyperHDR's data folder to import on the first start ("none": don't)
           --port <port>             Web port: UI, WebSocket and HTTP JSON-RPC (default 18290)
-          --bind <address>          Address to listen on (default 127.0.0.1; 0.0.0.0 for the network)
+          --bind <address>          Address to listen on (installed: 0.0.0.0, all networks; otherwise 127.0.0.1)
           --ui-dir <dir>            Built web UI to serve (default: ui next to the program, or ui/dist)
           --capture screen|synthetic  Frame source (default screen)
           --fps <n>                 Rate of the synthetic test pattern (default 60)
           --lut-dirs <dirs>         Folders searched for the HDR tone mapping table, separated by ';'
+          --update-url <url>        Release feed for automatic updates of an installed copy
+          --update-channel <name>   Release channel to follow (default: the installed one, e.g. stable)
           --no-window               Start in the tray without opening the window (used by autostart)
           --service                 No tray icon or window; logs to the console (headless use)
           --import <file>           Import a HyperHDR or Overglow database into the data folder and exit
@@ -159,6 +161,8 @@ internal sealed record CommandLine(LaunchMode Mode, IReadOnlyList<string> Config
         "bind" when !IPAddress.TryParse(value, out _) => $"--bind must be an IP address, not '{value}'.",
         "capture" when !Enum.TryParse<CaptureKind>(value, ignoreCase: true, out var kind) || !Enum.IsDefined(kind) || int.TryParse(value, out _) =>
             $"--capture must be 'screen' or 'synthetic', not '{value}'.",
+        "update-url" when !Uri.TryCreate(value, UriKind.Absolute, out var feed) || feed.Scheme is not ("https" or "http" or "file") =>
+            $"--update-url must be an absolute http(s) or file URL, not '{value}'.",
         "fps" when !double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var fps) || fps is <= 0 or > 1000 =>
             $"--fps must be a number above 0 and up to 1000, not '{value}'.",
         _ => null,

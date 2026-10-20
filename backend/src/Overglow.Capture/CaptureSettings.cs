@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Overglow.Capture.Hdr;
 
 namespace Overglow.Capture;
 
@@ -24,8 +25,8 @@ public sealed record CaptureSettings
 
     public int FramesPerSecond { get; init; } = 20;
 
-    /// <summary>Apply the HDR to SDR lookup table to 8-bit captures (for HDR10 signals shown without Windows HDR).</summary>
-    public bool HdrToneMapping { get; init; }
+    /// <summary>When the HDR to SDR lookup table is applied to 8-bit captures (see <see cref="Hdr.ToneMapping.AppliesLut"/>).</summary>
+    public ToneMappingMode ToneMapping { get; init; }
 
     /// <summary>Scale and convert on the GPU; off captures full-size frames and scales them on the CPU.</summary>
     public bool Hardware { get; init; } = true;
@@ -51,7 +52,7 @@ public sealed record CaptureSettings
             Device = GetString(o, "device") is { Length: > 0 } device ? device : AutoDevice,
             MaxWidth = Math.Max(1, GetInt(o, "videoMode", defaults.MaxWidth)),
             FramesPerSecond = Math.Clamp(GetInt(o, "fps", defaults.FramesPerSecond), 1, 240),
-            HdrToneMapping = GetBool(o, "hdrToneMapping", defaults.HdrToneMapping),
+            ToneMapping = Hdr.ToneMapping.Parse(GetString(o, "hdrToneMapping")),
             Hardware = GetBool(o, "hardware", defaults.Hardware),
             MonitorNits = Math.Max(0, GetInt(o, "monitor_nits", defaults.MonitorNits)),
             ReorderDisplays = Math.Max(0, GetInt(o, "reorder_displays", 0)),

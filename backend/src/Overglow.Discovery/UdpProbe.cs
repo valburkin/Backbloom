@@ -25,9 +25,12 @@ public sealed class UdpProbe(Func<int, IEnumerable<IPEndPoint>>? targets = null)
     public async Task<IReadOnlyList<UdpProbeReply>> ProbeAsync(byte[] request, int port, TimeSpan duration, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var targetList = _targets(port).ToList();
         using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp) { EnableBroadcast = true };
-        socket.Bind(new IPEndPoint(IPAddress.Any, 0));
-        foreach (var target in _targets(port))
+
+        // loopback targets (tests) get a loopback socket, so nothing listens on the network
+        socket.Bind(new IPEndPoint(targetList.Count > 0 && targetList.All(t => IPAddress.IsLoopback(t.Address)) ? IPAddress.Loopback : IPAddress.Any, 0));
+        foreach (var target in targetList)
         {
             try
             {

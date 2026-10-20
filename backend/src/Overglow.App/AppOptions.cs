@@ -44,7 +44,7 @@ public sealed record AppOptions(
     {
         ArgumentNullException.ThrowIfNull(configuration);
         var port = int.TryParse(configuration["port"], NumberStyles.None, CultureInfo.InvariantCulture, out var p) ? p : DefaultPort;
-        var bind = IPAddress.TryParse(configuration["bind"], out var b) ? b : IPAddress.Loopback;
+        var bind = IPAddress.TryParse(Read(configuration, "bind", "BIND"), out var b) ? b : DefaultBindAddress(AppContext.BaseDirectory);
         var capture = Enum.TryParse<CaptureKind>(configuration["capture"], ignoreCase: true, out var c) ? c : CaptureKind.Screen;
         var fps = double.TryParse(configuration["fps"], NumberStyles.Float, CultureInfo.InvariantCulture, out var f) && f > 0 ? f : 60;
         var backend = FindBackendDirectory();
@@ -64,6 +64,14 @@ public sealed record AppOptions(
             fps,
             lutDirs);
     }
+
+    /// <summary>
+    /// Where the server listens unless <c>--bind</c> says otherwise: an installed copy on every interface, so phones and
+    /// other computers can open the UI (Windows asks once whether to allow it); any other copy (a build, a publish
+    /// folder, the tests) on loopback only, so development runs never trigger a firewall prompt.
+    /// </summary>
+    public static IPAddress DefaultBindAddress(string appDirectory) =>
+        Updates.InstalledLayout.IsInstalled(appDirectory) ? IPAddress.Any : IPAddress.Loopback;
 
     private static string? Read(IConfiguration configuration, string option, string environment) =>
         configuration[option] is { Length: > 0 } value ? value : configuration[environment] is { Length: > 0 } env ? env : null;

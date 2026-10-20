@@ -36,13 +36,18 @@ dotnet test
 dotnet run --project src/Overglow.App -c Release -- --port 18290
 ```
 
+Tests never listen on the network: test hosts pass `--bind 127.0.0.1`, fake servers and devices bind to loopback,
+and UDP sockets aimed at loopback are bound to it. `tests/Shared/NetworkListenerGuard.cs`, linked into every test
+project as an assembly fixture, samples the test process's TCP listeners and UDP sockets and fails the assembly when
+one is on a non-loopback address (each would make Windows Firewall prompt once per test executable).
+
 Command-line options (the settings ones also as `OVERGLOW_<NAME>` environment variables). Unknown options and invalid
 values are errors (exit code 2, with the usage); `--name value` and `--name=value` both work:
 
 | Option | Default | |
 |---|---|---|
 | `--port` | `18290` | Web port (HTTP, WebSocket JSON-RPC, UI files). HyperHDR keeps 8090/8092. |
-| `--bind` | `127.0.0.1` | Address to listen on; use `0.0.0.0` for other devices on the network. |
+| `--bind` | installed: `0.0.0.0`; otherwise `127.0.0.1` | Address to listen on. An installed copy listens on every interface so phones can open the UI (Windows asks once to allow it); builds, publish folders and tests listen on loopback only, so they never trigger a firewall prompt. |
 | `--data-dir` | per-user `Overglow` folder; `backend/.local/data` when run from the source tree | `settings.db` (settings, controllers, credentials as hashes, instance id), `backups/`, `imported/`, `logs/`, `window.json`, `webview/` (the window's browser profile). See [Settings](#settings-storage-and-hyperhdr-import). |
 | `--legacy-data-dir` | HyperHDR's data folder; none when run from the source tree | Where the first start looks for `db/hyperhdr.db` to import. `none` turns it off. |
 | `--ui-dir` | `ui/` next to the program, else `ui/dist` of the source tree | Built React UI to serve. |
@@ -51,6 +56,8 @@ values are errors (exit code 2, with the usage); `--name value` and `--name=valu
 | `--lut-dirs` | data dir, app dir | Directories searched for `lut_lin_tables.3d` (or `.3d.zst`), separated by `;`; the default table is written to the first. |
 | `--no-window` | | Start in the tray without opening the window (the autostart entry uses it). |
 | `--service` | | No tray icon, no window, console log: headless use (C++ `--service`). Power events are still handled. |
+| `--update-url` | placeholder (updates off) | Release feed of an installed copy (see [packaging/README.md](../packaging/README.md)). |
+| `--update-channel` | the installed package's | Release channel to follow (`stable`, `beta`, ...). |
 | `--import <file>` | | Import a HyperHDR or Overglow C++ database into the data directory and exit. |
 | `--quit` | | Ask the instance running with the data directory to quit; waits until it is gone (installers, scripts). |
 | `--version`, `-h`/`--help` | | Print and exit. |
@@ -180,12 +187,13 @@ failures and rebuilds the duplication when it is lost.
 |---|---|
 | Monitors | `MonitorEnumerator`: DXGI outputs plus the display configuration API. Setting values: `auto` (primary monitor; HyperHDR took the first sorted entry, which could be a multi-monitor one), `\\.\DISPLAY5\|NVIDIA GeForce RTX 5080` (HyperHDR's id, kept so imported settings work and the UI can show it), the stable monitor device path (or `edid:manufacturer:product:connector` when the driver reports none), or `MULTI-MONITOR\|adapter` (all monitors of an adapter side by side, ordered by `reorder_displays` as `std::next_permutation` did). |
 | Duplication | `IDXGIOutput6::DuplicateOutput1` (the capture thread is made per-monitor DPI aware, otherwise it fails with `DXGI_ERROR_UNSUPPORTED`). HDR is detected per monitor (`DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020`); with hardware on and `monitor_nits` > 0 the desktop is duplicated as FP16 scRGB (10-bit PQ as a fallback), else as 8-bit BGRA, which Windows converts to SDR. |
-| GPU path (`hardware`) | `GpuScaler`: the acquired texture is copied into an own texture (the frame is released at once), `Shaders/Downscale.hlsl` averages each `divide` x `divide` block of the cropped area (bilinear taps between texels, up to 8 x 8 per pixel) into a small BGRA target, then one staging readback of that size. Modes: scRGB scaled by 80 / `monitor_nits` + BT.709 OETF (the C++ HDR shader, reconstructed from its bytecode), PQ/BT.2020 -> BT.709, the LUT as a 256^3 RGBA8 3D texture read with exact texel loads (8-bit captures with `hdrToneMapping`), or plain SDR. The shader only runs when the image or the mode changed. |
+| GPU path (`hardware`) | `GpuScaler`: the acquired texture is copied into an own texture (the frame is released at once), `Shaders/Downscale.hlsl` averages each `divide` x `divide` block of the cropped area (bilinear taps between texels, up to 8 x 8 per pixel) into a small BGRA target, then one staging readback of that size. Modes: scRGB scaled by 80 / `monitor_nits` + BT.709 OETF (the C++ HDR shader, reconstructed from its bytecode), PQ/BT.2020 -> BT.709, the LUT as a 256^3 RGBA8 3D texture read with exact texel loads (8-bit captures that tone mapping applies to, see below), or plain SDR. The shader only runs when the image or the mode changed. |
 | CPU path | `CpuScaler` + `BgraDownscaler` (port of `decodeBGRA`): full-size 8-bit readback, every `divide`-th pixel, LUT on the CPU. Used when `hardware` is off or the shaders can't be created. |
 | Scaling, crop | `CaptureRegion`: the smallest whole factor that makes the cropped width fit `videoMode` (as `getTargetSystemFrameDimension`). Crops are in screen pixels on both paths (the C++ GPU path cropped the scaled image) and are ignored when they leave 16 pixels or less. |
 | Pacing, latency | `fps` via `FramePacer`; then `AcquireNextFrame(0)` returns the newest desktop image (no new image: the last one is delivered again from the staging texture; only the pointer moved: no GPU work). Until the first image after (re)start it waits up to 100 ms. |
 | Recovery | `DXGI_ERROR_ACCESS_LOST` / invalid call / device removed (display mode or HDR change, desktop switch, driver reset): everything is released and rebuilt 100 ms later. `E_ACCESSDENIED` (secure desktop: UAC, lock screen): retried every second; the thread attaches to the input desktop (`OpenInputDesktop` + `SetThreadDesktop`) so a service can follow it. Missing monitor: retried every 5 s. A retry waits instead of spinning; the same problem is logged once. |
-| LUT | `LutLoader`: first existing `lut_lin_tables.3d` or `.3d.zst` wins; one table or the legacy three-table file (first table used). `LutProvider` loads in the background on first use (only when an 8-bit capture has `hdrToneMapping`) and otherwise builds the default table (`DefaultLut`, bit-identical to C++, ~0.3 s on 24 cores) and saves it to the first LUT directory. |
+| Tone mapping | `hdrToneMapping` (`ToneMapping.AppliesLut`): `auto` (default) applies the LUT to the 8-bit capture of a monitor only while Windows drives it in HDR mode, `on` to every 8-bit capture (HDR10 content shown without Windows HDR), `off` never. An HDR capture (FP16/PQ) is always converted by the shader, never by the LUT. The decision is made when a monitor's duplication opens; toggling Windows HDR ends the duplication, so it follows within ~100 ms. HyperHDR's switch applied the LUT to SDR monitors too, which oversaturates normal content (red/magenta shift); imports and older databases turn on into `auto` and off into `off`. `serverinfo.systemGrabbers.hdr` = `{ mode, capturing, monitorHdr, toneMapping }` (tone mapped by the shader or the LUT), pushed as `capture-update` (the whole `systemGrabbers` object) when it changes. |
+| LUT | `LutLoader`: first existing `lut_lin_tables.3d` or `.3d.zst` wins; one table or the legacy three-table file (first table used). `LutProvider` loads in the background on first use (only when tone mapping applies to an 8-bit capture) and otherwise builds the default table (`DefaultLut`, bit-identical to C++, ~0.3 s on 24 cores) and saves it to the first LUT directory. |
 | Settings | `systemGrabber` (schema in `Overglow.Settings`); `App` reconfigures the source on every change of that section, the next frame restarts the capture. |
 
 Interop: [TerraFX.Interop.Windows](https://github.com/terrafx/terrafx.interop.windows) (MIT). It is a 1:1 projection
@@ -400,7 +408,7 @@ probes) and lists what answers; nothing found is configured or contacted by the 
   UDP 5353 with the OS responder (address reuse, 224.0.0.251 joined per interface); if that fails, queries go out as
   RFC 6762 legacy unicast queries and nothing is advertised. Own addresses are never reported.
 - The web UI is advertised as `<host>:<port>._overglow-http._tcp.local` (as the C++ build) when the server listens on
-  the network (`--bind` other than loopback); with the default 127.0.0.1 it isn't.
+  the network (`--bind` other than loopback, the default of an installed copy); on loopback it isn't.
 - SSDP: one M-SEARCH (C++ message, MX 1) and every answer within 3 s, headers parsed like `SSDPDiscover`.
 - Serial ports: HidSharp's serial device list (friendly name, USB ids from the Windows device path) plus
   `SerialPort.GetPortNames()`; HID devices: HidSharp with the top-level usage page/usage.
@@ -440,7 +448,7 @@ wires them (`DesktopRegistration`).
 | Logging | Console (when there is one), `logs/overglow-yyyyMMdd.log` in the data directory and the UI's log view, at the level of the `logger` section (silent = errors only, warn, verbose = info, debug), applied at once when it changes. One plain-text line per message (time, level, category, rendered message template; exceptions indented below), written by a background thread; a new file per day and per 10 MB, the newest 10 kept. |
 | Shutdown | Quit, `--quit` and Ctrl+C stop the host: WebSocket clients are closed at once, the engine switches every controller off (black frame, then closed), then the tray icon goes. Where Windows ends the process as soon as a notification returns (`WM_ENDSESSION` at logoff/shutdown; console close and shutdown signals), the handler stops the host and waits up to 4.5 s for the LEDs (`GracefulShutdown`). C++ didn't handle the session end. |
 | Settings | Crash-safe as before: every change is one SQLite transaction (rollback journal, `synchronous=FULL` by default); `window.json` is written to a temporary file and moved over. |
-| Packaging | `overglow.exe` is a `WinExe` with the Overglow icon; the built UI is copied next to it (`ui/`, build and publish) when `ui/dist` exists. `dotnet publish src/Overglow.App -c Release -r win-x64` gives a self-contained ReadyToRun folder (~175 MB with ASP.NET Core and WebView2Loader). |
+| Packaging | `overglow.exe` is a `WinExe` with the Overglow icon; the built UI is copied next to it (`ui/`, build and publish) when `ui/dist` exists. `packaging/build.ps1` publishes a self-contained ReadyToRun folder and packs the Velopack installer with automatic updates; see [packaging/README.md](../packaging/README.md). |
 
 Design choices:
 
@@ -589,7 +597,8 @@ type or outside an enum to their default, drop unknown fields, report every fix)
 **Database.** `settings.db` (Microsoft.Data.Sqlite), one connection per process, every use serialized; reads come from
 a validated in-memory copy, every update is one transaction written before the copy changes. `PRAGMA application_id`
 marks the file, `PRAGMA user_version` is the schema version: `SettingsDatabase.Migrations` lists the forward steps, each
-applied once in its own transaction; a file from a newer version is refused, never rewritten. Schema 1:
+applied once in its own transaction; a file from a newer version is refused, never rewritten. Schema 2 converts a stored
+`systemGrabber.hdrToneMapping` switch into the mode, as the import does. Schema 1:
 
 | Table | Holds |
 |---|---|
@@ -626,6 +635,7 @@ Rules, all idempotent and logged one line each (never with secrets):
 - a device type that this build doesn't have becomes the `file` driver (no output), keeping color order and refresh
   time; the copy in `imported/` keeps the original for drivers ported later;
 - HyperHDR's factory name "My HyperHDR Config" becomes "My Overglow Config"; an empty C++ `layout` is left absent;
+- `systemGrabber.hdrToneMapping` true becomes `auto`, false `off` (see [Screen capture](#screen-capture-windows));
 - every section is then repaired against its schema;
 - credentials: the admin password hash (salted SHA-512) and API token hashes are imported as `LegacySha512` and keep
   working; `AuthService` replaces them with PBKDF2 on first use. A password still at HyperHDR's or the C++ build's
@@ -700,7 +710,6 @@ tolerance.
   imported HyperHDR instances' own LED layouts aren't converted (they had their own `leds`); MQTT/Home Assistant
   brightness still applies to all controllers. The `instance` command still reports one instance (controllers aren't
   instances).
-- The UI's restore dialog still says the app closes to apply a backup; it doesn't any more.
 - Desktop shell: only Windows has a tray, window and power events; macOS/Linux run headless. The tray menu uses the light system menu style (no dark mode). The
   WebView2 window doesn't sign in by itself (the UI asks for the password unless `network.localAdminAuth` is off).
   A `--service` process in a console isn't told about a logoff (only console close and shutdown are handled), and

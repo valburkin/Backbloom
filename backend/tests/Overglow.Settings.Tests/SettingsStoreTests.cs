@@ -247,6 +247,30 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Contains("newer Overglow", error.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("true", "auto")]
+    [InlineData("false", "off")]
+    public void Database_Version2_TurnsTheToneMappingSwitchIntoAMode(string stored, string expected)
+    {
+        var path = Path.Combine(_dir.Path, SettingsDatabase.FileName);
+        using (var v1 = SettingsDatabase.Open(path, [SettingsDatabase.Migrations[0]]))
+        {
+            v1.Write((c, t) =>
+            {
+                SettingsDatabase.Execute(c, t, $$"""
+                    INSERT INTO settings (section, value, updated_at)
+                    VALUES ('systemGrabber', '{"device":"auto","fps":30,"hdrToneMapping":{{stored}},"hardware":true}', '2026-10-01T00:00:00Z')
+                    """);
+                return 0;
+            });
+        }
+
+        var capture = Open().GetSection("systemGrabber")!;
+
+        Assert.Equal(expected, capture["hdrToneMapping"]!.GetValue<string>());
+        Assert.Equal(30, capture["fps"]!.GetValue<int>());
+    }
+
     [Fact]
     public void Database_RefusesFilesThatArentOverglowSettings()
     {

@@ -17,7 +17,7 @@ namespace Overglow.Capture.Windows;
 /// <param name="MaxLatency">Longest such time.</param>
 /// <param name="AverageWork">Mean time spent capturing, converting and reading back one frame (excluding pacing).</param>
 /// <param name="Elapsed">Length of the measured interval.</param>
-public sealed record CaptureStatistics(long Frames, long NewImages, TimeSpan AverageLatency, TimeSpan MaxLatency, TimeSpan AverageWork, TimeSpan Elapsed);
+public readonly record struct CaptureStatistics(long Frames, long NewImages, TimeSpan AverageLatency, TimeSpan MaxLatency, TimeSpan AverageWork, TimeSpan Elapsed);
 
 /// <summary>
 /// Screen capture with DXGI desktop duplication and Direct3D 11 (port of DxGrabber). All capture work runs on the
@@ -38,6 +38,7 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
     private volatile CaptureSettings _pending;
     private volatile IReadOnlyList<MonitorInfo> _monitors = [];
     private volatile string _device = "none";
+    private volatile CaptureHdrStatus _hdrStatus;
     private CaptureSettings? _active;
     private GpuDevice? _gpu;
     private int[] _offsets = [];
@@ -64,6 +65,7 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
         ArgumentNullException.ThrowIfNull(lutProvider);
         ArgumentNullException.ThrowIfNull(logger);
         _pending = settings;
+        _hdrStatus = CaptureHdrStatus.Idle(settings.ToneMapping);
         _lutProvider = lutProvider;
         _logger = logger;
         _pacer = new FramePacer(settings.FramesPerSecond);
@@ -86,12 +88,16 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
 
     public IReadOnlyList<MonitorInfo> Monitors => _monitors;
 
+    public CaptureHdrStatus HdrStatus => _hdrStatus;
+
+    public event Action<CaptureHdrStatus>? HdrStatusChanged;
+
     /// <summary>True while a duplication is running.</summary>
     public bool IsCapturing => _displays.Count > 0;
 
     /// <summary>Description of each captured monitor: id, format, path (for diagnostics and tests).</summary>
     public IReadOnlyList<string> DescribeDisplays() =>
-        [.. _displays.Select(d => $"{d.Monitor.Id}: {d.Format}{(d.WideGamut ? " (HDR)" : "")}, {(d.UsesGpu ? "GPU" : "CPU")}, {d.Region}")];
+        [.. _displays.Select(d => $"{d.Monitor.Id}: {d.Format}{(d.WideGamut ? " (HDR)" : "")}{(d.AppliesLut ? " + LUT" : "")}, {(d.UsesGpu ? "GPU" : "CPU")}, {d.Region}")];
 
     public void Configure(CaptureSettings settings)
     {
@@ -127,8 +133,9 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
 
         var started = Stopwatch.GetTimestamp();
         PrepareFrame(frame);
-        // The table only applies to 8-bit captures; HDR (wide gamut) captures are converted by the shader alone.
-        var lut = settings.HdrToneMapping && _needsLut ? _lutProvider.TryGet() : null;
+        // The table only applies to 8-bit captures that tone mapping is on for; HDR (wide gamut) captures are converted
+        // by the shader alone.
+        var lut = _needsLut ? _lutProvider.TryGet() : null;
         var newImages = 0;
         var images = 0;
         long latencySum = 0, latencyMax = 0;
@@ -289,7 +296,7 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
             {
                 var pipeline = d.UsesGpu ? "GPU" : "CPU";
                 var format = d.Format.ToString();
-                LogDisplay(d.Monitor.Id, d.Monitor.FriendlyName, d.Monitor.DevicePath, d.Monitor.Hdr, format, d.WideGamut, pipeline, d.Region.Width, d.Region.Height, d.Region.Divide);
+                LogDisplay(d.Monitor.Id, d.Monitor.FriendlyName, d.Monitor.DevicePath, d.Monitor.Hdr, format, d.WideGamut, d.AppliesLut, settings.ToneMapping, pipeline, d.Region.Width, d.Region.Height, d.Region.Divide);
                 if (d.IsRotated)
                 {
                     LogRotated(d.Monitor.Id, d.Rotation.ToString());
@@ -366,8 +373,24 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
         }
 
         _frameSize = (width, height);
-        _needsLut = _displays.Exists(d => !d.WideGamut);
+        _needsLut = _displays.Exists(d => d.AppliesLut);
         _device = selected.Count > 1 ? MonitorEnumerator.MultiMonitorPrefix + selected[0].Info.Adapter : selected[0].Info.Id;
+        SetHdrStatus(new CaptureHdrStatus(
+            settings.ToneMapping,
+            Capturing: true,
+            MonitorHdr: _displays.Exists(d => d.Monitor.Hdr),
+            ToneMapped: _displays.Exists(d => d.WideGamut || d.AppliesLut)));
+    }
+
+    private void SetHdrStatus(CaptureHdrStatus status)
+    {
+        if (status == _hdrStatus)
+        {
+            return;
+        }
+
+        _hdrStatus = status;
+        HdrStatusChanged?.Invoke(status);
     }
 
     private DisplayCapture OpenOutput(IDXGIAdapter1* adapter, OutputLocation location, CaptureSettings settings)
@@ -406,13 +429,17 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
         _gpu?.Dispose();
         _gpu = null;
         _device = "none";
+        if (!_disposed)
+        {
+            SetHdrStatus(CaptureHdrStatus.Idle((_active ?? _pending).ToneMapping));
+        }
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Screen capture started: {Device}, {Width}x{Height} frames at up to {Fps} fps")]
     private partial void LogStarted(string device, int width, int height, int fps);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Monitor {Id} ({Name}, {Path}): Windows HDR {Hdr}, duplicated as {Format} (HDR conversion: {WideGamut}), {Pipeline} path; area {Width}x{Height} scaled down by {Divide}")]
-    private partial void LogDisplay(string id, string name, string path, bool hdr, string format, bool wideGamut, string pipeline, int width, int height, int divide);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Monitor {Id} ({Name}, {Path}): Windows HDR {Hdr}, duplicated as {Format} (HDR conversion: {WideGamut}, tone mapping table: {Lut}, mode {Mode}), {Pipeline} path; area {Width}x{Height} scaled down by {Divide}")]
+    private partial void LogDisplay(string id, string name, string path, bool hdr, string format, bool wideGamut, bool lut, ToneMappingMode mode, string pipeline, int width, int height, int divide);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Monitor {Id} is rotated ({Rotation}); it is captured in its unrotated (scanout) orientation")]
     private partial void LogRotated(string id, string rotation);

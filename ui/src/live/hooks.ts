@@ -42,17 +42,13 @@ export function useLedFrame(enabled = true): number[] | null {
   return live ? frame : null;
 }
 
-/** Live performance numbers (the backend pushes reports every few seconds; one round is requested on mount). */
+/** Live performance numbers (subscribed with the session's other events; one round is requested on mount). */
 export function usePerformance(): PerformanceSummary {
   const { api, backend, session, status } = useConnection();
   const [state, dispatch] = useReducer(performanceReducer, {});
   useEffect(() => backend.onEvent('performance-update', (e) => dispatch(e.data)), [backend]);
   useEffect(() => {
-    if (status === 'open' && session > 0)
-      api
-        .subscribePerformance()
-        .then(() => api.requestPerformance())
-        .catch(() => undefined);
+    if (status === 'open' && session > 0) api.requestPerformance().catch(() => undefined);
   }, [api, session, status]);
   return summarize(state);
 }

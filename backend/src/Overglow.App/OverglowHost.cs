@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Overglow.App.Logging;
+using Overglow.App.Updates;
 using Overglow.Devices;
 using Overglow.Engine;
 using Overglow.Server;
@@ -87,6 +88,11 @@ public static class OverglowHost
         services.AddHostedService<EngineHostedService>();
 
         services.AddOverglowServer();
+
+        // Automatic updates (installed copies only; see packaging/README.md).
+        services.AddSingleton(UpdateSettings.FromConfiguration(builder.Configuration));
+        services.AddSingleton<IUpdateClient, VelopackUpdateClient>();
+        services.AddHostedService<UpdateService>();
         configure?.Invoke(options, services);
 
         var app = builder.Build();

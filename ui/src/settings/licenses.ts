@@ -25,7 +25,7 @@ export function parseLicenses(text: string): LicenseEntry[] {
   return out;
 }
 
-/** Libraries bundled into this web interface (the file above covers the service and the legacy interface). */
+/** Libraries bundled into this web interface (the file above covers the service). */
 export const UI_LIBRARIES: ReadonlyArray<{ name: string; license: string; url: string }> = [
   { name: 'React', license: 'MIT', url: 'https://react.dev' },
   { name: 'Lucide icons', license: 'ISC', url: 'https://lucide.dev' },

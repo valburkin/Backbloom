@@ -116,6 +116,10 @@ public static class LegacyMigrations
         ReplaceUnavailableDevice(config, isDeviceAvailable, changes);
         RenameFactoryName(config, changes);
         DropEmptyLayout(config, changes);
+        if (config["systemGrabber"] is JsonObject capture)
+        {
+            ConvertToneMapping(capture, changes);
+        }
     }
 
     /// <summary>The format upgrades HyperHDR applied by <c>general.version</c> (InstanceConfig::upgradeDB, up to version 6).</summary>
@@ -277,6 +281,27 @@ public static class LegacyMigrations
         {
             config.Remove("layout");
             changes.Add("Ignored the empty 'layout' settings (the layout is derived from the LED positions)");
+        }
+    }
+
+    /// <summary>
+    /// <c>systemGrabber.hdrToneMapping</c> was a switch (HyperHDR, earlier versions of this one) and is now a mode:
+    /// on becomes "auto" and off becomes "off". On applied the tone mapping table to every 8-bit capture, also of SDR
+    /// monitors, where it oversaturates normal content and shifts it towards red and magenta; users turned it on for
+    /// their HDR monitor, and "auto" keeps it there (an HDR monitor is handled exactly as before) without applying it
+    /// to a monitor in SDR mode. "on" keeps the old behavior for those who need it, and is chosen in the UI.
+    /// </summary>
+    public static void ConvertToneMapping(JsonObject systemGrabber, List<string> changes)
+    {
+        ArgumentNullException.ThrowIfNull(systemGrabber);
+        ArgumentNullException.ThrowIfNull(changes);
+        if (systemGrabber["hdrToneMapping"] is JsonValue v && v.GetValueKind() is JsonValueKind.True or JsonValueKind.False)
+        {
+            var on = v.GetValueKind() == JsonValueKind.True;
+            systemGrabber["hdrToneMapping"] = on ? "auto" : "off";
+            changes.Add(on
+                ? "HDR tone mapping was on; it is now 'auto' (applied only while the captured monitor is in HDR mode, so SDR colors aren't oversaturated)"
+                : "HDR tone mapping was off; it is now 'off'");
         }
     }
 

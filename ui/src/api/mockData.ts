@@ -1,4 +1,5 @@
-// Fixtures for the mock backend, captured from a test instance of the real service (see __fixtures__).
+// Fixtures for the mock backend: replies of the .NET app with the product owner's settings imported (serverinfo,
+// sysinfo, getschema, getconfig), with personal data (host names, devices, ids) replaced.
 // Loaded on demand so the production bundle doesn't carry them.
 import legacyLeds from '../layout/__fixtures__/my-layout.json';
 import wledTwoOutputs from '../layout/__fixtures__/wled-two-outputs.json';

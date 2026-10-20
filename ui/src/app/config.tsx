@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import type { BackendConfig, JsonSchema, SettingsSchema } from '../api/types';
 import { RpcError } from '../api/types';
 import { withDefaults, validate, type Issue } from '../schema/schema';
-import { dirtySections, draftsReducer, findAdjustments, isPageDirty, setIn, type Adjustment, type DraftsAction, type DraftsState } from '../settings/drafts';
+import { dirtySections, draftsReducer, isPageDirty, setIn, type DraftsAction, type DraftsState } from '../settings/drafts';
 import { useConnection } from './connection';
 import { useToast } from './toast';
 
@@ -17,7 +17,7 @@ export interface ConfigContextValue {
   dispatchDraft: Dispatch<DraftsAction>;
   /** Page currently saving, if any. */
   saving: string | null;
-  /** Saves the page's edited sections. Resolves true when everything was stored as sent. */
+  /** Saves the page's edited sections. Resolves true when they were stored. */
   save(page: string, labels?: Record<string, string>): Promise<boolean>;
 }
 
@@ -27,20 +27,20 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-/** Turns backend save errors into something a user can act on. */
-export function saveErrorText(e: unknown): string {
-  const msg = errorText(e);
-  if (/while .* is disabled/i.test(msg)) return 'The lights are switched off. Turn them on (Home page) and save again; the service doesn’t accept changes while it’s off.';
-  if (e instanceof RpcError && e.isAuthError) return 'Your session isn’t signed in anymore. Sign in and save again.';
-  return msg;
+/** The per-field errors of a rejected `setconfig` (`errors: [{ path, message }]`). */
+function rejectedFields(e: unknown): Issue[] {
+  const errors = e instanceof RpcError ? e.reply?.errors : undefined;
+  return Array.isArray(errors)
+    ? errors.filter((x): x is Issue => !!x && typeof x === 'object' && typeof x.path === 'string' && typeof x.message === 'string')
+    : [];
 }
 
-function describeAdjustments(adjustments: Adjustment[], labels: Record<string, string>): string {
-  const show = (v: unknown) => (typeof v === 'string' ? `“${v}”` : JSON.stringify(v));
-  return adjustments
-    .slice(0, 3)
-    .map((a) => `${labels[a.path] ?? a.path}: ${show(a.sent)} → ${show(a.stored)}`)
-    .join('; ');
+/** Turns backend save errors into something a user can act on. */
+export function saveErrorText(e: unknown, labels: Record<string, string> = {}): string {
+  if (e instanceof RpcError && e.isAuthError) return 'Your session isn’t signed in anymore. Sign in and save again.';
+  const fields = rejectedFields(e);
+  if (fields.length) return fields.slice(0, 3).map((f) => `${labels[f.path] ?? f.path}: ${f.message}`).join(' ');
+  return errorText(e);
 }
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
@@ -121,24 +121,14 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       }
       setSaving(page);
       try {
+        // The backend stores the sections as sent or rejects the call; its settings-update events (sent before the
+        // reply) bring the stored values into `config`.
         await conn.api.setConfig(partial);
-        let stored: BackendConfig | null = null;
-        try {
-          stored = await conn.api.getConfig();
-        } catch {
-          /* verification is best-effort */
-        }
-        if (stored) setConfig(stored);
         dispatchDraft({ type: 'saved', page, sections });
-        const adjustments = stored ? findAdjustments(partial, stored) : [];
-        if (adjustments.length) {
-          toast('info', 'Saved, but the service changed some values', describeAdjustments(adjustments, labels));
-          return false;
-        }
         toast('ok', 'Settings saved');
         return true;
       } catch (e) {
-        toast('bad', 'Couldn’t save', saveErrorText(e));
+        toast('bad', 'Couldn’t save', saveErrorText(e, labels));
         return false;
       } finally {
         setSaving(null);

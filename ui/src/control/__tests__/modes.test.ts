@@ -15,10 +15,11 @@ const p = (componentId: string, extra: Partial<PriorityInfo> = {}): PriorityInfo
 describe('modes', () => {
   it('splits the real effect list into music and regular effects', () => {
     const { music, regular } = splitEffects(serverInfo.effects);
-    expect(music.length).toBeGreaterThan(20);
+    expect(music).toHaveLength(4);
+    expect(regular).toHaveLength(6);
     expect(regular).toContain('Rainbow swirl');
     expect(regular.some((n) => n.startsWith('Music:'))).toBe(false);
-    expect(effectLabel('Music: stereo for LED strip (BLUE)')).toBe('stereo for LED strip (BLUE)');
+    expect(effectLabel('Music: stereo for LED strip (MULTI COLOR)')).toBe('stereo for LED strip (MULTI COLOR)');
   });
 
   it('derives the mode from the visible source (captured priorities-update payloads)', () => {

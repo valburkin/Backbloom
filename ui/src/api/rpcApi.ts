@@ -9,11 +9,7 @@ import type {
   TokenInfo,
 } from './types';
 
-/**
- * Events the UI subscribes to via `serverinfo`. settings-update is only delivered to admin sessions.
- * performance-update is subscribed separately (see subscribePerformance): asking for it makes the backend
- * answer `serverinfo` without the server info.
- */
+/** Events the UI subscribes to via `serverinfo`. settings-update is only delivered to admin sessions. */
 export const SUBSCRIPTIONS = [
   'components-update',
   'priorities-update',
@@ -23,6 +19,8 @@ export const SUBSCRIPTIONS = [
   'imageToLedMapping-update',
   'settings-update',
   'controllers-update',
+  'capture-update',
+  'performance-update',
 ] as const;
 
 /** Priority and origin the UI uses for colors and effects it starts (the backend's web-UI slot). */
@@ -114,8 +112,8 @@ export class RpcApi {
   }
 
   /**
-   * Writes settings to the session's current instance. The backend replaces each top-level section it receives
-   * and keeps the others, so send whole sections. Values that fail its schema are silently reset to defaults.
+   * Writes settings. The backend replaces each top-level section it receives and keeps the others, so send whole
+   * sections. Invalid values reject the whole call (nothing is stored); the RpcError's reply lists them in `errors`.
    */
   async setConfig(config: BackendConfig): Promise<void> {
     await this.backend.call('config', 'setconfig', { config }, { timeoutMs: 15000 });
@@ -131,9 +129,13 @@ export class RpcApi {
     return info(await this.backend.call('save-db', undefined, undefined, { timeoutMs: 15000 }));
   }
 
-  /** Restores a backup. The service shuts down afterwards to apply it. */
-  async importSettings(config: unknown): Promise<void> {
-    await this.backend.call('load-db', undefined, { config }, { timeoutMs: 15000 });
+  /**
+   * Restores a backup while the app keeps running (the current settings are saved to its `backups` folder first).
+   * Resolves with what the backend changed to make the backup fit this version.
+   */
+  async importSettings(config: unknown): Promise<string[]> {
+    const changes = info<{ changes?: unknown }>(await this.backend.call('load-db', undefined, { config }, { timeoutMs: 15000 })).changes;
+    return Array.isArray(changes) ? changes.map(String) : [];
   }
 
   // ---- control ----
@@ -180,11 +182,6 @@ export class RpcApi {
 
   async logStream(on: boolean): Promise<void> {
     await this.backend.call('logging', on ? 'start' : 'stop');
-  }
-
-  /** Starts `performance-update` events for this connection (the reply carries no server info). */
-  async subscribePerformance(): Promise<void> {
-    await this.backend.call('serverinfo', undefined, { subscribe: ['performance-update'] });
   }
 
   /** Asks for a fresh round of `performance-update` events. */

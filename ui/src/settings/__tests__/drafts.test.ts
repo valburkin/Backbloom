@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deepEqual, dirtySections, draftsReducer, findAdjustments, isPageDirty, setIn, type DraftsState } from '../drafts';
+import { deepEqual, dirtySections, draftsReducer, isPageDirty, setIn, type DraftsState } from '../drafts';
 
 const smoothing = { enable: true, time_ms: 150, type: 'Stepper' };
 
@@ -46,11 +46,5 @@ describe('helpers', () => {
     expect(next.channelAdjustment[0]).toEqual({ gamma: 2, red: [255, 0, 0] });
     expect(color.channelAdjustment[0].gamma).toBe(1.5);
     expect(next.channelAdjustment[0].red).toBe(color.channelAdjustment[0].red);
-  });
-
-  it('reports values the backend replaced while saving', () => {
-    const sent = { smoothing: { time_ms: 99999, enable: true }, color: { channelAdjustment: [{ gamma: 1.5, red: [255, 0, 0] }] } };
-    const stored = { smoothing: { time_ms: 150, enable: true }, color: { channelAdjustment: [{ gamma: 1.5, red: [255, 0, 0] }] }, other: {} };
-    expect(findAdjustments(sent, stored)).toEqual([{ path: 'smoothing.time_ms', sent: 99999, stored: 150 }]);
   });
 });

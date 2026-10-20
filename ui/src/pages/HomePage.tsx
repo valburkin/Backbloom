@@ -217,25 +217,19 @@ function SoundOffNotice() {
 
 function BrightnessCard() {
   const { serverInfo, api, auth } = useConnection();
-  const { config } = useConfig();
   const stored = serverInfo?.adjustment?.[0]?.scaleOutput ?? 1;
   const [dragging, setDragging] = useState<number | null>(null);
+  // The `adjustment` command applies the value and stores it (it needs a signed-in session).
   const send = useThrottled((v: number) => void api.adjust({ scaleOutput: v }).catch(() => undefined), 100);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const canSave = auth === 'admin' && !!config;
-  // The `adjustment` command only changes the running value; store it once the user lets go.
-  const persist = (v: number) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      setDragging(null);
-      if (!canSave) return;
-      const color = (config?.color ?? {}) as { channelAdjustment?: Array<Record<string, unknown>> };
-      const list = color.channelAdjustment ?? [{}];
-      api.setConfig({ color: { ...color, channelAdjustment: [{ ...list[0], scaleOutput: v }, ...list.slice(1)] } }).catch(() => undefined);
-    }, 600);
+  const releaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canEdit = auth === 'admin';
+  // Show the dragged value until the backend's adjustment-update has caught up.
+  const release = () => {
+    if (releaseTimer.current) clearTimeout(releaseTimer.current);
+    releaseTimer.current = setTimeout(() => setDragging(null), 600);
   };
   useEffect(() => () => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (releaseTimer.current) clearTimeout(releaseTimer.current);
   }, []);
   const value = dragging ?? Math.min(1, stored);
   return (
@@ -254,14 +248,15 @@ function BrightnessCard() {
         step={0.01}
         value={value}
         className="w-full"
+        disabled={!canEdit}
         onChange={(e) => {
           const v = Number(e.target.value);
           setDragging(v);
           send(v);
-          persist(v);
+          release();
         }}
       />
-      <p className="mt-1 text-xs text-ink-faint">{canSave ? 'Applies immediately and is remembered.' : 'Applies immediately. Sign in to keep it after a restart.'}</p>
+      <p className="mt-1 text-xs text-ink-faint">{canEdit ? 'Applies immediately and is remembered.' : 'Sign in to change the brightness.'}</p>
     </Card>
   );
 }

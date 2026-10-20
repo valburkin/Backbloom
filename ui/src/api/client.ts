@@ -215,8 +215,7 @@ export class WsClient implements Backend {
     }
     if (!msg || typeof msg !== 'object') return;
     const tan = typeof msg.tan === 'number' ? msg.tan : undefined;
-    // Streams may echo the request's tan on their first event (the log history arrives as "logging-update"
-    // with the tan of "logging start", before the real reply); treat those as events.
+    // The LED stream's messages carry the tan of "ledcolors ledstream-start"; they are events, not its reply.
     const isEvent = typeof msg.command === 'string' && msg.command.endsWith('-update') && ('data' in msg || 'result' in msg);
     const p = tan !== undefined && !isEvent ? this.pending.get(tan) : undefined;
     if (p && tan !== undefined) {

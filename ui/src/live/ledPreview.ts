@@ -72,18 +72,3 @@ export function ledColor(frame: ArrayLike<number> | null, index: number): string
   if (!frame || frame.length < index * 3 + 3) return 'rgb(30,34,46)';
   return `rgb(${frame[index * 3]},${frame[index * 3 + 1]},${frame[index * 3 + 2]})`;
 }
-
-/** Average color of a frame (used for the ambient glow behind the preview). */
-export function averageColor(frame: ArrayLike<number> | null): [number, number, number] {
-  if (!frame || frame.length < 3) return [0, 0, 0];
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  const n = Math.floor(frame.length / 3);
-  for (let i = 0; i < n; i++) {
-    r += frame[i * 3];
-    g += frame[i * 3 + 1];
-    b += frame[i * 3 + 2];
-  }
-  return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
-}

@@ -7,6 +7,7 @@ import {
   type Backend,
   type BackendConfig,
   type CallOptions,
+  type CaptureHdr,
   type ConnectionStatus,
   type ControllerInfo,
   type JsonSchema,
@@ -15,9 +16,9 @@ import {
   type RpcEvent,
   type RpcReply,
   type ServerInfo,
+  type SystemGrabbers,
 } from './types';
-import { propertyAt, validate } from '../schema/schema';
-import { setIn } from '../settings/drafts';
+import { validate, type Issue } from '../schema/schema';
 import { compileLayout, type DriverSettings, type LayoutSpec } from '../layout';
 
 export interface MockOptions {
@@ -32,7 +33,7 @@ export interface MockOptions {
 export const MOCK_PASSWORD = 'password';
 export const MOCK_WLED_HOST = 'wled-mock.local';
 const MOCK_TOKEN = 'mock-user-token-0123456789abcdef0123456789abcdef';
-const COMPONENTS = ['ALL', 'HDR', 'SMOOTHING', 'BLACKBORDER', 'SYSTEMGRABBER', 'LEDDEVICE'];
+const COMPONENTS = ['ALL', 'SMOOTHING', 'BLACKBORDER', 'SYSTEMGRABBER', 'LEDDEVICE'];
 
 type Rgb = [number, number, number];
 type Source = { kind: 'color'; rgb: Rgb } | { kind: 'effect'; name: string };
@@ -57,20 +58,21 @@ function sceneColor(x: number, y: number, t: number): Rgb {
 
 const LOG_LINES: Array<[string, string, string]> = [
   ['INFO', 'MAIN', 'Starting Overglow (demo)'],
-  ['INFO', 'WEBSERVER', 'Started: Overglow WebServer (HTTP) on port 8090'],
-  ['INFO', 'LEDDEVICE0_WLED', 'WLED controller wled-mock.local: 168 LEDs, 2 outputs'],
-  ['INFO', 'SMOOTHING0', 'Smoothing: HybridRgbInterpolator, 150 ms, 50 Hz'],
-  ['DEBUG', 'DX11_GRABBER', 'Capturing \\\\.\\DISPLAY5 at 30 fps, 512 px wide'],
-  ['WARNING', 'LEDDEVICE0_WLED', 'Slow answer from wled-mock.local (180 ms)'],
-  ['INFO', 'EFFECTENGINE0', 'Effect list refreshed: 54 effects'],
-  ['ERROR', 'MQTT', 'Couldn’t reach the MQTT broker (demo message)'],
+  ['INFO', 'Overglow.Server.WebServer', 'Listening on http://127.0.0.1:18290'],
+  ['INFO', 'Overglow.Devices.LedDeviceRunner', 'WLED controller wled-mock.local: 168 LEDs, 2 outputs'],
+  ['INFO', 'Overglow.Engine.OutputStage', 'Smoothing: HybridRgbInterpolator, 150 ms, 50 Hz'],
+  ['DEBUG', 'Overglow.Capture.Windows.DxgiScreenSource', 'Screen capture started: \\\\.\\DISPLAY5, 491x205 frames at up to 30 fps'],
+  ['WARNING', 'Overglow.Devices.LedDeviceRunner', 'Slow answer from wled-mock.local (180 ms)'],
+  ['INFO', 'Overglow.Engine.EffectEngine', 'Effect started: Rainbow swirl fast'],
+  ['ERROR', 'Overglow.Mqtt.MqttConnection', 'Couldn’t reach the MQTT broker (demo message)'],
 ];
 
 /**
- * In-memory stand-in for Overglow, built from fixtures captured from the real service: one instance driving
- * a two-output WLED controller with the product owner's 168-LED layout. Implements the same Backend interface
- * as WsClient — including auth errors, partial setconfig with silent "fixing" of invalid values, live LED
- * colors, logs and performance reports — so the whole UI runs without a server (`?mock` / VITE_MOCK=1).
+ * In-memory stand-in for Overglow, built from fixtures captured from the .NET app (see __fixtures__): a two-output
+ * WLED controller with the product owner's 168-LED layout. Implements the same Backend interface as WsClient,
+ * with the app's behavior: auth errors, partial setconfig that rejects invalid values with per-field `errors`,
+ * stored adjustments, restore while running, live LED colors, logs, performance reports and the screen capture's
+ * HDR state, so the whole UI runs without a server (`?mock` / VITE_MOCK=1).
  */
 export class MockBackend implements Backend {
   readonly mode = 'mock' as const;
@@ -84,15 +86,13 @@ export class MockBackend implements Backend {
   private admin = false;
   private password = MOCK_PASSWORD;
   private config: BackendConfig = {};
-  private components = new Map(COMPONENTS.map((c) => [c, c !== 'HDR' && c !== 'BLACKBORDER']));
+  private components = new Map(COMPONENTS.map((c) => [c, c !== 'BLACKBORDER']));
   private source: Source | null = null;
   private autoSelect = true;
   private tokens: Array<{ id: string; comment: string; last_use: string }> = [
     { id: 'a1b2c', comment: 'Stream Deck plugin', last_use: '2026-10-12T19:41:00' },
   ];
   private timers = new Map<string, ReturnType<typeof setInterval>>();
-  /** Adjustments applied with the `adjustment` command since the color settings were last saved. */
-  private runtimeAdjustment: Record<string, unknown> | null = null;
   private logSeq = 0;
   /** Log of LEDs blinked (controller id, or none for an index over all LEDs), for tests / debugging. */
   readonly blinks: Array<{ index: number; controller?: string }> = [];
@@ -127,13 +127,6 @@ export class MockBackend implements Backend {
     this.setStatus('closed');
   }
 
-  /** Simulate a dropped connection (auth state resets, like a real reconnect). */
-  simulateDisconnect(): void {
-    this.stopTimers();
-    this.setStatus('reconnecting');
-    setTimeout(() => this.connect(), 800);
-  }
-
   onStatus(listener: (status: ConnectionStatus) => void): () => void {
     return this.events.onStatus(listener);
   }
@@ -154,9 +147,10 @@ export class MockBackend implements Backend {
     if (this._status !== 'open' || !this.fx) throw new ConnectionError('Not connected to the lighting service', full);
     await this.delay(this.latencyMs);
     const ok = (info?: unknown): RpcReply => ({ command: full, success: true, info });
-    const fail = (error: string, cmd = full): never => {
-      throw new RpcError(error, cmd, { command: cmd, success: false, error });
+    const fail = (error: string, cmd = full, errors?: Issue[]): never => {
+      throw new RpcError(error, cmd, { command: cmd, success: false, error, ...(errors?.length ? { errors } : {}) });
     };
+    const reject = (errors: Issue[]): never => fail(`Invalid settings: ${errors.map((e) => `${e.path}: ${e.message}`).join('; ')}`, full, errors);
     const needAdmin = () => {
       if (!this.admin) fail('No Authorization', full);
     };
@@ -174,8 +168,10 @@ export class MockBackend implements Backend {
         needAdmin();
         if (subcommand === 'getconfig') return ok(clone(this.config));
         if (subcommand === 'setconfig') {
-          if (!this.components.get('ALL')) return fail("Saving configuration while Overglow is disabled isn't possible");
-          this.writeConfig(clone((params.config ?? {}) as BackendConfig));
+          const sent = clone((params.config ?? {}) as BackendConfig);
+          const errors = this.checkConfig(sent);
+          if (errors.length) return reject(errors);
+          this.writeConfig(sent);
           return ok();
         }
         return fail('unknown or missing subcommand');
@@ -188,6 +184,7 @@ export class MockBackend implements Backend {
         this.components.set(component, !!state);
         this.emit('components-update', { name: component, enabled: !!state });
         this.emitPriorities();
+        if (component === 'SYSTEMGRABBER') this.emit('capture-update', this.systemGrabbers());
         return ok();
       }
       case 'color':
@@ -212,12 +209,13 @@ export class MockBackend implements Backend {
         this.emitPriorities();
         return ok();
       case 'adjustment': {
-        // Like the backend: applied right away but not stored (getconfig keeps the saved values), while the
-        // settings-update it broadcasts carries the adjusted color section.
+        // Like the backend: applied right away and stored in color.channelAdjustment (admin only).
+        needAdmin();
         const color = this.config.color as { channelAdjustment: Array<Record<string, unknown>> };
-        this.runtimeAdjustment = { ...this.activeAdjustment(), ...(params.adjustment as object) };
-        this.emit('settings-update', { color: { ...color, channelAdjustment: [this.runtimeAdjustment] } });
-        this.emit('adjustment-update', [this.runtimeAdjustment]);
+        const next = { ...color, channelAdjustment: [{ ...this.activeAdjustment(), ...(params.adjustment as object) }, ...color.channelAdjustment.slice(1)] };
+        const errors = this.checkConfig({ color: next });
+        if (errors.length) return reject(errors);
+        this.writeConfig({ color: next });
         return ok();
       }
       case 'ledcolors':
@@ -241,10 +239,21 @@ export class MockBackend implements Backend {
           instances: [{ instance: 0, friendly_name: 'First LED instance', enabled: 1 }],
           settings: Object.entries(this.config).map(([type, c]) => ({ type, config: JSON.stringify(c), instance: 0 })),
         });
-      case 'load-db':
+      case 'load-db': {
+        // Like the backend: applied while running; the reply lists what was adapted to this version.
         needAdmin();
-        setTimeout(() => this.simulateDisconnect(), 300);
-        return ok();
+        const rows = (params.config as { settings?: Array<{ type?: string; config?: string; instance?: number }> } | undefined)?.settings;
+        if (!Array.isArray(rows)) return fail('The backup has no settings list.');
+        const restored: BackendConfig = {};
+        for (const row of rows) {
+          if (typeof row.type !== 'string' || typeof row.config !== 'string' || (row.type === 'device' && row.instance)) continue;
+          restored[row.type] = JSON.parse(row.config) as unknown;
+        }
+        const errors = this.checkConfig(restored);
+        if (errors.length) return reject(errors);
+        this.writeConfig(restored);
+        return ok({ changes: [] });
+      }
       default:
         return fail('Command not implemented');
     }
@@ -352,28 +361,27 @@ export class MockBackend implements Backend {
     return { ...next, layout, leds: compileLayout(layout).flatMap((c) => c.leds), device: controllers[0].device };
   }
 
-  /** Partial setconfig: replace the sent sections; like the backend, reset invalid values to their defaults. */
-  private writeConfig(sent: BackendConfig): void {
+  /** Like the backend's strict validation: every invalid value, with the section in its path (unknown sections too). */
+  private checkConfig(sent: BackendConfig): Issue[] {
     const schema = this.fx!.schema;
+    return Object.entries(sent).flatMap(([section, value]) => {
+      const s = schema.properties[section] as JsonSchema | undefined;
+      if (!s || section === 'alldevices') return [{ path: section, message: 'unknown settings section' }];
+      return section === 'layout' || section === 'leds' ? [] : validate(s, value, section);
+    });
+  }
+
+  /** Partial setconfig of validated sections: replace the sent sections, announce the changed ones. */
+  private writeConfig(sent: BackendConfig): void {
     const next = this.applyLayout(sent);
     for (const [section, value] of Object.entries(next)) {
-      let fixed = value;
-      const s = schema.properties[section] as JsonSchema | undefined;
-      if (s && section !== 'layout' && section !== 'leds') {
-        for (const issue of validate(s, value)) {
-          const def = propertyAt(s, ...issue.path.split('.').map((p) => (/^\d+$/.test(p) ? '[]' : p)))?.default;
-          if (def !== undefined) fixed = setIn(fixed, issue.path.split('.').map((p) => (/^\d+$/.test(p) ? Number(p) : p)), clone(def));
-        }
-      }
-      const changed = JSON.stringify(fixed) !== JSON.stringify(this.config[section]);
-      this.config[section] = fixed;
+      const changed = JSON.stringify(value) !== JSON.stringify(this.config[section]);
+      this.config[section] = value;
       if (!changed) continue;
-      this.emit('settings-update', { [section]: fixed });
-      if (section === 'leds') this.emit('leds-update', { leds: fixed });
-      if (section === 'color') {
-        this.runtimeAdjustment = null;
-        this.emit('adjustment-update', (fixed as { channelAdjustment: unknown }).channelAdjustment);
-      }
+      this.emit('settings-update', { [section]: value });
+      if (section === 'leds') this.emit('leds-update', { leds: value });
+      if (section === 'color') this.emit('adjustment-update', (value as { channelAdjustment: unknown }).channelAdjustment);
+      if (section === 'systemGrabber') this.emit('capture-update', this.systemGrabbers());
     }
   }
 
@@ -411,6 +419,16 @@ export class MockBackend implements Backend {
       imageToLedMappingType: color.imageToLedMappingType,
       leds: clone(this.config.leds) as ServerInfo['leds'],
       controllers: this.controllers(),
+      systemGrabbers: this.systemGrabbers(),
+    };
+  }
+
+  /** `systemGrabbers`: the demo screen is an SDR monitor, so only tone mapping forced on applies. */
+  private systemGrabbers(): SystemGrabbers {
+    const mode = String((this.config.systemGrabber as { hdrToneMapping?: string } | undefined)?.hdrToneMapping ?? 'auto') as CaptureHdr['mode'];
+    return {
+      ...clone(this.fx!.serverInfo.systemGrabbers),
+      hdr: { mode, capturing: true, monitorHdr: false, toneMapping: mode === 'on' },
     };
   }
 
@@ -442,7 +460,7 @@ export class MockBackend implements Backend {
   }
 
   private activeAdjustment(): Record<string, unknown> {
-    return this.runtimeAdjustment ?? (this.config.color as { channelAdjustment: Array<Record<string, unknown>> }).channelAdjustment[0];
+    return (this.config.color as { channelAdjustment: Array<Record<string, unknown>> }).channelAdjustment[0];
   }
 
   private emitPriorities(): void {

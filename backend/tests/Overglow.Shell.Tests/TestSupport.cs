@@ -57,7 +57,7 @@ internal sealed class TestHost : IAsyncDisposable
             Assert.True(result.Success, string.Join("; ", result.Errors));
         }
 
-        var app = OverglowHost.Build(["--data-dir", dir, "--legacy-data-dir", "none", "--port", "0", "--capture", "synthetic", "--ui-dir", Path.Combine(dir, "no-ui")], configure);
+        var app = OverglowHost.Build(["--data-dir", dir, "--legacy-data-dir", "none", "--bind", "127.0.0.1", "--port", "0", "--capture", "synthetic", "--ui-dir", Path.Combine(dir, "no-ui")], configure);
         await app.StartAsync(TestContext.Current.CancellationToken);
         return new TestHost(app, dir);
     }

@@ -4,24 +4,20 @@
   "id": "00000000-0000-0000-0000-000000000000",
   "readOnlyMode": false,
   "supportUrl": "",
-  "time": "Oct 19 2026 15:57:37",
-  "version": "24.0.0-beta.0"
+  "time": "2026-10-20 02:58:51Z",
+  "version": "0.1.0"
  },
  "system": {
   "architecture": "x86_64",
-  "cpuHardware": "",
   "cpuModelName": "",
-  "cpuModelType": "",
-  "cpuRevision": "",
   "domainName": "",
   "hostName": "GAMING-PC",
   "kernelType": "winnt",
-  "kernelVersion": "10.0.26300",
-  "openssl": "OpenSSL 3.0.16 11 Feb 2025",
-  "prettyName": "Windows 11 Version 26H2",
+  "kernelVersion": "10.0.26300.0",
+  "prettyName": "Microsoft Windows 10.0.26300",
   "productType": "windows",
-  "productVersion": "11",
-  "qtVersion": "6.8.3",
+  "productVersion": "10",
+  "runtimeVersion": ".NET 10.0.13",
   "wordSize": "64"
  }
 }

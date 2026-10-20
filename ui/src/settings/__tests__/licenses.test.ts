@@ -6,8 +6,8 @@ describe('parseLicenses', () => {
   it('splits the repository license file into named entries', () => {
     const list = parseLicenses(thirdParty);
     expect(list.length).toBeGreaterThan(10);
-    expect(list[0].name).toBe('AdminLTE');
-    expect(list[0].text).toMatch(/^The MIT License/);
+    expect(list.map((l) => l.name)).toContain('Velopack');
+    expect(list.find((l) => l.name === 'Velopack')?.text).toMatch(/^The MIT License/);
     expect(list.every((l) => l.name && l.text)).toBe(true);
     expect(list.some((l) => l.text.includes('=====') && /^\s*=+\s*$/m.test(l.text))).toBe(false);
   });

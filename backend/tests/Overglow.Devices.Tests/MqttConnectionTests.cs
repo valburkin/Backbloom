@@ -24,7 +24,7 @@ public sealed class MqttConnectionTests
     public async Task Connection_PublishesSubscribesAndSendsTheShutdownMessages()
     {
         var port = FreePort();
-        using var broker = new MqttServerFactory().CreateMqttServer(new MqttServerOptionsBuilder().WithDefaultEndpoint().WithDefaultEndpointPort(port).Build());
+        using var broker = new MqttServerFactory().CreateMqttServer(new MqttServerOptionsBuilder().WithDefaultEndpoint().WithDefaultEndpointBoundIPAddress(IPAddress.Loopback).WithDefaultEndpointBoundIPV6Address(IPAddress.None).WithDefaultEndpointPort(port).Build());
         var seen = new ConcurrentQueue<(string Topic, string Payload)>();
         broker.InterceptingPublishAsync += e =>
         {

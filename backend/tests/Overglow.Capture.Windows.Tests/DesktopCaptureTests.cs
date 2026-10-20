@@ -3,6 +3,7 @@ using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging.Abstractions;
 using Overglow.Capture.Hdr;
 using Overglow.Core.Imaging;
+using Overglow.Core.Tests;
 
 namespace Overglow.Capture.Windows.Tests;
 
@@ -12,6 +13,7 @@ namespace Overglow.Capture.Windows.Tests;
 /// OVERGLOW_CAPTURE_DUMP_DIR to save the captured frames as PNG files.
 /// </summary>
 [SupportedOSPlatform("windows10.0.17763")]
+[Collection(AllocationMeasurements.Name)]
 public sealed class DesktopCaptureTests : IDisposable
 {
     private static readonly string s_device = Environment.GetEnvironmentVariable("OVERGLOW_CAPTURE_DEVICE") is { Length: > 0 } d ? d : CaptureSettings.AutoDevice;
@@ -48,30 +50,99 @@ public sealed class DesktopCaptureTests : IDisposable
         Assert.Empty(MonitorEnumerator.Select(outputs, @"\\.\DISPLAY999|nothing"));
     }
 
+    /// <summary>
+    /// Every conversion: the HDR shader (FP16 scRGB on an HDR desktop, else 8-bit SDR), 8-bit on the GPU with and
+    /// without the LUT, and the CPU path with and without it. Measured on a dedicated thread after a full collection
+    /// (<see cref="Allocations"/>), with the cancellation token's wait handle created beforehand: the frame pacer
+    /// creates it lazily on its first wait (56 bytes, 280 when it is the first wait handle after a collection).
+    /// </summary>
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Captures_ScaledFrames_WithoutAllocatingPerFrame(bool hardware)
+    [InlineData(true, 200, false)]
+    [InlineData(true, 0, false)]
+    [InlineData(true, 0, true)]
+    [InlineData(false, 200, false)]
+    [InlineData(false, 200, true)]
+    public void Captures_ScaledFrames_WithoutAllocatingPerFrame(bool hardware, int monitorNits, bool toneMapping)
     {
         RequireFrames();
-        using var source = CreateSource(new CaptureSettings { Device = s_device, Hardware = hardware, FramesPerSecond = 120, MaxWidth = 512 });
-        var frame = new Frame(1, 1);
+        var lut = new LutProvider(new LutLocations([_dataDir], _dataDir), NullLogger<LutProvider>.Instance);
+        if (toneMapping)
+        {
+            Assert.NotNull(lut.Get());
+        }
 
-        var first = CaptureFrames(source, frame, 5);
-        Assert.True(first > 0, $"no frame was captured: {_log}");
+        var settings = new CaptureSettings { Device = s_device, Hardware = hardware, MonitorNits = monitorNits, ToneMapping = toneMapping ? ToneMappingMode.On : ToneMappingMode.Off, FramesPerSecond = 120, MaxWidth = 512 };
+        using var source = new DxgiScreenSource(settings, lut, _log);
+        var frame = new Frame(1, 1);
+        using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var token = cancel.Token;
+        _ = token.WaitHandle;
+        var perFrame = new long[60];
+        int warmUp = 0, captured = 0;
+        CaptureStatistics statistics = default;
+
+        var allocated = Allocations.Measure(
+            () =>
+            {
+                for (var i = 0; i < 5; i++)
+                {
+                    if (source.TryCapture(frame, token))
+                    {
+                        warmUp++;
+                    }
+                }
+
+                source.TakeStatistics();
+            },
+            () =>
+            {
+                for (var i = 0; i < perFrame.Length && !token.IsCancellationRequested; i++)
+                {
+                    var before = GC.GetAllocatedBytesForCurrentThread();
+                    if (source.TryCapture(frame, token))
+                    {
+                        captured++;
+                    }
+
+                    perFrame[i] = GC.GetAllocatedBytesForCurrentThread() - before;
+                }
+
+                statistics = source.TakeStatistics();
+            });
+
+        Assert.True(warmUp > 0, $"no frame was captured: {_log}");
+        Assert.True(captured >= 50, $"only {captured} of {perFrame.Length} frames captured: {_log}");
+        Assert.True(allocated == 0, $"{allocated} bytes allocated; per frame: {string.Join(", ", perFrame)}");
         Assert.True(source.IsCapturing);
         Assert.InRange(frame.Width, 1, 512);
         Assert.Equal(source.FrameSize, (frame.Width, frame.Height));
         Assert.All(frame.ReadOnlyPixels.ToArray().Where((_, i) => i % 4 == 3), a => Assert.Equal(255, a));
+        Assert.Equal(captured, statistics.Frames);
+        TestContext.Current.SendDiagnosticMessage($"{string.Join("; ", source.DescribeDisplays())}: {statistics.NewImages} new images in {captured} frames");
+    }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        var captured = CaptureFrames(source, frame, 60);
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+    [Theory]
+    [InlineData(ToneMappingMode.Auto)]
+    [InlineData(ToneMappingMode.On)]
+    [InlineData(ToneMappingMode.Off)]
+    public void HdrStatus_DescribesTheCapturedMonitorAndFollowsTheMode(ToneMappingMode mode)
+    {
+        RequireFrames();
+        var lut = new LutProvider(new LutLocations([_dataDir], _dataDir), NullLogger<LutProvider>.Instance);
+        using var source = new DxgiScreenSource(new CaptureSettings { Device = s_device, ToneMapping = mode, FramesPerSecond = 120 }, lut, _log);
+        var changes = new List<CaptureHdrStatus>();
+        source.HdrStatusChanged += changes.Add;
+        Assert.Equal(CaptureHdrStatus.Idle(mode), source.HdrStatus);
 
-        Assert.True(captured >= 50, $"only {captured} of 60 frames captured");
-        Assert.Equal(0, allocated);
-        var statistics = source.TakeStatistics();
-        Assert.True(statistics.Frames >= captured);
+        Assert.True(CaptureFrames(source, new Frame(1, 1), 3) > 0, _log.ToString());
+
+        var hdr = MonitorEnumerator.Select(MonitorEnumerator.Enumerate(), s_device).Single().Info.Hdr;
+        // An HDR monitor is captured in HDR (hardware on, 200 nits) and converted by the shader in every mode;
+        // an SDR monitor gets the table only when it is forced on.
+        var expected = new CaptureHdrStatus(mode, Capturing: true, MonitorHdr: hdr, ToneMapped: hdr || mode == ToneMappingMode.On);
+        Assert.Equal(expected, source.HdrStatus);
+        Assert.Equal([expected], changes);
+        Assert.Equal(mode == ToneMappingMode.On && !hdr, source.DescribeDisplays().Single().Contains("+ LUT", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -118,7 +189,7 @@ public sealed class DesktopCaptureTests : IDisposable
             ("gpu-hdr-200nits", new CaptureSettings { Device = s_device, MonitorNits = 200 }),
             ("gpu-hdr-100nits", new CaptureSettings { Device = s_device, MonitorNits = 100 }),
             ("gpu-sdr-windows", new CaptureSettings { Device = s_device, MonitorNits = 0 }),
-            ("gpu-sdr-lut", new CaptureSettings { Device = s_device, MonitorNits = 0, HdrToneMapping = true }),
+            ("gpu-sdr-lut", new CaptureSettings { Device = s_device, MonitorNits = 0, ToneMapping = ToneMappingMode.On }),
             ("cpu-sdr-windows", new CaptureSettings { Device = s_device, Hardware = false }),
         };
         var lut = new LutProvider(new LutLocations([_dataDir], _dataDir), NullLogger<LutProvider>.Instance);

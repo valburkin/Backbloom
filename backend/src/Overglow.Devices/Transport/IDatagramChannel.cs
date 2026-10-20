@@ -22,6 +22,7 @@ public sealed class UdpDatagramChannel : IDatagramChannel
         ArgumentNullException.ThrowIfNull(remote);
         _socket?.Dispose();
         _socket = new Socket(remote.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+        LocalBinding.BindIfLoopback(_socket, remote);
         _socket.Connect(remote);
     }
 

@@ -187,14 +187,41 @@ public sealed class EffectEngineTests : IDisposable
     [Fact]
     public void EffectSource_ReturnsAtOnceWhenCanceled()
     {
-        using var source = new EffectSource(EffectCatalog.Find("Candle")!, 50, -1, new SystemClock(), new MsvcRandom(3), null);
+        // Deterministic: the clock cancels during the first wait slice (a real timer can fire late when the thread pool
+        // is busy). Warm mood blobs steps every 100 ms, so without the cancellation check the render would take five
+        // 20 ms slices before drawing.
+        using var cts = new CancellationTokenSource();
+        var clock = new CancelingClock(cts);
+        using var source = new EffectSource(EffectCatalog.Find("Warm mood blobs")!, 50, -1, clock, new MsvcRandom(3), null);
         var mapping = new LedMappingOptions(LedLayout.FromJson(JsonNode.Parse("""[{ "hmin": 0, "hmax": 1, "vmin": 0, "vmax": 1 }, { "hmin": 0, "hmax": 1, "vmin": 0, "vmax": 1 }]""")));
         var colors = new Vector3[2];
         Assert.True(source.TryRender(mapping, colors, CancellationToken.None));
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(5));
-        var sw = Stopwatch.StartNew();
+        clock.CancelOnNextSleep = true;
+
         Assert.False(source.TryRender(mapping, colors, cts.Token));
-        Assert.True(sw.ElapsedMilliseconds < 60, $"took {sw.ElapsedMilliseconds} ms");
+        Assert.Equal(1, clock.SleepsAfterArming);
+    }
+
+    /// <summary>A stepping clock that cancels a token during the first wait after being armed.</summary>
+    private sealed class CancelingClock(CancellationTokenSource cts) : IClock
+    {
+        private long _now = 1000;
+
+        public bool CancelOnNextSleep { get; set; }
+
+        public int SleepsAfterArming { get; private set; }
+
+        public long NowMilliseconds => _now;
+
+        public void SleepUntil(long dueMilliseconds)
+        {
+            _now = Math.Max(_now, dueMilliseconds);
+            if (CancelOnNextSleep)
+            {
+                SleepsAfterArming++;
+                cts.Cancel();
+            }
+        }
     }
 
     [Fact]

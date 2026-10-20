@@ -1,4 +1,4 @@
-// Wire types for the Overglow JSON-RPC protocol (WebSocket on the web server port, default 8090).
+// Wire types for the Overglow JSON-RPC protocol (WebSocket on the web server port, default 18290).
 //
 // Requests:  { command, subcommand?, tan, ...params }   (the server validates with additionalProperties: false)
 // Replies:   { command, tan, success, info?, error? }   (command is "cmd" or "cmd-subcmd"; errors may omit the subcommand,
@@ -20,6 +20,8 @@ export interface RpcReply {
   success: boolean;
   info?: unknown;
   error?: string;
+  /** Rejected settings (`setconfig`, `load-db`, `adjustment`): every invalid value, `path` from the section on. */
+  errors?: Array<{ path: string; message: string }>;
 }
 
 export interface RpcEvent {
@@ -64,7 +66,7 @@ export class ConnectionError extends RpcError {
 /** Transport-level interface shared by the live WebSocket client and the mock backend. */
 export interface Backend {
   readonly mode: 'live' | 'mock';
-  /** Human-readable endpoint, e.g. "ws://localhost:8090". */
+  /** Human-readable endpoint, e.g. "ws://localhost:18290". */
   readonly url: string;
   readonly status: ConnectionStatus;
   connect(): void;
@@ -152,9 +154,28 @@ export interface ServerInfo {
     sound_available?: string[];
     sound_devices?: Array<{ id: string; name: string; kind?: 'loopback' | 'microphone' }>;
   };
-  systemGrabbers?: { device?: string; modes?: string[] };
+  systemGrabbers?: SystemGrabbers;
   imageToLedMappingType?: string;
   [key: string]: unknown;
+}
+
+/** HDR state of the screen capture (`serverinfo.systemGrabbers.hdr`, also pushed by `capture-update`). */
+export interface CaptureHdr {
+  /** The `systemGrabber.hdrToneMapping` setting. */
+  mode: 'auto' | 'on' | 'off';
+  /** A monitor is being captured; the other values describe it. */
+  capturing: boolean;
+  /** Windows drives the captured monitor in HDR mode. */
+  monitorHdr: boolean;
+  /** HDR colors are converted to SDR (by the HDR capture or the tone mapping table). */
+  toneMapping: boolean;
+}
+
+/** `serverinfo.systemGrabbers` and the `capture-update` event. `hdr` is missing without screen capture (test pattern). */
+export interface SystemGrabbers {
+  device?: string;
+  modes?: string[];
+  hdr?: CaptureHdr;
 }
 
 export interface SysInfo {
@@ -167,8 +188,8 @@ export interface SysInfo {
     kernelVersion?: string;
     productType?: string;
     productVersion?: string;
-    qtVersion?: string;
-    openssl?: string;
+    /** The .NET runtime, e.g. ".NET 10.0.13". */
+    runtimeVersion?: string;
     wordSize?: string;
     cpuModelName?: string;
     [key: string]: unknown;

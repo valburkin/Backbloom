@@ -13,6 +13,7 @@
     <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
     <PackageVersion Include="System.IO.Ports" Version="10.0.12" />
     <PackageVersion Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
+    <PackageVersion Include="Velopack" Version="1.2.161" />
     <PackageVersion Include="ZstdSharp.Port" Version="0.8.7" />
   </ItemGroup>
 

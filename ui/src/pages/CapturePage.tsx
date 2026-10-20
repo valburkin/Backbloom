@@ -1,6 +1,7 @@
 import { Crop, Monitor, RectangleHorizontal, ScreenShare } from 'lucide-react';
-import { SliderField } from '../components/ui';
-import { Advanced, Callout, NumberField, Section, Select, Toggle } from '../components/form';
+import { Segmented, SliderField, StatusDot } from '../components/ui';
+import { Advanced, Callout, Field, NumberField, Section, Select, Toggle } from '../components/form';
+import type { CaptureHdr } from '../api/types';
 import { PageFrame } from '../components/PageFrame';
 import { usePageSettings } from '../app/config';
 import { useConnection } from '../app/connection';
@@ -13,6 +14,7 @@ const LABELS: Record<string, string> = {
   'systemControl.systemInstancePriority': 'Priority',
   'systemGrabber.device': 'Monitor',
   'systemGrabber.fps': 'Frame rate',
+  'systemGrabber.hdrToneMapping': 'HDR tone mapping',
   'systemGrabber.monitor_nits': 'SDR brightness in HDR mode',
   'systemGrabber.videoMode': 'Capture width',
   'systemGrabber.cropLeft': 'Crop left',
@@ -27,6 +29,27 @@ export function monitorLabel(mode: string): string {
   const [dev, adapter] = mode.split('|');
   const n = /DISPLAY(\d+)/i.exec(dev ?? '')?.[1];
   return [n ? `Display ${n}` : dev, adapter].filter(Boolean).join(' · ');
+}
+
+type ToneMappingMode = CaptureHdr['mode'];
+
+const TONE_MAPPING: ReadonlyArray<{ value: ToneMappingMode; label: string; hint: string }> = [
+  { value: 'auto', label: 'Auto', hint: 'Converts HDR colors only while Windows HDR is on for the captured monitor. Recommended.' },
+  { value: 'on', label: 'On', hint: 'Always converts, also in SDR mode: only for HDR10 videos or games shown without Windows HDR. Normal colors look oversaturated.' },
+  { value: 'off', label: 'Off', hint: 'Never applies the HDR conversion table.' },
+];
+
+/** One line on what the screen capture does with HDR right now (null without screen capture). */
+export function toneMappingStatus(hdr: CaptureHdr | undefined): { text: string; tone: 'ok' | 'neutral' | 'warn' } | null {
+  if (!hdr) return null;
+  if (!hdr.capturing) return { text: 'Waiting for the screen capture to start.', tone: 'neutral' };
+  if (hdr.monitorHdr)
+    return hdr.toneMapping
+      ? { text: 'HDR detected — tone mapping applied.', tone: 'ok' }
+      : { text: 'HDR detected — tone mapping is off, colors are used as Windows delivers them.', tone: 'warn' };
+  return hdr.toneMapping
+    ? { text: 'Your monitor is in SDR mode — tone mapping is applied anyway (On).', tone: 'warn' }
+    : { text: 'Your monitor is in SDR mode — colors are used as-is.', tone: 'ok' };
 }
 
 const BORDER_MODES: Record<string, { label: string; hint: string }> = {
@@ -47,6 +70,8 @@ export function CapturePage() {
   const set = (section: string, key: string) => (v: unknown) => ps.setPath(section, [key], v);
   const modes = serverInfo?.systemGrabbers?.modes ?? [];
   const backendName = serverInfo?.systemGrabbers?.device;
+  const toneMapping = (TONE_MAPPING.find((m) => m.value === grabber.hdrToneMapping) ?? TONE_MAPPING[0]).value;
+  const hdrStatus = toneMappingStatus(serverInfo?.systemGrabbers?.hdr);
   const enabled = control.systemInstanceEnable === true;
   const fps = range('systemGrabber', 'fps', { min: 5, max: 120 });
   const nits = range('systemGrabber', 'monitor_nits', { min: 0, max: 10000 });
@@ -92,12 +117,15 @@ export function CapturePage() {
       </Section>
 
       <Section title="HDR" icon={<Monitor size={18} />} description="For games and videos in HDR, so the LEDs don’t look washed out.">
-        <Toggle
-          label="HDR tone mapping"
-          hint="Convert HDR colors to normal brightness before sending them to the LEDs. Turn on if Windows HDR is on."
-          checked={grabber.hdrToneMapping === true}
-          onChange={set('systemGrabber', 'hdrToneMapping')}
-        />
+        <Field label="HDR tone mapping" hint={TONE_MAPPING.find((m) => m.value === toneMapping)?.hint}>
+          {() => <Segmented label="HDR tone mapping" value={toneMapping} options={TONE_MAPPING} onChange={set('systemGrabber', 'hdrToneMapping')} />}
+        </Field>
+        {hdrStatus && (
+          <p className="flex items-center gap-2 text-[13px]" role="status">
+            <StatusDot tone={hdrStatus.tone} />
+            {hdrStatus.text}
+          </p>
+        )}
         {grabber.hardware === true ? (
           <SliderField
             label="SDR brightness in HDR mode"

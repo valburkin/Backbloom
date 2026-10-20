@@ -72,7 +72,10 @@ public sealed partial class SsdpSearcher(Func<int, IPEndPoint>? destination = nu
         ArgumentException.ThrowIfNullOrWhiteSpace(searchTarget);
         var destination = _destination(port);
         using var socket = new Socket(destination.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-        socket.Bind(new IPEndPoint(destination.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0));
+        var local = IPAddress.IsLoopback(destination.Address)
+            ? destination.Address // tests: nothing listens on the network
+            : destination.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any;
+        socket.Bind(new IPEndPoint(local, 0));
         if (destination.Address.Equals(MulticastAddress))
         {
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 4);

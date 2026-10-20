@@ -38,7 +38,7 @@
     0
    ],
    "saturationGain": 1,
-   "scaleOutput": 0.8,
+   "scaleOutput": 1,
    "temperatureBlue": 1,
    "temperatureGreen": 1,
    "temperatureRed": 1,
@@ -62,10 +62,6 @@
   },
   {
    "enabled": false,
-   "name": "HDR"
-  },
-  {
-   "enabled": false,
    "name": "SMOOTHING"
   },
   {
@@ -73,105 +69,27 @@
    "name": "BLACKBORDER"
   },
   {
-   "enabled": false,
+   "enabled": true,
    "name": "SYSTEMGRABBER"
   },
   {
-   "enabled": false,
+   "enabled": true,
    "name": "LEDDEVICE"
   }
  ],
  "currentInstance": 0,
  "effects": [
   {
-   "name": "Music: fullscreen pulse (BLUE)"
+   "name": "Rainbow swirl"
   },
   {
-   "name": "Music: fullscreen pulse (GREEN)"
+   "name": "Rainbow swirl fast"
   },
   {
-   "name": "Music: fullscreen pulse (MULTI COLOR)"
+   "name": "Full color mood blobs"
   },
   {
-   "name": "Music: fullscreen pulse (MULTI COLOR FAST)"
-  },
-  {
-   "name": "Music: fullscreen pulse (MULTI COLOR SLOW)"
-  },
-  {
-   "name": "Music: fullscreen pulse (RED)"
-  },
-  {
-   "name": "Music: fullscreen pulse (WHITE)"
-  },
-  {
-   "name": "Music: fullscreen pulse (YELLOW)"
-  },
-  {
-   "name": "Music: quatro for LED strip (BLUE)"
-  },
-  {
-   "name": "Music: quatro for LED strip (GREEN)"
-  },
-  {
-   "name": "Music: quatro for LED strip (MULTI COLOR)"
-  },
-  {
-   "name": "Music: quatro for LED strip (MULTI COLOR FAST)"
-  },
-  {
-   "name": "Music: quatro for LED strip (MULTI COLOR SLOW)"
-  },
-  {
-   "name": "Music: quatro for LED strip (RED)"
-  },
-  {
-   "name": "Music: quatro for LED strip (WHITE)"
-  },
-  {
-   "name": "Music: quatro for LED strip (YELLOW)"
-  },
-  {
-   "name": "Music: stereo for LED strip (BLUE)"
-  },
-  {
-   "name": "Music: stereo for LED strip (GREEN)"
-  },
-  {
-   "name": "Music: stereo for LED strip (MULTI COLOR)"
-  },
-  {
-   "name": "Music: stereo for LED strip (MULTI COLOR FAST)"
-  },
-  {
-   "name": "Music: stereo for LED strip (MULTI COLOR SLOW)"
-  },
-  {
-   "name": "Music: stereo for LED strip (RED)"
-  },
-  {
-   "name": "Music: stereo for LED strip (WHITE)"
-  },
-  {
-   "name": "Music: stereo for LED strip (YELLOW)"
-  },
-  {
-   "name": "Music: equalizer test (turn on video preview)"
-  },
-  {
-   "name": "Music: pulse waves for LED strip (MULTI COLOR)"
-  },
-  {
-   "name": "Music: pulse waves for LED strip (MULTI COLOR FAST)"
-  },
-  {
-   "name": "Music: pulse waves for LED strip (MULTI COLOR SLOW)"
-  },
-  {
-   "name": "Atomic swirl"
-  },
-  {
-   "name": "Blue mood blobs"
+   "name": "Warm mood blobs"
   },
   {
    "name": "Breath"
@@ -180,81 +98,28 @@
    "name": "Candle"
   },
   {
-   "name": "Cinema brighten lights"
+   "name": "Music: fullscreen pulse (MULTI COLOR)"
   },
   {
-   "name": "Cinema dim lights"
+   "name": "Music: quatro for LED strip (MULTI COLOR)"
   },
   {
-   "name": "Cold mood blobs"
+   "name": "Music: stereo for LED strip (MULTI COLOR)"
   },
   {
-   "name": "Double swirl"
-  },
-  {
-   "name": "Full color mood blobs"
-  },
-  {
-   "name": "Green mood blobs"
-  },
-  {
-   "name": "Knight rider"
-  },
-  {
-   "name": "Notify blue"
-  },
-  {
-   "name": "Plasma"
-  },
-  {
-   "name": "Police Lights Single"
-  },
-  {
-   "name": "Police Lights Solid"
-  },
-  {
-   "name": "Rainbow swirl"
-  },
-  {
-   "name": "Rainbow waves"
-  },
-  {
-   "name": "Red mood blobs"
-  },
-  {
-   "name": "Sea waves"
-  },
-  {
-   "name": "Sparks"
-  },
-  {
-   "name": "Strobe red"
-  },
-  {
-   "name": "Strobe white"
-  },
-  {
-   "name": "Rainbow swirl fast"
-  },
-  {
-   "name": "System Shutdown"
-  },
-  {
-   "name": "Warm mood blobs"
-  },
-  {
-   "name": "Waves with Color"
+   "name": "Music: pulse waves for LED strip (MULTI COLOR)"
   }
  ],
  "hostname": "GAMING-PC",
  "imageToLedMappingType": "advanced",
  "instance": [
   {
-   "friendly_name": "First LED instance",
+   "friendly_name": "My Overglow Config",
    "instance": 0,
    "running": true
   }
  ],
+ "lastError": "",
  "ledDevices": {
   "available": [
    {
@@ -302,20 +167,20 @@
     "name": "zigbee2mqtt"
    },
    {
-    "group": "leds_group_5_debug",
-    "name": "file"
+    "group": "leds_group_3_serial",
+    "name": "adalight"
    },
    {
     "group": "leds_group_3_serial",
-    "name": "adalight"
+    "name": "skydimo"
    },
    {
     "group": "leds_group_3_serial",
     "name": "sp616e"
    },
    {
-    "group": "leds_group_3_serial",
-    "name": "skydimo"
+    "group": "leds_group_5_debug",
+    "name": "file"
    },
    {
     "group": "leds_group_6_HID",
@@ -324,11 +189,32 @@
   ]
  },
  "priorities_autoselect": true,
+ "sessions": [],
  "sound": {
   "active": false,
-  "device": "",
+  "device": "default",
+  "running": false,
   "sound_available": [
-   "Microphone (HD Pro Webcam C920)"
+   "default",
+   "loopback:{0.0.0.00000000}.{00000000-0000-0000-0000-000000000001}",
+   "input:{0.0.1.00000000}.{00000000-0000-0000-0000-000000000002}"
+  ],
+  "sound_devices": [
+   {
+    "id": "default",
+    "kind": "loopback",
+    "name": "Default output (what you hear)"
+   },
+   {
+    "id": "loopback:{0.0.0.00000000}.{00000000-0000-0000-0000-000000000001}",
+    "kind": "loopback",
+    "name": "Speakers (USB Audio) (what you hear)"
+   },
+   {
+    "id": "input:{0.0.1.00000000}.{00000000-0000-0000-0000-000000000002}",
+    "kind": "microphone",
+    "name": "Microphone (USB Webcam)"
+   }
   ]
  },
  "systemGrabbers": {

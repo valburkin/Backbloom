@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: UI - install
+        working-directory: ui
+        run: npm ci
+
+      - name: UI - type check
+        working-directory: ui
+        run: npx tsc --noEmit
+
+      - name: UI - test
+        working-directory: ui
+        run: npm test
+
+      - name: UI - build
+        working-directory: ui
+        run: npm run build
+
+      - name: Backend - build
+        working-directory: backend
+        run: dotnet build -warnaserror -c Release
+
+      - name: Backend - test
+        working-directory: backend
+        run: dotnet test -c Release --no-build
+
+      - name: Third-party notices are up to date
+        shell: pwsh
+        run: ./packaging/Update-ThirdPartyNotices.ps1 -Check
+
+      - name: Package
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: ./packaging/build.ps1 -SkipUi
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: overglow-windows
+          path: artifacts/releases/
+          if-no-files-found: error
