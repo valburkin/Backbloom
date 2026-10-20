@@ -69,14 +69,17 @@ public sealed class ColorProcessor
                 adjustment.Blue == new Rgb8(0, 0, 255);
             if (!identity)
             {
-                // The C++ code builds a matrix whose columns are the targets and then transposes it, so each target
-                // color becomes a row: out.R = dot(red target, color), and so on. Pure red therefore becomes
-                // (red.R, green.R, blue.R), unlike the LUT mode below, which maps it to the red target
-                // (fixtures/color/cpp-calibrate-matrix*.json); kept as in C++ until checked on the hardware.
+                // The targets are the columns of the matrix: out = R * red + G * green + B * blue, so pure red
+                // becomes the red target, as in the LUT mode below. Deliberate deviation from HyperHDR, which
+                // transposed the matrix and turned pure red into (red.R, green.R, blue.R) (see
+                // backend/tests/fixtures/README.md).
                 _calibration = CalibrationMode.Matrix;
-                _rowRed = adjustment.Red.ToVector();
-                _rowGreen = adjustment.Green.ToVector();
-                _rowBlue = adjustment.Blue.ToVector();
+                var red = adjustment.Red.ToVector();
+                var green = adjustment.Green.ToVector();
+                var blue = adjustment.Blue.ToVector();
+                _rowRed = new Vector3(red.X, green.X, blue.X);
+                _rowGreen = new Vector3(red.Y, green.Y, blue.Y);
+                _rowBlue = new Vector3(red.Z, green.Z, blue.Z);
             }
         }
         else if (!IsIdentityCube(adjustment))

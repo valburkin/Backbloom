@@ -1,5 +1,0 @@
-<RCC>
-	<qresource prefix="/">
-		${RESOURCE_ENTRIES}
-	</qresource>
-</RCC>

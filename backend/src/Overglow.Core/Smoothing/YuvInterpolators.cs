@@ -186,7 +186,7 @@ public sealed class HybridInterpolator : Interpolator
             var cur = _currentYuv[i];
             var vel = _velocities[i];
             var diff = _targetYuv[i] - cur;
-            if (CppMath.MaxAbs(diff) < FinishComponentThreshold && CppMath.MaxAbs(vel) < VelocityThreshold)
+            if (SpringMath.HasArrived(_targetYuv[i], cur, vel, minLimits, maxLimits, VelocityThreshold))
             {
                 _currentYuv[i] = cur + diff;
                 _velocities[i] = Vector3.Zero;
@@ -304,7 +304,7 @@ public sealed class HybridRgbInterpolator : Interpolator
             var vel = _velocities[i];
             var tgt = _target[i];
             var diff = tgt - cur;
-            if (CppMath.MaxAbs(diff) < FinishComponentThreshold && CppMath.MaxAbs(vel) < VelocityThreshold)
+            if (SpringMath.HasArrived(tgt, cur, vel, minLimits, maxLimits, VelocityThreshold))
             {
                 _current[i] = tgt;
                 _velocities[i] = Vector3.Zero;
@@ -336,6 +336,26 @@ public sealed class HybridRgbInterpolator : Interpolator
 
 internal static class SpringMath
 {
+    /// <summary>
+    /// A spring color has arrived when it is still and every channel is at its target, or at the edge of its range
+    /// when the target lies beyond it (<see cref="Bound"/> keeps such a channel there for good).
+    /// </summary>
+    /// <remarks>
+    /// Deliberate deviation from HyperHDR, which only compared with the target: a channel whose target is below the
+    /// minimal backlight (black, or the zero channels of a saturated color) never arrived, so the transition never
+    /// finished and smoothing kept sending at its full rate.
+    /// </remarks>
+    public static bool HasArrived(Vector3 target, Vector3 current, Vector3 velocity, Vector3 min, Vector3 max, float velocityThreshold)
+    {
+        if (CppMath.MaxAbs(velocity) >= velocityThreshold)
+        {
+            return false;
+        }
+
+        var gap = Vector3.Min(Vector3.Abs(target - current), Vector3.Abs(Vector3.Clamp(target, min, max) - current));
+        return CppMath.MaxAbs(gap) < Interpolator.FinishComponentThreshold;
+    }
+
     /// <summary>A channel that left its range is put back on the edge and stops (its velocity becomes 0).</summary>
     public static void Bound(ref Vector3 cur, ref Vector3 vel, Vector3 min, Vector3 max)
     {

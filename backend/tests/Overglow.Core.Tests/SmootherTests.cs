@@ -132,6 +132,50 @@ public sealed class SmootherTests
         }
     }
 
+    /// <summary>
+    /// Deliberate deviation from HyperHDR: with a minimal backlight, a spring interpolator whose target has a channel
+    /// below it (black, or the zero channels of a saturated color) used to keep its transition running forever, so
+    /// smoothing sent at the full update rate even without <c>continuousOutput</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("HybridRgbInterpolator", 0f, 0f, 0f)]
+    [InlineData("HybridRgbInterpolator", 1f, 0f, 0f)]
+    [InlineData("HybridRgbInterpolator", 0f, 1f, 1f)]
+    [InlineData("HybridInterpolator", 0f, 0f, 0f)]
+    [InlineData("HybridInterpolator", 1f, 0f, 0f)]
+    [InlineData("HybridInterpolator", 0f, 0f, 1f)]
+    public void SpringTransition_BelowTheMinimalBacklight_FinishesAndOutputStops(string type, float r, float g, float b)
+    {
+        const float MinimalBacklight = 0.0039f;
+        var smoother = Create($$"""{ "enable": true, "type": "{{type}}", "time_ms": 150, "updateFrequency": 50, "continuousOutput": false, "stiffness": 150, "damping": 26, "y_limit": 0.02, "smoothingFactor": 0 }""");
+        var target = new Vector3(r, g, b);
+        var output = new Vector3[2];
+        smoother.SetTarget([new Vector3(0.5f), new Vector3(0.8f, 0.6f, 0.4f)], MinimalBacklight, 0);
+        smoother.SetTarget([target, target], MinimalBacklight, 10);
+
+        var sent = new List<long>();
+        long finishedAt = -1;
+        for (long t = 20; t <= 10_000; t += 20)
+        {
+            if (smoother.Tick(t, output) > 0)
+            {
+                sent.Add(t);
+            }
+
+            if (finishedAt < 0 && smoother.Interpolator.IsAnimationComplete)
+            {
+                finishedAt = t;
+            }
+        }
+
+        Assert.InRange(finishedAt, 20, 3000);
+        Assert.All(output, c => Assert.True(Vector3.Distance(Vector3.Max(target, new Vector3(MinimalBacklight)), Vector3.Max(c, new Vector3(MinimalBacklight))) < 0.001f, $"{type}: {c}"));
+
+        // after the transition: three cool-down frames, then one keep-alive per second
+        var afterwards = sent.Where(t => t > finishedAt).ToList();
+        Assert.InRange(afterwards.Count, 3, 3 + ((10_000 - finishedAt) / 1000) + 1);
+    }
+
     [Fact]
     public void SmoothingTicks_DoNotAllocate()
     {

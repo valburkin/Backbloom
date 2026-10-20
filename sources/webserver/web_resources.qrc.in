@@ -1,5 +1,0 @@
-<RCC>
-	<qresource prefix="/">
-		${WEBCONFIG_RESOURCE_ENTRIES}
-	</qresource>
-</RCC>

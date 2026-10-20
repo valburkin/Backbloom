@@ -64,8 +64,14 @@ public sealed record ColorAdjustment
 
     /// <summary>
     /// Reads one channelAdjustment entry. Missing values take the C++ fallbacks (InfiniteProcessing.cpp): e.g. gamma 1.5,
-    /// backlightThreshold 0. Missing calibration colors take their ideal value.
+    /// backlightThreshold 0.
     /// </summary>
+    /// <remarks>
+    /// Missing calibration colors take their ideal value (red = 255,0,0 and so on), so an entry that sets only some of
+    /// them calibrates only those. Deliberate deviation from HyperHDR, which read a missing color as black and so
+    /// turned that primary or corner off. The settings schema always stores all eight, so this only matters for
+    /// hand-made settings and API clients.
+    /// </remarks>
     public static ColorAdjustment FromJson(JsonNode? node)
     {
         if (node is not JsonObject o)

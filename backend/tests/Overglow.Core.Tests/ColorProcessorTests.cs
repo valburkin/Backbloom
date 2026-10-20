@@ -58,6 +58,23 @@ public sealed class ColorProcessorTests
     }
 
     [Fact]
+    public void Calibrate_Matrix_MapsEachPrimaryToItsTarget_LikeTheLut()
+    {
+        var targets = new ColorAdjustment { Red = new Rgb8(250, 10, 0), Green = new Rgb8(20, 240, 10), Blue = new Rgb8(0, 30, 220) };
+        var matrix = Processor(targets with { ClassicConfig = true });
+        var lut = Processor(targets with { ClassicConfig = false });
+        foreach (var (primary, target) in new[] { (Vector3.UnitX, targets.Red), (Vector3.UnitY, targets.Green), (Vector3.UnitZ, targets.Blue) })
+        {
+            var viaMatrix = primary;
+            matrix.Calibrate(ref viaMatrix);
+            var viaLut = primary;
+            lut.Calibrate(ref viaLut);
+            AssertClose(target.ToVector(), viaMatrix);
+            AssertClose(viaLut, viaMatrix);
+        }
+    }
+
+    [Fact]
     public void Calibrate_Lut_RedTarget()
     {
         var color = new Vector3(1.0f, 0.0f, 0.0f);
@@ -126,8 +143,9 @@ public sealed class ColorProcessorTests
     [Fact]
     public void CppPipeline_MatrixInversion()
     {
+        // red -> green, green -> blue, blue -> red (HyperHDR's test expected the transposed (0.5, 0.2, 0.8))
         var p = Processor(new ColorAdjustment { Red = new Rgb8(0, 255, 0), Green = new Rgb8(0, 0, 255), Blue = new Rgb8(255, 0, 0), Gamma = 1.0f });
-        AssertClose(new Vector3(0.500f, 0.200f, 0.800f), CppPipeline(p, new Vector3(0.8f, 0.5f, 0.2f)));
+        AssertClose(new Vector3(0.200f, 0.800f, 0.500f), CppPipeline(p, new Vector3(0.8f, 0.5f, 0.2f)));
     }
 
     [Fact]
@@ -281,5 +299,21 @@ public sealed class ColorProcessorTests
         Assert.Equal(0.0039f, a.BacklightThreshold);
         Assert.False(a.BacklightColored);
         Assert.Equal(0.7f, a.PowerLimit);
+    }
+
+    [Fact]
+    public void FromJson_MissingCalibrationColors_AreIdeal_SoOnlyTheGivenOnesCalibrate()
+    {
+        var a = ColorAdjustment.FromJson(System.Text.Json.Nodes.JsonNode.Parse("""{ "classic_config": false, "red": [200, 0, 0], "gamma": 1 }"""));
+        Assert.Equal(ColorAdjustment.Default with { ClassicConfig = false, Red = new Rgb8(200, 0, 0), Gamma = 1 }, a);
+
+        // HyperHDR read the missing colors as black: green, blue and every mix would have gone dark
+        var p = Processor(a);
+        foreach (var (input, expected) in new[] { (Vector3.UnitY, Vector3.UnitY), (Vector3.UnitZ, Vector3.UnitZ), (Vector3.One, Vector3.One), (Vector3.UnitX, new Vector3(200 / 255.0f, 0, 0)) })
+        {
+            var color = input;
+            p.Calibrate(ref color);
+            AssertClose(expected, color);
+        }
     }
 }

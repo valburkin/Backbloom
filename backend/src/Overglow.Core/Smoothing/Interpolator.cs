@@ -16,7 +16,7 @@ namespace Overglow.Core.Smoothing;
 public abstract class Interpolator
 {
     /// <summary>A color closer than this (in every channel) to its target has arrived.</summary>
-    protected const float FinishComponentThreshold = 0.0013732906f / 10.0f;
+    internal const float FinishComponentThreshold = 0.0013732906f / 10.0f;
 
     private float _initialDuration = 150.0f;
 

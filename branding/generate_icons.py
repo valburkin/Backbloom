@@ -3,9 +3,8 @@
 Usage: python -I generate_icons.py
 
 Writes:
-  ./png/overglow-<size>.png, ./overglow.ico                       app icons (exe, installer)
-  ./installer/header.bmp, ./installer/welcome.bmp               NSIS installer banners (150x57, 164x314)
-  ../www/img/brand/*.png, ../www/*.png                            old web UI logos, wordmark and favicons
+  ./png/overglow-<size>.png, ./overglow.ico                       app icons (exe, tray, installer)
+  ./installer/splash.png                                          Velopack setup splash (480x270)
 The wordmark uses the first available font of WORDMARK_FONTS (Segoe UI Semibold on Windows).
 """
 from pathlib import Path
@@ -13,7 +12,6 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parent
 NAME = "Overglow"
 INK = (13, 14, 26, 255)
 WHITE = (255, 255, 255, 255)
@@ -142,25 +140,11 @@ def fit(img: Image.Image, size: tuple[int, int], background, margin: int = 0) ->
 def installer_images() -> None:
     out = HERE / "installer"
     out.mkdir(exist_ok=True)
-    # NSIS MUI header (150x57) and welcome/finish page (164x314); BMP without alpha
-    fit(wordmark(40, INK), (150, 57), WHITE, margin=6).convert("RGB").save(out / "header.bmp")
-    welcome = Image.new("RGBA", (164, 314), BG)
-    mark = render(112)
-    welcome.paste(mark, ((164 - 112) // 2, 70), mark)
-    f = font(26)
-    left, top, right, bottom = f.getbbox(NAME)
-    ImageDraw.Draw(welcome).text(((164 - (right - left)) // 2 - left, 200 - top), NAME, font=f, fill=WHITE)
-    welcome.convert("RGB").save(out / "welcome.bmp")
-
-def web_images() -> None:
-    brand = REPO / "www" / "img" / "brand"
-    brand.mkdir(parents=True, exist_ok=True)
-    wordmark(83, INK, pad=4).save(brand / "logo.png")          # light backgrounds
-    wordmark(122, "gradient", pad=6).save(brand / "logo-sidebar.png")  # sidebar (light and dark themes)
-    render(40).save(brand / "small_menu.png")                   # collapsed sidebar
-    render(32).save(REPO / "www" / "favicon.png")
-    render(180).save(REPO / "www" / "apple-touch-icon.png")
-    render(144).save(REPO / "www" / "mstile-144x144.png")
+    # Velopack setup splash (shown while Setup.exe installs): wordmark on the dark brand background
+    splash = Image.new("RGBA", (480, 270), BG)
+    mark = wordmark(72, "gradient", pad=4)
+    splash.paste(mark, ((480 - mark.width) // 2, (270 - mark.height) // 2), mark)
+    splash.convert("RGB").save(out / "splash.png")
 
 
 def main() -> None:
@@ -172,7 +156,6 @@ def main() -> None:
     frames = [render(sz) for sz in ico_sizes]
     frames[-1].save(HERE / "overglow.ico", sizes=[(sz, sz) for sz in ico_sizes], append_images=frames[:-1])
     installer_images()
-    web_images()
 
 
 if __name__ == "__main__":

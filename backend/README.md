@@ -1,8 +1,10 @@
 # Overglow backend (.NET)
 
-The C# / .NET 10 port of the Overglow backend. The C++ code in `sources/` and `include/` is the reference
-implementation: behavior is ported from it file by file and compared with golden fixtures exported from it. It is
-deleted once this backend reaches parity.
+The C# / .NET 10 backend of Overglow, ported from the C++ HyperHDR fork it replaces. Behavior was ported file by file
+and is compared with golden fixtures exported from the C++ code, which was deleted once this backend reached parity
+(it is in the history up to commit `9f49bd2`; doc comments still name the C++ files, e.g. `sources/...`, they refer to
+that commit). See [the fixtures README](tests/fixtures/README.md) for the frozen fixtures and the deliberate
+deviations from HyperHDR.
 
 Status: **port steps 1-4, 5a, 5b, 6a and 6b** (engine features: smoothing, priorities, black borders, system load; see
 [Engine features](#engine-features-port-step-5a); effects and music mode, see
@@ -206,7 +208,8 @@ allocations on either path. Waiting for a monitor that delivers no frames costs 
 ### Smoothing
 
 Port of `InfiniteSmoothing` and the six interpolators (`Overglow.Core/Smoothing`), bit-identical to the C++ ones
-(`fixtures/smoothing`, tolerance 0). C++'s Stepper and Rgb interpolators differ only in target blending, so
+(`fixtures/smoothing`, tolerance 0), except that the Hybrid and HybridRgb transitions now finish when a channel's
+target is below the minimal backlight (HyperHDR kept them running, and sending, forever; see the fixtures README). C++'s Stepper and Rgb interpolators differ only in target blending, so
 `StepperInterpolator` is the `RgbInterpolator` without it.
 
 | Setting (`smoothing`) | Effect |
@@ -645,13 +648,10 @@ JSON text, per-instance types under instance 0, each controller's `device` under
 
 ## Golden fixtures
 
-`tests/fixtures/<area>/cpp-*.json` are exported from the C++ reference by the Qt tests in `tests/golden/` (ctest label
-`golden`): each one runs the real C++ code on deterministic inputs. By default ctest compares their output with the
-committed files, so it fails if the reference changes; `OVERGLOW_UPDATE_FIXTURES=1` rewrites them (then commit them):
-
-```powershell
-$env:OVERGLOW_UPDATE_FIXTURES = '1'; ctest --preset win-release -L golden; Remove-Item Env:OVERGLOW_UPDATE_FIXTURES
-```
+`tests/fixtures/<area>/cpp-*.json` were exported from the C++ reference by the Qt tests in `tests/golden/` (at commit
+`9f49bd2`): each one ran the real C++ code on deterministic inputs. The C++ code is gone, so they are **frozen** and
+can't be regenerated; [tests/fixtures/README.md](tests/fixtures/README.md) says how they were produced and lists the
+values deliberately changed since (each changed file has a `deviation` field).
 
 Input images are not stored but described by a small spec (`solid`, `hgradient`, `vgradient`, `quadrants`, `checker`,
 `random` (xorshift32), `overlay`, `hex`; see `tests/golden/TestImages.h`) that `Golden/TestImages.cs` rebuilds with the
@@ -682,19 +682,10 @@ tolerance.
 
 ## Known gaps and next steps
 
-- The primaries calibration (`classic_config`) applies the transposed target matrix, as in C++ (confirmed by
-  `color/cpp-calibrate-matrix*.json`): pure red becomes (red.R, green.R, blue.R), while the 3D LUT mode maps pure red to
-  the red target. Ported as is; worth checking on the hardware before choosing one behavior.
-- `ColorAdjustment.FromJson` gives missing calibration colors their ideal value; the C++ code reads them as black. The
-  settings schema always stores all of them, so it only matters for hand-made settings.
 - Effects: an active screen hidden behind a higher source (the startup effect, an effect from the UI) isn't watched,
   so if capture stops meanwhile it goes inactive only 800 ms after it is visible again (HyperHDR kept capturing). Music
   mode follows a new default output within 2 s by polling (no `IMMNotificationClient`); the WASAPI capture runs on
   Windows only (macOS/Linux get no sound, music effects stay dark). Effect arguments (`effect.args`) aren't supported.
-- The Hybrid and HybridRgb interpolators never report a finished transition while a target channel is below the
-  minimal backlight (black, or any fully saturated color), so smoothing keeps sending at the update frequency even
-  without `continuousOutput` (C++ behavior, confirmed by the fixtures; costs ~0.5 % of one core). Worth fixing once
-  the owner has chosen an interpolator.
 - Drivers: RGBW dithering uses the device's `refreshTime` rather than the smoothing clock. The Hue API v2 channel
   identify (flashing a channel of a running stream) isn't ported. Serial USB ids are read from the Windows device path
   (Linux/macOS list the ports without them).
