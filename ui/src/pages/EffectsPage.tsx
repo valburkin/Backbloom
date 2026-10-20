@@ -100,7 +100,7 @@ function SourceEffectForm({
               step={500}
               value={Number(value.duration_ms ?? 3000)}
               onChange={(v) => set('duration_ms', v)}
-              hint="How long it plays when Overglow starts. -1 keeps it on until you pick something else."
+              hint="How long it plays when Overglow starts (0 or -1: 3 seconds)."
             />
           )}
         </>
@@ -127,7 +127,9 @@ export function EffectsPage() {
   const stop = () => void run('stop', 'Couldn’t stop', () => api.clear());
   const all = [...regular, ...music];
   const sound = ps.value<Obj>('soundEffect');
-  const devices = serverInfo?.sound?.sound_available ?? [];
+  const devices =
+    serverInfo?.sound?.sound_devices?.map((d) => ({ value: d.id, label: d.name })) ??
+    (serverInfo?.sound?.sound_available ?? []).map((d) => ({ value: d, label: d }));
   const isAdmin = auth === 'admin';
 
   return (
@@ -191,8 +193,8 @@ export function EffectsPage() {
             <Select
               label="Sound device"
               value={String(sound.device ?? '')}
-              hint={devices.length ? 'To react to what you hear, pick a “Stereo Mix” or loopback device; a microphone reacts to the room.' : 'No sound devices were found.'}
-              options={devices.map((d) => ({ value: d, label: d }))}
+              hint={devices.length ? 'To react to what you hear, pick an output (“what you hear”) device; a microphone reacts to the room.' : 'No sound devices were found.'}
+              options={devices}
               onChange={(v) => ps.setPath('soundEffect', ['device'], v)}
             />
             <Toggle label="Smooth music effects" checked={sound.enable_smoothing === true} onChange={(v) => ps.setPath('soundEffect', ['enable_smoothing'], v)} />

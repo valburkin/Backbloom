@@ -107,7 +107,13 @@ public sealed class EngineTests : IDisposable
     {
         var database = SettingsDatabase.Open(Path.Combine(_dir, SettingsDatabase.FileName));
         _databases.Add(database);
-        return new(database, SettingsSchema.CreateBuiltin(registry.Drivers.ToDictionary(d => d.Type, d => d.Schema)), NullLogger<SqliteSettingsStore>.Instance);
+        var store = new SqliteSettingsStore(database, SettingsSchema.CreateBuiltin(registry.Drivers.ToDictionary(d => d.Type, d => d.Schema)), NullLogger<SqliteSettingsStore>.Instance);
+
+        // the startup effect (on by default) would cover the screen for 3 s
+        var foreground = store.GetSection("foregroundEffect")!.AsObject();
+        foreground["enable"] = false;
+        Assert.True(store.Update(new JsonObject { ["foregroundEffect"] = foreground.DeepClone() }).Success);
+        return store;
     }
 
     private static DeviceManager Devices(DriverRegistry registry) =>
@@ -298,9 +304,11 @@ public sealed class EngineTests : IDisposable
         var store = Store(registry);
         using var engine = new LightingEngine(store, new SolidSource(255, 255, 255), Devices(registry), new SystemClock(), NullLoggerFactory.Instance);
         engine.Start();
+
+        // the screen registers inactive and becomes active with its first frame
+        WaitUntil(() => FirstDevice(engine)?.State == DeviceState.Ready && engine.Priorities is [{ Active: true, Visible: true }]);
         var prioritiesChanged = 0;
         engine.PrioritiesChanged += () => prioritiesChanged++;
-        WaitUntil(() => FirstDevice(engine)?.State == DeviceState.Ready);
         Assert.Equal("SYSTEMGRABBER", Assert.Single(engine.Priorities).ComponentId);
 
         engine.Components.Set(Component.All, false);

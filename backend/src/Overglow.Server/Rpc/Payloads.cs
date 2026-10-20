@@ -16,9 +16,14 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
         var color = settings.GetSection("color") as JsonObject;
         var info = PrioritiesInfo();
         info["adjustment"] = color?["channelAdjustment"]?.DeepClone() ?? new JsonArray();
-        info["effects"] = new JsonArray();
-        info["activeEffects"] = new JsonArray();
+        info["effects"] = Effects();
+        info["activeEffects"] = ActiveEffects();
         info["activeLedColor"] = ActiveLedColor();
+        if (Sound() is { } sound)
+        {
+            info["sound"] = sound;
+        }
+
         info["components"] = Components();
         info["leds"] = settings.GetSection("leds") ?? new JsonArray();
         info["imageToLedMappingType"] = engine.MappingType.ToSettingString();
@@ -69,6 +74,65 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
         }
 
         return new JsonObject { ["priorities"] = priorities, ["priorities_autoselect"] = engine.Sources.AutoSelect };
+    }
+
+    /// <summary><c>effects</c>: every effect that can be run, <c>[{ name }]</c>.</summary>
+    public static JsonArray Effects()
+    {
+        var list = new JsonArray();
+        foreach (var effect in EffectEngine.Available)
+        {
+            list.Add((JsonNode)new JsonObject { ["name"] = effect.Name });
+        }
+
+        return list;
+    }
+
+    /// <summary><c>activeEffects</c>: the running effects except the background one, <c>[{ name, priority, timeout }]</c>.</summary>
+    public JsonArray ActiveEffects()
+    {
+        var list = new JsonArray();
+        foreach (var effect in engine.Effects.Active.Where(e => e.Priority != EffectEngine.BackgroundPriority))
+        {
+            list.Add((JsonNode)new JsonObject { ["name"] = effect.Name, ["priority"] = effect.Priority, ["timeout"] = effect.TimeoutMs });
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// <c>sound</c>: <c>{ active, device, sound_available: [id], sound_devices: [{ id, name, kind }] }</c>.
+    /// HyperHDR listed device names in <c>sound_available</c>; here they are the ids the setting stores, with names for
+    /// display in <c>sound_devices</c> (an addition). <c>running</c> (also an addition) is true while sound arrives.
+    /// </summary>
+    public JsonObject? Sound()
+    {
+        if (engine.Sound?.GetInfo() is not { } sound)
+        {
+            return null;
+        }
+
+        var ids = new JsonArray();
+        var devices = new JsonArray();
+        foreach (var device in sound.Devices)
+        {
+            ids.Add(device.Id);
+            devices.Add((JsonNode)new JsonObject
+            {
+                ["id"] = device.Id,
+                ["name"] = device.Name,
+                ["kind"] = device.Kind == Audio.AudioDeviceKind.Loopback ? "loopback" : "microphone",
+            });
+        }
+
+        return new JsonObject
+        {
+            ["active"] = sound.Active,
+            ["running"] = sound.Running,
+            ["device"] = sound.Device,
+            ["sound_available"] = ids,
+            ["sound_devices"] = devices,
+        };
     }
 
     /// <summary>The visible static color unless it is black (as HyperHDR listed it).</summary>

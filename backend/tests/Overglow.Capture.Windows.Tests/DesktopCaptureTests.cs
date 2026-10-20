@@ -93,8 +93,9 @@ public sealed class DesktopCaptureTests : IDisposable
     public void UnknownMonitor_IsRetriedWithoutFrames()
     {
         using var source = CreateSource(new CaptureSettings { Device = @"\\.\DISPLAY999|nothing" });
-        using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        // Start timing before the cancellation timer so a slow start can't shorten the measured wait.
         var watch = Stopwatch.StartNew();
+        using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
 
         Assert.False(source.TryCapture(new Frame(1, 1), cancel.Token));
         Assert.False(source.TryCapture(new Frame(1, 1), cancel.Token));

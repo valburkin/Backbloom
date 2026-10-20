@@ -40,14 +40,25 @@ internal sealed class TestServer : IAsyncDisposable
         return dir;
     }
 
-    /// <summary>Starts a server in a new data directory; <paramref name="settings"/> (sections as JSON) are stored first.</summary>
+    /// <summary>The startup effect (on by default) is switched off unless a test's settings name it.</summary>
+    public const string NoStartupEffect = """{ "enable": false, "type": "effect", "color": [255, 0, 0], "effect": "Rainbow swirl fast", "duration_ms": 3000 }""";
+
+    /// <summary>
+    /// Starts a server in a new data directory; <paramref name="settings"/> (sections as JSON) are stored first, with
+    /// the startup effect off unless they contain <c>foregroundEffect</c>.
+    /// </summary>
     public static async Task<TestServer> StartAsync(string? settings = null)
     {
         var dir = NewDataDirectory();
-        if (settings is not null)
+        var sections = JsonNode.Parse(settings ?? "{}")!.AsObject();
+        if (!sections.ContainsKey("foregroundEffect"))
         {
-            using var services = SettingsServices.Open(new SettingsOptions(dir, null), Schema(), NullLoggerFactory.Instance);
-            var result = services.Store.Update(JsonNode.Parse(settings)!.AsObject());
+            sections["foregroundEffect"] = JsonNode.Parse(NoStartupEffect);
+        }
+
+        using (var services = SettingsServices.Open(new SettingsOptions(dir, null), Schema(), NullLoggerFactory.Instance))
+        {
+            var result = services.Store.Update(sections);
             Assert.True(result.Success, string.Join("; ", result.Errors));
         }
 
@@ -132,14 +143,20 @@ internal sealed class RpcClient : IAsyncDisposable
         _socket.SendAsync(Encoding.UTF8.GetBytes(text), WebSocketMessageType.Text, true, TestContext.Current.CancellationToken);
 
     /// <summary>Takes the oldest unread event with this command name, waiting for it if needed.</summary>
-    public JsonObject NextEvent(string command, int timeoutMs = 5000)
+    public JsonObject NextEvent(string command, int timeoutMs = 5000) => NextEvent(command, static _ => true, timeoutMs);
+
+    /// <summary>
+    /// Takes the oldest unread event with this command name that matches, waiting for it if needed. Use it when the
+    /// server may push unrelated events of the same kind first (e.g. a source timing out on its own).
+    /// </summary>
+    public JsonObject NextEvent(string command, Func<JsonObject, bool> match, int timeoutMs = 5000)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         lock (_events)
         {
             while (true)
             {
-                var index = _events.FindIndex(e => e["command"]?.GetValue<string>() == command);
+                var index = _events.FindIndex(e => e["command"]?.GetValue<string>() == command && match(e));
                 if (index >= 0)
                 {
                     var e = _events[index];

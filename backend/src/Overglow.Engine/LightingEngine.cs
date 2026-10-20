@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
+using Overglow.Audio;
 using Overglow.Capture;
 using Overglow.Core.Borders;
 using Overglow.Core.Color;
@@ -28,13 +29,15 @@ public sealed partial class LightingEngine : IDisposable
     private readonly DeviceManager _devices;
     private readonly OutputStage _output;
     private readonly LightingPipeline _pipeline;
+    private readonly ScreenActivity _screen;
     private readonly ILogger _logger;
     private readonly Lock _applyLock = new();
     private int _screenPriority;
     private bool _screenRegistered;
     private bool _disposed;
 
-    public LightingEngine(ISettingsStore settings, IFrameSource source, DeviceManager devices, IClock clock, ILoggerFactory loggerFactory)
+    /// <param name="sound">Music mode's sound capture; null where there is none (music effects stay dark).</param>
+    public LightingEngine(ISettingsStore settings, IFrameSource source, DeviceManager devices, IClock clock, ILoggerFactory loggerFactory, SoundCapture? sound = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(source);
@@ -56,10 +59,13 @@ public sealed partial class LightingEngine : IDisposable
         Sources = new PriorityManager(clock);
         _output = new OutputStage(devices, LedColors, clock, loggerFactory.CreateLogger<OutputStage>());
         _output.Configure(smoothing);
+        _screen = new ScreenActivity(Sources, clock);
         _pipeline = new LightingPipeline(
-            source, Components, () => Sources.Visible, _output, BuildConfig(settings.GetSection("color"), Layout), loggerFactory.CreateLogger<LightingPipeline>());
+            source, Components, () => Sources.Visible, _output, BuildConfig(settings.GetSection("color"), Layout), loggerFactory.CreateLogger<LightingPipeline>(), _screen);
         _pipeline.ConfigureBorders(BorderOptions());
         _screenPriority = ScreenPriorityFrom(settings.GetSection("systemControl"));
+        Sound = sound;
+        Effects = new EffectEngine(Sources, Components, settings, AddSmoothingConfig, clock, sound, loggerFactory.CreateLogger<EffectEngine>());
 
         Components.Changed += OnComponentChanged;
         Sources.VisibleChanged += OnVisibleChanged;
@@ -82,10 +88,16 @@ public sealed partial class LightingEngine : IDisposable
     public ComponentStates Components { get; }
 
     /// <summary>
-    /// The sources competing for the LEDs. Effects and music mode (port step 5b) register here with an
-    /// <see cref="ILightSource"/> and a smoothing configuration from <see cref="AddSmoothingConfig"/>.
+    /// The sources competing for the LEDs: the screen, colors, and effects (an <see cref="ILightSource"/> with a
+    /// smoothing configuration from <see cref="AddSmoothingConfig"/>).
     /// </summary>
     public PriorityManager Sources { get; }
+
+    /// <summary>Effects and music mode: running effects, the startup and background effects.</summary>
+    public EffectEngine Effects { get; }
+
+    /// <summary>Music mode's sound capture, or null where there is none.</summary>
+    public SoundCapture? Sound { get; }
 
     public LedColorsFeed LedColors { get; } = new();
 
@@ -118,8 +130,13 @@ public sealed partial class LightingEngine : IDisposable
 
         _output.Start();
         _pipeline.Start();
+        Effects.Start();
         LogStarted(Layout.Count, _source.Name);
     }
+
+    /// <summary>Runs an effect (the <c>effect</c> command) for <paramref name="durationMs"/> ms (&lt;= 0: until cleared).</summary>
+    /// <returns>False when there is no such effect.</returns>
+    public bool RunEffect(string name, int priority, long durationMs, string origin) => Effects.Run(name, priority, durationMs, origin);
 
     /// <summary>Shows a static color (the <c>color</c> command) for <paramref name="durationMs"/> ms (&lt;= 0: until cleared).</summary>
     public void SetColor(int priority, Rgb8 color, long durationMs, string origin) => Sources.SetColor(priority, color, durationMs, origin);
@@ -160,6 +177,7 @@ public sealed partial class LightingEngine : IDisposable
         Sources.VisibleChanged -= OnVisibleChanged;
         Sources.PrioritiesChanged -= OnPrioritiesChanged;
         _pipeline.Dispose();
+        Effects.Dispose();
         _output.Dispose();
         Sources.Dispose();
         _devices.Dispose();
@@ -216,13 +234,13 @@ public sealed partial class LightingEngine : IDisposable
             UpdateOutput();
         }
 
-        _pipeline.Wake();
+        _pipeline.Interrupt();
         LogVisible(visible.Priority, visible.Component);
     }
 
     private void OnPrioritiesChanged() => PrioritiesChanged?.Invoke();
 
-    // SystemControl: the screen is a source while capture runs.
+    // SystemControl: the screen is a source while capture runs; it is active while it delivers frames (ScreenActivity).
     private void UpdateScreenSource()
     {
         var wanted = Components.CaptureActive;
@@ -235,10 +253,12 @@ public sealed partial class LightingEngine : IDisposable
         if (wanted)
         {
             Sources.Register(_screenPriority, SourceComponent.SystemGrabber, "System", _source.Name);
-            Sources.SetActive(_screenPriority);
+            _screen.Registered(_screenPriority);
+            _pipeline.Wake();
         }
         else
         {
+            _screen.Unregistered();
             Sources.Clear(_screenPriority);
         }
     }
@@ -300,6 +320,7 @@ public sealed partial class LightingEngine : IDisposable
             {
                 if (_screenRegistered)
                 {
+                    _screen.Unregistered();
                     Sources.Clear(_screenPriority);
                     _screenRegistered = false;
                 }

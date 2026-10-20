@@ -59,6 +59,7 @@ public static class OverglowHost
         // The lighting: frame source -> pipeline -> controllers.
         services.AddPlatform();
         services.AddCapture(options);
+        services.AddAudio();
         services.AddSingleton<DeviceManager>();
         services.AddSingleton<LightingEngine>();
         services.AddHostedService<EngineHostedService>();

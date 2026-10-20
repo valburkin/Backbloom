@@ -290,7 +290,11 @@ public sealed class JsonRpcTests
         Assert.True(Success(reply));
         var update = client.NextEvent("components-update")["data"]!;
         Assert.Equal(("SYSTEMGRABBER", false), (update["name"]!.GetValue<string>(), update["enabled"]!.GetValue<bool>()));
-        Assert.Empty(client.NextEvent("priorities-update")["data"]!["priorities"]!.AsArray());
+        // The screen can also time out on its own (no frames in tests), so wait for the update without it.
+        var priorities = client.NextEvent(
+            "priorities-update",
+            e => e["data"]!["priorities"]!.AsArray().All(p => p!["componentId"]?.GetValue<string>() != "SYSTEMGRABBER"));
+        Assert.Empty(priorities["data"]!["priorities"]!.AsArray());
         Assert.Contains("isn't available", Error(await client.CallAsync("componentstate", parameters: Obj("""{ "componentstate": { "component": "HDR", "state": true } }"""))), StringComparison.Ordinal);
 
         foreach (var name in new[] { "SMOOTHING", "BLACKBORDER" })
@@ -342,6 +346,46 @@ public sealed class JsonRpcTests
         info = (await client.CallAsync("serverinfo"))["info"]!;
         Assert.Equal("SYSTEMGRABBER", Assert.Single(info["priorities"]!.AsArray())!["componentId"]!.GetValue<string>());
         Assert.Empty(info["activeLedColor"]!.AsArray());
+    }
+
+    [Fact]
+    public async Task Effect_RunsIsListedAndClears()
+    {
+        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var client = await server.ConnectAsync();
+
+        var info = (await client.CallAsync("serverinfo"))["info"]!;
+        var effects = info["effects"]!.AsArray().Select(e => e!["name"]!.GetValue<string>()).ToList();
+        Assert.Equal(10, effects.Count);
+        Assert.Contains("Rainbow swirl fast", effects);
+        Assert.Equal(4, effects.Count(e => e.StartsWith("Music: ", StringComparison.Ordinal)));
+        Assert.Empty(info["activeEffects"]!.AsArray());
+        var sound = info["sound"]!;
+        Assert.False(sound["active"]!.GetValue<bool>());
+        Assert.Equal("default", sound["device"]!.GetValue<string>());
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Equal("default", sound["sound_available"]![0]!.GetValue<string>());
+            Assert.Equal("loopback", sound["sound_devices"]![0]!["kind"]!.GetValue<string>());
+        }
+
+        var run = await client.CallAsync("effect", parameters: Obj("""{ "priority": 1, "effect": { "name": "Candle" }, "origin": "Overglow UI" }"""));
+        Assert.True(Success(run), Error(run));
+        info = (await client.CallAsync("serverinfo"))["info"]!;
+        var visible = info["priorities"]![0]!;
+        Assert.Equal((1, "EFFECT", "Candle", true), (visible["priority"]!.GetValue<int>(), visible["componentId"]!.GetValue<string>(), visible["owner"]!.GetValue<string>(), visible["visible"]!.GetValue<bool>()));
+        Assert.StartsWith("Overglow UI@", visible["origin"]!.GetValue<string>(), StringComparison.Ordinal);
+        var active = Assert.Single(info["activeEffects"]!.AsArray())!;
+        Assert.Equal(("Candle", 1, -1), (active["name"]!.GetValue<string>(), active["priority"]!.GetValue<int>(), active["timeout"]!.GetValue<int>()));
+
+        Assert.Equal("Effect 'Disco' not found", Error(await client.CallAsync("effect", parameters: Obj("""{ "priority": 1, "effect": { "name": "Disco" } }"""))));
+        Assert.Equal("priority must be a number from 1 to 253", Error(await client.CallAsync("effect", parameters: Obj("""{ "priority": 254, "effect": { "name": "Candle" } }"""))));
+        Assert.False(Success(await client.CallAsync("effect", parameters: Obj("""{ "priority": 2, "effect": { "name": "Candle", "args": { "speed": 2 } } }"""))));
+
+        Assert.True(Success(await client.CallAsync("clear", parameters: Obj("""{ "priority": 1 }"""))));
+        info = (await client.CallAsync("serverinfo"))["info"]!;
+        Assert.Empty(info["activeEffects"]!.AsArray());
+        Assert.Equal("SYSTEMGRABBER", Assert.Single(info["priorities"]!.AsArray())!["componentId"]!.GetValue<string>());
     }
 
     [Fact]
@@ -398,7 +442,6 @@ public sealed class JsonRpcTests
         Assert.Equal("udpe131", discovered["ledDeviceType"]!.GetValue<string>());
         Assert.Empty(discovered["devices"]!.AsArray());
         Assert.Empty((await client.CallAsync("leddevice", "getProperties", Obj("""{ "ledDeviceType": "file", "params": {} }""")))["info"]!["properties"]!.AsObject());
-        Assert.Equal("Command not implemented", Error(await client.CallAsync("effect", parameters: Obj("""{ "effect": { "name": "Rainbow swirl" } }"""))));
         Assert.True(Success(await client.CallAsync("instance", "switchTo", Obj("""{ "instance": 0 }"""))));
     }
 

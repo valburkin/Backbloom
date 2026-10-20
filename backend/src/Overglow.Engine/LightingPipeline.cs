@@ -30,16 +30,23 @@ public sealed partial class LightingPipeline : IDisposable
 {
     private static readonly TimeSpan s_idleWait = TimeSpan.FromMilliseconds(250);
 
+    // A probe of an inactive screen while an effect shows may delay the effect's next frame by this much at most.
+    private static readonly TimeSpan s_probeBudget = TimeSpan.FromMilliseconds(20);
+
     private readonly IFrameSource _source;
     private readonly ComponentStates _components;
     private readonly Func<VisibleSource> _visible;
     private readonly OutputStage _output;
     private readonly ILogger _logger;
+    private readonly ScreenActivity? _screen;
     private readonly LedMapper _mapper = new();
     private readonly FramePool _frames = new(capacity: 1);
     private readonly AutoResetEvent _wake = new(false);
     private readonly CancellationTokenSource _stop = new();
+    private readonly Lock _interruptLock = new();
     private readonly Thread _thread;
+    private CancellationTokenSource _render = new();
+    private CancellationTokenSource _probe = new();
     private volatile PipelineConfig _config;
     private volatile BlackBorderOptions? _borderOptions;
     private BlackBorderOptions? _borderOptionsInUse;
@@ -50,13 +57,15 @@ public sealed partial class LightingPipeline : IDisposable
     private long _frameCount;
     private bool _started;
 
+    /// <param name="screen">Tracks whether the screen delivers frames (null: the screen always counts as active).</param>
     public LightingPipeline(
         IFrameSource source,
         ComponentStates components,
         Func<VisibleSource> visible,
         OutputStage output,
         PipelineConfig config,
-        ILogger<LightingPipeline> logger)
+        ILogger<LightingPipeline> logger,
+        ScreenActivity? screen = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(components);
@@ -70,6 +79,7 @@ public sealed partial class LightingPipeline : IDisposable
         _output = output;
         _config = config;
         _logger = logger;
+        _screen = screen;
         _mapper.MapRebuilt += map =>
         {
             LogMapRebuilt(map.Width, map.Height, map.Layout.Count, map.SampledPixels, map.HorizontalBorder, map.VerticalBorder);
@@ -119,6 +129,21 @@ public sealed partial class LightingPipeline : IDisposable
         }
     }
 
+    /// <summary>
+    /// Another source became visible: an effect waiting for its next step and a probe of the screen return at once,
+    /// so the new source shows without waiting for them.
+    /// </summary>
+    public void Interrupt()
+    {
+        lock (_interruptLock)
+        {
+            _render.Cancel();
+            _probe.Cancel();
+        }
+
+        Wake();
+    }
+
     public void Start()
     {
         if (!_started)
@@ -131,7 +156,7 @@ public sealed partial class LightingPipeline : IDisposable
     public void Dispose()
     {
         _stop.Cancel();
-        Wake();
+        Interrupt();
         if (_started)
         {
             _thread.Join(TimeSpan.FromSeconds(5));
@@ -139,6 +164,11 @@ public sealed partial class LightingPipeline : IDisposable
 
         _stop.Dispose();
         _wake.Dispose();
+        lock (_interruptLock)
+        {
+            _render.Dispose();
+            _probe.Dispose();
+        }
     }
 
     /// <summary>Runs one iteration of the loop; exposed for tests (the thread calls it in a loop).</summary>
@@ -156,21 +186,25 @@ public sealed partial class LightingPipeline : IDisposable
         {
             if (!Capture(ref frame, colors, config, cancellationToken))
             {
+                _screen?.NoFrame();
                 return !cancellationToken.IsCancellationRequested;
             }
 
+            _screen?.FrameCaptured();
             config.Processor.Process(colors);
             _output.Submit(colors, config.Processor.MinimalBacklight);
         }
-        else if (visible.Renderer is { } renderer)
+        else if (visible.Renderer is { } renderer && _components.IsOn(Component.All))
         {
-            if (!renderer.TryRender(colors, cancellationToken))
+            if (!renderer.TryRender(config.Mapping, colors, RenderToken()) || !ReferenceEquals(visible, _visible()))
             {
+                // nothing new, or another source became visible meanwhile (its frame comes next)
                 return !cancellationToken.IsCancellationRequested;
             }
 
             config.Processor.Process(colors);
             _output.Submit(colors, config.Processor.MinimalBacklight);
+            ProbeScreen(ref frame, colors, config, s_probeBudget);
         }
         else if (!ReferenceEquals(visible, _rendered) || !ReferenceEquals(config, _renderedConfig) || _refresh)
         {
@@ -185,11 +219,67 @@ public sealed partial class LightingPipeline : IDisposable
         }
         else
         {
-            _wake.WaitOne(s_idleWait);
+            if (!ProbeScreen(ref frame, colors, config, s_idleWait))
+            {
+                _wake.WaitOne(s_idleWait);
+            }
+
             return !cancellationToken.IsCancellationRequested;
         }
 
         Interlocked.Increment(ref _frameCount);
+        return true;
+    }
+
+    // The token an effect waits on for its next step; a new one after Interrupt canceled it.
+    private CancellationToken RenderToken()
+    {
+        lock (_interruptLock)
+        {
+            if (_render.IsCancellationRequested && !_stop.IsCancellationRequested)
+            {
+                _render.Dispose();
+                _render = new CancellationTokenSource();
+            }
+
+            return _render.Token;
+        }
+    }
+
+    // While the screen is registered but inactive, captures one frame now and then (within the budget) to notice when
+    // it delivers again; the frame itself is not shown. Returns false when no probe was due.
+    private bool ProbeScreen(ref Frame? frame, Span<Vector3> colors, PipelineConfig config, TimeSpan budget)
+    {
+        if (_screen is null || !_components.CaptureActive || !_screen.ProbeDue)
+        {
+            return false;
+        }
+
+        CancellationToken token;
+        lock (_interruptLock)
+        {
+            if (_stop.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            // a source that was canceled (by the budget timer or Interrupt) can't be reused
+            if (!_probe.TryReset())
+            {
+                _probe.Dispose();
+                _probe = new CancellationTokenSource();
+            }
+
+            _probe.CancelAfter(budget);
+            token = _probe.Token;
+        }
+
+        _screen.Probing();
+        if (Capture(ref frame, colors, config, token))
+        {
+            _screen.FrameCaptured();
+        }
+
         return true;
     }
 

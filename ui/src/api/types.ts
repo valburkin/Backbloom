@@ -126,7 +126,13 @@ export interface ServerInfo {
   effects?: Array<{ name: string }>;
   activeEffects?: Array<{ name: string; priority: number; timeout: number }>;
   adjustment?: ChannelAdjustment[];
-  sound?: { active?: boolean; device?: string; sound_available?: string[] };
+  /** Sound capture; the Overglow .NET backend adds display names in `sound_devices` (`sound_available` holds ids then). */
+  sound?: {
+    active?: boolean;
+    device?: string;
+    sound_available?: string[];
+    sound_devices?: Array<{ id: string; name: string; kind?: 'loopback' | 'microphone' }>;
+  };
   systemGrabbers?: { device?: string; modes?: string[] };
   imageToLedMappingType?: string;
   [key: string]: unknown;

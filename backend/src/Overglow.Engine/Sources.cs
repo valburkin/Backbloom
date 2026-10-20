@@ -1,23 +1,25 @@
 using System.Numerics;
 using Overglow.Core.Color;
+using Overglow.Core.Mapping;
 using Overglow.Core.Priorities;
 using Overglow.Engine.Platform;
 
 namespace Overglow.Engine;
 
 /// <summary>
-/// A source that renders LED colors itself (effects and music mode, port step 5b). Registered with
+/// A source that renders LED colors itself (effects and music mode, <see cref="EffectSource"/>). Registered with
 /// <see cref="PriorityManager.Register"/>; the frame loop calls it only while it is the visible source.
 /// </summary>
 public interface ILightSource
 {
     /// <summary>
     /// Renders the next frame into <paramref name="linearColors"/> (one linear-light color 0..1 per LED of the
-    /// layout); the color settings and smoothing are applied afterwards. Blocks until the frame is due (like
-    /// <c>IFrameSource.TryCapture</c>) and returns false when there is nothing new or it was canceled. Must not allocate
-    /// in steady state.
+    /// layout in <paramref name="mapping"/>, which a source that paints pictures maps them with); the color settings
+    /// and smoothing are applied afterwards. Blocks until the frame is due (like <c>IFrameSource.TryCapture</c>) and
+    /// returns false when there is nothing new or <paramref name="cancellationToken"/> was canceled (another source
+    /// became visible). Must not allocate in steady state.
     /// </summary>
-    bool TryRender(Span<Vector3> linearColors, CancellationToken cancellationToken);
+    bool TryRender(LedMappingOptions mapping, Span<Vector3> linearColors, CancellationToken cancellationToken);
 }
 
 /// <summary>What the frame loop shows now: a snapshot, replaced (never changed) when the visible source changes.</summary>
@@ -141,6 +143,15 @@ public sealed class PriorityManager : IDisposable
         }, refreshPriority: priority);
     }
 
+    /// <summary>The renderer registered at <paramref name="priority"/>, or null (also after the source was cleared or expired).</summary>
+    public ILightSource? GetRenderer(int priority)
+    {
+        lock (_lock)
+        {
+            return _renderers.GetValueOrDefault(priority);
+        }
+    }
+
     /// <summary>The source delivers for <paramref name="timeoutMs"/> ms (&lt;= 0: until cleared).</summary>
     /// <returns>False when the priority isn't registered.</returns>
     public bool SetActive(int priority, long timeoutMs = Muxer.NoTimeout)
@@ -193,19 +204,7 @@ public sealed class PriorityManager : IDisposable
     }
 
     /// <summary>Removes every color, picture and effect (the API's clear with priority -1).</summary>
-    public void ClearAll()
-    {
-        Change(now =>
-        {
-            var changes = _muxer.ClearAll(now);
-            foreach (var priority in _renderers.Keys.Where(p => !_muxer.Has(p)).ToArray())
-            {
-                _renderers.Remove(priority);
-            }
-
-            return changes;
-        });
-    }
+    public void ClearAll() => Change(now => _muxer.ClearAll(now));
 
     /// <summary>Selects <paramref name="priority"/> manually (<c>sourceselect</c>).</summary>
     public bool Select(int priority)
@@ -274,6 +273,15 @@ public sealed class PriorityManager : IDisposable
             }
 
             changes = change(_clock.NowMilliseconds);
+            if ((changes & MuxerChanges.Priorities) != 0)
+            {
+                // sources that expired or were cleared leave their renderer behind
+                foreach (var priority in _renderers.Keys.Where(p => !_muxer.Has(p)).ToArray())
+                {
+                    _renderers.Remove(priority);
+                }
+            }
+
             var refresh = refreshPriority == _muxer.CurrentPriority;
             if ((changes & MuxerChanges.Visible) != 0 || refresh)
             {

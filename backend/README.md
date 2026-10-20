@@ -4,12 +4,13 @@ The C# / .NET 10 port of the Overglow backend. The C++ code in `sources/` and `i
 implementation: behavior is ported from it file by file and compared with golden fixtures exported from it. It is
 deleted once this backend reaches parity.
 
-Status: **port steps 1-4, 5a and 6a** (engine features: smoothing, priorities, black borders, system load; see
-[Engine features](#engine-features-port-step-5a)). The React UI in `ui/` connects to it, screen capture (or a synthetic
-test pattern) drives the LEDs through the real mapping and color pipeline, and every LED driver of the C++ build runs on
-its own device thread (see [LED drivers and discovery](#led-drivers-and-discovery)).
-LED layout parsing, image to LED mapping, color processing and black border detection match fixtures exported from the
-C++ reference exactly. Settings (port step 4) live in SQLite, cover every kept settings type and are imported from
+Status: **port steps 1-4, 5a, 5b and 6a** (engine features: smoothing, priorities, black borders, system load; see
+[Engine features](#engine-features-port-step-5a); effects and music mode, see
+[Effects and music mode](#effects-and-music-mode-port-step-5b)). The React UI in `ui/` connects to it, screen capture
+(or a synthetic test pattern) drives the LEDs through the real mapping and color pipeline, and every LED driver of the
+C++ build runs on its own device thread (see [LED drivers and discovery](#led-drivers-and-discovery)).
+LED layout parsing, image to LED mapping, color processing, black border detection and the ten effects match fixtures
+exported from the C++ reference exactly. Settings (port step 4) live in SQLite, cover every kept settings type and are imported from
 HyperHDR databases. Windows screen capture with HDR tone mapping (port step 3) drives the pipeline from the
 `systemGrabber` settings; see [Screen capture](#screen-capture-windows).
 
@@ -56,16 +57,19 @@ The default admin password is `overglow` (as in the C++ build). Local clients ne
 
 ```
 src/
-  Overglow.Core       pure logic: LED layout, image->LED mapping, color processing, black borders (no I/O, no threads)
+  Overglow.Core       pure logic: LED layout, image->LED mapping, color processing, black borders, smoothing, priorities,
+                      the effects and the music analysis (FFT, bands) (no I/O, no threads)
   Overglow.Capture    frame source abstraction, frame pacer, synthetic test source, capture settings, CPU scaling
                       path, HDR tone mapping table (LUT loader, default LUT)
   Overglow.Capture.Windows  DXGI desktop duplication + Direct3D 11 scaling / HDR shader (TerraFX interop)
+  Overglow.Audio      sound capture abstraction, soundEffect settings, device sessions, conversion to analysis blocks
+  Overglow.Audio.Windows  WASAPI loopback and recording capture, endpoint enumeration (TerraFX interop)
   Overglow.Devices    LED device lifecycle (LedDeviceRunner), RGBW encoders and the 16 drivers (network, serial, HID,
                       file); driver tools for leddevice discover/getProperties/identify
   Overglow.Discovery  mDNS client/responder, SSDP search, UDP broadcast probes, serial port and HID enumeration
   Overglow.Mqtt       the one MQTT broker connection (MQTTnet), shared by Zigbee2MQTT and the later MQTT integration
   Overglow.Settings   settings schemas + validation, SQLite store, credential store, HyperHDR import, backups
-  Overglow.Engine     orchestration: frame loop, component switches, controllers, live preview feed
+  Overglow.Engine     orchestration: frame loop, component switches, controllers, live preview feed, running effects
   Overglow.Server     Kestrel: JSON-RPC over WebSocket + POST /json-rpc, auth, UI files
   Overglow.Platform.Windows  Windows implementations of the engine's platform interfaces (high-resolution clock,
                       machine CPU and memory load)
@@ -77,8 +81,8 @@ tests/
 Dependency rules (a project may only use the ones above it in this list):
 
 1. `Core`, `Settings`, `Discovery`, `Mqtt` (no project references)
-2. `Capture` (Core), `Devices` (Core, Discovery, Mqtt); `Capture.Windows` (Capture)
-3. `Engine` (Core, Capture, Devices, Settings); `Platform.Windows` (Engine)
+2. `Capture` (Core), `Audio` (Core), `Devices` (Core, Discovery, Mqtt); `Capture.Windows` (Capture), `Audio.Windows` (Audio)
+3. `Engine` (Core, Audio, Capture, Devices, Settings); `Platform.Windows` (Engine)
 4. `Server` (Engine and below)
 5. `App` (everything; the only place that creates services)
 
@@ -86,13 +90,18 @@ Dependency rules (a project may only use the ones above it in this list):
 (component switches, live colors, identify), and it can't live in `App` without the server depending on the host.
 
 Platform code lives only in `*.Windows` / `*.MacOS` / `*.Linux` projects behind interfaces defined in the projects
-above (`Capture.Windows` implements `IScreenCaptureSource`; `App` creates it only on Windows).
+above (`Capture.Windows` implements `IScreenCaptureSource`, `Audio.Windows` implements `IAudioCapture`; `App` creates
+them only on Windows).
+
+The effects live in `Core` (as the plan says): they and the music analysis they read are pure logic, verified against
+the C++ fixtures by `Core.Tests`; `Audio` only gets the sound into that analysis, `Engine` runs effects as sources.
 
 ## Threading model
 
 | Thread | Owner | Does |
 |---|---|---|
-| Frame loop (1, above-normal priority) | `LightingPipeline` | capture -> map -> process -> hand frames to controllers and the preview feed |
+| Frame loop (1, above-normal priority) | `LightingPipeline` | capture (or step the visible effect) -> map -> process -> hand frames to controllers and the preview feed |
+| Sound capture (1 while a music effect runs, above-normal) | `WasapiSession` | read the device's buffers, convert them into blocks, analyze each block |
 | Smoothing (1, above-normal priority) | `OutputStage` | while smoothing runs: one tick per update interval (interpolate, anti-flicker filter, hand the frame to the controllers and the preview); idle otherwise |
 | One per controller | `LedDeviceRunner` | open (with retries), send the newest frame, refresh, blink, close |
 | Thread pool | ASP.NET Core | JSON-RPC requests (in order per connection), event pushes, LED stream timers |
@@ -108,13 +117,16 @@ above (`Capture.Windows` implements `IScreenCaptureSource`; `App` creates it onl
 
 ## Hot-path rules
 
-The frame loop and `LedDeviceRunner.Submit` must not allocate in steady state (`GC.GetAllocatedBytesForCurrentThread`
-tests enforce it in Core, Devices, Engine, Capture and Capture.Windows):
+The frame loop, `LedDeviceRunner.Submit` and the sound capture loop must not allocate in steady state
+(`GC.GetAllocatedBytesForCurrentThread` tests enforce it in Core, Devices, Engine, Capture, Capture.Windows and Audio):
 
 - buffers are sized when the LED count or frame size changes, not per frame;
 - `ImageToLedMap` precomputes pixel offsets per LED into flat arrays;
 - `ColorProcessor` precomputes its lookup tables and is immutable;
 - `BlackBorderDetector` samples a few lines of the frame in place; `BlackBorderProcessor` only keeps counters;
+- effects step on preallocated state (colors rotate in place, the canvas and its angle table are kept); the music
+  analysis and `AudioBlockWriter` work in fixed buffers, and the WASAPI loop hands the device's buffer to the writer as
+  a span (`WasapiSession` measures its own allocations; a live loopback test asserts 0);
 - logging only through `[LoggerMessage]` methods and never per frame;
 - drivers send with preallocated packet buffers over connected UDP sockets (`Socket.Send(ReadOnlySpan<byte>)`); the
   streaming drivers (WLED, DDP, E1.31, Art-Net, Adalight, Skydimo, SP616E, SyncLight, Nanoleaf, LIFX, Hue
@@ -203,8 +215,16 @@ choice). The screen registers at `systemControl.systemInstancePriority` (245) wh
 skip the color settings as in HyperHDR, are drawn once per change and then smoothed. `clear` takes -1 (all colors and
 effects) or 1..253, `clearall` = -1. `serverinfo.priorities` lists the visible source first with `priority`,
 `componentId`, `origin`, `owner`, `active`, `visible`, `duration_ms` and, for colors, `value: { RGB, HSL }`;
-`priorities_autoselect` and `activeLedColor` as in HyperHDR. Effects and music (5b) implement `ILightSource` (render
-linear LED colors on the frame loop while visible) and register with `Sources.Register` and `AddSmoothingConfig`.
+`priorities_autoselect` and `activeLedColor` as in HyperHDR. Effects implement `ILightSource` (render linear LED colors
+on the frame loop while visible) and register with `Sources.Register` and `AddSmoothingConfig`.
+
+**Screen activity** (`ScreenActivity`, HyperHDR's `SystemControl` rule): the screen registers inactive, becomes active
+with its first frame and inactive after 800 ms without one (lock screen, monitor off, capture errors), so the source
+below it shows: the background effect, or nothing (controllers off). The frame loop only captures for a visible
+screen, so while the screen is inactive it probes the frame source every 500 ms (20 ms budget while an effect shows, so
+the effect keeps its pace; up to 250 ms while idle); the first frame makes it active again. A static desktop still
+delivers frames (DXGI repeats the last image), so it never counts as inactive. While a source above the screen shows
+(the startup effect), an active screen isn't watched.
 
 ### Black borders
 
@@ -218,6 +238,84 @@ map is rebuilt only when the border changes). Off: no border. Unlike HyperHDR th
 `ISystemMetrics`: `WindowsSystemMetrics` (`GetSystemTimes`, `GlobalMemoryStatusEx`; HyperHDR used the PDH processor
 counter, the same quantity), else this process's share (`ProcessMetrics`). LED updates/s is what the controllers
 actually sent (the smoothing rate while smoothing runs).
+
+## Effects and music mode (port step 5b)
+
+### Effects
+
+The ten effects the C++ build kept (sources/effects), in `Overglow.Core/Effects`, match `fixtures/effects` byte for
+byte (LED colors, pictures, step times):
+
+| Effect | Class (C++) | Output | Step | Smoothing |
+|---|---|---|---|---|
+| Rainbow swirl / Rainbow swirl fast | `SwirlEffect` (`Animation_Swirl`) | 80x45 conical rainbow, 1 degree per step | 56 / 19 ms (20 / 7 s per turn) | 200 ms at 25 Hz / effect default |
+| Full color mood blobs / Warm mood blobs | `MoodBlobsEffect` (`Animation_MoodBlobs`) | LED colors, 5 rotating blobs | 100 ms | effect default / 200 ms at 25 Hz |
+| Breath | `FadeEffect` (`Animation_Fade`) | one color, 50 -> 255 gray and back | 29 ms in, 19 ms out, 12 ms holds | effect default |
+| Candle | `CandleEffect` (`Animation_CandleLight`) | LED colors, random flicker | asks 200, runs 100 ms | 500 ms at 20 Hz |
+| Music: fullscreen pulse / stereo / quatro / pulse waves (MULTI COLOR) | `Music*Effect` (`Animation4Music_*`) | 80x45 picture from the sound | polled every 17 ms, draws per sound block | direct (no smoothing) |
+
+"Effect default" is the 200 ms / 25 Hz configuration the C++ engine registered for effects; equal configurations are
+shared (C++ `addCustomSmoothingConfig`), so the engine registers three: default, Candle, direct. Smoothing applies only
+while the `SMOOTHING` component is on. Pictures go through an image-to-LED map of their own (80x45, no black border
+detection, as HyperHDR disabled it for effects); LED colors through the sRGB table, then the color settings apply as for
+the screen.
+
+**Random numbers.** "Candle" and the start hue of "Full color mood blobs" called C `rand()`. `MsvcRandom` is the
+Microsoft CRT generator (state = state * 214013 + 2531011 mod 2^32, result bits 16..30, `RAND_MAX` 32767), so the
+golden test seeds it with 42 like the C++ fixture export and gets the same sequence. It sits behind `IEffectRandom`; the
+engine seeds each effect from `Random.Shared` (HyperHDR never seeded it, and the CRT state is per thread, so every
+"Candle" flickered the same way). The random start hue of "Full color mood blobs" has no visible effect in C++ (it adds
+whole degrees where only the fraction counts); ported as is.
+
+**Running effects** (`EffectEngine`, `EffectSource`; port of `EffectEngine` / `Effect::run`). An effect is a source at
+its priority (`componentId` EFFECT, `owner` the effect name), stepped on the frame loop at absolute deadlines of the
+engine clock (its own step time, at most 100 ms as in C++); it pauses while not visible. It ends when its source is
+cleared, replaced (another effect or a color at its priority) or its duration is over (the muxer's timeout); a music
+effect holds the sound capture until then. A waiting effect returns at once when another source becomes visible.
+
+| Setting | Behavior (as in C++) |
+|---|---|
+| `foregroundEffect` (startup) | at start, priority 0, `duration_ms` (0 or -1: 3000 ms, logged), effect or color; when the LEDs start disabled, it runs if they are switched on within 5 s; later changes of the setting don't run it |
+| `backgroundEffect` | priority 254, until cleared; every change of the setting replaces it; `clear -1` keeps it; not listed in `activeEffects` |
+
+The owner's configuration (startup "Rainbow swirl fast" 3000 ms, background off) runs the swirl for 3 s at start, then
+the screen shows (it became active during the effect, so the controllers stay on).
+
+### Music mode
+
+`MusicAnalysis` (Core) is `SoundCapture::analyzeSpectrum` + `SoundCaptureResult`: blocks of 1024 mono 16-bit samples at
+22,050 Hz, the same fixed-point FFT, eight bands, the loudness and the moving color with its integer arithmetic, and the
+"two interpolated steps between blocks" smoothing (`enable_smoothing`). The music fixtures feed their recorded audio
+blocks through it.
+
+`Overglow.Audio`: `SoundCapture` applies `soundEffect` (`enable`, `device`, `enable_smoothing`; changes apply at once,
+HyperHDR only read them at the next start) and runs the platform capture while at least one music effect holds it
+(C++ `open`/`close` handles). `AudioBlockWriter` turns any device format (float or 16/24/32-bit PCM, any rate and
+channel count) into the analysis blocks: channels averaged, each 22,050 Hz sample the mean of the input over its time
+span. Without sound capture a music effect shows black. The logs say when sound is detected or silent (as C++).
+
+`Overglow.Audio.Windows`: WASAPI, shared mode, event-driven (waits at most 50 ms), the device's mix format.
+
+| `soundEffect.device` | Captures |
+|---|---|
+| `default` (the schema default) | what the default output device plays (loopback), following Windows when the default output changes (checked every 2 s) |
+| `loopback:<endpoint id>` | what that output device plays |
+| `input:<endpoint id>` | that recording device (microphone, line in) |
+| a device name (HyperHDR stored waveIn names) | the recording device with that name (waveIn names are cut to 31 characters) |
+
+Endpoint ids (`{0.0.0.00000000}.{guid}`) survive restarts and renaming, unlike names. A loopback stream delivers
+nothing while nothing plays; that time is fed to the analysis as silence. A lost device (unplugged, disabled, format
+change) is reopened every second. Interop is TerraFX, as for screen capture: COM calls without wrappers, so the read
+loop allocates nothing (NAudio would add a dependency with its own allocation per buffer; CsWin32 needs per-API
+generator configuration).
+
+`serverinfo.sound` is `{ active, device, sound_available: [ids], sound_devices: [{ id, name, kind }], running }`:
+`sound_devices` (names for display) and `running` (sound arrives) are additions; `active` is false while capture is
+disabled or the device fails. The UI's Effects & Music page shows the names.
+
+Measured (Release, owner's 168 LEDs, file driver to the null device, no clients, smoothing off as the owner has it):
+"Rainbow swirl fast" at its full 52.6 steps/s 0.62 % of one core; music mode (pulse, default output in loopback while
+music played, 21.5 blocks/s) 0.16 %.
 
 ## LED drivers and discovery
 
@@ -308,7 +406,8 @@ Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): r
 | `componentstate` ALL, SMOOTHING, BLACKBORDER, SYSTEMGRABBER, LEDDEVICE | done |
 | `color`, `clear`, `clearall`, `sourceselect` | done (see [Sources and priorities](#sources-and-priorities)) |
 | `adjustment`, `ledcolors` ledstream-start/stop, `leddevice` identify/discover/getProperties, `logging`, `instance` switchTo | done |
-| `effect`, `image`, imagestream | not yet ("Command not implemented"; effects come with port step 5b) |
+| `effect` (`priority` 1..253, `effect.name`, `duration`, `origin`) | done (see [Effects](#effects)); `effect.args`, `pythonScript` and `imageData` are rejected (C++ rejected arguments too) |
+| `image`, imagestream | not yet ("Command not implemented") |
 
 Deliberate differences from the C++ backend (its bug backlog):
 
@@ -421,7 +520,7 @@ difference) up to 20 per failure.
 | `blackborder/cpp-detector.json` | `BlackBorderDetector` | `BlackBorderGoldenTests` | 15 pictures x 3 sizes x 3 thresholds x 4 modes |
 | `hdr/` | `DefaultLut`, `LutLoader`, `decodeBGRA` | `HdrGoldenTests` (Capture.Tests), `ScalerTests` (GPU) | default table (MD5, grid, grays) and the CPU path match exactly; the GPU LUT path matches exactly without scaling and within 1 level of the mean of the looked-up block colors with scaling (the C++ code point-sampled) |
 | `smoothing/` | the 6 interpolators (`Infinite*Interpolator`), injected time line | `SmoothingGoldenTests` | owner's settings with each type plus 4 variations (smoothing factor, y_limit, stiffness/damping, 25 Hz); frames at 60 Hz, ticks at the update interval, completion flag and colors match exactly |
-| `effects/` | the 10 kept effects | `EffectsGoldenTests` (smoke) | port step 5 |
+| `effects/` `{ name, smoothing*, seed, ledCount, gridSize, latchTime, frames: [{ frame, sleepTime, leds \| color \| image }] }` or `{ ..., blocks: [{ audio, frames }] }` | the 10 kept effects, stepped like `Effect::run`; music effects through `SoundCapture::analyzeSpectrum` | `EffectsGoldenTests` | LED colors, pictures (zlib RGB) and step times match byte for byte; Candle and Full color mood blobs with the MSVC `rand()` sequence after seed 42 |
 | `rgbw/` | `RGBW::rgb2rgbw`, `InfiniteColorEngineRgbw` | `RgbwGoldenTests` (Devices.Tests) | every algorithm and the 4 dithering setups match byte for byte |
 
 `settings/owner-hyperhdr-v22.db` is the owner's HyperHDR v22 database, sanitized: admin password, salt and session
@@ -432,8 +531,7 @@ color, smoothing, effects, capture, removed-feature records) is as the owner had
 Tolerance is 0 for every exported fixture: the mapping sums integers and does the same float conversion and divisions
 as C++, and the color pipeline builds the same float tables (`powf` of the same C runtime) and runs the same float
 operations in the same order (no FMA contraction on either side). Hand-written fixtures (`hand-*.json`) state their own
-tolerance. The areas marked smoke only check that the fixtures load and that their inputs can be rebuilt; their
-comparison tests are skipped until the port step named in the skip reason.
+tolerance.
 
 ## Known gaps and next steps
 
@@ -442,12 +540,10 @@ comparison tests are skipped until the port step named in the skip reason.
   the red target. Ported as is; worth checking on the hardware before choosing one behavior.
 - `ColorAdjustment.FromJson` gives missing calibration colors their ideal value; the C++ code reads them as black. The
   settings schema always stores all of them, so it only matters for hand-made settings.
->>>
-
-- Effects and music mode (port step 5b): they register with `LightingEngine.Sources` (an `ILightSource` renderer and a
-  smoothing configuration from `AddSmoothingConfig`) and add their component to `Components.All`.
-- The screen source stays active while `SYSTEMGRABBER` is on; HyperHDR marked it inactive after 800 ms without
-  frames, which let a lower priority (a background effect) show. Comes with effects, which need it.
+- Effects: an active screen hidden behind a higher source (the startup effect, an effect from the UI) isn't watched,
+  so if capture stops meanwhile it goes inactive only 800 ms after it is visible again (HyperHDR kept capturing). Music
+  mode follows a new default output within 2 s by polling (no `IMMNotificationClient`); the WASAPI capture runs on
+  Windows only (macOS/Linux get no sound, music effects stay dark). Effect arguments (`effect.args`) aren't supported.
 - The Hybrid and HybridRgb interpolators never report a finished transition while a target channel is below the
   minimal backlight (black, or any fully saturated color), so smoothing keeps sending at the update frequency even
   without `continuousOutput` (C++ behavior, confirmed by the fixtures; costs ~0.5 % of one core). Worth fixing once

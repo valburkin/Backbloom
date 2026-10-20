@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Windows sound capture for music mode: WASAPI loopback ("what you hear") and recording devices (TerraFX interop).</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Overglow.Audio\Overglow.Audio.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="TerraFX.Interop.Windows" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Overglow.Audio.Tests" />
+  </ItemGroup>
+</Project>

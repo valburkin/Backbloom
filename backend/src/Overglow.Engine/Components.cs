@@ -22,9 +22,8 @@ public enum Component
 public static class Components
 {
     /// <summary>
-    /// Every switchable component in the order <c>serverinfo.components</c> lists them (HyperHDR's). Effects and music
-    /// mode (port step 5b) add theirs here and react to <see cref="ComponentStates.Changed"/>; the
-    /// <c>componentstate</c> command handles every member.
+    /// Every switchable component in the order <c>serverinfo.components</c> lists them (HyperHDR's; effects had no
+    /// switch there either). The <c>componentstate</c> command handles every member.
     /// </summary>
     public static IReadOnlyList<Component> All { get; } = [Component.All, Component.Smoothing, Component.BlackBorder, Component.SystemGrabber, Component.LedDevice];
 

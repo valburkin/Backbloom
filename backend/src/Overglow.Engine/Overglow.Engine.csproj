@@ -1,11 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Orchestration: the frame pipeline, component states and LED devices, driven by the settings.</Description>
+    <Description>Orchestration: the frame pipeline, component states, effects and LED devices, driven by the settings.</Description>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Overglow.Core\Overglow.Core.csproj" />
+    <ProjectReference Include="..\Overglow.Audio\Overglow.Audio.csproj" />
     <ProjectReference Include="..\Overglow.Capture\Overglow.Capture.csproj" />
     <ProjectReference Include="..\Overglow.Devices\Overglow.Devices.csproj" />
     <ProjectReference Include="..\Overglow.Settings\Overglow.Settings.csproj" />

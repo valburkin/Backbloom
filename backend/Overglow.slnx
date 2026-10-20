@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Overglow.App/Overglow.App.csproj" />
+    <Project Path="src/Overglow.Audio/Overglow.Audio.csproj" />
+    <Project Path="src/Overglow.Audio.Windows/Overglow.Audio.Windows.csproj" />
     <Project Path="src/Overglow.Capture/Overglow.Capture.csproj" />
     <Project Path="src/Overglow.Capture.Windows/Overglow.Capture.Windows.csproj" />
     <Project Path="src/Overglow.Core/Overglow.Core.csproj" />
@@ -13,6 +15,7 @@
     <Project Path="src/Overglow.Settings/Overglow.Settings.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Overglow.Audio.Tests/Overglow.Audio.Tests.csproj" />
     <Project Path="tests/Overglow.Capture.Tests/Overglow.Capture.Tests.csproj" />
     <Project Path="tests/Overglow.Capture.Windows.Tests/Overglow.Capture.Windows.Tests.csproj" />
     <Project Path="tests/Overglow.Core.Tests/Overglow.Core.Tests.csproj" />
