@@ -117,7 +117,7 @@ public sealed class AdjustmentCommand(ISettingsStore settings) : IRpcCommand
     }
 }
 
-/// <summary><c>componentstate</c>: switches ALL, SYSTEMGRABBER or LEDDEVICE.</summary>
+/// <summary><c>componentstate</c>: switches ALL, SMOOTHING, BLACKBORDER, SYSTEMGRABBER or LEDDEVICE.</summary>
 public sealed class ComponentStateCommand(LightingEngine engine) : IRpcCommand
 {
     public string Name => "componentstate";

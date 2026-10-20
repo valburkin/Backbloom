@@ -157,7 +157,8 @@ public sealed class JsonRpcTests
         var info = reply["info"]!;
 
         Assert.Equal("serverinfo", reply["command"]!.GetValue<string>());
-        Assert.Equal(["ALL", "SYSTEMGRABBER", "LEDDEVICE"], info["components"]!.AsArray().Select(c => c!["name"]!.GetValue<string>()));
+        Assert.Equal(["ALL", "SMOOTHING", "BLACKBORDER", "SYSTEMGRABBER", "LEDDEVICE"], info["components"]!.AsArray().Select(c => c!["name"]!.GetValue<string>()));
+        Assert.True(info["priorities_autoselect"]!.GetValue<bool>());
         Assert.Equal("SYSTEMGRABBER", info["priorities"]![0]!["componentId"]!.GetValue<string>());
         Assert.True(info["priorities"]![0]!["visible"]!.GetValue<bool>());
         Assert.Equal(["ddp", "wled", "file"], info["ledDevices"]!["available"]!.AsArray().Select(d => d!["name"]!.GetValue<string>()));
@@ -167,8 +168,19 @@ public sealed class JsonRpcTests
         Assert.Equal(0, info["currentInstance"]!.GetValue<int>());
         Assert.True(info["instance"]![0]!["running"]!.GetValue<bool>());
 
-        var performance = client.NextEvent("performance-update");
-        Assert.Contains(performance["data"]!["broadcast"]!.AsArray(), r => r!["type"]!.GetValue<int>() == 2);
+        var performance = client.NextEvent("performance-update")["data"]!["broadcast"]!.AsArray();
+        Assert.Contains(performance, r => r!["type"]!.GetValue<int>() == 2);
+        if (OperatingSystem.IsWindows())
+        {
+            // the whole computer, as the UI's tiles say
+            var ram = JsonNode.Parse(performance.Single(r => r!["type"]!.GetValue<int>() == 5)!["name"]!.GetValue<string>())!;
+            Assert.True(ram["takenMem"]!.GetValue<long>() > 100);
+            Assert.True(ram["totalPhysMem"]!.GetValue<long>() >= ram["takenMem"]!.GetValue<long>());
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            var later = server.Services.GetRequiredService<Diagnostics.PerformanceMonitor>().Report()["broadcast"]!.AsArray();
+            var cpu = JsonNode.Parse(later.Single(r => r!["type"]!.GetValue<int>() == 4)!["name"]!.GetValue<string>())!["total"]!.GetValue<double>();
+            Assert.InRange(cpu, 0, 100);
+        }
 
         var sys = (await client.CallAsync("sysinfo"))["info"]!;
         Assert.False(string.IsNullOrEmpty(sys["overglow"]!["version"]!.GetValue<string>()));
@@ -226,6 +238,16 @@ public sealed class JsonRpcTests
         Assert.True(Success(await client.CallAsync("componentstate", parameters: Obj("""{ "componentstate": { "component": "ALL", "state": false } }"""))));
 
         Assert.True(Success(await client.CallAsync("config", "setconfig", Obj("""{ "config": { "logger": { "level": "warn" } } }"""))));
+        Assert.True(Success(await client.CallAsync("componentstate", parameters: Obj("""{ "componentstate": { "component": "LEDDEVICE", "state": false } }"""))));
+        var config = (await client.CallAsync("config", "getconfig"))["info"]!.AsObject();
+        var smoothing = config["smoothing"]!.AsObject();
+        smoothing["time_ms"] = 300;
+        var device = config["device"]!.AsObject();
+        device["colorOrder"] = "grb";
+        var saved = await client.CallAsync("config", "setconfig", new JsonObject { ["config"] = new JsonObject { ["smoothing"] = smoothing.DeepClone(), ["device"] = device.DeepClone() } });
+        Assert.True(Success(saved), Error(saved));
+        var stored = (await client.CallAsync("config", "getconfig"))["info"]!;
+        Assert.Equal((300, "grb"), (stored["smoothing"]!["time_ms"]!.GetValue<int>(), stored["device"]!["colorOrder"]!.GetValue<string>()));
     }
 
     [Fact]
@@ -267,7 +289,83 @@ public sealed class JsonRpcTests
         var update = client.NextEvent("components-update")["data"]!;
         Assert.Equal(("SYSTEMGRABBER", false), (update["name"]!.GetValue<string>(), update["enabled"]!.GetValue<bool>()));
         Assert.Empty(client.NextEvent("priorities-update")["data"]!["priorities"]!.AsArray());
-        Assert.Contains("isn't available", Error(await client.CallAsync("componentstate", parameters: Obj("""{ "componentstate": { "component": "SMOOTHING", "state": true } }"""))), StringComparison.Ordinal);
+        Assert.Contains("isn't available", Error(await client.CallAsync("componentstate", parameters: Obj("""{ "componentstate": { "component": "HDR", "state": true } }"""))), StringComparison.Ordinal);
+
+        foreach (var name in new[] { "SMOOTHING", "BLACKBORDER" })
+        {
+            var on = name == "BLACKBORDER";
+            Assert.True(Success(await client.CallAsync("componentstate", parameters: Obj($$"""{ "componentstate": { "component": "{{name}}", "state": {{(on ? "true" : "false")}} } }"""))));
+            var changed = client.NextEvent("components-update")["data"]!;
+            Assert.Equal((name, on), (changed["name"]!.GetValue<string>(), changed["enabled"]!.GetValue<bool>()));
+        }
+
+        var components = (await client.CallAsync("serverinfo"))["info"]!["components"]!.AsArray();
+        Assert.False(components.Single(c => c!["name"]!.GetValue<string>() == "SMOOTHING")!["enabled"]!.GetValue<bool>());
+        Assert.True(components.Single(c => c!["name"]!.GetValue<string>() == "BLACKBORDER")!["enabled"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task Color_ClearAndSourceSelect_DriveThePriorities()
+    {
+        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var client = await server.ConnectAsync();
+        await client.CallAsync("serverinfo", parameters: Obj("""{ "subscribe": ["priorities-update"] }"""));
+
+        var color = await client.CallAsync("color", parameters: Obj("""{ "priority": 1, "color": [255, 0, 0], "duration": 60000, "origin": "Overglow UI" }"""));
+        Assert.True(Success(color), Error(color));
+        var priorities = client.NextEvent("priorities-update")["data"]!["priorities"]!.AsArray();
+        var visible = priorities[0]!;
+        Assert.Equal((1, "COLOR", true), (visible["priority"]!.GetValue<int>(), visible["componentId"]!.GetValue<string>(), visible["visible"]!.GetValue<bool>()));
+        Assert.Equal([255, 0, 0], visible["value"]!["RGB"]!.AsArray().Select(v => v!.GetValue<int>()));
+        Assert.Equal([0.0, 1.0, 0.5], visible["value"]!["HSL"]!.AsArray().Select(v => v!.GetValue<double>()));
+        Assert.StartsWith("Overglow UI@", visible["origin"]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.InRange(visible["duration_ms"]!.GetValue<long>(), 50_000, 60_000);
+        Assert.Equal("SYSTEMGRABBER", priorities[1]!["componentId"]!.GetValue<string>());
+        var preview = new byte[3];
+        var engine = server.Services.GetRequiredService<Engine.LightingEngine>();
+        await WaitUntilAsync(() => engine.LedColors.CopyLatest(preview) == 3 && preview[0] == 255 && preview[1] < 5);
+
+        // manual selection of the screen, then back to automatic
+        Assert.True(Success(await client.CallAsync("sourceselect", parameters: Obj("""{ "priority": 245 }"""))));
+        var info = (await client.CallAsync("serverinfo"))["info"]!;
+        Assert.False(info["priorities_autoselect"]!.GetValue<bool>());
+        Assert.Equal(245, info["priorities"]![0]!["priority"]!.GetValue<int>());
+        Assert.False(Success(await client.CallAsync("sourceselect", parameters: Obj("""{ "priority": 7 }"""))));
+        Assert.True(Success(await client.CallAsync("sourceselect", parameters: Obj("""{ "auto": true }"""))));
+        Assert.Equal(1, (await client.CallAsync("serverinfo"))["info"]!["priorities"]![0]!["priority"]!.GetValue<int>());
+
+        Assert.Equal("Priority 254 is not allowed to be cleared", Error(await client.CallAsync("clear", parameters: Obj("""{ "priority": 254 }"""))));
+        Assert.False(Success(await client.CallAsync("color", parameters: Obj("""{ "priority": 0, "color": [1, 2, 3] }"""))));
+        Assert.True(Success(await client.CallAsync("clear", parameters: Obj("""{ "priority": 1 }"""))));
+        info = (await client.CallAsync("serverinfo"))["info"]!;
+        Assert.Equal("SYSTEMGRABBER", Assert.Single(info["priorities"]!.AsArray())!["componentId"]!.GetValue<string>());
+        Assert.Empty(info["activeLedColor"]!.AsArray());
+    }
+
+    [Fact]
+    public async Task Color_ExpiresAfterItsDuration()
+    {
+        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var client = await server.ConnectAsync();
+
+        Assert.True(Success(await client.CallAsync("color", parameters: Obj("""{ "priority": 2, "color": [0, 0, 255], "duration": 300 }"""))));
+        var info = (await client.CallAsync("serverinfo"))["info"]!;
+        Assert.Equal(2, info["priorities"]![0]!["priority"]!.GetValue<int>());
+        Assert.Equal([0, 0, 255], info["activeLedColor"]![0]!["RGB Value"]!.AsArray().Select(v => v!.GetValue<int>()));
+        await WaitUntilAsync(async () => (await client.CallAsync("serverinfo"))["info"]!["priorities"]!.AsArray().Count == 1);
+        Assert.True(Success(await client.CallAsync("clearall")));
+    }
+
+    private static Task WaitUntilAsync(Func<bool> condition) => WaitUntilAsync(() => Task.FromResult(condition()));
+
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!await condition())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "Timed out.");
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+        }
     }
 
     [Fact]

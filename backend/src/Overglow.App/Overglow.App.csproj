@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Overglow.Capture.Windows\Overglow.Capture.Windows.csproj" />
+    <ProjectReference Include="..\Overglow.Platform.Windows\Overglow.Platform.Windows.csproj" />
     <ProjectReference Include="..\Overglow.Server\Overglow.Server.csproj" />
   </ItemGroup>
 </Project>

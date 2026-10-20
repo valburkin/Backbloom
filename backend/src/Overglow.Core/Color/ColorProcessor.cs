@@ -134,6 +134,12 @@ public sealed class ColorProcessor
     public ColorAdjustment Adjustment { get; }
 
     /// <summary>
+    /// The minimal brightness the LEDs keep (0 when off), also when processing is disabled; smoothing keeps its
+    /// colors above it (C++ <c>getMinimalBacklight</c>).
+    /// </summary>
+    public float MinimalBacklight => _hasBacklight ? _minimalBacklight : 0.0f;
+
+    /// <summary>
     /// Processes colors in place: input is linear light 0..1, output is nonlinear 0..1 ready to be quantized.
     /// Port of <c>InfiniteProcessing::applyyAllProcessingSteps</c>.
     /// </summary>

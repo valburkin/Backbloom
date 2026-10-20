@@ -129,7 +129,12 @@ public sealed class BlackBorderProcessorTests
     public void Processing_DoesNotAllocatePerFrame()
     {
         var processor = new BlackBorderProcessor(BlackBorderOptions.Default);
-        processor.Process(s_letterbox6);
+        // Warm up past tiered-JIT promotion so recompilation cannot allocate inside the measured window.
+        for (var i = 0; i < 100; i++)
+        {
+            processor.Process((i % 3 == 0) ? s_letterbox3 : s_letterbox6);
+        }
+
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 100; i++)
         {

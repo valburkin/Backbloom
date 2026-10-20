@@ -7,11 +7,52 @@ using Overglow.Core.Color;
 using Overglow.Core.Imaging;
 using Overglow.Core.Layout;
 using Overglow.Core.Mapping;
+using Overglow.Core.Priorities;
+using Overglow.Core.Smoothing;
 using Overglow.Devices;
+using Overglow.Engine.Platform;
 using Overglow.Settings;
 using Overglow.Settings.Storage;
 
 namespace Overglow.Engine.Tests;
+
+/// <summary>Green picture with black bars of a sixth of the height at the top and the bottom.</summary>
+internal sealed class LetterboxSource : IFrameSource
+{
+    public string Name => "Letterbox";
+
+    public string Device => "test";
+
+    public (int Width, int Height) FrameSize => (64, 36);
+
+    public bool TryCapture(Frame frame, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.WaitHandle.WaitOne(5))
+        {
+            return false;
+        }
+
+        var px = frame.Pixels;
+        for (var y = 0; y < frame.Height; y++)
+        {
+            var bar = y < 6 || y >= frame.Height - 6;
+            for (var x = 0; x < frame.Width; x++)
+            {
+                var o = (y * frame.Stride) + (x * 4);
+                px[o] = 0;
+                px[o + 1] = bar ? (byte)0 : (byte)255;
+                px[o + 2] = 0;
+                px[o + 3] = 255;
+            }
+        }
+
+        return true;
+    }
+
+    public void Dispose()
+    {
+    }
+}
 
 /// <summary>A frame source that fills every frame with one color, as fast as asked.</summary>
 internal sealed class SolidSource(byte r, byte g, byte b, int width = 64, int height = 36) : IFrameSource
@@ -88,8 +129,10 @@ public sealed class EngineTests : IDisposable
         }
     }
 
-    [Fact]
-    public void Pipeline_SteadyStateDoesNotAllocate()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Pipeline_SteadyStateDoesNotAllocate(bool smoothing)
     {
         var registry = Registry();
         using var devices = Devices(registry);
@@ -97,29 +140,43 @@ public sealed class EngineTests : IDisposable
         devices.SetEnabled(true);
         var layout = LedLayout.FromJson(JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "layouts", "owner-168.json"))));
         var config = new PipelineConfig(new LedMappingOptions(layout), new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.8f }));
+        var clock = new ManualClock();
+        using var output = new OutputStage(devices, new LedColorsFeed(), clock, NullLogger<OutputStage>.Instance);
+        output.Configure(SmoothingSettings.FromJson(JsonNode.Parse($$"""{ "enable": {{(smoothing ? "true" : "false")}}, "type": "HybridInterpolator", "updateFrequency": 50, "continuousOutput": true }""")));
+        var screen = new VisibleSource(245, SourceComponent.SystemGrabber, Rgb8.Black, null, 0, 1);
         using var pipeline = new LightingPipeline(
             new SyntheticFrameSource(new SyntheticFrameSourceOptions(FramesPerSecond: 100_000)),
             new ComponentStates(),
-            devices,
-            new LedColorsFeed(),
+            () => screen,
+            output,
             config,
             NullLogger<LightingPipeline>.Instance);
         Frame? frame = null;
         var colors = Array.Empty<Vector3>();
+        var token = TestContext.Current.CancellationToken;
+        var sent = 0;
+        void Step()
+        {
+            pipeline.RunOnce(ref frame, ref colors, token);
+            clock.Advance(20);
+            sent += output.Tick(clock.NowMilliseconds) ? 1 : 0;
+        }
+
         for (var i = 0; i < 5; i++)
         {
-            pipeline.RunOnce(ref frame, ref colors, TestContext.Current.CancellationToken);
+            Step();
         }
 
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 500; i++)
         {
-            pipeline.RunOnce(ref frame, ref colors, TestContext.Current.CancellationToken);
+            Step();
         }
 
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Equal(0, allocated);
         Assert.Equal(505, pipeline.FrameCount);
+        Assert.Equal(smoothing ? 505 : 0, sent);
     }
 
     [Fact]
@@ -134,7 +191,7 @@ public sealed class EngineTests : IDisposable
             """)!.AsObject());
         Assert.True(result.Success, string.Join("; ", result.Errors));
 
-        using (var engine = new LightingEngine(store, new SolidSource(255, 0, 0), Devices(registry), NullLoggerFactory.Instance))
+        using (var engine = new LightingEngine(store, new SolidSource(255, 0, 0), Devices(registry), new SystemClock(), NullLoggerFactory.Instance))
         {
             engine.Start();
             WaitUntil(() => FirstDevice(engine)?.Stats.Written > 3);
@@ -154,7 +211,7 @@ public sealed class EngineTests : IDisposable
     {
         var registry = Registry();
         var store = Store(registry);
-        using var engine = new LightingEngine(store, new SolidSource(10, 20, 30), Devices(registry), NullLoggerFactory.Instance);
+        using var engine = new LightingEngine(store, new SolidSource(10, 20, 30), Devices(registry), new SystemClock(), NullLoggerFactory.Instance);
         engine.Start();
         JsonArray? adjustment = null;
         JsonArray? leds = null;
@@ -178,11 +235,68 @@ public sealed class EngineTests : IDisposable
     }
 
     [Fact]
+    public void Engine_BlackBorderDetectionFollowsTheSettingAndTheComponent()
+    {
+        var registry = Registry();
+        var store = Store(registry);
+        Assert.True(store.Update(JsonNode.Parse("""
+            { "leds": [{ "hmin": 0, "hmax": 1, "vmin": 0, "vmax": 0.1 }],
+              "blackborderdetector": { "enable": true, "threshold": 5, "unknownFrameCnt": 600, "borderFrameCnt": 5, "maxInconsistentCnt": 2, "blurRemoveCnt": 1, "mode": "default" } }
+            """)!.AsObject()).Success);
+        using var engine = new LightingEngine(store, new LetterboxSource(), Devices(registry), new SystemClock(), NullLoggerFactory.Instance);
+        Assert.True(engine.Components.IsOn(Component.BlackBorder));
+        engine.Start();
+        var preview = new byte[3];
+
+        // the top LED sees the picture inside the bars
+        WaitUntil(() => engine.LedColors.CopyLatest(preview) == 3 && preview[1] > 200);
+
+        engine.Components.Set(Component.BlackBorder, false);
+        WaitUntil(() => engine.LedColors.CopyLatest(preview) == 3 && preview[1] < 5);
+    }
+
+    [Fact]
+    public void Engine_SmoothsAStaticColorChangeAtTheUpdateFrequency()
+    {
+        var registry = Registry();
+        var store = Store(registry);
+        var output = Path.Combine(_dir, "smooth.txt");
+        Assert.True(store.Update(JsonNode.Parse($$"""
+            { "leds": [{ "hmin": 0, "hmax": 1, "vmin": 0, "vmax": 1 }],
+              "device": { "type": "file", "output": {{JsonValue.Create(output).ToJsonString()}}, "printTimeStamp": false },
+              "smoothing": { "enable": true, "type": "RgbInterpolator", "time_ms": 400, "updateFrequency": 50, "smoothingFactor": 0, "stiffness": 150, "damping": 26, "y_limit": 0, "antiFlickeringFilter": false, "continuousOutput": false } }
+            """)!.AsObject()).Success);
+        using (var engine = new LightingEngine(store, new SolidSource(0, 0, 0), Devices(registry), new SystemClock(), NullLoggerFactory.Instance))
+        {
+            Assert.True(engine.Components.IsOn(Component.Smoothing));
+            engine.Start();
+            WaitUntil(() => FirstDevice(engine)?.State == DeviceState.Ready);
+
+            // a smoothing restart forgets the colors: the static color is drawn again, so the next step still fades
+            engine.SetColor(1, new Rgb8(0, 0, 0), 0, "test");
+            Thread.Sleep(300);
+            var smoothing = store.GetSection("smoothing")!.AsObject();
+            smoothing["type"] = "Stepper";
+            Assert.True(store.Update(new JsonObject { ["smoothing"] = smoothing.DeepClone() }).Success);
+            Thread.Sleep(300);
+            engine.SetColor(1, new Rgb8(255, 255, 255), 0, "test");
+            Assert.Equal("COLOR", engine.Priorities[0].ComponentId);
+            var preview = new byte[3];
+            WaitUntil(() => engine.LedColors.CopyLatest(preview) == 3 && preview[0] == 255);
+            Assert.InRange(engine.SmoothingTicks, 10, 40);
+        }
+
+        // the controller got the transition, not a jump
+        var reds = File.ReadAllLines(output).Select(l => l.Trim(' ', '[', ']', '{', '}').Split(',')[0]).Where(v => v.Length > 0).Select(int.Parse).ToList();
+        Assert.Contains(reds, r => r is > 20 and < 235);
+    }
+
+    [Fact]
     public void Engine_ComponentsSwitchTheSourceAndTheDevices()
     {
         var registry = Registry();
         var store = Store(registry);
-        using var engine = new LightingEngine(store, new SolidSource(255, 255, 255), Devices(registry), NullLoggerFactory.Instance);
+        using var engine = new LightingEngine(store, new SolidSource(255, 255, 255), Devices(registry), new SystemClock(), NullLoggerFactory.Instance);
         engine.Start();
         var prioritiesChanged = 0;
         engine.PrioritiesChanged += () => prioritiesChanged++;

@@ -11,17 +11,30 @@ public enum Component
 
     /// <summary>"LEDDEVICE": output to the controllers.</summary>
     LedDevice,
+
+    /// <summary>"SMOOTHING": smoothing of the LED colors (initially the <c>smoothing.enable</c> setting).</summary>
+    Smoothing,
+
+    /// <summary>"BLACKBORDER": black border detection (initially the <c>blackborderdetector.enable</c> setting).</summary>
+    BlackBorder,
 }
 
 public static class Components
 {
-    public static IReadOnlyList<Component> All { get; } = [Component.All, Component.SystemGrabber, Component.LedDevice];
+    /// <summary>
+    /// Every switchable component in the order <c>serverinfo.components</c> lists them (HyperHDR's). Effects and music
+    /// mode (port step 5b) add theirs here and react to <see cref="ComponentStates.Changed"/>; the
+    /// <c>componentstate</c> command handles every member.
+    /// </summary>
+    public static IReadOnlyList<Component> All { get; } = [Component.All, Component.Smoothing, Component.BlackBorder, Component.SystemGrabber, Component.LedDevice];
 
     public static string ToId(this Component component) => component switch
     {
         Component.All => "ALL",
         Component.SystemGrabber => "SYSTEMGRABBER",
         Component.LedDevice => "LEDDEVICE",
+        Component.Smoothing => "SMOOTHING",
+        Component.BlackBorder => "BLACKBORDER",
         _ => throw new ArgumentOutOfRangeException(nameof(component)),
     };
 
@@ -39,6 +52,12 @@ public static class Components
             case "LEDDEVICE":
                 component = Component.LedDevice;
                 return true;
+            case "SMOOTHING":
+                component = Component.Smoothing;
+                return true;
+            case "BLACKBORDER":
+                component = Component.BlackBorder;
+                return true;
             default:
                 component = default;
                 return false;
@@ -51,12 +70,14 @@ public sealed class ComponentStates
 {
     private readonly bool[] _states;
 
-    public ComponentStates(bool ledDeviceOn = true)
+    public ComponentStates(bool ledDeviceOn = true, bool smoothingOn = false, bool blackBorderOn = false)
     {
         _states = new bool[Components.All.Count];
         _states[(int)Component.All] = true;
         _states[(int)Component.SystemGrabber] = true;
         _states[(int)Component.LedDevice] = ledDeviceOn;
+        _states[(int)Component.Smoothing] = smoothingOn;
+        _states[(int)Component.BlackBorder] = blackBorderOn;
     }
 
     /// <summary>Raised after a component changed (on the thread that changed it).</summary>

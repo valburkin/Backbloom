@@ -6,6 +6,7 @@
     <Project Path="src/Overglow.Core/Overglow.Core.csproj" />
     <Project Path="src/Overglow.Devices/Overglow.Devices.csproj" />
     <Project Path="src/Overglow.Engine/Overglow.Engine.csproj" />
+    <Project Path="src/Overglow.Platform.Windows/Overglow.Platform.Windows.csproj" />
     <Project Path="src/Overglow.Server/Overglow.Server.csproj" />
     <Project Path="src/Overglow.Settings/Overglow.Settings.csproj" />
   </Folder>

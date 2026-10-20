@@ -43,8 +43,12 @@ public sealed partial class DeviceManager : IDisposable
     /// Replaces the controllers with the ones described by <paramref name="device"/> (the <c>device</c> section) for
     /// <paramref name="ledCount"/> LEDs. The old controllers are switched off first.
     /// </summary>
-    public void Configure(JsonObject? device, int ledCount)
+    public void Configure(JsonObject? device, int ledCount) => Configure([device], ledCount);
+
+    /// <summary>Replaces the controllers with one per entry of <paramref name="devices"/>, all fed the same frames.</summary>
+    public void Configure(IReadOnlyList<JsonObject?> devices, int ledCount)
     {
+        ArgumentNullException.ThrowIfNull(devices);
         lock (_lock)
         {
             var old = _runners;
@@ -54,14 +58,20 @@ public sealed partial class DeviceManager : IDisposable
                 runner.Dispose();
             }
 
-            var created = Create(device, ledCount);
-            if (created is not null)
+            var list = new List<LedDeviceRunner>();
+            foreach (var device in devices)
             {
-                created.StateChanged += (r, _) => DeviceChanged?.Invoke(Describe(r));
-                created.Start();
-                created.SetEnabled(_enabled);
-                _runners = [created];
+                var created = Create(device, ledCount);
+                if (created is not null)
+                {
+                    created.StateChanged += (r, _) => DeviceChanged?.Invoke(Describe(r));
+                    created.Start();
+                    created.SetEnabled(_enabled);
+                    list.Add(created);
+                }
             }
+
+            _runners = [.. list];
         }
     }
 

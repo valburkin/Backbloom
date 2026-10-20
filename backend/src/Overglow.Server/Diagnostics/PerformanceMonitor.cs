@@ -2,15 +2,16 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json.Nodes;
 using Overglow.Engine;
+using Overglow.Engine.Platform;
 
 namespace Overglow.Server.Diagnostics;
 
 /// <summary>
 /// Builds <c>performance-update</c> reports in HyperHDR's PerformanceReport format: frame loop rate (type 2), LED
-/// device rate and drops (type 3), CPU (type 4) and memory (type 5). CPU and memory are this process's share of the
-/// machine (HyperHDR reported machine-wide load, which needs platform code that comes with the platform projects).
+/// device rate and drops (type 3), CPU (type 4) and memory (type 5). CPU and memory are the whole computer's, as in
+/// HyperHDR (SystemPerformanceCounters), from the platform's <see cref="ISystemMetrics"/>.
 /// </summary>
-public sealed class PerformanceMonitor(LightingEngine engine)
+public sealed class PerformanceMonitor(LightingEngine engine, ISystemMetrics metrics)
 {
     private const int InstanceReport = 2;
     private const int LedReport = 3;
@@ -21,34 +22,30 @@ public sealed class PerformanceMonitor(LightingEngine engine)
     private readonly Lock _lock = new();
     private long _lastTicks = Stopwatch.GetTimestamp();
     private long _lastFrames = engine.FrameCount;
-    private TimeSpan _lastCpu = Process.GetCurrentProcess().TotalProcessorTime;
     private long _lastDropped;
     private long _lastWritten;
 
     /// <summary>Reports since the previous call: <c>{ broadcast: [...] }</c>.</summary>
     public JsonObject Report()
     {
-        double seconds, fps, cpuPercent, ledFps;
-        long dropped, workingSet;
+        double fps, ledFps;
+        long dropped;
+        SystemLoad load;
         var devices = engine.Devices;
         var totalDropped = devices.Sum(d => d.Stats.Dropped);
         var totalWritten = devices.Sum(d => d.Stats.Written);
         lock (_lock)
         {
             var now = Stopwatch.GetTimestamp();
-            seconds = Math.Max(Stopwatch.GetElapsedTime(_lastTicks, now).TotalSeconds, 0.001);
+            var seconds = Math.Max(Stopwatch.GetElapsedTime(_lastTicks, now).TotalSeconds, 0.001);
             var frames = engine.FrameCount;
             fps = (frames - _lastFrames) / seconds;
-            using var process = Process.GetCurrentProcess();
-            var cpu = process.TotalProcessorTime;
-            workingSet = process.WorkingSet64;
-            cpuPercent = (cpu - _lastCpu).TotalSeconds / seconds / Environment.ProcessorCount * 100;
             dropped = totalDropped - _lastDropped;
             ledFps = (totalWritten - _lastWritten) / seconds;
+            load = metrics.Sample();
             _lastTicks = now;
             _lastWritten = totalWritten;
             _lastFrames = frames;
-            _lastCpu = cpu;
             _lastDropped = totalDropped;
         }
 
@@ -61,16 +58,20 @@ public sealed class PerformanceMonitor(LightingEngine engine)
             reports.Add(Report(LedReport, i, name, i == 0 ? ledFps : -1, d.Stats.Written, d.Stats.Submitted, i == 0 ? dropped : 0, token: 1));
         }
 
-        reports.Add(Report(CpuReport, -1, new JsonObject { ["cores"] = new JsonArray(), ["total"] = Math.Round(cpuPercent, 1) }.ToJsonString(), 0, 0, 0, 0, token: 0));
-        var total = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / BytesPerMegabyte;
-        var taken = workingSet / BytesPerMegabyte;
-        var ram = new JsonObject
+        if (load.CpuPercent is { } cpu)
         {
-            ["aspect"] = total > 0 ? (int)Math.Round(100 * taken / total) : 0,
-            ["takenMem"] = (long)taken,
-            ["totalPhysMem"] = (long)total,
-        };
-        reports.Add(Report(RamReport, -1, ram.ToJsonString(), 0, 0, 0, 0, token: 0));
+            reports.Add(Report(CpuReport, -1, new JsonObject { ["cores"] = new JsonArray(), ["total"] = Math.Round(cpu, 1) }.ToJsonString(), 0, 0, 0, 0, token: 0));
+        }
+
+        if (load is { UsedMemoryBytes: { } used, TotalMemoryBytes: { } physical } && physical > 0)
+        {
+            // megabytes and a whole percentage, as HyperHDR
+            var taken = (long)(used / BytesPerMegabyte);
+            var total = (long)(physical / BytesPerMegabyte);
+            var ram = new JsonObject { ["aspect"] = taken * 100 / Math.Max(total, 1), ["takenMem"] = taken, ["totalPhysMem"] = total };
+            reports.Add(Report(RamReport, -1, ram.ToJsonString(), 0, 0, 0, 0, token: 0));
+        }
+
         return new JsonObject { ["broadcast"] = reports };
     }
 

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Overglow.Core.Borders;
 using Overglow.Core.Imaging;
 using Overglow.Core.Layout;
 
@@ -20,15 +21,23 @@ public sealed class LedMapper
     public event Action<ImageToLedMap>? MapRebuilt;
 
     /// <summary>Averages <paramref name="frame"/> into <paramref name="ledColors"/> (one linear color per LED).</summary>
-    public void Process(Frame frame, LedMappingOptions options, Span<Vector3> ledColors)
+    /// <param name="border">
+    /// The black border to leave out (the LED areas are spread over the rest of the picture); unknown means none, and
+    /// so does a border that leaves no picture.
+    /// </param>
+    public void Process(Frame frame, LedMappingOptions options, Span<Vector3> ledColors, BlackBorder border = default)
     {
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(options);
+        var (horizontal, vertical) = border.IsUnknown || 2 * border.HorizontalSize >= frame.Height || 2 * border.VerticalSize >= frame.Width
+            ? (0, 0)
+            : (Math.Max(border.HorizontalSize, 0), Math.Max(border.VerticalSize, 0));
         var map = _map;
         if (map is null || map.Width != frame.Width || map.Height != frame.Height || !ReferenceEquals(map.Layout, options.Layout) ||
-            map.MappingType != options.MappingType || map.SparseProcessing != options.SparseProcessing)
+            map.MappingType != options.MappingType || map.SparseProcessing != options.SparseProcessing ||
+            map.HorizontalBorder != horizontal || map.VerticalBorder != vertical)
         {
-            map = new ImageToLedMap(options.Layout, options.MappingType, options.SparseProcessing, frame.Width, frame.Height);
+            map = new ImageToLedMap(options.Layout, options.MappingType, options.SparseProcessing, frame.Width, frame.Height, horizontal, vertical);
             _map = map;
             MapRebuilt?.Invoke(map);
         }

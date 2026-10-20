@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Windows implementations of the engine's platform interfaces: high-resolution clock, machine CPU and memory load.</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Overglow.Engine\Overglow.Engine.csproj" />
+  </ItemGroup>
+</Project>

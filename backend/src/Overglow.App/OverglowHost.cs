@@ -59,6 +59,7 @@ public static class OverglowHost
         services.AddSingleton(sp => CreateServerOptions(options, sp.GetRequiredService<SettingsServices>().Database));
 
         // The lighting: frame source -> pipeline -> controllers.
+        services.AddPlatform();
         services.AddCapture(options);
         services.AddSingleton<DeviceManager>();
         services.AddSingleton<LightingEngine>();

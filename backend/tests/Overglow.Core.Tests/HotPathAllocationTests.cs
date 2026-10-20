@@ -33,7 +33,12 @@ public sealed class HotPathAllocationTests
             ColorQuantizer.ToBytes(colors, ColorOrder.Grb, bytes);
         }
 
-        RunFrame();
+        // Warm up past tiered-JIT promotion so recompilation cannot allocate inside the measured window.
+        for (var i = 0; i < 100; i++)
+        {
+            RunFrame();
+        }
+
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 200; i++)
         {

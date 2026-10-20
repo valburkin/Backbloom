@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\..\src\Overglow.Engine\Overglow.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Overglow.Platform.Windows\Overglow.Platform.Windows.csproj" />
   </ItemGroup>
 </Project>

@@ -106,13 +106,13 @@ public sealed class LedColorsCommand(LightingEngine engine) : IRpcCommand
 
         private void Push()
         {
+            // Sequence 0 means the pipeline hasn't published a frame yet: an update now would carry no LEDs.
             var sequence = _feed.Sequence;
-            if (sequence == _lastSequence)
+            if (sequence == 0 || sequence == _lastSequence)
             {
                 return;
             }
 
-            _lastSequence = sequence;
             var needed = _feed.LedCount * 3;
             if (_colors.Length != needed)
             {
@@ -120,6 +120,12 @@ public sealed class LedColorsCommand(LightingEngine engine) : IRpcCommand
             }
 
             var n = _feed.CopyLatest(_colors);
+            if (n == 0)
+            {
+                return;
+            }
+
+            _lastSequence = sequence;
             _json.ResetWrittenCount();
             using (var writer = new Utf8JsonWriter(_json))
             {

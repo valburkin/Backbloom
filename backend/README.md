@@ -4,7 +4,8 @@ The C# / .NET 10 port of the Overglow backend. The C++ code in `sources/` and `i
 implementation: behavior is ported from it file by file and compared with golden fixtures exported from it. It is
 deleted once this backend reaches parity.
 
-Status: **port steps 1-4**. The React UI in `ui/` connects to it, screen capture (or a synthetic test pattern) drives the
+Status: **port steps 1-4 and 5a** (engine features: smoothing, priorities, black borders, system load; see
+[Engine features](#engine-features-port-step-5a)). The React UI in `ui/` connects to it, screen capture (or a synthetic test pattern) drives the
 LEDs through the real mapping and color pipeline, and the WLED, DDP and file drivers run on their own device threads.
 LED layout parsing, image to LED mapping, color processing and black border detection match fixtures exported from the
 C++ reference exactly. Settings (port step 4) live in SQLite, cover every kept settings type and are imported from
@@ -62,6 +63,8 @@ src/
   Overglow.Settings   settings schemas + validation, SQLite store, credential store, HyperHDR import, backups
   Overglow.Engine     orchestration: frame loop, component switches, controllers, live preview feed
   Overglow.Server     Kestrel: JSON-RPC over WebSocket + POST /json-rpc, auth, UI files
+  Overglow.Platform.Windows  Windows implementations of the engine's platform interfaces (high-resolution clock,
+                      machine CPU and memory load)
   Overglow.App        host: composition root (DI), configuration, logging (exe: overglow)
 tests/
   Overglow.*.Tests    xUnit v3; fixtures/ holds golden fixtures shared by the test projects
@@ -71,7 +74,7 @@ Dependency rules (a project may only use the ones above it in this list):
 
 1. `Core`, `Settings` (no project references)
 2. `Capture`, `Devices` (Core); `Capture.Windows` (Capture)
-3. `Engine` (Core, Capture, Devices, Settings)
+3. `Engine` (Core, Capture, Devices, Settings); `Platform.Windows` (Engine)
 4. `Server` (Engine and below)
 5. `App` (everything; the only place that creates services)
 
@@ -86,6 +89,7 @@ above (`Capture.Windows` implements `IScreenCaptureSource`; `App` creates it onl
 | Thread | Owner | Does |
 |---|---|---|
 | Frame loop (1, above-normal priority) | `LightingPipeline` | capture -> map -> process -> hand frames to controllers and the preview feed |
+| Smoothing (1, above-normal priority) | `OutputStage` | while smoothing runs: one tick per update interval (interpolate, anti-flicker filter, hand the frame to the controllers and the preview); idle otherwise |
 | One per controller | `LedDeviceRunner` | open (with retries), send the newest frame, refresh, blink, close |
 | Thread pool | ASP.NET Core | JSON-RPC requests (in order per connection), event pushes, LED stream timers |
 
@@ -151,6 +155,63 @@ Measured on the RTX 5080 with a 3440x1440 desktop texture scaled to 491x205 (Rel
 per frame for FP16 HDR and 0.13 ms for 8-bit (copy, shader, readback; 0.31 / 0.21 ms CPU time), CPU path 0.78 ms; no
 allocations on either path. Waiting for a monitor that delivers no frames costs 0.1-0.3 % of one core.
 
+## Engine features (port step 5a)
+
+### Smoothing
+
+Port of `InfiniteSmoothing` and the six interpolators (`Overglow.Core/Smoothing`), bit-identical to the C++ ones
+(`fixtures/smoothing`, tolerance 0). C++'s Stepper and Rgb interpolators differ only in target blending, so
+`StepperInterpolator` is the `RgbInterpolator` without it.
+
+| Setting (`smoothing`) | Effect |
+|---|---|
+| `enable` | initial state of the `SMOOTHING` component (changing the setting switches it) |
+| `type` | Stepper, RgbInterpolator, YuvInterpolator, HybridInterpolator, HybridRgbInterpolator, ExponentialInterpolator |
+| `time_ms`, `smoothingFactor`, `stiffness`, `damping`, `y_limit` | interpolator parameters, as in C++ |
+| `updateFrequency` | ticks per second = frames per second sent to every controller while smoothing runs (interval round(max(1000 / max(f, 20), 5)) ms) |
+| `continuousOutput` | off: after a transition three more frames, then one per second |
+| `antiFlickeringFilter` | an LED keeps its value until it changes by about half an 8-bit step (also without smoothing, as in C++) |
+
+Design (`OutputStage`, `Smoother`): the frame loop hands each processed frame to the smoother (one lock, a copy into
+preallocated buffers) and returns; the smoothing thread ticks on absolute deadlines of the injected `IClock` and sends
+the result to every controller and the live preview. Without smoothing (disabled, or the visible source's
+configuration is "direct") frames go out from the frame loop. One smoother feeds all controllers (HyperHDR ran one per
+instance). The configuration is selected when the visible source or the settings change, never per frame. On Windows
+`WindowsClock` waits with a high-resolution waitable timer (wake-ups within ~0.5 ms, 50.0 ticks/s measured) without
+raising the system timer resolution, which Qt's precise timer (`timeSetEvent`, 1 ms) did system-wide. Time stamps stay
+integers (C++ rounded them through `float`, which loses millisecond precision after 4.6 hours of uptime). After a
+smoothing restart a static color is drawn again, so the next change still fades (HyperHDR re-ran its LED update).
+
+Measured (Release, `SmoothingProfile`, explicit test): owner's 168 LEDs, synthetic source at 60 fps, four file
+controllers to the null device: 1.25 % of one core without smoothing, 1.72 % with HybridRgb at 50 Hz. Neither path
+allocates (`Pipeline_SteadyStateDoesNotAllocate`, `SmoothingTicks_DoNotAllocate`).
+
+### Sources and priorities
+
+Port of `Muxer` (`Overglow.Core/Priorities`) behind `PriorityManager` (Engine: lock, 250 ms timeout timer, events). The
+lowest priority number among the active sources is visible, unless one was selected manually (`sourceselect`); 255 is
+"nothing" (black, and the controllers are switched off, as HyperHDR did; the `LEDDEVICE` switch keeps the user's
+choice). The screen registers at `systemControl.systemInstancePriority` (245) while `ALL` and `SYSTEMGRABBER` are on.
+`color` registers a static color (priority 1..253, optional `duration` ms, origin `<origin>@<peer>`); static colors
+skip the color settings as in HyperHDR, are drawn once per change and then smoothed. `clear` takes -1 (all colors and
+effects) or 1..253, `clearall` = -1. `serverinfo.priorities` lists the visible source first with `priority`,
+`componentId`, `origin`, `owner`, `active`, `visible`, `duration_ms` and, for colors, `value: { RGB, HSL }`;
+`priorities_autoselect` and `activeLedColor` as in HyperHDR. Effects and music (5b) implement `ILightSource` (render
+linear LED colors on the frame loop while visible) and register with `Sources.Register` and `AddSmoothingConfig`.
+
+### Black borders
+
+`BlackBorderProcessor` runs on screen frames while the `BLACKBORDER` component is on (initially
+`blackborderdetector.enable`; settings changes apply at once); the detected border is left out of the LED mapping (the
+map is rebuilt only when the border changes). Off: no border. Unlike HyperHDR the border survives a frame size change.
+
+### System load
+
+`performance-update` reports the whole computer's CPU and memory (the UI's "whole computer" tiles), from
+`ISystemMetrics`: `WindowsSystemMetrics` (`GetSystemTimes`, `GlobalMemoryStatusEx`; HyperHDR used the PDH processor
+counter, the same quantity), else this process's share (`ProcessMetrics`). LED updates/s is what the controllers
+actually sent (the smoothing rate while smoothing runs).
+
 ## JSON-RPC protocol
 
 Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): requests
@@ -162,9 +223,10 @@ Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): r
 | `sysinfo`, `serverinfo` (+ subscriptions), `performance-counters` | done |
 | `config` getschema, getconfig, setconfig | done (every kept settings type, see [Settings](#settings-storage-and-hyperhdr-import)) |
 | `save-db`, `load-db` | done (backups in the C++ export format; HyperHDR backups are accepted) |
-| `componentstate` ALL, SYSTEMGRABBER, LEDDEVICE | done (SMOOTHING, BLACKBORDER come with those features) |
+| `componentstate` ALL, SMOOTHING, BLACKBORDER, SYSTEMGRABBER, LEDDEVICE | done |
+| `color`, `clear`, `clearall`, `sourceselect` | done (see [Sources and priorities](#sources-and-priorities)) |
 | `adjustment`, `ledcolors` ledstream-start/stop, `leddevice` identify/discover/getProperties, `logging`, `instance` switchTo | done (discover returns no devices until discovery is ported) |
-| `color`, `effect`, `clear`, `sourceselect`, imagestream | not yet ("Command not implemented") |
+| `effect`, `image`, imagestream | not yet ("Command not implemented"; effects come with port step 5b) |
 
 Deliberate differences from the C++ backend (its bug backlog):
 
@@ -276,7 +338,7 @@ difference) up to 20 per failure.
 | `color/` `{ step: process \| calibrate, enabled, colorOrder, adjustment, tolerance, inputs, expected, expectedBytes }` | `InfiniteProcessing`, `LedDevice` rounding | `ColorGoldenTests` | owner's settings, 23 variations, 6 color orders, 4 calibration-only; 185 colors each |
 | `blackborder/cpp-detector.json` | `BlackBorderDetector` | `BlackBorderGoldenTests` | 15 pictures x 3 sizes x 3 thresholds x 4 modes |
 | `hdr/` | `DefaultLut`, `LutLoader`, `decodeBGRA` | `HdrGoldenTests` (Capture.Tests), `ScalerTests` (GPU) | default table (MD5, grid, grays) and the CPU path match exactly; the GPU LUT path matches exactly without scaling and within 1 level of the mean of the looked-up block colors with scaling (the C++ code point-sampled) |
-| `smoothing/` | the 6 interpolators, injected time line | `SmoothingGoldenTests` (smoke) | port step 5 |
+| `smoothing/` | the 6 interpolators (`Infinite*Interpolator`), injected time line | `SmoothingGoldenTests` | owner's settings with each type plus 4 variations (smoothing factor, y_limit, stiffness/damping, 25 Hz); frames at 60 Hz, ticks at the update interval, completion flag and colors match exactly |
 | `effects/` | the 10 kept effects | `EffectsGoldenTests` (smoke) | port step 5 |
 | `rgbw/` | `RGBW::rgb2rgbw`, `InfiniteColorEngineRgbw` | `RgbwGoldenTests` (smoke) | port step 6 |
 
@@ -298,9 +360,17 @@ comparison tests are skipped until the port step named in the skip reason.
   the red target. Ported as is; worth checking on the hardware before choosing one behavior.
 - `ColorAdjustment.FromJson` gives missing calibration colors their ideal value; the C++ code reads them as black. The
   settings schema always stores all of them, so it only matters for hand-made settings.
-- Black borders: `BlackBorderProcessor` is ported but not wired into the pipeline yet (Engine), nor the `BLACKBORDER`
-  component switch.
-- Smoothing, effects, the remaining drivers and discovery.
+>>>
+
+- Effects and music mode (port step 5b): they register with `LightingEngine.Sources` (an `ILightSource` renderer and a
+  smoothing configuration from `AddSmoothingConfig`) and add their component to `Components.All`.
+- The screen source stays active while `SYSTEMGRABBER` is on; HyperHDR marked it inactive after 800 ms without
+  frames, which let a lower priority (a background effect) show. Comes with effects, which need it.
+- The Hybrid and HybridRgb interpolators never report a finished transition while a target channel is below the
+  minimal backlight (black, or any fully saturated color), so smoothing keeps sending at the update frequency even
+  without `continuousOutput` (C++ behavior, confirmed by the fixtures; costs ~0.5 % of one core). Worth fixing once
+  the owner has chosen an interpolator.
+- The remaining drivers and discovery.
 - Screen capture: rotated monitors are captured in scanout orientation (the C++ grabber mis-scaled them); the
   "please wait" image while the default LUT is built is not shown (frames pass without the LUT for ~0.3 s);
   `serverinfo.systemGrabbers.modes` lists only the captured monitor (Engine/Server should list `Monitors`); the
