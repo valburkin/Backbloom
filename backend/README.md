@@ -4,9 +4,10 @@ The C# / .NET 10 port of the Overglow backend. The C++ code in `sources/` and `i
 implementation: behavior is ported from it file by file and compared with golden fixtures exported from it. It is
 deleted once this backend reaches parity.
 
-Status: **port steps 1-4 and 5a** (engine features: smoothing, priorities, black borders, system load; see
-[Engine features](#engine-features-port-step-5a)). The React UI in `ui/` connects to it, screen capture (or a synthetic test pattern) drives the
-LEDs through the real mapping and color pipeline, and the WLED, DDP and file drivers run on their own device threads.
+Status: **port steps 1-4, 5a and 6a** (engine features: smoothing, priorities, black borders, system load; see
+[Engine features](#engine-features-port-step-5a)). The React UI in `ui/` connects to it, screen capture (or a synthetic
+test pattern) drives the LEDs through the real mapping and color pipeline, and every LED driver of the C++ build runs on
+its own device thread (see [LED drivers and discovery](#led-drivers-and-discovery)).
 LED layout parsing, image to LED mapping, color processing and black border detection match fixtures exported from the
 C++ reference exactly. Settings (port step 4) live in SQLite, cover every kept settings type and are imported from
 HyperHDR databases. Windows screen capture with HDR tone mapping (port step 3) drives the pipeline from the
@@ -59,7 +60,10 @@ src/
   Overglow.Capture    frame source abstraction, frame pacer, synthetic test source, capture settings, CPU scaling
                       path, HDR tone mapping table (LUT loader, default LUT)
   Overglow.Capture.Windows  DXGI desktop duplication + Direct3D 11 scaling / HDR shader (TerraFX interop)
-  Overglow.Devices    LED device lifecycle (LedDeviceRunner) + drivers: wled, ddp, file
+  Overglow.Devices    LED device lifecycle (LedDeviceRunner), RGBW encoders and the 16 drivers (network, serial, HID,
+                      file); driver tools for leddevice discover/getProperties/identify
+  Overglow.Discovery  mDNS client/responder, SSDP search, UDP broadcast probes, serial port and HID enumeration
+  Overglow.Mqtt       the one MQTT broker connection (MQTTnet), shared by Zigbee2MQTT and the later MQTT integration
   Overglow.Settings   settings schemas + validation, SQLite store, credential store, HyperHDR import, backups
   Overglow.Engine     orchestration: frame loop, component switches, controllers, live preview feed
   Overglow.Server     Kestrel: JSON-RPC over WebSocket + POST /json-rpc, auth, UI files
@@ -72,8 +76,8 @@ tests/
 
 Dependency rules (a project may only use the ones above it in this list):
 
-1. `Core`, `Settings` (no project references)
-2. `Capture`, `Devices` (Core); `Capture.Windows` (Capture)
+1. `Core`, `Settings`, `Discovery`, `Mqtt` (no project references)
+2. `Capture` (Core), `Devices` (Core, Discovery, Mqtt); `Capture.Windows` (Capture)
 3. `Engine` (Core, Capture, Devices, Settings); `Platform.Windows` (Engine)
 4. `Server` (Engine and below)
 5. `App` (everything; the only place that creates services)
@@ -112,7 +116,10 @@ tests enforce it in Core, Devices, Engine, Capture and Capture.Windows):
 - `ColorProcessor` precomputes its lookup tables and is immutable;
 - `BlackBorderDetector` samples a few lines of the frame in place; `BlackBorderProcessor` only keeps counters;
 - logging only through `[LoggerMessage]` methods and never per frame;
-- drivers send with preallocated packet buffers over connected UDP sockets (`Socket.Send(ReadOnlySpan<byte>)`).
+- drivers send with preallocated packet buffers over connected UDP sockets (`Socket.Send(ReadOnlySpan<byte>)`); the
+  streaming drivers (WLED, DDP, E1.31, Art-Net, Adalight, Skydimo, SP616E, SyncLight, Nanoleaf, LIFX, Hue
+  Entertainment) and the RGBW encoders are allocation-free per frame. The JSON/REST lamp drivers (WiZ, Yeelight, Home
+  Assistant, Zigbee2MQTT, Hue REST) build small strings per frame on their device thread, at most a few times a second.
 
 Measured with the owner's 168-LED layout, the synthetic source at 60 fps (512x288 frames, 155,684 sampled pixels per
 frame) and the file driver writing to the null device (Release build, 24 logical cores): about 1.3 % of one core
@@ -212,6 +219,81 @@ map is rebuilt only when the border changes). Off: no border. Unlike HyperHDR th
 counter, the same quantity), else this process's share (`ProcessMetrics`). LED updates/s is what the controllers
 actually sent (the smoothing rate while smoothing runs).
 
+## LED drivers and discovery
+
+Every driver of the C++ build is ported (sources/led-drivers); the settings keys and schemas are the C++ ones
+(`Overglow.Devices/Schemas`, reformatted), so imported configurations keep working. A driver only speaks its protocol
+(`ILedDriver`: open, write a frame, close); `LedDeviceRunner` does the lifecycle once for all of them.
+
+| Type | Group | Transport | Notes |
+|---|---|---|---|
+| `wled` | network | REST + UDP | DRGB/DNRGB; discovery: mDNS `_wled._tcp` |
+| `ddp` | network | UDP 4048 | RGB, classic RGBW (`rgbw` + `white_algorithm`), RGBW by the Infinite Color Engine |
+| `udpe131` | network | UDP 5568 | E1.31/sACN, 512 or 510 channels per universe, CID from the settings or random |
+| `udpartnet` | network | UDP 6454 | ArtDmx, channels per fixture, splitting, RGBW (ICE) |
+| `philipshue` | network | REST (v1 http, v2 https) + DTLS 1.2 PSK UDP 2100 | REST lights, Entertainment v1 groups and v2 configurations; discovery: mDNS `_hue._tcp`, else SSDP "IpBridge"; `getProperties` reads the bridge, with `pair: true` it creates a username + client key |
+| `nanoleaf` | network | REST 16021 + UDP | panel order (top/bottom, left/right, start panel), External Control v2; discovery: SSDP |
+| `lifx` | network | UDP 56700 | SetColor (HSBK, unrounded colors) per lamp, SetPower; discovery: GetService broadcast |
+| `wiz` | network | UDP 38899 | JSON setPilot per lamp; discovery: getPilot broadcast |
+| `yeelight` | network | TCP 55443 + music mode | the lamp connects back to our music mode server; command quota wait; discovery: SSDP port 1982 |
+| `home_assistant` | network | REST | `light.turn_on` per entity (RGB or hue/saturation), constant brightness, state restore; discovery: mDNS `_home-assistant._tcp` |
+| `zigbee2mqtt` | network | MQTT | `zigbee2mqtt/<lamp>/set`; lamps switched off on shutdown; discovery: the bridge's retained device list |
+| `adalight` | serial | System.IO.Ports | Ada, AWA (Fletcher checksum, white calibration, RGBW by ICE), LightBerry APA102; "auto" port, ESP/Pico handshake and goodbye |
+| `skydimo`, `sp616e` | serial | System.IO.Ports | |
+| `synclight` | HID | HidSharp | Robobloq SyncLight: RB/SC frames in 65-byte reports, per-segment merging, LED count read from the controller |
+| `file` | debug | file | bytes, deep colors (`infiniteColorEngine`) or ICE RGBW lines |
+
+**Driver contract additions.** `IFloatColorDriver` takes the processed colors before 8-bit rounding (LIFX, Hue
+Entertainment, and DDP/Art-Net/Adalight/file with RGBW by the Infinite Color Engine; port of `writeInfiniteColors`); the
+runner passes them in RGB order with the refresh interval. `ILedDriver.EffectiveRefreshInterval` lets a protocol set
+the resend rate (Hue Entertainment 20 ms, Hue REST 100 ms per light, none for Yeelight / Nanoleaf). A driver that loses
+its controller while streaming (serial port unplugged, too many write timeouts, all Yeelights in error, HTTP errors)
+throws `DeviceLostException`; the runner goes to `WaitingToRetry` and reopens it with the driver's retry policy (C++
+`setInError` + `setupRetry`). JSON/REST drivers write their JSON with sorted keys, as `QJsonDocument` did.
+
+**RGBW.** `RgbwConverter` (classic 8-bit algorithms, HyperSerial calibration tables) and `InfiniteRgbwEncoder`
+(stateful, dithered) reproduce the C++ float operations in the same order and match the exported fixtures exactly.
+
+**Libraries** (all permissive, maintained, pinned in `Directory.Packages.props`):
+
+| Package | License | Used for | Why |
+|---|---|---|---|
+| BouncyCastle.Cryptography 2.7 | MIT | DTLS 1.2 PSK client (Hue Entertainment) | .NET has no DTLS; BouncyCastle is the standard managed implementation and needs no native OpenSSL |
+| MQTTnet 5.2 (+ MQTTnet.Server in tests) | MIT | `Overglow.Mqtt.MqttConnection` | the .NET Foundation MQTT client; tests run a real broker in process |
+| HidSharp 2.6 | Apache-2.0 | HID enumeration and reports, serial port names/USB ids | managed, cross-platform (hid.dll, hidraw, IOKit), so no platform project is needed; TerraFX would cover Windows only and need a Linux/macOS port later |
+| System.IO.Ports 10.0 | MIT | serial I/O | the platform's serial API |
+
+**Discovery** (`Overglow.Discovery`). Passive: it only sends queries (mDNS PTR, SSDP M-SEARCH, the LIFX/WiZ broadcast
+probes) and lists what answers; nothing found is configured or contacted by the discovery itself.
+- mDNS is implemented here (about 900 lines: DNS message codec, cache with TTLs and goodbyes, responder) instead of using a
+  library: the maintained .NET options are browse-only (Zeroconf) or unmaintained since 2019 (Makaretu.Dns.Multicast),
+  and the protocol subset needed is small and fully testable without sockets (`IMdnsTransport`). The socket shares
+  UDP 5353 with the OS responder (address reuse, 224.0.0.251 joined per interface); if that fails, queries go out as
+  RFC 6762 legacy unicast queries and nothing is advertised. Own addresses are never reported.
+- The web UI is advertised as `<host>:<port>._overglow-http._tcp.local` (as the C++ build) when the server listens on
+  the network (`--bind` other than loopback); with the default 127.0.0.1 it isn't.
+- SSDP: one M-SEARCH (C++ message, MX 1) and every answer within 3 s, headers parsed like `SSDPDiscover`.
+- Serial ports: HidSharp's serial device list (friendly name, USB ids from the Windows device path) plus
+  `SerialPort.GetPortNames()`; HID devices: HidSharp with the top-level usage page/usage.
+
+`leddevice discover` replies `{ ledDeviceType, devices: [...] }` with the C++ fields of each driver plus `value` (what
+to put into the address/port setting) and `name` for the UI; `getProperties` replies `{ properties }`; `identify` with
+`ledDeviceType: "blink"` blinks an LED, otherwise it runs the driver's identify (Hue alert, WiZ pulse, LIFX blue,
+Yeelight color flow, Nanoleaf, Zigbee2MQTT).
+
+Deliberate differences from the C++ drivers:
+
+1. Art-Net: the datagram carries the even data length the header announces (C++ sent one byte less for odd lengths),
+   and the RGB sequence never sends 0 (it wrapped to 0 once per 255 frames).
+2. E1.31: the universe is 16-bit (C++ stored it in a byte).
+3. Nanoleaf: the stream port from the Light Panels' answer is used as is (C++ truncated it to a byte).
+4. Yeelight reads the lamps' state only with "restore original state" (C++ read it on every switch-on, costing the
+   command quota).
+5. Serial drivers send three black frames on close (one by the runner, two by the driver), as C++; HID SyncLight one.
+6. The LAN HTTPS client accepts unvalidated certificates only for private, link-local and `.local` hosts (C++
+   ignored TLS errors for every host).
+7. Discovery results carry `value` / `name` for every driver (the C++ shapes are kept alongside).
+
 ## JSON-RPC protocol
 
 Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): requests
@@ -225,7 +307,7 @@ Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): r
 | `save-db`, `load-db` | done (backups in the C++ export format; HyperHDR backups are accepted) |
 | `componentstate` ALL, SMOOTHING, BLACKBORDER, SYSTEMGRABBER, LEDDEVICE | done |
 | `color`, `clear`, `clearall`, `sourceselect` | done (see [Sources and priorities](#sources-and-priorities)) |
-| `adjustment`, `ledcolors` ledstream-start/stop, `leddevice` identify/discover/getProperties, `logging`, `instance` switchTo | done (discover returns no devices until discovery is ported) |
+| `adjustment`, `ledcolors` ledstream-start/stop, `leddevice` identify/discover/getProperties, `logging`, `instance` switchTo | done |
 | `effect`, `image`, imagestream | not yet ("Command not implemented"; effects come with port step 5b) |
 
 Deliberate differences from the C++ backend (its bug backlog):
@@ -340,7 +422,7 @@ difference) up to 20 per failure.
 | `hdr/` | `DefaultLut`, `LutLoader`, `decodeBGRA` | `HdrGoldenTests` (Capture.Tests), `ScalerTests` (GPU) | default table (MD5, grid, grays) and the CPU path match exactly; the GPU LUT path matches exactly without scaling and within 1 level of the mean of the looked-up block colors with scaling (the C++ code point-sampled) |
 | `smoothing/` | the 6 interpolators (`Infinite*Interpolator`), injected time line | `SmoothingGoldenTests` | owner's settings with each type plus 4 variations (smoothing factor, y_limit, stiffness/damping, 25 Hz); frames at 60 Hz, ticks at the update interval, completion flag and colors match exactly |
 | `effects/` | the 10 kept effects | `EffectsGoldenTests` (smoke) | port step 5 |
-| `rgbw/` | `RGBW::rgb2rgbw`, `InfiniteColorEngineRgbw` | `RgbwGoldenTests` (smoke) | port step 6 |
+| `rgbw/` | `RGBW::rgb2rgbw`, `InfiniteColorEngineRgbw` | `RgbwGoldenTests` (Devices.Tests) | every algorithm and the 4 dithering setups match byte for byte |
 
 `settings/owner-hyperhdr-v22.db` is the owner's HyperHDR v22 database, sanitized: admin password, salt and session
 token replaced (the password is `fixture-password`), meta uuid replaced, WLED host blanked, microphone and display
@@ -370,7 +452,9 @@ comparison tests are skipped until the port step named in the skip reason.
   minimal backlight (black, or any fully saturated color), so smoothing keeps sending at the update frequency even
   without `continuousOutput` (C++ behavior, confirmed by the fixtures; costs ~0.5 % of one core). Worth fixing once
   the owner has chosen an interpolator.
-- The remaining drivers and discovery.
+- Drivers: RGBW dithering uses the device's `refreshTime` rather than the smoothing clock. The Hue API v2 channel
+  identify (flashing a channel of a running stream) isn't ported. Serial USB ids are read from the Windows device path
+  (Linux/macOS list the ports without them). Only controller 0 runs, as before.
 - Screen capture: rotated monitors are captured in scanout orientation (the C++ grabber mis-scaled them); the
   "please wait" image while the default LUT is built is not shown (frames pass without the LUT for ~0.3 s);
   `serverinfo.systemGrabbers.modes` lists only the captured monitor (Engine/Server should list `Monitors`); the

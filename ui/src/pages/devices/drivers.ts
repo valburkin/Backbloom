@@ -51,9 +51,17 @@ export function driverOptions(available: ReadonlyArray<{ name: string; group: st
     .sort((a, b) => rank(a.group) - rank(b.group) || a.label.localeCompare(b.label));
 }
 
+/** Network drivers whose discovery (mDNS / SSDP) fills in an address setting. */
+const NETWORK_TARGETS: Record<string, string> = {
+  wled: 'host',
+  nanoleaf: 'host',
+  philipshue: 'output',
+  home_assistant: 'homeAssistantHost',
+};
+
 /** Which setting a discovered device fills in, or null when the driver can't discover devices. */
-export function discoveryTarget(type: string, group: string | undefined): 'host' | 'output' | null {
-  if (type === 'wled') return 'host';
+export function discoveryTarget(type: string, group: string | undefined): string | null {
+  if (NETWORK_TARGETS[type]) return NETWORK_TARGETS[type];
   if (group === 'USB') return 'output';
   return null;
 }

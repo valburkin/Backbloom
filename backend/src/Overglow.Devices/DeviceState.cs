@@ -34,7 +34,7 @@ public sealed class DeviceStateMachine
     {
         (DeviceState.Off, DeviceState.Opening) => true,
         (DeviceState.Opening, DeviceState.Ready or DeviceState.WaitingToRetry or DeviceState.Failed or DeviceState.Off) => true,
-        (DeviceState.Ready, DeviceState.Closing or DeviceState.WaitingToRetry) => true,
+        (DeviceState.Ready, DeviceState.Closing or DeviceState.WaitingToRetry or DeviceState.Failed) => true,
         (DeviceState.WaitingToRetry, DeviceState.Opening or DeviceState.Off) => true,
         (DeviceState.Failed, DeviceState.Opening or DeviceState.Off) => true,
         (DeviceState.Closing, DeviceState.Off) => true,

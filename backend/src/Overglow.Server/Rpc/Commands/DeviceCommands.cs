@@ -1,48 +1,63 @@
 using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Overglow.Devices;
 using Overglow.Engine;
 
 namespace Overglow.Server.Rpc;
 
-/// <summary><c>leddevice</c>: identify (blink one LED), discover and getProperties.</summary>
-public sealed class LedDeviceCommand(LightingEngine engine) : IRpcCommand
+/// <summary>
+/// <c>leddevice</c>: identify (blink one LED with <c>ledDeviceType: "blink"</c>, or a driver's own identify, e.g. a
+/// Hue light's alert), discover (<c>{ ledDeviceType, devices: [{ value, name, ... }] }</c>) and getProperties
+/// (<c>{ properties }</c>). The driver tools only query the network (mDNS, SSDP, broadcasts) or talk to the device the
+/// request names.
+/// </summary>
+public sealed class LedDeviceCommand(LightingEngine engine, DeviceTools tools) : IRpcCommand
 {
     public string Name => "leddevice";
 
     public RpcAccess Access => RpcAccess.Authorized;
 
-    public ValueTask ExecuteAsync(RpcContext context)
+    public async ValueTask ExecuteAsync(RpcContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         var type = context.GetString("ledDeviceType")?.Trim() ?? string.Empty;
         var parameters = context.Message["params"] as JsonObject;
-        switch (context.Subcommand)
+        try
         {
-            case "identify":
-                if (type == "blink" && parameters?["blinkIndex"] is JsonValue v && v.TryGetValue(out double index))
-                {
-                    engine.IdentifyLed((int)index);
-                }
+            switch (context.Subcommand)
+            {
+                case "identify" when type == "blink":
+                    if (parameters?["blinkIndex"] is JsonValue v && v.TryGetValue(out double index))
+                    {
+                        engine.IdentifyLed((int)index);
+                    }
 
-                context.Reply();
-                break;
+                    context.Reply();
+                    break;
 
-            case "discover":
-                // Network discovery (mDNS/SSDP) comes with Overglow.Discovery; until then nothing is found.
-                context.Reply(new JsonObject { ["ledDeviceType"] = type, ["devices"] = new JsonArray() });
-                break;
+                case "identify":
+                    await tools.IdentifyAsync(type, parameters, context.CancellationToken);
+                    context.Reply();
+                    break;
 
-            case "getProperties":
-                context.Reply(new JsonObject { ["properties"] = new JsonObject() });
-                break;
+                case "discover":
+                    context.Reply(await tools.DiscoverAsync(type, parameters, context.CancellationToken));
+                    break;
 
-            default:
-                context.Fail("Unknown or missing subcommand");
-                break;
+                case "getProperties":
+                    context.Reply(await tools.GetPropertiesAsync(type, parameters, context.CancellationToken));
+                    break;
+
+                default:
+                    context.Fail("Unknown or missing subcommand");
+                    break;
+            }
         }
-
-        return ValueTask.CompletedTask;
+        catch (Exception ex) when (ex is IOException or HttpRequestException or TimeoutException or System.Net.Sockets.SocketException or InvalidOperationException)
+        {
+            context.Fail($"{context.Subcommand} failed for {type}: {ex.Message}");
+        }
     }
 }
 

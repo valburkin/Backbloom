@@ -139,7 +139,7 @@ export function DriverCard({ ps }: { ps: PageSettings }) {
           </ul>
         ) : (
           <p className="text-[13px] text-ink-muted">
-            Nothing found. Check that the controller is powered on{target === 'host' ? ' and on the same network' : ' and plugged in'}, or enter the {target === 'host' ? 'address' : 'port'} yourself.
+            Nothing found. Check that the controller is powered on{group === 'USB' ? ' and plugged in' : ' and on the same network'}, or enter the {group === 'USB' ? 'port' : 'address'} yourself.
           </p>
         )}
       </Dialog>

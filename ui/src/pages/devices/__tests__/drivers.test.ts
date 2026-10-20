@@ -18,7 +18,9 @@ describe('drivers', () => {
     expect(opts[0].group).toBe('Network');
     expect(discoveryTarget('wled', 'Network')).toBe('host');
     expect(discoveryTarget('adalight', 'USB')).toBe('output');
-    expect(discoveryTarget('philipshue', 'Network')).toBeNull();
+    expect(discoveryTarget('philipshue', 'Network')).toBe('output');
+    expect(discoveryTarget('home_assistant', 'Network')).toBe('homeAssistantHost');
+    expect(discoveryTarget('udpe131', 'Network')).toBeNull();
   });
 
   it('keeps shared settings when switching drivers and restores the previous driver settings', () => {

@@ -48,6 +48,7 @@ public sealed partial class LedDeviceRunner : IDisposable
     private long _retryAt;
     private long _lastWrite;
     private int _failedAttempts;
+    private TimeSpan? _refresh;
     private bool _started;
 
     public LedDeviceRunner(ILedDriver driver, LedDeviceRunnerOptions options, ILogger logger)
@@ -273,6 +274,7 @@ public sealed partial class LedDeviceRunner : IDisposable
         {
             _driver.OpenAsync(_options.LedCount, _lifetime.Token).AsTask().GetAwaiter().GetResult();
             _failedAttempts = 0;
+            _refresh = _driver.EffectiveRefreshInterval(_options.RefreshInterval);
             LogOpened(_options.Name, _driver.Type, _options.LedCount);
             MoveTo(DeviceState.Ready);
         }
@@ -301,7 +303,7 @@ public sealed partial class LedDeviceRunner : IDisposable
     private void Stream()
     {
         var blinking = Volatile.Read(ref _blinkIndex) >= 0;
-        var timeout = blinking ? s_blinkTick : _options.RefreshInterval ?? Timeout.InfiniteTimeSpan;
+        var timeout = blinking ? s_blinkTick : _refresh ?? Timeout.InfiniteTimeSpan;
         _signal.WaitOne(timeout);
         if (!_enabled || _disposing)
         {
@@ -319,13 +321,37 @@ public sealed partial class LedDeviceRunner : IDisposable
             }
         }
 
-        var refreshDue = _options.RefreshInterval is { } refresh && Stopwatch.GetElapsedTime(_lastWrite) >= refresh;
+        var refreshDue = _refresh is { } refresh && Stopwatch.GetElapsedTime(_lastWrite) >= refresh;
         if (hasNew || blinking || refreshDue)
         {
             _current.CopyTo(_output, 0);
             ApplyBlink();
-            Send(_output);
+            try
+            {
+                Send(_output);
+            }
+            catch (DeviceLostException ex)
+            {
+                Lost(ex);
+            }
         }
+    }
+
+    /// <summary>The controller went away while streaming: reopen it with the retry policy (the driver resets itself in OpenAsync).</summary>
+    private void Lost(DeviceLostException ex)
+    {
+        _failedAttempts = 1;
+        var delay = _driver.RetryPolicy.NextDelay(_failedAttempts);
+        if (delay is null)
+        {
+            LogGaveUp(ex, _options.Name, _failedAttempts);
+            MoveTo(DeviceState.Failed);
+            return;
+        }
+
+        LogLost(_options.Name, delay.Value.TotalSeconds, ex.Message);
+        Volatile.Write(ref _retryAt, Stopwatch.GetTimestamp() + (long)(delay.Value.TotalSeconds * Stopwatch.Frequency));
+        MoveTo(DeviceState.WaitingToRetry);
     }
 
     private void ApplyBlink()
@@ -345,9 +371,19 @@ public sealed partial class LedDeviceRunner : IDisposable
 
     private void Send(ReadOnlySpan<Vector3> colors)
     {
-        ColorQuantizer.ToBytes(colors, _options.ColorOrder, _bytes);
         _lastWrite = Stopwatch.GetTimestamp();
-        if (_driver.Write(_bytes))
+        bool written;
+        if (_driver is IFloatColorDriver { WritesFloatColors: true } floatDriver)
+        {
+            written = floatDriver.WriteFloat(colors, _refresh ?? TimeSpan.Zero);
+        }
+        else
+        {
+            ColorQuantizer.ToBytes(colors, _options.ColorOrder, _bytes);
+            written = _driver.Write(_bytes);
+        }
+
+        if (written)
         {
             Stats.OnWritten();
         }
@@ -390,6 +426,9 @@ public sealed partial class LedDeviceRunner : IDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "{Name}: giving up after {Attempts} failed attempts to open the device")]
     private partial void LogGaveUp(Exception exception, string name, int attempts);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Name}: lost the device, reopening in {Seconds:0.#} s: {Reason}")]
+    private partial void LogLost(string name, double seconds, string reason);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "{Name}: device switched off")]
     private partial void LogClosed(string name);

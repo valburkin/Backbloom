@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Overglow.Devices;
 
 /// <summary>
@@ -27,4 +29,27 @@ public interface ILedDriver : IDisposable
 
     /// <summary>Switches the controller off / releases it. The runner has already sent a black frame.</summary>
     ValueTask CloseAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The resend interval to use after the device opened, given the configured <c>refreshTime</c>: drivers whose
+    /// protocol needs a fixed rate (Hue Entertainment streaming) or must not resend (REST lamps) override it.
+    /// </summary>
+    TimeSpan? EffectiveRefreshInterval(TimeSpan? configured) => configured;
+}
+
+/// <summary>
+/// A driver that can take the processed colors before they are rounded to 8 bits ("deep color": RGBW dithering by
+/// the Infinite Color Engine, Hue Entertainment, LIFX). Port of <c>LedDevice::writeInfiniteColors</c>.
+/// </summary>
+public interface IFloatColorDriver : ILedDriver
+{
+    /// <summary>True when the current settings want <see cref="WriteFloat"/> instead of <see cref="ILedDriver.Write"/>.</summary>
+    bool WritesFloatColors { get; }
+
+    /// <summary>
+    /// Sends one frame of 0..1 colors in RGB order: the driver applies the controller's color order itself. Must not
+    /// allocate. <paramref name="frameInterval"/> is the device's refresh interval (zero when frames are sent as they
+    /// come), used by the RGBW dithering.
+    /// </summary>
+    bool WriteFloat(ReadOnlySpan<Vector3> colors, TimeSpan frameInterval);
 }

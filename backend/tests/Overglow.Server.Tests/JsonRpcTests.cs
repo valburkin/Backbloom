@@ -161,7 +161,9 @@ public sealed class JsonRpcTests
         Assert.True(info["priorities_autoselect"]!.GetValue<bool>());
         Assert.Equal("SYSTEMGRABBER", info["priorities"]![0]!["componentId"]!.GetValue<string>());
         Assert.True(info["priorities"]![0]!["visible"]!.GetValue<bool>());
-        Assert.Equal(["ddp", "wled", "file"], info["ledDevices"]!["available"]!.AsArray().Select(d => d!["name"]!.GetValue<string>()));
+        Assert.Equal(
+            ["ddp", "home_assistant", "lifx", "nanoleaf", "philipshue", "udpartnet", "udpe131", "wiz", "wled", "yeelight", "zigbee2mqtt", "adalight", "skydimo", "sp616e", "file", "synclight"],
+            info["ledDevices"]!["available"]!.AsArray().Select(d => d!["name"]!.GetValue<string>()));
         Assert.Equal("advanced", info["imageToLedMappingType"]!.GetValue<string>());
         Assert.Single(info["leds"]!.AsArray());
         Assert.Equal(1.5, info["adjustment"]![0]!["gamma"]!.GetValue<double>());
@@ -391,7 +393,11 @@ public sealed class JsonRpcTests
         await using var client = await server.ConnectAsync();
 
         Assert.Equal("leddevice-identify", (await client.CallAsync("leddevice", "identify", Obj("""{ "ledDeviceType": "blink", "params": { "blinkIndex": 0 } }""")))["command"]!.GetValue<string>());
-        Assert.Empty((await client.CallAsync("leddevice", "discover", Obj("""{ "ledDeviceType": "wled", "params": {} }""")))["info"]!["devices"]!.AsArray());
+        // E1.31 has no discovery (the tests don't query the network); the drivers' discovery is tested in Devices.Tests
+        var discovered = (await client.CallAsync("leddevice", "discover", Obj("""{ "ledDeviceType": "udpe131", "params": {} }""")))["info"]!;
+        Assert.Equal("udpe131", discovered["ledDeviceType"]!.GetValue<string>());
+        Assert.Empty(discovered["devices"]!.AsArray());
+        Assert.Empty((await client.CallAsync("leddevice", "getProperties", Obj("""{ "ledDeviceType": "file", "params": {} }""")))["info"]!["properties"]!.AsObject());
         Assert.Equal("Command not implemented", Error(await client.CallAsync("effect", parameters: Obj("""{ "effect": { "name": "Rainbow swirl" } }"""))));
         Assert.True(Success(await client.CallAsync("instance", "switchTo", Obj("""{ "instance": 0 }"""))));
     }

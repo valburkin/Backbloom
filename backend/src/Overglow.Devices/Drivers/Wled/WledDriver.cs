@@ -78,7 +78,24 @@ public sealed partial class WledDriver : ILedDriver
         TypeName,
         "leds_group_2_network",
         DriverRegistry.LoadEmbeddedSchema(TypeName),
-        (config, context) => new WledDriver(WledOptions.FromConfig(config), context));
+        (config, context) => new WledDriver(WledOptions.FromConfig(config), context))
+    {
+        Discover = DiscoverAsync,
+    };
+
+    /// <summary>WLED controllers announced with mDNS (<c>_wled._tcp</c>): <c>value</c> is the IP address.</summary>
+    public static async Task<JsonArray> DiscoverAsync(DeviceRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var list = new JsonArray();
+        foreach (var s in await request.Context.Discovery.Mdns.BrowseAsync(Overglow.Discovery.KnownServices.Wled, TimeSpan.FromSeconds(2), request.CancellationToken))
+        {
+            var ip = s.Address.ToString();
+            list.Add((JsonNode)new JsonObject { ["value"] = ip, ["name"] = $"{ip} ({s.HostName})" });
+        }
+
+        return list;
+    }
 
     private Uri BaseUri => new($"http://{FormatHost(_options.Host)}:{_options.ApiPort}/json");
 

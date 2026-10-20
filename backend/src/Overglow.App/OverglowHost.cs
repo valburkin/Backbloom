@@ -45,10 +45,8 @@ public static class OverglowHost
         services.AddSingleton(options);
         services.AddSingleton(logs);
 
-        // LED drivers and what they share.
-        services.AddSingleton(_ => new DriverRegistry().RegisterAll());
-        services.AddSingleton(_ => new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) }));
-        services.AddSingleton(sp => new DriverContext(sp.GetRequiredService<ILoggerFactory>(), sp.GetRequiredService<HttpClient>()));
+        // LED drivers and what they share (HTTP, discovery, MQTT).
+        services.AddDevices();
 
         // Settings and credentials: settings.db in the data directory, imported from HyperHDR on the first start.
         services.AddSingleton(sp => CreateSchema(sp.GetRequiredService<DriverRegistry>()));
