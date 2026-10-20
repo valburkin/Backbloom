@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -10,7 +9,6 @@ using Overglow.Discovery.Ssdp;
 using Overglow.Discovery.Usb;
 using Overglow.Mqtt;
 using Overglow.Server;
-using Overglow.Settings;
 
 namespace Overglow.App;
 
@@ -75,21 +73,17 @@ internal static class DeviceRegistration
 }
 
 /// <summary>
-/// Connects to the MQTT broker from the <c>mqtt</c> settings (and again when they change) and advertises the web UI
-/// with mDNS when the server listens on the network (not when it is bound to loopback only).
+/// Advertises the web UI with mDNS when the server listens on the network (not when it is bound to loopback only).
+/// The MQTT connection is configured by the MQTT integration (<c>Overglow.Server.Mqtt.MqttIntegration</c>).
 /// </summary>
 internal sealed partial class NetworkHostedService(
     AppOptions options,
     ServerOptions server,
-    ISettingsStore settings,
-    MqttConnection mqtt,
     MdnsService mdns,
     ILogger<NetworkHostedService> logger) : IHostedService
 {
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public Task StartAsync(CancellationToken cancellationToken)
     {
-        settings.Changed += OnSettingsChanged;
-        await mqtt.ConfigureAsync(MqttSettings.FromJson(settings.GetSection("mqtt") as JsonObject), cancellationToken);
         if (!IPAddress.IsLoopback(options.BindAddress))
         {
             var addresses = options.BindAddress.Equals(IPAddress.Any) ? [.. UdpMdnsTransport.InterfaceAddresses()] : new List<IPAddress> { options.BindAddress };
@@ -100,38 +94,13 @@ internal sealed partial class NetworkHostedService(
         {
             LogNotAdvertised(options.BindAddress);
         }
-    }
 
-    /// <summary>The container disposes the MQTT connection (publishing the shutdown messages) and the mDNS service (goodbye).</summary>
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        settings.Changed -= OnSettingsChanged;
         return Task.CompletedTask;
     }
 
-    private void OnSettingsChanged(SettingsChange change)
-    {
-        if (change.Sections.TryGetValue("mqtt", out var section))
-        {
-            _ = ReconfigureAsync(MqttSettings.FromJson(section as JsonObject));
-        }
-    }
-
-    private async Task ReconfigureAsync(MqttSettings mqttSettings)
-    {
-        try
-        {
-            await mqtt.ConfigureAsync(mqttSettings, CancellationToken.None);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
-        {
-            LogMqttFailed(ex.Message);
-        }
-    }
+    /// <summary>The container disposes the mDNS service (goodbye) and the MQTT connection (shutdown messages).</summary>
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     [LoggerMessage(Level = LogLevel.Information, Message = "The web UI isn't advertised with mDNS: the server only listens on {Address}")]
     private partial void LogNotAdvertised(IPAddress address);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "MQTT: couldn't apply the new settings: {Reason}")]
-    private partial void LogMqttFailed(string reason);
 }

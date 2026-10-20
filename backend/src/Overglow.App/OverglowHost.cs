@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Overglow.App.Logging;
 using Overglow.Devices;
 using Overglow.Engine;
 using Overglow.Server;
@@ -21,12 +22,16 @@ namespace Overglow.App;
 /// </summary>
 public static class OverglowHost
 {
+    /// <summary>Folder of the log files in the data directory.</summary>
+    public const string LogDirectoryName = "logs";
     public static WebApplication Build(string[] args) => Build(args, null);
 
-    /// <param name="args">Command line (see <see cref="AppOptions"/>).</param>
+    /// <param name="args">Settings options of the command line (see <see cref="AppOptions"/>).</param>
     /// <param name="configure">Lets tests replace services (e.g. the frame source) before the host is built.</param>
-    public static WebApplication Build(string[] args, Action<AppOptions, IServiceCollection>? configure)
+    /// <param name="launch">Tray and window, console logging; default: headless with console logging (tests).</param>
+    public static WebApplication Build(string[] args, Action<AppOptions, IServiceCollection>? configure, LaunchOptions? launch = null)
     {
+        launch ??= LaunchOptions.Headless;
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, ContentRootPath = AppContext.BaseDirectory });
         builder.Configuration.AddEnvironmentVariables("OVERGLOW_");
         var options = AppOptions.FromConfiguration(builder.Configuration);
@@ -34,16 +39,30 @@ public static class OverglowHost
 
         builder.WebHost.UseKestrel(k => k.Listen(options.BindAddress, options.Port));
 
+        // Console (when there is one), the rolling file in the data directory and the UI's log view, all at the
+        // level of the "logger" settings section.
         var logs = new LogBuffer();
+        var level = new LogLevelSetting();
         builder.Logging.ClearProviders();
-        builder.Logging.AddSimpleConsole(ConfigureConsole);
+        if (launch.ConsoleLogging)
+        {
+            builder.Logging.AddSimpleConsole(ConfigureConsole);
+        }
+
+        builder.Logging.AddProvider(new RollingFileLoggerProvider(Path.Combine(options.DataDirectory, LogDirectoryName)));
         builder.Logging.AddProvider(new LogBufferProvider(logs));
+        builder.Logging.SetMinimumLevel(LogLevel.Debug);
+        builder.Logging.AddFilter((_, _, logLevel) => logLevel >= level.Minimum);
         builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
         builder.Logging.AddFilter("System.Net.Http", LogLevel.Warning);
 
         var services = builder.Services;
         services.AddSingleton(options);
+        services.AddSingleton(launch);
         services.AddSingleton(logs);
+        services.AddSingleton(level);
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<GracefulShutdown>();
 
         // LED drivers and what they share (HTTP, discovery, MQTT).
         services.AddDevices();
@@ -62,18 +81,22 @@ public static class OverglowHost
         services.AddAudio();
         services.AddSingleton<DeviceManager>();
         services.AddSingleton<LightingEngine>();
+
+        // Registered before the engine so that it stops after it: the tray icon goes once the LEDs are off.
+        services.AddDesktop(options, launch);
         services.AddHostedService<EngineHostedService>();
 
         services.AddOverglowServer();
         configure?.Invoke(options, services);
 
         var app = builder.Build();
+        level.Follow(app.Services.GetRequiredService<ISettingsStore>());
         app.UseOverglowServer();
         return app;
     }
 
     /// <summary>
-    /// <c>overglow import &lt;database&gt; [--data-dir &lt;dir&gt;]</c>: imports a HyperHDR or Overglow C++ database into
+    /// <c>overglow --import &lt;database&gt; [--data-dir &lt;dir&gt;]</c>: imports a HyperHDR or Overglow C++ database into
     /// the data directory (replacing its settings and credentials, which are saved to backups/ first) and exits.
     /// </summary>
     /// <returns>The process exit code.</returns>
@@ -111,17 +134,25 @@ public static class OverglowHost
     private static SettingsSchema CreateSchema(DriverRegistry drivers) =>
         SettingsSchema.CreateBuiltin(drivers.Drivers.ToDictionary(d => d.Type, d => d.Schema, StringComparer.Ordinal));
 
+    /// <summary>The product version and build id (the first 8 characters of the commit) of this build.</summary>
+    public static (string Version, string Build) ProductVersion()
+    {
+        var informational = typeof(OverglowHost).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.1.0";
+        var plus = informational.IndexOf('+', StringComparison.Ordinal);
+        return plus < 0
+            ? (informational, "dev")
+            : (informational[..plus], informational[(plus + 1)..Math.Min(informational.Length, plus + 1 + 8)]);
+    }
+
     private static ServerOptions CreateServerOptions(AppOptions options, SettingsDatabase database)
     {
-        var assembly = typeof(OverglowHost).Assembly;
-        var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.1.0";
-        var plus = informational.IndexOf('+', StringComparison.Ordinal);
+        var (version, build) = ProductVersion();
         return new ServerOptions
         {
             UiDirectory = options.UiDirectory,
-            Version = plus < 0 ? informational : informational[..plus],
-            Build = plus < 0 ? "dev" : informational[(plus + 1)..Math.Min(informational.Length, plus + 1 + 8)],
-            BuildTime = File.GetLastWriteTimeUtc(assembly.Location).ToString("u", CultureInfo.InvariantCulture),
+            Version = version,
+            Build = build,
+            BuildTime = File.GetLastWriteTimeUtc(typeof(OverglowHost).Assembly.Location).ToString("u", CultureInfo.InvariantCulture),
             InstanceId = database.GetOrCreateInstanceId(),
         };
     }

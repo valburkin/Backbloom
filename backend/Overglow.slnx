@@ -13,6 +13,7 @@
     <Project Path="src/Overglow.Platform.Windows/Overglow.Platform.Windows.csproj" />
     <Project Path="src/Overglow.Server/Overglow.Server.csproj" />
     <Project Path="src/Overglow.Settings/Overglow.Settings.csproj" />
+    <Project Path="src/Overglow.Shell/Overglow.Shell.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Overglow.Audio.Tests/Overglow.Audio.Tests.csproj" />
@@ -24,5 +25,6 @@
     <Project Path="tests/Overglow.Engine.Tests/Overglow.Engine.Tests.csproj" />
     <Project Path="tests/Overglow.Server.Tests/Overglow.Server.Tests.csproj" />
     <Project Path="tests/Overglow.Settings.Tests/Overglow.Settings.Tests.csproj" />
+    <Project Path="tests/Overglow.Shell.Tests/Overglow.Shell.Tests.csproj" />
   </Folder>
 </Solution>

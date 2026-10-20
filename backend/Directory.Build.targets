@@ -1,0 +1,11 @@
+<Project>
+  <!--
+    The WebView2 package references its WinForms and WPF controls in every .NET project; the app hosts WebView2 in a
+    plain Win32 window and uses only Microsoft.Web.WebView2.Core, so the other two stay out of the output.
+  -->
+  <Target Name="DropWebView2UiFrameworkControls" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Filename)' == 'Microsoft.Web.WebView2.WinForms' Or '%(Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
+</Project>

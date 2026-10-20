@@ -6,4 +6,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Overglow.App\Overglow.App.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MQTTnet.Server" />
+  </ItemGroup>
 </Project>

@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
 using Overglow.Server.Auth;
 using Overglow.Server.Diagnostics;
+using Overglow.Server.Mqtt;
 using Overglow.Server.Rpc;
 using Overglow.Server.Transport;
 
@@ -21,6 +21,8 @@ public static class OverglowServer
         services.AddSingleton<RpcDispatcher>();
         services.AddSingleton<WebSocketRpcEndpoint>();
         services.AddSingleton<HttpRpcEndpoint>();
+        services.AddSingleton<MqttIntegration>();
+        services.AddHostedService(sp => sp.GetRequiredService<MqttIntegration>());
 
         services.AddSingleton<IRpcCommand, AuthorizeCommand>();
         services.AddSingleton<IRpcCommand, SysInfoCommand>();
@@ -45,7 +47,7 @@ public static class OverglowServer
 
     /// <summary>
     /// WebSocket JSON-RPC on any path, <c>POST /json-rpc</c>, and the UI's static files when
-    /// <see cref="ServerOptions.UiDirectory"/> exists.
+    /// <see cref="ServerOptions.UiDirectory"/> exists (see <see cref="UiFiles"/>).
     /// </summary>
     public static WebApplication UseOverglowServer(this WebApplication app)
     {
@@ -71,9 +73,7 @@ public static class OverglowServer
 
         if (options.UiDirectory is { } ui && File.Exists(Path.Combine(ui, "index.html")))
         {
-            var files = new PhysicalFileProvider(Path.GetFullPath(ui));
-            app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = files });
-            app.UseStaticFiles(new StaticFileOptions { FileProvider = files });
+            app.UseUiFiles(ui);
         }
 
         return app;

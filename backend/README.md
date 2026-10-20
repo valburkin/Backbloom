@@ -12,7 +12,9 @@ C++ build runs on its own device thread (see [LED drivers and discovery](#led-dr
 LED layout parsing, image to LED mapping, color processing, black border detection and the ten effects match fixtures
 exported from the C++ reference exactly. Settings (port step 4) live in SQLite, cover every kept settings type and are imported from
 HyperHDR databases. Windows screen capture with HDR tone mapping (port step 3) drives the pipeline from the
-`systemGrabber` settings; see [Screen capture](#screen-capture-windows).
+`systemGrabber` settings; see [Screen capture](#screen-capture-windows). Port step 6c makes it a desktop app (tray
+icon, a window with the UI, single instance, autostart, sleep and lock handling, log file; see
+[Desktop shell](#desktop-shell-port-step-6c)) and adds the [MQTT integration](#mqtt-integration).
 
 Portions of this code are ported from [HyperHDR](https://github.com/awawa-dev/HyperHDR) (MIT, copyright awawa-dev);
 the source file each part comes from is named in its doc comments.
@@ -31,24 +33,40 @@ dotnet test
 dotnet run --project src/Overglow.App -c Release -- --port 18290
 ```
 
-Command-line options (also `OVERGLOW_<NAME>` environment variables):
+Command-line options (the settings ones also as `OVERGLOW_<NAME>` environment variables). Unknown options and invalid
+values are errors (exit code 2, with the usage); `--name value` and `--name=value` both work:
 
 | Option | Default | |
 |---|---|---|
 | `--port` | `18290` | Web port (HTTP, WebSocket JSON-RPC, UI files). HyperHDR keeps 8090/8092. |
 | `--bind` | `127.0.0.1` | Address to listen on; use `0.0.0.0` for other devices on the network. |
-| `--data-dir` | per-user `Overglow` folder; `backend/.local/data` when run from the source tree | `settings.db` (settings, controllers, credentials as hashes, instance id), `backups/`, `imported/`. See [Settings](#settings-storage-and-hyperhdr-import). |
+| `--data-dir` | per-user `Overglow` folder; `backend/.local/data` when run from the source tree | `settings.db` (settings, controllers, credentials as hashes, instance id), `backups/`, `imported/`, `logs/`, `window.json`, `webview/` (the window's browser profile). See [Settings](#settings-storage-and-hyperhdr-import). |
 | `--legacy-data-dir` | HyperHDR's data folder; none when run from the source tree | Where the first start looks for `db/hyperhdr.db` to import. `none` turns it off. |
-| `--ui-dir` | `ui/dist` of the source tree | Built React UI to serve. |
+| `--ui-dir` | `ui/` next to the program, else `ui/dist` of the source tree | Built React UI to serve. |
 | `--capture` | `screen` | Frame source: `screen` (DXGI desktop duplication, configured by `systemGrabber`; falls back to the test pattern on other OSes) or `synthetic` (test pattern, used by the server tests). |
 | `--fps` | `60` | Rate of the synthetic test source. |
 | `--lut-dirs` | data dir, app dir | Directories searched for `lut_lin_tables.3d` (or `.3d.zst`), separated by `;`; the default table is written to the first. |
+| `--no-window` | | Start in the tray without opening the window (the autostart entry uses it). |
+| `--service` | | No tray icon, no window, console log: headless use (C++ `--service`). Power events are still handled. |
+| `--import <file>` | | Import a HyperHDR or Overglow C++ database into the data directory and exit. |
+| `--quit` | | Ask the instance running with the data directory to quit; waits until it is gone (installers, scripts). |
+| `--version`, `-h`/`--help` | | Print and exit. |
+
+`overglow.exe` is a GUI program (no console window when started from Explorer or autostart); started from a terminal it
+attaches to that console, so the usage, `--version` and the log of `--service` show there. Ctrl+C stops it gracefully.
 
 ### Using the UI
 
-- Served by the backend: `cd ui && npm ci && npm run build`, then open `http://localhost:18290`.
+- Served by the backend: `cd ui && npm ci && npm run build`, then build the backend (the UI is copied next to the
+  program as `ui/`) and open `http://127.0.0.1:18290`, or use the app's window.
 - From a dev or preview server: `npx vite preview --port 4730` in `ui/` and open
   `http://localhost:4730/?backend=localhost:18290`.
+
+The UI finds its backend at the page's own host (`ui/src/api/backend.ts`: `?backend=` / `VITE_BACKEND` first), so it
+needs no change when the app serves it. `UiFiles` serves `index.html` for `/` and for any other GET without a file
+extension (single-page fallback; the UI routes by URL hash today), caches the content-hashed `assets/` for a year
+(`immutable`) and revalidates everything else (`no-cache` with ETag), so a new version shows up at once. Missing files
+with an extension stay 404. After rebuilding the UI, rebuild the backend (or pass `--ui-dir ../ui/dist`) to serve it.
 
 The default admin password is `overglow` (as in the C++ build). Local clients need it for configuration unless
 `network.localAdminAuth` is `false`.
@@ -67,13 +85,15 @@ src/
   Overglow.Devices    LED device lifecycle (LedDeviceRunner), RGBW encoders and the 16 drivers (network, serial, HID,
                       file); driver tools for leddevice discover/getProperties/identify
   Overglow.Discovery  mDNS client/responder, SSDP search, UDP broadcast probes, serial port and HID enumeration
-  Overglow.Mqtt       the one MQTT broker connection (MQTTnet), shared by Zigbee2MQTT and the later MQTT integration
+  Overglow.Mqtt       the one MQTT broker connection (MQTTnet), shared by Zigbee2MQTT and the MQTT integration
   Overglow.Settings   settings schemas + validation, SQLite store, credential store, HyperHDR import, backups
   Overglow.Engine     orchestration: frame loop, component switches, controllers, live preview feed, running effects
-  Overglow.Server     Kestrel: JSON-RPC over WebSocket + POST /json-rpc, auth, UI files
-  Overglow.Platform.Windows  Windows implementations of the engine's platform interfaces (high-resolution clock,
-                      machine CPU and memory load)
-  Overglow.App        host: composition root (DI), configuration, logging (exe: overglow)
+  Overglow.Server     Kestrel: JSON-RPC over WebSocket + POST /json-rpc, auth, UI files; the MQTT integration
+  Overglow.Shell      desktop integration, platform-neutral: power/session policy, tray menu, window placement,
+                      single instance, the contracts of tray, window, autostart and system events
+  Overglow.Platform.Windows  Windows implementations of the platform interfaces: high-resolution clock, machine CPU and
+                      memory load, power and session events, tray icon, WebView2 window, Run-key autostart
+  Overglow.App        host: composition root (DI), command line, single instance, logging, lifetime (exe: overglow)
 tests/
   Overglow.*.Tests    xUnit v3; fixtures/ holds golden fixtures shared by the test projects
 ```
@@ -82,8 +102,8 @@ Dependency rules (a project may only use the ones above it in this list):
 
 1. `Core`, `Settings`, `Discovery`, `Mqtt` (no project references)
 2. `Capture` (Core), `Audio` (Core), `Devices` (Core, Discovery, Mqtt); `Capture.Windows` (Capture), `Audio.Windows` (Audio)
-3. `Engine` (Core, Audio, Capture, Devices, Settings); `Platform.Windows` (Engine)
-4. `Server` (Engine and below)
+3. `Engine` (Core, Audio, Capture, Devices, Settings)
+4. `Server`, `Shell` (Engine and below); `Platform.Windows` (Engine, Shell)
 5. `App` (everything; the only place that creates services)
 
 `Overglow.Engine` is an addition to the plan's layout: the API layer needs one orchestrator to talk to
@@ -105,6 +125,8 @@ the C++ fixtures by `Core.Tests`; `Audio` only gets the sound into that analysis
 | Smoothing (1, above-normal priority) | `OutputStage` | while smoothing runs: one tick per update interval (interpolate, anti-flicker filter, hand the frame to the controllers and the preview); idle otherwise |
 | One per controller | `LedDeviceRunner` | open (with retries), send the newest frame, refresh, blink, close |
 | Thread pool | ASP.NET Core | JSON-RPC requests (in order per connection), event pushes, LED stream timers |
+| UI (1, STA, Windows) | `UiThread` | Win32 message loop: hidden message window (power/session notifications, tray callbacks), tray menu, WebView2 window |
+| Log file (1, below normal) | `RollingFileLoggerProvider` | writes queued log lines |
 
 - The frame loop never waits on a controller or a client. `LedDeviceRunner.Submit` copies the colors into a
   preallocated buffer; if the device thread hasn't sent the previous frame yet, that frame is dropped (counted in
@@ -392,6 +414,50 @@ Deliberate differences from the C++ drivers:
    ignored TLS errors for every host).
 7. Discovery results carry `value` / `name` for every driver (the C++ shapes are kept alongside).
 
+## Desktop shell (port step 6c)
+
+Port of `sources/app` (main, AppDaemon, SystrayHandler), `systray` and `suspend-handler`, reorganized: the
+platform-neutral parts live in `Overglow.Shell`, the Windows parts in `Overglow.Platform.Windows/Desktop`, and `App`
+wires them (`DesktopRegistration`).
+
+| | |
+|---|---|
+| Single instance | One app per data directory (C++: one `overglow.exe` per machine, a second start failed). The first instance holds `overglow.lock` in the data directory exclusively (released by the OS even after a crash) and listens on a named pipe derived from the directory (current user only). A second start with the same directory asks it to show its window (headless: the second process opens the UI in the browser) and exits; `--quit` asks it to quit and waits. Instances with different data directories run side by side. |
+| Tray | `Shell_NotifyIcon` (version 4) with the Overglow icon (`branding/overglow.ico`, embedded; the best size is picked from the .ico). Menu, rebuilt on each open (`TrayMenu`): **Open Overglow** (default, also a click on the icon), **Lights** (`ALL`), **Screen sync** (removes colors and effects, capture on), **Color** (the C++ colors, priority 1), **Pause for 30 minutes** (then *Resume*; a switch elsewhere ends the pause), **Start with Windows**, **Quit**. The icon comes back after an Explorer restart (`TaskbarCreated`). C++'s "Instances" submenu is gone (one pipeline); "Effects" returns with the effects (port step 5b). |
+| Window | A plain Win32 window hosting the UI in WebView2 (`Microsoft.Web.WebView2.Core` only, BSD-3; no WinForms/WPF, their assemblies are kept out of the output by `Directory.Build.targets`). Dark title bar, the UI's background until the page draws, placement (normal bounds + maximized) in `window.json` (atomic write; restored only when it is on a monitor). Closing it destroys the window and its browser processes (no memory held while hidden); the app stays in the tray. Links to other sites open in the default browser. Without the WebView2 runtime (`GetAvailableBrowserVersionString`) or when it fails to start, the UI opens in the default browser. Profile in `<data>/webview`. |
+| Autostart | `RegistryAutostart`: value `Overglow` in `HKCU\...\CurrentVersion\Run` (as C++), command `"<exe>" --no-window` plus `--data-dir` when it isn't the default; enabled only when the entry starts this executable (also C++'s bare-path entries). The key is a constructor parameter; the tests use a scratch key and never write the real Run key. |
+| Power and session | `WindowsSystemEvents` (hidden top-level window: `RegisterSuspendResumeNotification`, `RegisterPowerSettingNotification(GUID_SESSION_DISPLAY_STATUS)`, `WTSRegisterSessionNotification`, `WM_ENDSESSION`) raises `ISystemEvents`; `PowerPolicy` (port of `InstanceManager::hibernate`) reacts: sleep -> `ALL` off, wake-up -> on 3 s later; locked or display off with `general.disableOnLocked` -> `SYSTEMGRABBER` off (the screen source leaves, so the LEDs go dark unless a color or effect shows), unlocked and display on -> capture on 3 s later. A lock in a remote desktop session is ignored (as C++). |
+| Startup | `general.disableLedsStartup` starts with `LEDDEVICE` off (engine, unchanged); `--no-window` keeps the window closed. |
+| Logging | Console (when there is one), `logs/overglow-yyyyMMdd.log` in the data directory and the UI's log view, at the level of the `logger` section (silent = errors only, warn, verbose = info, debug), applied at once when it changes. One plain-text line per message (time, level, category, rendered message template; exceptions indented below), written by a background thread; a new file per day and per 10 MB, the newest 10 kept. |
+| Shutdown | Quit, `--quit` and Ctrl+C stop the host: WebSocket clients are closed at once, the engine switches every controller off (black frame, then closed), then the tray icon goes. Where Windows ends the process as soon as a notification returns (`WM_ENDSESSION` at logoff/shutdown; console close and shutdown signals), the handler stops the host and waits up to 4.5 s for the LEDs (`GracefulShutdown`). C++ didn't handle the session end. |
+| Settings | Crash-safe as before: every change is one SQLite transaction (rollback journal, `synchronous=FULL` by default); `window.json` is written to a temporary file and moved over. |
+| Packaging | `overglow.exe` is a `WinExe` with the Overglow icon; the built UI is copied next to it (`ui/`, build and publish) when `ui/dist` exists. `dotnet publish src/Overglow.App -c Release -r win-x64` gives a self-contained ReadyToRun folder (~175 MB with ASP.NET Core and WebView2Loader). |
+
+Design choices:
+
+- **WebView2 directly, not Photino.NET.** The tray needs native code on every OS anyway (`Shell_NotifyIcon`,
+  `NSStatusItem`, StatusNotifierItem), and the window only shows one local page, so a cross-platform window library
+  saves little. Hosting WebView2 in our own Win32 window gives what the shell needs and Photino doesn't: hiding vs.
+  destroying on close, placement with `Get/SetWindowPlacement`, the end-session message, one message loop for tray,
+  notifications and window, no second native library. macOS/Linux implement `ITrayIcon` / `IAppWindow` /
+  `IAutostart` / `ISystemEvents` in their own projects (WKWebView/WebKitGTK, or Photino behind `IAppWindow`).
+- **Interop**: TerraFX.Interop.Windows (already used by capture) for user32/shell32/dwmapi, `[UnmanagedCallersOnly]`
+  window procedure, `LibraryImport` for the two wtsapi32 calls TerraFX lacks. The WebView2 wrapper uses built-in COM
+  interop, so `Platform.Windows` is no longer marked AOT-compatible.
+- **One UI thread** (STA) owns every window: WebView2 and the menu loop need a message pump; it has a
+  `SynchronizationContext`, so `await` in the window code returns to it.
+
+## MQTT integration
+
+Port of `sources/mqtt` on top of the shared `MqttConnection` (MQTTnet), in `Overglow.Server/Mqtt`:
+
+| | |
+|---|---|
+| Connection | The `mqtt` section: `enable`, `host`, `port`, `username`, `password`, `is_ssl`, `ignore_ssl_errors`, `maxRetry` (5 s apart; C++: 10 s). Reconnects when the section changes; the first attempt runs in the background so an unreachable broker doesn't delay the start. |
+| JSON-RPC | Requests on `<topic>/JsonAPI` (`custom_topic`, default `Overglow`; HyperHDR used `HyperHDR`): one request object or an array of them, run with the rights of a local client (C++ `localConnection`), every message the session produced is published as one JSON array on `<topic>/JsonAPI/response` (QoS 2). Unreadable JSON gets `{ success: false, error }`. `disableApiAccess` doesn't subscribe at all (as C++). |
+| Availability (new) | `<topic>/status`: `online` (retained) after every connect, `offline` as the connection's last will and published before a clean disconnect. |
+| Home Assistant (new) | With `homeAssistantDiscovery` (new setting, default on): a retained discovery config on `homeassistant/light/overglow_<id>/light/config` (JSON schema, RGB, brightness, effect list `["Screen sync"]`, device = `general.name`), commands on `<topic>/light/set` (`OFF` -> `ALL` off; `ON` -> on; a color -> static color at priority 1 scaled by the brightness; effect "Screen sync" -> colors cleared, capture on) and the retained state on `<topic>/light/state`, published on every change from any client. Switching discovery off removes the entity (empty retained config). |
+
 ## JSON-RPC protocol
 
 Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): requests
@@ -431,8 +497,8 @@ before the controller's color order (so it is really red, green, blue on GRB str
 **Sections and validation.** Every settings type the C++ build kept is a section: `general`, `logger`, `device`,
 `color`, `smoothing`, `systemGrabber`, `blackborderdetector`, `foregroundEffect`, `backgroundEffect`, `soundEffect`,
 `webConfig`, `effects`, `systemControl`, `network`, `ledConfig`, `leds`, `mqtt`, `layout`. Their schemas are the C++
-files (`sources/base/schema`, copied unchanged into `Overglow.Settings/Schemas`), the LED driver schemas come from
-`Overglow.Devices`, and defaults exist only there. The in-house validator stays: the schemas use the draft-03
+files (`sources/base/schema`, copied into `Overglow.Settings/Schemas`; the only addition is
+`mqtt.homeAssistantDiscovery`), the LED driver schemas come from `Overglow.Devices`, and defaults exist only there. The in-house validator stays: the schemas use the draft-03
 `required: true` form that the standard validators don't support. `setconfig` uses it strictly (reject, per-field
 errors); only imports and stored data from an older schema use its repair mode (clamp numbers, reset values of the wrong
 type or outside an enum to their default, drop unknown fields, report every fix).
@@ -490,7 +556,7 @@ first existing of `<data>/db/overglow.db` (the C++ build's database in the same 
 `<legacy>/db/hyperhdr.db` is imported (`--legacy-data-dir`, default HyperHDR's folder: `~/.hyperhdr` if it exists,
 else `%LOCALAPPDATA%\HyperHDR` / `~/Library/Preferences/HyperHDR` / `~/.config/HyperHDR`; source-tree builds don't look
 unless told). A failed import is logged and the app starts with defaults; it isn't retried automatically.
-`overglow import <file> --data-dir <dir>` imports a database explicitly (the current settings go to `backups/` first).
+`overglow --import <file> --data-dir <dir>` imports a database explicitly (the current settings go to `backups/` first).
 
 **Backups.** `save-db` returns the C++ export format (`Overglow_export_format_v1`: `instances` + `settings` rows with
 JSON text, per-instance types under instance 0, each controller's `device` under its id); `load-db` also accepts
@@ -559,3 +625,10 @@ tolerance.
 - Multiple controllers: the store keeps a list of controllers and `DeviceManager` fans out to a list, but the engine
   and the protocol still use controller 0 (`device`) only.
 - The UI's restore dialog still says the app closes to apply a backup; it doesn't any more.
+- Desktop shell: the tray has no Effects / Music entries and the Home Assistant light no effects besides
+  "Screen sync" until effects and music mode (5b) are merged (both menus take a list). Only Windows has a tray, window
+  and power events; macOS/Linux run headless. The tray menu uses the light system menu style (no dark mode). The
+  WebView2 window doesn't sign in by itself (the UI asks for the password unless `network.localAdminAuth` is off).
+  A `--service` process in a console isn't told about a logoff (only console close and shutdown are handled), and
+  `--service` can't run as a Windows service (session 0) yet. Brightness from Home Assistant scales its static color
+  only; the screen keeps the configured brightness.

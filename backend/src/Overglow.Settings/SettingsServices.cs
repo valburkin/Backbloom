@@ -48,7 +48,7 @@ public sealed partial class SettingsServices : IDisposable
     /// Opens <c>settings.db</c> in the data directory. On the first start (no settings yet) it imports, in this
     /// order, the database of the Overglow C++ build in the same directory (<c>db/overglow.db</c>) or HyperHDR's
     /// (<c>db/hyperhdr.db</c> in <see cref="SettingsOptions.LegacyDataDirectory"/>). Both are only copied, never
-    /// modified. When that fails, it starts with defaults and doesn't try again (<c>overglow import</c> can).
+    /// modified. When that fails, it starts with defaults and doesn't try again (<c>overglow --import</c> can).
     /// </summary>
     public static SettingsServices Open(SettingsOptions options, SettingsSchema schema, ILoggerFactory loggerFactory, TimeProvider? time = null)
     {
@@ -172,6 +172,6 @@ public sealed partial class SettingsServices : IDisposable
     [LoggerMessage(Level = LogLevel.Error, Message = "The imported settings were rejected: {Errors}")]
     private partial void LogImportRejected(string errors);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Importing {Source} failed; starting with a fresh configuration (run 'overglow import <file>' to try again)")]
+    [LoggerMessage(Level = LogLevel.Error, Message = "Importing {Source} failed; starting with a fresh configuration (run 'overglow --import <file>' to try again)")]
     private partial void LogFirstImportFailed(Exception exception, string source);
 }

@@ -87,6 +87,14 @@
       "default": 0,
       "required": true,
       "propertyOrder": 10
+    },
+    "homeAssistantDiscovery": {
+      "type": "boolean",
+      "format": "checkbox",
+      "title": "Add the lights to Home Assistant (MQTT discovery)",
+      "default": true,
+      "required": true,
+      "propertyOrder": 11
     }
   },
   "additionalProperties": false

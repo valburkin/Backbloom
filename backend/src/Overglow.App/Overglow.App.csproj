@@ -1,12 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Overglow host: composition root, configuration and process lifetime.</Description>
-    <OutputType>Exe</OutputType>
+    <Description>Overglow host: composition root, command line, single instance, logging and process lifetime.</Description>
+    <!-- A GUI program: no console window when started from Explorer, autostart or the tray (see ParentConsole). -->
+    <OutputType>WinExe</OutputType>
     <AssemblyName>overglow</AssemblyName>
     <RootNamespace>Overglow.App</RootNamespace>
+    <ApplicationIcon>..\..\..\branding\overglow.ico</ApplicationIcon>
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+
+  <!-- Packaging: `dotnet publish -c Release -r win-x64` gives a self-contained folder (runtime included, ReadyToRun). -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,5 +26,18 @@
     <ProjectReference Include="..\Overglow.Capture.Windows\Overglow.Capture.Windows.csproj" />
     <ProjectReference Include="..\Overglow.Platform.Windows\Overglow.Platform.Windows.csproj" />
     <ProjectReference Include="..\Overglow.Server\Overglow.Server.csproj" />
+    <ProjectReference Include="..\Overglow.Shell\Overglow.Shell.csproj" />
+  </ItemGroup>
+
+  <!-- The built React UI (ui/dist, `npm run build` in ui/) goes next to the program as ui/ when it exists. -->
+  <PropertyGroup>
+    <OverglowUiDist>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\ui\dist'))</OverglowUiDist>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(OverglowUiDist)\index.html')">
+    <Content Include="$(OverglowUiDist)\**\*" Link="ui\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Overglow.Shell.Tests" />
   </ItemGroup>
 </Project>

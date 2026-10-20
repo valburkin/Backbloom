@@ -1,11 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Windows implementations of the engine's platform interfaces: high-resolution clock, machine CPU and memory load.</Description>
-    <IsAotCompatible>true</IsAotCompatible>
+    <Description>Windows implementations of the platform interfaces: high-resolution clock, machine load, power and session events, tray icon, WebView2 window, autostart.</Description>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Overglow.Engine\Overglow.Engine.csproj" />
+    <ProjectReference Include="..\Overglow.Shell\Overglow.Shell.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" />
+    <PackageReference Include="TerraFX.Interop.Windows" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\branding\overglow.ico" LogicalName="Overglow.Platform.Windows.overglow.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Overglow.Shell.Tests" />
   </ItemGroup>
 </Project>

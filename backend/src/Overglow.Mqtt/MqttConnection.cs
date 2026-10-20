@@ -2,13 +2,25 @@ using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
+using MQTTnet.Protocol;
 
 namespace Overglow.Mqtt;
+
+/// <summary>One message to publish.</summary>
+/// <param name="Qos">MQTT quality of service: 0 (at most once), 1 (at least once) or 2 (exactly once).</param>
+/// <param name="Retain">The broker keeps it for later subscribers.</param>
+public sealed record MqttMessage(string Topic, string Payload, int Qos = 0, bool Retain = false);
 
 /// <summary>Settings of the <c>mqtt</c> section that concern the broker connection.</summary>
 public sealed record MqttSettings(bool Enabled, string Host, int Port = 1883, string Username = "", string Password = "", bool UseTls = false, bool IgnoreTlsErrors = true, int MaxRetry = 0)
 {
     public static MqttSettings Disabled { get; } = new(false, string.Empty);
+
+    /// <summary>
+    /// Last will: published by the broker when the connection breaks, and by <see cref="MqttConnection"/> itself
+    /// right before it disconnects, so an availability topic reads "offline" either way.
+    /// </summary>
+    public MqttMessage? Will { get; init; }
 
     public static MqttSettings FromJson(JsonObject? section)
     {
@@ -99,6 +111,9 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
 
     public bool IsConnected => _client.IsConnected;
 
+    /// <summary>Raised on a client thread after every successful (re)connect, once the subscriptions are restored.</summary>
+    public event Action? Connected;
+
     /// <summary>Connects with, or disconnects for, new settings (an unchanged configuration keeps the connection).</summary>
     public async Task ConfigureAsync(MqttSettings settings, CancellationToken cancellationToken)
     {
@@ -133,8 +148,26 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
             return false;
         }
 
-        var message = new MqttApplicationMessageBuilder().WithTopic(topic).WithPayload(Encoding.UTF8.GetBytes(payload ?? string.Empty)).Build();
-        var result = await _client.PublishAsync(message, cancellationToken);
+        return await PublishAsync(new MqttMessage(topic, payload ?? string.Empty), cancellationToken);
+    }
+
+    /// <summary>Publishes with the message's QoS and retain flag; false when not connected or the broker refused it.</summary>
+    public async Task<bool> PublishAsync(MqttMessage message, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentException.ThrowIfNullOrEmpty(message.Topic);
+        if (!_client.IsConnected)
+        {
+            return false;
+        }
+
+        var built = new MqttApplicationMessageBuilder()
+            .WithTopic(message.Topic)
+            .WithPayload(Encoding.UTF8.GetBytes(message.Payload))
+            .WithQualityOfServiceLevel(ToQos(message.Qos))
+            .WithRetainFlag(message.Retain)
+            .Build();
+        var result = await _client.PublishAsync(built, cancellationToken);
         return result.IsSuccess;
     }
 
@@ -216,6 +249,15 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
             builder = builder.WithCredentials(settings.Username, settings.Password);
         }
 
+        if (settings.Will is { } will)
+        {
+            builder = builder
+                .WithWillTopic(will.Topic)
+                .WithWillPayload(Encoding.UTF8.GetBytes(will.Payload))
+                .WithWillQualityOfServiceLevel(ToQos(will.Qos))
+                .WithWillRetain(will.Retain);
+        }
+
         if (settings.UseTls)
         {
             builder = builder.WithTlsOptions(o =>
@@ -242,6 +284,8 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
             {
                 await _client.SubscribeAsync(new MqttClientSubscribeOptionsBuilder().WithTopicFilter(topic).Build(), cancellationToken);
             }
+
+            Connected?.Invoke();
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
         {
@@ -269,8 +313,20 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
             await PublishAsync(topic, payload, cancellationToken);
         }
 
+        if (_settings.Will is { } will)
+        {
+            await PublishAsync(will, cancellationToken);
+        }
+
         await _client.DisconnectAsync(new MqttClientDisconnectOptionsBuilder().Build(), cancellationToken);
     }
+
+    private static MqttQualityOfServiceLevel ToQos(int qos) => qos switch
+    {
+        1 => MqttQualityOfServiceLevel.AtLeastOnce,
+        2 => MqttQualityOfServiceLevel.ExactlyOnce,
+        _ => MqttQualityOfServiceLevel.AtMostOnce,
+    };
 
     private void StartReconnecting()
     {

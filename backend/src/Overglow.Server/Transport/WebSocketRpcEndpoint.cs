@@ -3,6 +3,7 @@ using System.Net.WebSockets;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Overglow.Server.Auth;
 using Overglow.Server.Rpc;
@@ -12,13 +13,15 @@ namespace Overglow.Server.Transport;
 
 /// <summary>
 /// JSON-RPC over WebSocket on any path of the web port (the UI connects to <c>ws://host:port</c>). Requests of one
-/// connection are handled in order; replies and events leave through one queue so they never interleave.
+/// connection are handled in order; replies and events leave through one queue so they never interleave. When the
+/// app shuts down, connections are closed at once (Kestrel would otherwise wait for them until its shutdown timeout).
 /// </summary>
 public sealed partial class WebSocketRpcEndpoint(
     RpcDispatcher dispatcher,
     ISettingsStore settings,
     AuthService auth,
     ServerOptions options,
+    IHostApplicationLifetime lifetime,
     ILogger<WebSocketRpcEndpoint> logger)
 {
     private readonly ILogger _logger = logger;
@@ -44,10 +47,11 @@ public sealed partial class WebSocketRpcEndpoint(
         LogConnected(peer, isLocal, admin);
 
         var aborted = context.RequestAborted;
+        using var stopping = CancellationTokenSource.CreateLinkedTokenSource(aborted, lifetime.ApplicationStopping);
         var sender = SendLoopAsync(socket, output.Reader, aborted);
         try
         {
-            await ReceiveLoopAsync(socket, session, aborted);
+            await ReceiveLoopAsync(socket, session, stopping.Token);
         }
         catch (Exception ex) when (ex is WebSocketException or OperationCanceledException)
         {

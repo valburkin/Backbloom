@@ -1,18 +1,77 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Overglow.App;
+using Overglow.Platform.Windows.Desktop;
+using Overglow.Server;
+using Overglow.Shell;
 
-if (args is ["import", var source, .. var rest])
+var hasConsole = !OperatingSystem.IsWindows() || ParentConsole.Attach();
+var (commandLine, error) = CommandLine.Parse(args);
+if (commandLine is null)
 {
-    return OverglowHost.Import(source, rest);
+    Console.Error.WriteLine(error);
+    Console.Error.WriteLine();
+    Console.Error.WriteLine(CommandLine.Usage);
+    return 2;
 }
 
-var app = OverglowHost.Build(args);
-var options = app.Services.GetRequiredService<AppOptions>();
-var startup = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Overglow");
-var ui = options.UiDirectory ?? "not found (build ui/ or pass --ui-dir)";
-var url = $"http://{options.BindAddress}:{options.Port}";
-StartupLog.Started(startup, options.DataDirectory, ui, url);
+switch (commandLine.Mode)
+{
+    case LaunchMode.Help:
+        Console.WriteLine(CommandLine.Usage);
+        return 0;
+    case LaunchMode.Version:
+        var (version, build) = OverglowHost.ProductVersion();
+        Console.Write(CommandLine.VersionText(version, build));
+        return 0;
+    case LaunchMode.Import:
+        return OverglowHost.Import(commandLine.ImportFile!, [.. commandLine.ConfigurationArgs]);
+}
 
-await app.RunAsync();
+var configuration = new ConfigurationBuilder().AddEnvironmentVariables("OVERGLOW_").AddCommandLine([.. commandLine.ConfigurationArgs]).Build();
+var options = AppOptions.FromConfiguration(configuration);
+
+if (commandLine.Mode == LaunchMode.Quit)
+{
+    return await Launcher.QuitRunningAsync(options.DataDirectory);
+}
+
+using var instance = SingleInstance.TryAcquire(options.DataDirectory);
+if (instance is null)
+{
+    return await Launcher.ActivateRunningAsync(options.DataDirectory);
+}
+
+var launch = new LaunchOptions(
+    Desktop: !commandLine.Service && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763),
+    OpenWindow: !commandLine.NoWindow,
+    ConsoleLogging: hasConsole);
+await using var app = OverglowHost.Build([.. commandLine.ConfigurationArgs], null, launch);
+var shutdown = app.Services.GetRequiredService<GracefulShutdown>();
+if (hasConsole)
+{
+    shutdown.HandleConsoleSignals();
+}
+
+await app.StartAsync();
+var url = AppUrls.Ui(options);
+instance.Listen(request => Launcher.Answer(app, request, url));
+var server = app.Services.GetRequiredService<ServerOptions>();
+var startup = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Overglow");
+var ui = server.UiDirectory ?? "not found (build ui/ or pass --ui-dir)";
+StartupLog.Started(startup, server.Version, options.DataDirectory, ui, url.AbsoluteUri);
+try
+{
+    await app.WaitForShutdownAsync();
+}
+catch (Exception ex) when (ex is not OutOfMemoryException)
+{
+    StartupLog.StopFailed(startup, ex);
+    return 1;
+}
+
+StartupLog.Stopped(startup);
 return 0;
