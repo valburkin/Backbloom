@@ -376,7 +376,7 @@ function ControllerCard({ controller, index }: { controller: Controller; index: 
           >
             {driverOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
             LED driver settings
-            <span className="font-normal text-ink-faint">— how Overglow talks to this controller</span>
+            <span className="font-normal text-ink-faint">— how Backbloom talks to this controller</span>
           </button>
           {driverOpen && (
             <div className="border-t border-line p-4">
@@ -403,7 +403,7 @@ export function DevicesPage() {
   return (
     <PageFrame
       title="Devices"
-      subtitle="Your LED controllers: how Overglow reaches each one, and the outputs your strips are wired to. One picture feeds them all."
+      subtitle="Your LED controllers: how Backbloom reaches each one, and the outputs your strips are wired to. One picture feeds them all."
       actions={<SaveBar />}
     >
       <div className="flex items-end justify-between gap-3">

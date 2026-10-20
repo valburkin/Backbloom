@@ -91,7 +91,7 @@ export interface Controller {
   /** Hostname or IP (WLED controllers; empty otherwise). */
   host: string;
   outputs: ControllerOutput[];
-  /** How Overglow talks to the controller. The backend fills it in when a layout without it is saved. */
+  /** How Backbloom talks to the controller. The backend fills it in when a layout without it is saved. */
   device?: DriverSettings;
   /** False: the controller keeps its place in the layout but nothing is sent to it. Default true. */
   enabled?: boolean;

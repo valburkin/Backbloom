@@ -1,4 +1,4 @@
-// Wire types for the Overglow JSON-RPC protocol (WebSocket on the web server port, default 18290).
+// Wire types for the Backbloom JSON-RPC protocol (WebSocket on the web server port, default 18290).
 //
 // Requests:  { command, subcommand?, tan, ...params }   (the server validates with additionalProperties: false)
 // Replies:   { command, tan, success, info?, error? }   (command is "cmd" or "cmd-subcmd"; errors may omit the subcommand,
@@ -116,7 +116,7 @@ export interface ChannelAdjustment {
   [key: string]: unknown;
 }
 
-/** One LED controller as `serverinfo.controllers` / `controllers-update` report it (Overglow .NET backend). */
+/** One LED controller as `serverinfo.controllers` / `controllers-update` report it (Backbloom .NET backend). */
 export interface ControllerInfo {
   id: string;
   name: string;
@@ -147,7 +147,7 @@ export interface ServerInfo {
   effects?: Array<{ name: string }>;
   activeEffects?: Array<{ name: string; priority: number; timeout: number }>;
   adjustment?: ChannelAdjustment[];
-  /** Sound capture; the Overglow .NET backend adds display names in `sound_devices` (`sound_available` holds ids then). */
+  /** Sound capture; the Backbloom .NET backend adds display names in `sound_devices` (`sound_available` holds ids then). */
   sound?: {
     active?: boolean;
     device?: string;
@@ -179,7 +179,7 @@ export interface SystemGrabbers {
 }
 
 export interface SysInfo {
-  overglow?: { version?: string; build?: string; time?: string; readOnlyMode?: boolean; id?: string; supportUrl?: string };
+  backbloom?: { version?: string; build?: string; time?: string; readOnlyMode?: boolean; id?: string; supportUrl?: string };
   system?: {
     hostName?: string;
     prettyName?: string;
@@ -220,7 +220,7 @@ export interface PerformanceReport {
   token: number;
   remove: number;
   refresh?: number;
-  /** LED reports (type 3) of the Overglow .NET backend: one per controller. */
+  /** LED reports (type 3) of the Backbloom .NET backend: one per controller. */
   controller?: string;
   controllerName?: string;
   ledCount?: number;

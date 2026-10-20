@@ -64,6 +64,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push'
         with:
-          name: overglow-windows
+          name: backbloom-windows
           path: artifacts/releases/
           if-no-files-found: error

@@ -33,10 +33,10 @@ export function AboutTab() {
       alive = false;
     };
   }, []);
-  const o = sysInfo?.overglow;
+  const o = sysInfo?.backbloom;
   const s = sysInfo?.system;
   const report = [
-    `Overglow ${o?.version ?? '?'} ${o?.build ?? ''}`.trim(),
+    `Backbloom ${o?.version ?? '?'} ${o?.build ?? ''}`.trim(),
     o?.time ? `Built ${o.time}` : '',
     s ? `${s.prettyName ?? s.productType ?? ''} (${s.kernelType ?? ''} ${s.kernelVersion ?? ''}, ${s.architecture ?? ''})` : '',
     s?.runtimeVersion ?? '',
@@ -49,7 +49,7 @@ export function AboutTab() {
   return (
     <>
       <Section
-        title="Overglow"
+        title="Backbloom"
         icon={<Info size={18} />}
         actions={
           <IconButton label="Copy system report" onClick={() => void navigator.clipboard?.writeText(report).then(() => toast('ok', 'System report copied'))}>
@@ -60,7 +60,7 @@ export function AboutTab() {
         <div className="flex items-center gap-4">
           <Logo size={48} />
           <div>
-            <p className="text-lg font-semibold">Overglow</p>
+            <p className="text-lg font-semibold">Backbloom</p>
             <p className="text-[13px] text-ink-muted">Ambient lighting that follows your screen.</p>
           </div>
         </div>
@@ -78,7 +78,7 @@ export function AboutTab() {
 
       <Section title="Licenses" icon={<Scale size={18} />}>
         <div>
-          <p className="text-[13px] font-medium">Overglow {o?.version ?? ''}</p>
+          <p className="text-[13px] font-medium">Backbloom {o?.version ?? ''}</p>
         </div>
         <details>
           <summary className="cursor-pointer text-[13px] font-medium">Based on HyperHDR by awawa-dev (MIT License)</summary>

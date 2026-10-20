@@ -1,9 +1,9 @@
-"""Render the Overglow mark and the derived product images. Geometry mirrors overglow-mark.svg (512 units).
+"""Render the Backbloom mark and the derived product images. Geometry mirrors backbloom-mark.svg (512 units).
 
 Usage: python -I generate_icons.py
 
 Writes:
-  ./png/overglow-<size>.png, ./overglow.ico                       app icons (exe, tray, installer)
+  ./png/backbloom-<size>.png, ./backbloom.ico                       app icons (exe, tray, installer)
   ./installer/splash.png                                          Velopack setup splash (480x270)
 The wordmark uses the first available font of WORDMARK_FONTS (Segoe UI Semibold on Windows).
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 HERE = Path(__file__).resolve().parent
-NAME = "Overglow"
+NAME = "Backbloom"
 INK = (13, 14, 26, 255)
 WHITE = (255, 255, 255, 255)
 WORDMARK_FONTS = [
@@ -151,10 +151,10 @@ def main() -> None:
     out = HERE / "png"
     out.mkdir(exist_ok=True)
     for size in (16, 24, 32, 48, 64, 128, 144, 180, 192, 256, 512):
-        render(size).save(out / f"overglow-{size}.png")
+        render(size).save(out / f"backbloom-{size}.png")
     ico_sizes = [16, 24, 32, 48, 64, 128, 256]
     frames = [render(sz) for sz in ico_sizes]
-    frames[-1].save(HERE / "overglow.ico", sizes=[(sz, sz) for sz in ico_sizes], append_images=frames[:-1])
+    frames[-1].save(HERE / "backbloom.ico", sizes=[(sz, sz) for sz in ico_sizes], append_images=frames[:-1])
     installer_images()
 
 

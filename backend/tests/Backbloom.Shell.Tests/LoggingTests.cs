@@ -1,0 +1,113 @@
+using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
+using Backbloom.App.Logging;
+
+namespace Backbloom.Shell.Tests;
+
+public sealed class LoggingTests : IDisposable
+{
+    private readonly string _dir = TestHost.NewDirectory();
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 19, 21, 0, 0, TimeSpan.Zero));
+
+    public LoggingTests() => _time.SetLocalTimeZone(TimeZoneInfo.Utc);
+
+    public void Dispose() => TestHost.DeleteDirectory(_dir);
+
+    [Fact]
+    public void Lines_HaveTimeLevelCategoryAndException()
+    {
+        using (var provider = new RollingFileLoggerProvider(_dir, _time))
+        {
+            var logger = provider.CreateLogger("Backbloom.Test");
+            Log.Hello(logger, "world");
+            Log.Failed(logger, new InvalidOperationException("boom"));
+            provider.Flush();
+        }
+
+        var lines = File.ReadAllLines(Path.Combine(_dir, "backbloom-20261019.log"));
+        Assert.Equal("2026-10-19 21:00:00.000 INFO  Backbloom.Test: Hello world", lines[0]);
+        Assert.Equal("2026-10-19 21:00:00.000 ERROR Backbloom.Test: Failed", lines[1]);
+        Assert.StartsWith("    System.InvalidOperationException: boom", lines[2], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Files_RollByDayAndSize_AndOnlyTheNewestAreKept()
+    {
+        for (var i = 0; i < 12; i++)
+        {
+            var old = Path.Combine(_dir, $"backbloom-202609{10 + i}.log");
+            File.WriteAllText(old, "old");
+            File.SetLastWriteTimeUtc(old, new DateTime(2026, 9, 10 + i, 0, 0, 0, DateTimeKind.Utc));
+        }
+
+        using (var provider = new RollingFileLoggerProvider(_dir, _time, maxFileBytes: 200))
+        {
+            var logger = provider.CreateLogger("Backbloom.Test");
+            for (var i = 0; i < 6; i++)
+            {
+                Log.Long(logger, i);
+                provider.Flush();
+            }
+
+            _time.Advance(TimeSpan.FromDays(1));
+            Log.NextDay(logger);
+            provider.Flush();
+            Assert.EndsWith("backbloom-20261020.log", provider.CurrentPath, StringComparison.Ordinal);
+        }
+
+        var files = Directory.GetFiles(_dir, "backbloom-*.log").Select(Path.GetFileName).ToList();
+        Assert.Equal(RollingFileLoggerProvider.RetainedFiles, files.Count);
+        Assert.Contains("backbloom-20261019.log", files);
+        Assert.Contains("backbloom-20261019-1.log", files);
+        Assert.Contains("backbloom-20261020.log", files);
+        Assert.DoesNotContain("backbloom-20260910.log", files);
+    }
+
+    [Theory]
+    [InlineData("silent", LogLevel.Error)]
+    [InlineData("warn", LogLevel.Warning)]
+    [InlineData("verbose", LogLevel.Information)]
+    [InlineData("debug", LogLevel.Debug)]
+    [InlineData(null, LogLevel.Information)]
+    public void Level_FollowsTheLoggerSetting(string? level, LogLevel expected)
+    {
+        var setting = new LogLevelSetting();
+        setting.Apply(level is null ? null : new JsonObject { ["level"] = level });
+        Assert.Equal(expected, setting.Minimum);
+    }
+
+    [Fact]
+    public async Task TheHost_WritesItsLogToTheDataDirectory()
+    {
+        await using var host = await TestHost.StartAsync("""{ "logger": { "level": "verbose" } }""");
+        var setting = (LogLevelSetting)host.App.Services.GetService(typeof(LogLevelSetting))!;
+        Assert.Equal(LogLevel.Information, setting.Minimum);
+        host.Settings.Update(new JsonObject { ["logger"] = new JsonObject { ["level"] = "warn" } });
+        Assert.Equal(LogLevel.Warning, setting.Minimum);
+
+        var logs = Path.Combine(host.DataDirectory, "logs");
+        Wait.Until(() => Directory.GetFiles(logs, "backbloom-*.log").Any(f => Read(f).Contains("Lighting started", StringComparison.Ordinal)));
+
+        static string Read(string path)
+        {
+            using var reader = new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete));
+            return reader.ReadToEnd();
+        }
+    }
+}
+
+internal static partial class Log
+{
+    [LoggerMessage(Level = LogLevel.Information, Message = "Hello {Name}")]
+    public static partial void Hello(ILogger logger, string name);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed")]
+    public static partial void Failed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A message long enough to fill the small test file quickly, number {Number}")]
+    public static partial void Long(ILogger logger, int number);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Next day")]
+    public static partial void NextDay(ILogger logger);
+}

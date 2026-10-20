@@ -4,7 +4,7 @@ export const MIN_PASSWORD_LENGTH = 8;
 export type PasswordStrength = 'short' | 'weak' | 'fair' | 'strong';
 
 // Passwords people pick first; product names are the most guessable of all here.
-const COMMON = ['password', 'overglow', 'hyperhdr', 'hyperion', '12345678', '123456789', 'qwertyui', 'qwerty123', 'iloveyou', 'abcdefgh', 'letmein1'];
+const COMMON = ['password', 'backbloom', 'hyperhdr', 'hyperion', '12345678', '123456789', 'qwertyui', 'qwerty123', 'iloveyou', 'abcdefgh', 'letmein1'];
 
 /**
  * A rough guide, not a guarantee: length counts most, mixing letters, digits and symbols helps, and common or

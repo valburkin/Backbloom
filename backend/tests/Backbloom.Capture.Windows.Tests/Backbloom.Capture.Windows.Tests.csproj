@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Backbloom.Capture.Windows\Backbloom.Capture.Windows.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Backbloom.Core.Tests\Allocations.cs" Link="Allocations.cs" />
+    <Compile Include="..\Backbloom.Core.Tests\Golden\TestImages.cs" Link="Golden\TestImages.cs" />
+    <Compile Include="..\Backbloom.Capture.Tests\HdrGolden.cs" Link="Golden\HdrGolden.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+</Project>

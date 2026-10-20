@@ -100,7 +100,7 @@ function SourceEffectForm({
               step={500}
               value={Number(value.duration_ms ?? 3000)}
               onChange={(v) => set('duration_ms', v)}
-              hint="How long it plays when Overglow starts (0 or -1: 3 seconds)."
+              hint="How long it plays when Backbloom starts (0 or -1: 3 seconds)."
             />
           )}
         </>
@@ -213,7 +213,7 @@ export function EffectsPage() {
           <SourceEffectForm
             title="Startup effect"
             icon={<Power size={18} />}
-            description="Plays briefly when Overglow starts, so you know it’s running."
+            description="Plays briefly when Backbloom starts, so you know it’s running."
             value={ps.value<Obj>('foregroundEffect')}
             effects={all}
             set={(k, v) => ps.setPath('foregroundEffect', [k], v)}

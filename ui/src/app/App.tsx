@@ -75,7 +75,7 @@ function Shell() {
       >
         <div className="mb-6 hidden items-center gap-2.5 px-1.5 sm:flex">
           <Logo />
-          <span className="hidden text-[15px] font-semibold tracking-tight xl:inline">Overglow</span>
+          <span className="hidden text-[15px] font-semibold tracking-tight xl:inline">Backbloom</span>
         </div>
         <ul className="flex w-full justify-around gap-1 sm:flex-col sm:justify-start">
           {NAV.map((n) => {
@@ -154,7 +154,7 @@ function SetupBanner() {
   return (
     <div role="status" className="flex flex-wrap items-center gap-3 border-b border-accent/30 bg-accent/10 px-6 py-2 text-[13px] text-ink">
       <Power size={15} className="text-accent-strong" aria-hidden />
-      <span className="flex-1">Overglow hasn’t started your lights yet: nothing is sent to the LEDs until you start the lighting.</span>
+      <span className="flex-1">Backbloom hasn’t started your lights yet: nothing is sent to the LEDs until you start the lighting.</span>
       <Button
         size="sm"
         variant="primary"

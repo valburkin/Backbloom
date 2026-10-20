@@ -27,7 +27,7 @@ export const SUBSCRIPTIONS = [
 
 /** Priority and origin the UI uses for colors and effects it starts (the backend's web-UI slot). */
 export const UI_PRIORITY = 1;
-export const UI_ORIGIN = 'Overglow UI';
+export const UI_ORIGIN = 'Backbloom UI';
 
 function info<T>(reply: { info?: unknown }): T {
   return (reply.info ?? {}) as T;

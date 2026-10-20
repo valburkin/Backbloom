@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>LED device lifecycle and drivers (network, serial, HID, debug).</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Backbloom.Core\Backbloom.Core.csproj" />
+    <ProjectReference Include="..\Backbloom.Discovery\Backbloom.Discovery.csproj" />
+    <ProjectReference Include="..\Backbloom.Mqtt\Backbloom.Mqtt.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" />
+    <PackageReference Include="HidSharp" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Schemas\*.json" LogicalName="Backbloom.Devices.Schemas.%(Filename).json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Backbloom.Devices.Tests" />
+  </ItemGroup>
+</Project>

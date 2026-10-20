@@ -6,7 +6,7 @@ import { currentSource, describeSource, effectLabel, splitEffects } from '../mod
 const p = (componentId: string, extra: Partial<PriorityInfo> = {}): PriorityInfo => ({
   priority: 1,
   componentId,
-  origin: 'Overglow UI@::ffff:127.0.0.1',
+  origin: 'Backbloom UI@::ffff:127.0.0.1',
   active: true,
   visible: true,
   ...extra,

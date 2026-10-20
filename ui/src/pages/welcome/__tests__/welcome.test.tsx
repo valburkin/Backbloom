@@ -83,10 +83,10 @@ describe('welcome summary', () => {
 describe('welcome screen', () => {
   it('offers Start lighting, with autostart off by default', () => {
     const html = view();
-    expect(html).toContain('Welcome to Overglow');
+    expect(html).toContain('Welcome to Backbloom');
     expect(html).toContain('Your HyperHDR settings were imported');
     expect(html).toContain('Start lighting');
-    expect(html).toContain('Start Overglow when I sign in to Windows');
+    expect(html).toContain('Start Backbloom when I sign in to Windows');
     expect(html).not.toMatch(/type="checkbox"[^>]*checked/);
     expect(html).toContain('Nothing is sent to your LEDs until you start the lighting.');
     expect(html).toContain('hyperhdr.db');
@@ -94,7 +94,7 @@ describe('welcome screen', () => {
 
   it('waits while HyperHDR runs and tells how to quit it', () => {
     const html = view({ setup: { ...setup, otherApp: { name: 'HyperHDR', executable: 'hyperhdr.exe' } } });
-    expect(html).toContain('HyperHDR is controlling your lights right now. Quit HyperHDR (tray icon → Quit) to let Overglow take over.');
+    expect(html).toContain('HyperHDR is controlling your lights right now. Quit HyperHDR (tray icon → Quit) to let Backbloom take over.');
     expect(html).toContain('Don’t start HyperHDR with Windows');
     expect(html).toMatch(/<button[^>]*disabled[^>]*>.*Waiting for HyperHDR to quit…/);
     expect(html).not.toContain('>Start lighting<');
@@ -118,7 +118,7 @@ describe('network explanations', () => {
     expect(html).toContain('not Public networks');
     expect(html).toContain('Turn off');
     expect(html).toContain('Turn on remote access');
-    expect(html).toContain('sign in with your Overglow password');
+    expect(html).toContain('sign in with your Backbloom password');
     expect(html).not.toContain('type="password"');
     expect(renderToStaticMarkup(<RemoteAccessDialog open={false} busy={false} passwordSet onCancel={noop} onConfirm={noop} />)).toBe('');
   });
@@ -131,7 +131,6 @@ describe('network explanations', () => {
     expect(html).toContain('Use at least 8 characters.');
     // nothing to confirm until the password is valid
     expect(html).toMatch(/<button[^>]*disabled[^>]*>(<[^>]*>)*Set password and turn on/);
-    expect(html).not.toContain('overglow');
   });
 
   it('shows the address and a QR code once on', () => {

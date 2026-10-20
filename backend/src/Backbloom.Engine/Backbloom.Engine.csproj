@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Orchestration: the frame pipeline, component states, effects and LED devices, driven by the settings.</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Backbloom.Core\Backbloom.Core.csproj" />
+    <ProjectReference Include="..\Backbloom.Audio\Backbloom.Audio.csproj" />
+    <ProjectReference Include="..\Backbloom.Capture\Backbloom.Capture.csproj" />
+    <ProjectReference Include="..\Backbloom.Devices\Backbloom.Devices.csproj" />
+    <ProjectReference Include="..\Backbloom.Settings\Backbloom.Settings.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Backbloom.Engine.Tests" />
+  </ItemGroup>
+</Project>

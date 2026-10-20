@@ -58,13 +58,13 @@ export function PasswordForm({ passwordSet, remote }: { passwordSet: boolean; re
   );
 }
 
-/** Whether other devices can reach Overglow, and whether they have to sign in. */
+/** Whether other devices can reach Backbloom, and whether they have to sign in. */
 export function RemoteAccessProtection({ setup }: { setup: SetupState }) {
   const network = <a className="font-medium text-accent-strong underline-offset-2 hover:underline" href={hrefFor('settings', 'network')}>Settings → Network</a>;
   if (!setup.remoteAccess.enabled)
     return (
       <Callout tone="ok" icon={<ShieldCheck size={16} />}>
-        Remote access is off: only this computer can open Overglow, and it never needs a password. Turn it on in {network}.
+        Remote access is off: only this computer can open Backbloom, and it never needs a password. Turn it on in {network}.
       </Callout>
     );
   if (setup.passwordSet)
@@ -75,7 +75,7 @@ export function RemoteAccessProtection({ setup }: { setup: SetupState }) {
     );
   return (
     <Callout tone="bad" icon={<ShieldAlert size={16} />}>
-      Overglow listens on your network, but no password is set, so other devices can’t sign in. Set a password above.
+      Backbloom listens on your network, but no password is set, so other devices can’t sign in. Set a password above.
     </Callout>
   );
 }

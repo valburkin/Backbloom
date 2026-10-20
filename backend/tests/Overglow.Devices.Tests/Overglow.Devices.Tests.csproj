@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\Overglow.Devices\Overglow.Devices.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="MQTTnet.Server" />
-  </ItemGroup>
-</Project>

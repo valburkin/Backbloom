@@ -1,6 +1,6 @@
-# Overglow backend (.NET)
+# Backbloom backend (.NET)
 
-The C# / .NET 10 backend of Overglow, ported from the C++ HyperHDR fork it replaces. Behavior was ported file by file
+The C# / .NET 10 backend of Backbloom, ported from the C++ HyperHDR fork it replaces. Behavior was ported file by file
 and is compared with golden fixtures exported from the C++ code, which was deleted once this backend reached parity
 (it is in the history up to commit `9f49bd2`; doc comments still name the C++ files, e.g. `sources/...`, they refer to
 that commit). See [the fixtures README](tests/fixtures/README.md) for the frozen fixtures and the deliberate
@@ -33,7 +33,7 @@ $env:PATH = "C:\Code\deps\dotnet;$env:PATH"
 cd backend
 dotnet build -warnaserror
 dotnet test
-dotnet run --project src/Overglow.App -c Release -- --port 18290
+dotnet run --project src/Backbloom.App -c Release -- --port 18290
 ```
 
 Tests never listen on the network: test hosts pass `--bind 127.0.0.1`, fake servers and devices bind to loopback,
@@ -41,14 +41,14 @@ and UDP sockets aimed at loopback are bound to it. `tests/Shared/NetworkListener
 project as an assembly fixture, samples the test process's TCP listeners and UDP sockets and fails the assembly when
 one is on a non-loopback address (each would make Windows Firewall prompt once per test executable).
 
-Command-line options (the settings ones also as `OVERGLOW_<NAME>` environment variables). Unknown options and invalid
+Command-line options (the settings ones also as `BACKBLOOM_<NAME>` environment variables). Unknown options and invalid
 values are errors (exit code 2, with the usage); `--name value` and `--name=value` both work:
 
 | Option | Default | |
 |---|---|---|
 | `--port` | `18290` | Web port (HTTP, WebSocket JSON-RPC, UI files). HyperHDR keeps 8090/8092. |
 | `--bind` | `127.0.0.1`, plus every interface address while `network.remoteAccess` is on | The one address to listen on; it overrides the remote access setting (advanced use). Without it every copy, installed or not, listens on loopback only until the user turns remote access on (see [First run, HyperHDR and network access](#first-run-hyperhdr-and-network-access)), so nothing makes Windows ask for network access unannounced. |
-| `--data-dir` | per-user `Overglow` folder; `backend/.local/data` when run from the source tree | `settings.db` (settings, controllers, credentials as hashes, instance id), `backups/`, `imported/`, `logs/`, `window.json`, `webview/` (the window's browser profile). See [Settings](#settings-storage-and-hyperhdr-import). |
+| `--data-dir` | per-user `Backbloom` folder; `backend/.local/data` when run from the source tree | `settings.db` (settings, controllers, credentials as hashes, instance id), `backups/`, `imported/`, `logs/`, `window.json`, `webview/` (the window's browser profile). See [Settings](#settings-storage-and-hyperhdr-import). |
 | `--legacy-data-dir` | HyperHDR's data folder; none when run from the source tree | Where the first start looks for `db/hyperhdr.db` to import. `none` turns it off. |
 | `--ui-dir` | `ui/` next to the program, else `ui/dist` of the source tree | Built React UI to serve. |
 | `--capture` | `screen` | Frame source: `screen` (DXGI desktop duplication, configured by `systemGrabber`; falls back to the test pattern on other OSes) or `synthetic` (test pattern, used by the server tests). |
@@ -58,11 +58,11 @@ values are errors (exit code 2, with the usage); `--name value` and `--name=valu
 | `--service` | | No tray icon, no window, console log: headless use (C++ `--service`). Power events are still handled. |
 | `--update-url` | placeholder (updates off) | Release feed of an installed copy (see [packaging/README.md](../packaging/README.md)). |
 | `--update-channel` | the installed package's | Release channel to follow (`stable`, `beta`, ...). |
-| `--import <file>` | | Import a HyperHDR or Overglow C++ database into the data directory and exit. |
+| `--import <file>` | | Import a HyperHDR database into the data directory and exit. |
 | `--quit` | | Ask the instance running with the data directory to quit; waits until it is gone (installers, scripts). |
 | `--version`, `-h`/`--help` | | Print and exit. |
 
-`overglow.exe` is a GUI program (no console window when started from Explorer or autostart); started from a terminal it
+`backbloom.exe` is a GUI program (no console window when started from Explorer or autostart); started from a terminal it
 attaches to that console, so the usage, `--version` and the log of `--service` show there. Ctrl+C stops it gracefully.
 
 ### Using the UI
@@ -83,7 +83,7 @@ The UI from this computer (the app's window, a browser here) never asks for a pa
 
 ### Access: this computer and other devices
 
-`Overglow.Server/Auth/LocalAccess` decides, per connection:
+`Backbloom.Server/Auth/LocalAccess` decides, per connection:
 
 | Peer | Rights |
 |---|---|
@@ -107,36 +107,35 @@ The UI from this computer (the app's window, a browser here) never asks for a pa
   restored backup or an older database can't open them either). The UI's remote access dialog asks for the password
   (twice, with a strength hint) before it turns remote access on.
 - HyperHDR's `apiAuth`, `localApiAuth`, `localAdminAuth`, `internetAccessAPI`, `restirctedInternetAccessAPI` and
-  `ipWhitelist` are gone from the `network` schema: imports drop them (`LegacyMigrations.RemoveAccessOptions`),
-  schema 4 removes them from stored settings, and `setconfig` ignores them so older clients that send the whole
-  section back keep working.
+  `ipWhitelist` are gone from the `network` schema: imports drop them (`LegacyMigrations.RemoveAccessOptions`)
+  and `setconfig` ignores them, so HyperHDR clients that send the whole section back keep working.
 
 ## Projects
 
 ```
 src/
-  Overglow.Core       pure logic: LED layout, image->LED mapping, color processing, black borders, smoothing, priorities,
+  Backbloom.Core       pure logic: LED layout, image->LED mapping, color processing, black borders, smoothing, priorities,
                       the effects and the music analysis (FFT, bands) (no I/O, no threads)
-  Overglow.Capture    frame source abstraction, frame pacer, synthetic test source, capture settings, CPU scaling
+  Backbloom.Capture    frame source abstraction, frame pacer, synthetic test source, capture settings, CPU scaling
                       path, HDR tone mapping table (LUT loader, default LUT)
-  Overglow.Capture.Windows  DXGI desktop duplication + Direct3D 11 scaling / HDR shader (TerraFX interop)
-  Overglow.Audio      sound capture abstraction, soundEffect settings, device sessions, conversion to analysis blocks
-  Overglow.Audio.Windows  WASAPI loopback and recording capture, endpoint enumeration (TerraFX interop)
-  Overglow.Devices    LED device lifecycle (LedDeviceRunner), RGBW encoders and the 16 drivers (network, serial, HID,
+  Backbloom.Capture.Windows  DXGI desktop duplication + Direct3D 11 scaling / HDR shader (TerraFX interop)
+  Backbloom.Audio      sound capture abstraction, soundEffect settings, device sessions, conversion to analysis blocks
+  Backbloom.Audio.Windows  WASAPI loopback and recording capture, endpoint enumeration (TerraFX interop)
+  Backbloom.Devices    LED device lifecycle (LedDeviceRunner), RGBW encoders and the 16 drivers (network, serial, HID,
                       file); driver tools for leddevice discover/getProperties/identify
-  Overglow.Discovery  mDNS client/responder, SSDP search, UDP broadcast probes, serial port and HID enumeration
-  Overglow.Mqtt       the one MQTT broker connection (MQTTnet), shared by Zigbee2MQTT and the MQTT integration
-  Overglow.Settings   settings schemas + validation, SQLite store, credential store, HyperHDR import, backups
-  Overglow.Engine     orchestration: frame loop, component switches, controllers, live preview feed, running effects,
+  Backbloom.Discovery  mDNS client/responder, SSDP search, UDP broadcast probes, serial port and HID enumeration
+  Backbloom.Mqtt       the one MQTT broker connection (MQTTnet), shared by Zigbee2MQTT and the MQTT integration
+  Backbloom.Settings   settings schemas + validation, SQLite store, credential store, HyperHDR import, backups
+  Backbloom.Engine     orchestration: frame loop, component switches, controllers, live preview feed, running effects,
                       the lighting gate (first run, HyperHDR running)
-  Overglow.Server     Kestrel: JSON-RPC over WebSocket + POST /json-rpc, auth, UI files; the MQTT integration
-  Overglow.Shell      desktop integration, platform-neutral: power/session policy, tray menu, window placement,
+  Backbloom.Server     Kestrel: JSON-RPC over WebSocket + POST /json-rpc, auth, UI files; the MQTT integration
+  Backbloom.Shell      desktop integration, platform-neutral: power/session policy, tray menu, window placement,
                       single instance, the contracts of tray, window, autostart and system events
-  Overglow.Platform.Windows  Windows implementations of the platform interfaces: high-resolution clock, machine CPU and
+  Backbloom.Platform.Windows  Windows implementations of the platform interfaces: high-resolution clock, machine CPU and
                       memory load, power and session events, tray icon, WebView2 window, Run-key autostart
-  Overglow.App        host: composition root (DI), command line, single instance, logging, lifetime (exe: overglow)
+  Backbloom.App        host: composition root (DI), command line, single instance, logging, lifetime (exe: backbloom)
 tests/
-  Overglow.*.Tests    xUnit v3; fixtures/ holds golden fixtures shared by the test projects
+  Backbloom.*.Tests    xUnit v3; fixtures/ holds golden fixtures shared by the test projects
 ```
 
 Dependency rules (a project may only use the ones above it in this list):
@@ -147,7 +146,7 @@ Dependency rules (a project may only use the ones above it in this list):
 4. `Server`, `Shell` (Engine and below); `Platform.Windows` (Engine, Shell)
 5. `App` (everything; the only place that creates services)
 
-`Overglow.Engine` is an addition to the plan's layout: the API layer needs one orchestrator to talk to
+`Backbloom.Engine` is an addition to the plan's layout: the API layer needs one orchestrator to talk to
 (component switches, live colors, identify), and it can't live in `App` without the server depending on the host.
 
 Platform code lives only in `*.Windows` / `*.MacOS` / `*.Linux` projects behind interfaces defined in the projects
@@ -225,7 +224,7 @@ failures and rebuilds the duplication when it is lost.
 | Recovery | `DXGI_ERROR_ACCESS_LOST` / invalid call / device removed (display mode or HDR change, desktop switch, driver reset): everything is released and rebuilt 100 ms later. `E_ACCESSDENIED` (secure desktop: UAC, lock screen): retried every second; the thread attaches to the input desktop (`OpenInputDesktop` + `SetThreadDesktop`) so a service can follow it. Missing monitor: retried every 5 s. A retry waits instead of spinning; the same problem is logged once. |
 | Tone mapping | `hdrToneMapping` (`ToneMapping.AppliesLut`): `auto` (default) applies the LUT to the 8-bit capture of a monitor only while Windows drives it in HDR mode, `on` to every 8-bit capture (HDR10 content shown without Windows HDR), `off` never. An HDR capture (FP16/PQ) is always converted by the shader, never by the LUT. The decision is made when a monitor's duplication opens; toggling Windows HDR ends the duplication, so it follows within ~100 ms. HyperHDR's switch applied the LUT to SDR monitors too, which oversaturates normal content (red/magenta shift); imports and older databases turn on into `auto` and off into `off`. `serverinfo.systemGrabbers.hdr` = `{ mode, capturing, monitorHdr, toneMapping }` (tone mapped by the shader or the LUT), pushed as `capture-update` (the whole `systemGrabbers` object) when it changes. |
 | LUT | `LutLoader`: first existing `lut_lin_tables.3d` or `.3d.zst` wins; one table or the legacy three-table file (first table used). `LutProvider` loads in the background on first use (only when tone mapping applies to an 8-bit capture) and otherwise builds the default table (`DefaultLut`, bit-identical to C++, ~0.3 s on 24 cores) and saves it to the first LUT directory. |
-| Settings | `systemGrabber` (schema in `Overglow.Settings`); `App` reconfigures the source on every change of that section, the next frame restarts the capture. |
+| Settings | `systemGrabber` (schema in `Backbloom.Settings`); `App` reconfigures the source on every change of that section, the next frame restarts the capture. |
 
 Interop: [TerraFX.Interop.Windows](https://github.com/terrafx/terrafx.interop.windows) (MIT). It is a 1:1 projection
 of the Windows SDK headers as blittable structs and function pointers, so the port reads like the C++ code, COM calls
@@ -246,7 +245,7 @@ allocations on either path. Waiting for a monitor that delivers no frames costs 
 
 ### Smoothing
 
-Port of `InfiniteSmoothing` and the six interpolators (`Overglow.Core/Smoothing`), bit-identical to the C++ ones
+Port of `InfiniteSmoothing` and the six interpolators (`Backbloom.Core/Smoothing`), bit-identical to the C++ ones
 (`fixtures/smoothing`, tolerance 0), except that the Hybrid and HybridRgb transitions now finish when a channel's
 target is below the minimal backlight (HyperHDR kept them running, and sending, forever; see the fixtures README). C++'s Stepper and Rgb interpolators differ only in target blending, so
 `StepperInterpolator` is the `RgbInterpolator` without it.
@@ -277,7 +276,7 @@ allocates (`Pipeline_SteadyStateDoesNotAllocate`, `SmoothingTicks_DoNotAllocate`
 
 ### Sources and priorities
 
-Port of `Muxer` (`Overglow.Core/Priorities`) behind `PriorityManager` (Engine: lock, 250 ms timeout timer, events). The
+Port of `Muxer` (`Backbloom.Core/Priorities`) behind `PriorityManager` (Engine: lock, 250 ms timeout timer, events). The
 lowest priority number among the active sources is visible, unless one was selected manually (`sourceselect`); 255 is
 "nothing" (black, and the controllers are switched off, as HyperHDR did; the `LEDDEVICE` switch keeps the user's
 choice). The screen registers at `systemControl.systemInstancePriority` (245) while `ALL` and `SYSTEMGRABBER` are on.
@@ -313,7 +312,7 @@ actually sent (the smoothing rate while smoothing runs).
 
 ### Effects
 
-The ten effects the C++ build kept (sources/effects), in `Overglow.Core/Effects`, match `fixtures/effects` byte for
+The ten effects the C++ build kept (sources/effects), in `Backbloom.Core/Effects`, match `fixtures/effects` byte for
 byte (LED colors, pictures, step times):
 
 | Effect | Class (C++) | Output | Step | Smoothing |
@@ -358,13 +357,13 @@ the screen shows (it became active during the effect, so the controllers stay on
 "two interpolated steps between blocks" smoothing (`enable_smoothing`). The music fixtures feed their recorded audio
 blocks through it.
 
-`Overglow.Audio`: `SoundCapture` applies `soundEffect` (`enable`, `device`, `enable_smoothing`; changes apply at once,
+`Backbloom.Audio`: `SoundCapture` applies `soundEffect` (`enable`, `device`, `enable_smoothing`; changes apply at once,
 HyperHDR only read them at the next start) and runs the platform capture while at least one music effect holds it
 (C++ `open`/`close` handles). `AudioBlockWriter` turns any device format (float or 16/24/32-bit PCM, any rate and
 channel count) into the analysis blocks: channels averaged, each 22,050 Hz sample the mean of the input over its time
 span. Without sound capture a music effect shows black. The logs say when sound is detected or silent (as C++).
 
-`Overglow.Audio.Windows`: WASAPI, shared mode, event-driven (waits at most 50 ms), the device's mix format.
+`Backbloom.Audio.Windows`: WASAPI, shared mode, event-driven (waits at most 50 ms), the device's mix format.
 
 | `soundEffect.device` | Captures |
 |---|---|
@@ -390,7 +389,7 @@ music played, 21.5 blocks/s) 0.16 %.
 ## LED drivers and discovery
 
 Every driver of the C++ build is ported (sources/led-drivers); the settings keys and schemas are the C++ ones
-(`Overglow.Devices/Schemas`, reformatted), so imported configurations keep working. A driver only speaks its protocol
+(`Backbloom.Devices/Schemas`, reformatted), so imported configurations keep working. A driver only speaks its protocol
 (`ILedDriver`: open, write a frame, close); `LedDeviceRunner` does the lifecycle once for all of them.
 
 | Type | Group | Transport | Notes |
@@ -427,11 +426,11 @@ throws `DeviceLostException`; the runner goes to `WaitingToRetry` and reopens it
 | Package | License | Used for | Why |
 |---|---|---|---|
 | BouncyCastle.Cryptography 2.7 | MIT | DTLS 1.2 PSK client (Hue Entertainment) | .NET has no DTLS; BouncyCastle is the standard managed implementation and needs no native OpenSSL |
-| MQTTnet 5.2 (+ MQTTnet.Server in tests) | MIT | `Overglow.Mqtt.MqttConnection` | the .NET Foundation MQTT client; tests run a real broker in process |
+| MQTTnet 5.2 (+ MQTTnet.Server in tests) | MIT | `Backbloom.Mqtt.MqttConnection` | the .NET Foundation MQTT client; tests run a real broker in process |
 | HidSharp 2.6 | Apache-2.0 | HID enumeration and reports, serial port names/USB ids | managed, cross-platform (hid.dll, hidraw, IOKit), so no platform project is needed; TerraFX would cover Windows only and need a Linux/macOS port later |
 | System.IO.Ports 10.0 | MIT | serial I/O | the platform's serial API |
 
-**Discovery** (`Overglow.Discovery`). Passive: it only sends queries (mDNS PTR, SSDP M-SEARCH, the LIFX/WiZ broadcast
+**Discovery** (`Backbloom.Discovery`). Passive: it only sends queries (mDNS PTR, SSDP M-SEARCH, the LIFX/WiZ broadcast
 probes) and lists what answers; nothing found is configured or contacted by the discovery itself. It runs only when
 asked (`leddevice discover`, the UI's Find) and listens nowhere in between: every query goes out from `QuerySockets`,
 one UDP socket per local IPv4 address bound to that address and an ephemeral port, closed when the query ends. The
@@ -446,7 +445,7 @@ address; afterwards loopback only again.
   bit, so responders answer the querier directly. The responder transport (`UdpMdnsTransport`: UDP 5353 shared with
   the OS responder, 224.0.0.251 joined per interface) exists only while the web UI is advertised. Own addresses are
   never reported.
-- The web UI is advertised as `<host>:<port>._overglow-http._tcp.local` (as the C++ build) only while the server
+- The web UI is advertised as `<host>:<port>._backbloom-http._tcp.local` only while the server
   listens on the network (remote access on, or `--bind` with a network address); a goodbye is sent when it stops.
 - SSDP: one M-SEARCH (C++ message, MX 1) per interface and every answer within 3 s, headers parsed like `SSDPDiscover`.
 - Serial ports: HidSharp's serial device list (friendly name, USB ids from the Windows device path) plus
@@ -473,21 +472,21 @@ Deliberate differences from the C++ drivers:
 ## Desktop shell (port step 6c)
 
 Port of `sources/app` (main, AppDaemon, SystrayHandler), `systray` and `suspend-handler`, reorganized: the
-platform-neutral parts live in `Overglow.Shell`, the Windows parts in `Overglow.Platform.Windows/Desktop`, and `App`
+platform-neutral parts live in `Backbloom.Shell`, the Windows parts in `Backbloom.Platform.Windows/Desktop`, and `App`
 wires them (`DesktopRegistration`).
 
 | | |
 |---|---|
-| Single instance | One app per data directory (C++: one `overglow.exe` per machine, a second start failed). The first instance holds `overglow.lock` in the data directory exclusively (released by the OS even after a crash) and listens on a named pipe derived from the directory (current user only). A second start with the same directory asks it to show its window (headless: the second process opens the UI in the browser) and exits; `--quit` asks it to quit and waits. Instances with different data directories run side by side. |
-| Tray | `Shell_NotifyIcon` (version 4) with the Overglow icon (`branding/overglow.ico`, embedded; the best size is picked from the .ico). Menu, rebuilt on each open (`TrayMenu`): **Open Overglow** (default, also a click on the icon), **Lights** (`ALL`), **Screen sync** (removes colors and effects, capture on; checked while the screen shows or waits for its first frame), **Music** (the four music effects), **Effect** (the six effects), **Color** (the C++ colors) -- music, effects and colors run at priority 1 until something else is chosen, as C++ did; the running one is checked --, **Pause for 30 minutes** (then *Resume*; a switch elsewhere ends the pause), **Start with Windows**, **Quit**. The icon comes back after an Explorer restart (`TaskbarCreated`). C++'s "Instances" submenu is gone (one pipeline). |
+| Single instance | One app per data directory (C++: one `backbloom.exe` per machine, a second start failed). The first instance holds `backbloom.lock` in the data directory exclusively (released by the OS even after a crash) and listens on a named pipe derived from the directory (current user only). A second start with the same directory asks it to show its window (headless: the second process opens the UI in the browser) and exits; `--quit` asks it to quit and waits. Instances with different data directories run side by side. |
+| Tray | `Shell_NotifyIcon` (version 4) with the Backbloom icon (`branding/backbloom.ico`, embedded; the best size is picked from the .ico). Menu, rebuilt on each open (`TrayMenu`): **Open Backbloom** (default, also a click on the icon), **Lights** (`ALL`), **Screen sync** (removes colors and effects, capture on; checked while the screen shows or waits for its first frame), **Music** (the four music effects), **Effect** (the six effects), **Color** (the C++ colors) -- music, effects and colors run at priority 1 until something else is chosen, as C++ did; the running one is checked --, **Pause for 30 minutes** (then *Resume*; a switch elsewhere ends the pause), **Start with Windows**, **Quit**. The icon comes back after an Explorer restart (`TaskbarCreated`). C++'s "Instances" submenu is gone (one pipeline). |
 | Window | A plain Win32 window hosting the UI in WebView2 (`Microsoft.Web.WebView2.Core` only, BSD-3; no WinForms/WPF, their assemblies are kept out of the output by `Directory.Build.targets`). Dark title bar, the UI's background until the page draws, placement (normal bounds + maximized) in `window.json` (atomic write; restored only when it is on a monitor). Closing it destroys the window and its browser processes (no memory held while hidden); the app stays in the tray. Links to other sites open in the default browser. Without the WebView2 runtime (`GetAvailableBrowserVersionString`) or when it fails to start, the UI opens in the default browser. Profile in `<data>/webview`. |
-| Autostart | `RegistryAutostart`: value `Overglow` in `HKCU\...\CurrentVersion\Run` (as C++), command `"<exe>" --no-window` plus `--data-dir` when it isn't the default; enabled only when the entry starts this executable (also C++'s bare-path entries). Off by default: only the user turns it on (tray menu, the welcome's checkbox, `setup autostart`). The key is a constructor parameter; the tests use a scratch key and never write the real Run key. |
+| Autostart | `RegistryAutostart`: value `Backbloom` in `HKCU\...\CurrentVersion\Run` (as C++), command `"<exe>" --no-window` plus `--data-dir` when it isn't the default; enabled only when the entry starts this executable (also C++'s bare-path entries). Off by default: only the user turns it on (tray menu, the welcome's checkbox, `setup autostart`). The key is a constructor parameter; the tests use a scratch key and never write the real Run key. |
 | Power and session | `WindowsSystemEvents` (hidden top-level window: `RegisterSuspendResumeNotification`, `RegisterPowerSettingNotification(GUID_SESSION_DISPLAY_STATUS)`, `WTSRegisterSessionNotification`, `WM_ENDSESSION`) raises `ISystemEvents`; `PowerPolicy` (port of `InstanceManager::hibernate`) reacts: sleep -> `ALL` off, wake-up -> on 3 s later; locked or display off with `general.disableOnLocked` -> `SYSTEMGRABBER` off (the screen source leaves, so the LEDs go dark unless a color or effect shows: an effect chosen by the user keeps running while locked, as in C++; without this setting the screen still leaves 800 ms after the lock screen stops its frames), unlocked and display on -> capture on 3 s later, and the screen shows again with its first frame. A lock in a remote desktop session is ignored (as C++). |
 | Startup | `general.disableLedsStartup` starts with `LEDDEVICE` off (engine, unchanged); `--no-window` keeps the window closed, except until the first-run welcome was completed (the window always opens then, so the welcome is seen). |
-| Logging | Console (when there is one), `logs/overglow-yyyyMMdd.log` in the data directory and the UI's log view, at the level of the `logger` section (silent = errors only, warn, verbose = info, debug), applied at once when it changes. One plain-text line per message (time, level, category, rendered message template; exceptions indented below), written by a background thread; a new file per day and per 10 MB, the newest 10 kept. |
+| Logging | Console (when there is one), `logs/backbloom-yyyyMMdd.log` in the data directory and the UI's log view, at the level of the `logger` section (silent = errors only, warn, verbose = info, debug), applied at once when it changes. One plain-text line per message (time, level, category, rendered message template; exceptions indented below), written by a background thread; a new file per day and per 10 MB, the newest 10 kept. |
 | Shutdown | Quit, `--quit` and Ctrl+C stop the host: WebSocket clients are closed at once, the engine switches every controller off (black frame, then closed), then the tray icon goes. Where Windows ends the process as soon as a notification returns (`WM_ENDSESSION` at logoff/shutdown; console close and shutdown signals), the handler stops the host and waits up to 4.5 s for the LEDs (`GracefulShutdown`). C++ didn't handle the session end. |
 | Settings | Crash-safe as before: every change is one SQLite transaction (rollback journal, `synchronous=FULL` by default); `window.json` is written to a temporary file and moved over. |
-| Packaging | `overglow.exe` is a `WinExe` with the Overglow icon; the built UI is copied next to it (`ui/`, build and publish) when `ui/dist` exists. `packaging/build.ps1` publishes a self-contained ReadyToRun folder and packs the Velopack installer with automatic updates; see [packaging/README.md](../packaging/README.md). |
+| Packaging | `backbloom.exe` is a `WinExe` with the Backbloom icon; the built UI is copied next to it (`ui/`, build and publish) when `ui/dist` exists. `packaging/build.ps1` publishes a self-contained ReadyToRun folder and packs the Velopack installer with automatic updates; see [packaging/README.md](../packaging/README.md). |
 
 Design choices:
 
@@ -509,23 +508,22 @@ A first install must not take over the lights or the network by itself: the Hype
 at once (two senders, flickering, while HyperHDR still ran) and the installed copy listened on every interface
 (an unexplained Windows Firewall prompt).
 
-**Lighting gate** (`Overglow.Engine/LightingGate`). The output is held (`ComponentStates.SetHeld`: the controllers stay
+**Lighting gate** (`Backbloom.Engine/LightingGate`). The output is held (`ComponentStates.SetHeld`: the controllers stay
 closed, nothing is sent; capture, mapping and the preview keep running, the protocol's switches keep the user's choice)
 
 - until the first run is completed: the meta key `first_run_completed` (`ISetupState`, in `settings.db`'s `meta`, not
   in a settings section, so backups, restores and imports don't touch it), set by the welcome's "Start lighting"
   (`setup start`). A new data directory and every first-start import wait for it; while it waits the window opens
-  even with `--no-window`. Schema migration 3 sets the key (value `upgrade`) for databases that existed before, so an
-  update never holds a configured setup (and never blocks an autostarted one);
+  even with `--no-window`. An update keeps the key, so it never holds a configured setup (or an autostarted one);
 - while HyperHDR (`hyperhdr.exe`) or Hyperion (`hyperiond.exe`) runs: `OtherAppMonitor` asks `IProcessList` at start
   and every 2 s (`WindowsProcessList`: one Toolhelp snapshot, image names only, no handles; elsewhere
-  `Process.GetProcessesByName`). When it quits the output follows within 2 s; when it starts later Overglow switches
+  `Process.GetProcessesByName`). When it quits the output follows within 2 s; when it starts later Backbloom switches
   its controllers off and lets go.
 
 The gate starts before the engine, so a held start never opens a controller. The startup effect waits for the
 release and runs then, as if the app had started at that moment.
 
-**Network access** (`Overglow.App/RemoteAccess`, setting `network.remoteAccess`, default off, also for imports). Off:
+**Network access** (`Backbloom.App/RemoteAccess`, setting `network.remoteAccess`, default off, also for imports). Off:
 Kestrel listens on 127.0.0.1 only and nothing is advertised. On: an endpoint per IPv4 interface address
 (`<address>:<port>`) comes from a reloadable configuration (`NetworkEndpointConfiguration`, Kestrel
 `Configure(..., reloadOnChange: true)`), so they are bound and unbound live and follow address changes
@@ -537,7 +535,7 @@ one address instead and the setting has no effect. The UI explains what turning 
 next, Private networks only) before it sets the setting. Without a password the endpoints stay closed even when the
 setting is on (see [Access](#access-this-computer-and-other-devices)); setting one opens them at once.
 
-**Protocol.** `setup` (Overglow addition): `getstate` for any authorized session; `start` `{ autostart? }`,
+**Protocol.** `setup` (Backbloom addition): `getstate` for any authorized session; `start` `{ autostart? }`,
 `autostart` `{ enabled }`, `acknowledge` `{ topic: "discovery" }` for admins. Each replies with
 `{ firstRunCompleted, outputHeld, otherApp: { name, executable } | null, importedFrom, autostart: { available, enabled },
 remoteAccess: { enabled, fixedByCommandLine, port, urls, advertised }, passwordSet, acknowledged }`, which the
@@ -545,14 +543,14 @@ remoteAccess: { enabled, fixedByCommandLine, port, urls, advertised }, passwordS
 
 ## MQTT integration
 
-Port of `sources/mqtt` on top of the shared `MqttConnection` (MQTTnet), in `Overglow.Server/Mqtt`:
+Port of `sources/mqtt` on top of the shared `MqttConnection` (MQTTnet), in `Backbloom.Server/Mqtt`:
 
 | | |
 |---|---|
 | Connection | The `mqtt` section: `enable`, `host`, `port`, `username`, `password`, `is_ssl`, `ignore_ssl_errors`, `maxRetry` (5 s apart; C++: 10 s). Reconnects when the section changes; the first attempt runs in the background so an unreachable broker doesn't delay the start. |
-| JSON-RPC | Requests on `<topic>/JsonAPI` (`custom_topic`, default `Overglow`; HyperHDR used `HyperHDR`): one request object or an array of them, run with the rights of a local client (C++ `localConnection`), every message the session produced is published as one JSON array on `<topic>/JsonAPI/response` (QoS 2). Unreadable JSON gets `{ success: false, error }`. `disableApiAccess` doesn't subscribe at all (as C++). |
+| JSON-RPC | Requests on `<topic>/JsonAPI` (`custom_topic`, default `Backbloom`; HyperHDR used `HyperHDR`): one request object or an array of them, run with the rights of a local client (C++ `localConnection`), every message the session produced is published as one JSON array on `<topic>/JsonAPI/response` (QoS 2). Unreadable JSON gets `{ success: false, error }`. `disableApiAccess` doesn't subscribe at all (as C++). |
 | Availability (new) | `<topic>/status`: `online` (retained) after every connect, `offline` as the connection's last will and published before a clean disconnect. |
-| Home Assistant (new) | With `homeAssistantDiscovery` (new setting, default on): a retained discovery config on `homeassistant/light/overglow_<id>/light/config` (JSON schema, RGB, brightness, effect list "Screen sync" plus every effect and music effect, device = `general.name`), commands on `<topic>/light/set` (`OFF` -> `ALL` off; `ON` -> on; a color -> static color at priority 1 scaled by the brightness; effect "Screen sync" -> colors cleared, capture on; any other effect -> runs at priority 1) and the retained state on `<topic>/light/state`, published on every change from any client. Switching discovery off removes the entity (empty retained config). |
+| Home Assistant (new) | With `homeAssistantDiscovery` (new setting, default on): a retained discovery config on `homeassistant/light/backbloom_<id>/light/config` (JSON schema, RGB, brightness, effect list "Screen sync" plus every effect and music effect, device = `general.name`), commands on `<topic>/light/set` (`OFF` -> `ALL` off; `ON` -> on; a color -> static color at priority 1 scaled by the brightness; effect "Screen sync" -> colors cleared, capture on; any other effect -> runs at priority 1) and the retained state on `<topic>/light/state`, published on every change from any client. Switching discovery off removes the entity (empty retained config). |
 
 ## LED controllers and the layout (port step 6b)
 
@@ -568,7 +566,7 @@ of a controller. There are no per-controller pipelines ("instances").
   strips: [{ id, name, controllerId, output, brightness?, segments: [edge | fixed | off] }] }
 ```
 
-`Overglow.Settings/Layout`: `LayoutSpecification.Normalize` validates it (rejecting with `layout.<path>` errors, like
+`Backbloom.Settings/Layout`: `LayoutSpecification.Normalize` validates it (rejecting with `layout.<path>` errors, like
 every setting) and fills in each controller's `device`; `Compile` turns it into one sampling area per LED per
 controller, exactly like the UI's `compileLayout` (both are checked against
 `tests/fixtures/layouts/ui-multi-controller.*.json`); `ControllerSetup` is what the engine runs. Rules: at least one
@@ -671,8 +669,8 @@ before the controller's color order (so it is really red, green, blue on GRB str
 **Sections and validation.** Every settings type the C++ build kept is a section: `general`, `logger`, `device`,
 `color`, `smoothing`, `systemGrabber`, `blackborderdetector`, `foregroundEffect`, `backgroundEffect`, `soundEffect`,
 `webConfig`, `effects`, `systemControl`, `network`, `ledConfig`, `leds`, `mqtt`, `layout`. Their schemas are the C++
-files (`sources/base/schema`, copied into `Overglow.Settings/Schemas`; the additions are
-`mqtt.homeAssistantDiscovery` and `network.remoteAccess`), the LED driver schemas come from `Overglow.Devices`, and defaults exist only there. The in-house validator stays: the schemas use the draft-03
+files (`sources/base/schema`, copied into `Backbloom.Settings/Schemas`; the additions are
+`mqtt.homeAssistantDiscovery` and `network.remoteAccess`), the LED driver schemas come from `Backbloom.Devices`, and defaults exist only there. The in-house validator stays: the schemas use the draft-03
 `required: true` form that the standard validators don't support. `setconfig` uses it strictly (reject, per-field
 errors); only imports and stored data from an older schema use its repair mode (clamp numbers, reset values of the wrong
 type or outside an enum to their default, drop unknown fields, report every fix).
@@ -680,11 +678,7 @@ type or outside an enum to their default, drop unknown fields, report every fix)
 **Database.** `settings.db` (Microsoft.Data.Sqlite), one connection per process, every use serialized; reads come from
 a validated in-memory copy, every update is one transaction written before the copy changes. `PRAGMA application_id`
 marks the file, `PRAGMA user_version` is the schema version: `SettingsDatabase.Migrations` lists the forward steps, each
-applied once in its own transaction; a file from a newer version is refused, never rewritten. Schema 2 converts a stored
-`systemGrabber.hdrToneMapping` switch into the mode, as the import does; schema 3 marks a database that was already in
-use as past its first run (see [First run](#first-run-hyperhdr-and-network-access)); schema 4 removes HyperHDR's
-`network` access options and the factory password `overglow` that earlier versions stored (`admin_password.is_default`
-is written as 0 since; a row marked 1 is never read). Schema 1:
+applied once in its own transaction; a file from a newer version is refused, never rewritten. Schema 1:
 
 | Table | Holds |
 |---|---|
@@ -698,7 +692,7 @@ Rows of sections this version doesn't know (written by a newer one) are kept unt
 **Instances -> one pipeline.** HyperHDR ran a complete pipeline per instance; this backend runs one pipeline that feeds
 many controllers:
 
-| HyperHDR | Overglow .NET |
+| HyperHDR | Backbloom .NET |
 |---|---|
 | global types (`general`, `logger`, `network`, `webConfig`, `mqtt`, `systemGrabber`, `soundEffect`, `layout`) | pipeline sections |
 | per-instance types of the first instance (`leds`, `ledConfig`, `color`, `smoothing`, `blackborderdetector`, `foregroundEffect`, `backgroundEffect`, `effects`, `systemControl`) | pipeline sections |
@@ -709,8 +703,8 @@ Without a `layout` the engine drives controller 0 (`device` + `leds`); a saved l
 [LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)).
 
 **Import** (`SettingsImporter`, `LegacyMigrations`, ported from InstanceConfig, SettingsMigration, LegacyMigration and
-AccessManager/AuthTable): reads HyperHDR v17 to 24-beta databases (`hyperhdr_instance` column, user `Hyperhdr`) and
-Overglow C++ ones (`instance` column, user `admin`); the source is copied to `imported/` and only the copy is opened.
+AccessManager/AuthTable): reads HyperHDR v17 to 24-beta databases (`hyperhdr_instance` column, user `Hyperhdr`); the
+source is copied to `imported/` and only the copy is opened.
 Rules, all idempotent and logged one line each (never with secrets):
 
 - format upgrades by `general.version` (HyperHDR upgradeDB up to 6: backlight threshold steps, pause while locked);
@@ -720,7 +714,7 @@ Rules, all idempotent and logged one line each (never with secrets):
 - removed effects map to the kept ones (e.g. "Knight rider" -> "Breath", music color variants -> MULTI COLOR);
 - a device type that this build doesn't have becomes the `file` driver (no output), keeping color order and refresh
   time; the copy in `imported/` keeps the original for drivers ported later;
-- HyperHDR's factory name "My HyperHDR Config" becomes "My Overglow Config"; an empty C++ `layout` is left absent;
+- HyperHDR's factory name "My HyperHDR Config" becomes "My Backbloom Config"; an empty `layout` is left absent;
 - `systemGrabber.hdrToneMapping` true becomes `auto`, false `off` (see [Screen capture](#screen-capture-windows));
 - every section is then repaired against its schema;
 - credentials: the admin password hash (salted SHA-512) and API token hashes are imported as `LegacySha512` and keep
@@ -731,17 +725,16 @@ Rules, all idempotent and logged one line each (never with secrets):
 
 Converting is a pure function of the source, so importing the same file again changes nothing.
 
-**First start and data directory.** The data directory defaults to the per-user `Overglow` folder
-(`%LOCALAPPDATA%\Overglow`, `~/Library/Application Support/Overglow`, `$XDG_CONFIG_HOME/Overglow`), or
-`backend/.local/data` for a build that runs from the source tree. When `settings.db` has no first-start marker, the
-first existing of `<data>/db/overglow.db` (the C++ build's database in the same folder) and
+**First start and data directory.** The data directory defaults to the per-user `Backbloom` folder
+(`%LOCALAPPDATA%\Backbloom`, `~/Library/Application Support/Backbloom`, `$XDG_CONFIG_HOME/Backbloom`), or
+`backend/.local/data` for a build that runs from the source tree. When `settings.db` has no first-start marker,
 `<legacy>/db/hyperhdr.db` is imported (`--legacy-data-dir`, default HyperHDR's folder: `~/.hyperhdr` if it exists,
 else `%LOCALAPPDATA%\HyperHDR` / `~/Library/Preferences/HyperHDR` / `~/.config/HyperHDR`; source-tree builds don't look
 unless told). A failed import is logged and the app starts with defaults; it isn't retried automatically. Either
 way the lights wait for the first-run welcome; the imported file is remembered (`imported_from`) for its summary.
-`overglow --import <file> --data-dir <dir>` imports a database explicitly (the current settings go to `backups/` first).
+`backbloom --import <file> --data-dir <dir>` imports a database explicitly (the current settings go to `backups/` first).
 
-**Backups.** `save-db` returns the C++ export format (`Overglow_export_format_v1`: `instances` + `settings` rows with
+**Backups.** `save-db` returns the C++ export format (`Backbloom_export_format_v1`: `instances` + `settings` rows with
 JSON text, per-instance types under instance 0, each controller's `device` under its id); `load-db` also accepts
 `HyperHDR_export_format_v17`/`v20`. Credentials are never part of a backup.
 

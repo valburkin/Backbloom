@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Backbloom.Discovery\Backbloom.Discovery.csproj" />
+  </ItemGroup>
+</Project>

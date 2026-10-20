@@ -31,7 +31,7 @@ export interface ConnectionContextValue {
 
 const Ctx = createContext<ConnectionContextValue | null>(null);
 
-const TOKEN_KEY = 'overglow.loginToken';
+const TOKEN_KEY = 'backbloom.loginToken';
 
 function readToken(): string | null {
   try {

@@ -1,5 +1,5 @@
 {
-  "source": "C++ reference: overglow::BlackBorderDetector (tests/golden/BlackBorderGolden.cpp)",
+  "source": "C++ reference: BlackBorderDetector (tests/golden/BlackBorderGolden.cpp)",
   "description": "Detected border per image, threshold (the setting / 100) and mode; calculateThreshold maps the fraction to the 8-bit limit (a pixel is black when all channels are below it).",
   "calculateThreshold": [[-0.1, 0], [0, 0], [0.01, 3], [0.03, 8], [0.05, 13], [0.1, 26], [0.15, 39], [0.5, 128], [1, 255], [1.5, 255]],
   "cases": [

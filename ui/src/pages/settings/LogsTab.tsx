@@ -56,7 +56,7 @@ export function LogsTab({ ps }: { ps: PageSettings }) {
       <Section
         title="Live log"
         icon={<ScrollText size={18} />}
-        description="What Overglow is doing right now. Attach a download when you ask for help."
+        description="What Backbloom is doing right now. Attach a download when you ask for help."
         actions={
           <div className="flex items-center gap-1">
             <IconButton label={paused ? 'Resume' : 'Pause'} onClick={() => setPaused((p) => (p ? null : logs.lines))}>
@@ -82,7 +82,7 @@ export function LogsTab({ ps }: { ps: PageSettings }) {
                 const url = URL.createObjectURL(new Blob([text()], { type: 'text/plain' }));
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `overglow-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.txt`;
+                a.download = `backbloom-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.txt`;
                 a.click();
                 setTimeout(() => URL.revokeObjectURL(url), 1000);
               }}

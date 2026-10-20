@@ -151,7 +151,7 @@ export interface SaveResult {
 /**
  * Save the layout: one `layout` setting with every controller (driver settings included) and strip; the backend
  * compiles it and feeds each controller its LEDs. `leds` (every controller's LEDs, one after the other) goes along
- * for backends that don't compile layouts; the Overglow service derives it from the layout itself.
+ * for backends that don't compile layouts; the Backbloom service derives it from the layout itself.
  * Only called from an explicit user action.
  */
 export async function saveLayout(api: RpcApi, spec: LayoutSpec): Promise<SaveResult> {

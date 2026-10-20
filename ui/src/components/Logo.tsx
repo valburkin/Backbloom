@@ -1,6 +1,6 @@
 import { useId } from 'react';
 
-/** Overglow mark: a screen whose glow spills past its edges. Mirrors branding/overglow-mark.svg. */
+/** Backbloom mark: a screen whose glow spills past its edges. Mirrors branding/backbloom-mark.svg. */
 export function Logo({ size = 28 }: { size?: number }) {
   const id = useId();
   return (

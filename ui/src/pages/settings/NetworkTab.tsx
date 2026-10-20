@@ -21,7 +21,7 @@ export function NetworkTab({ ps }: { ps: PageSettings }) {
   return (
     <>
       <RemoteAccessSection ps={ps} />
-      <Section title="Web interface" icon={<Globe size={18} />} description="The ports this page and apps use to reach Overglow.">
+      <Section title="Web interface" icon={<Globe size={18} />} description="The ports this page and apps use to reach Backbloom.">
         <div className="grid gap-4 sm:grid-cols-2">
           <NumberField integer label="Port (http)" min={port.min} max={port.max} value={Number(web.port)} error={err('webConfig.port')} onChange={set('port')} />
           <NumberField integer label="Secure port (https)" min={port.min} max={port.max} value={Number(web.sslPort)} error={err('webConfig.sslPort')} onChange={set('sslPort')} />
@@ -32,10 +32,10 @@ export function NetworkTab({ ps }: { ps: PageSettings }) {
           </Callout>
         )}
       </Section>
-      <Section title="Your own certificate" icon={<LockKeyhole size={18} />} description="Overglow uses a self-signed certificate for https unless you provide one.">
+      <Section title="Your own certificate" icon={<LockKeyhole size={18} />} description="Backbloom uses a self-signed certificate for https unless you provide one.">
         <Advanced label="Certificate files">
-          <Input label="Certificate file (PEM)" placeholder="C:\certs\overglow.crt" value={String(web.crtPath ?? '')} onChange={set('crtPath')} />
-          <Input label="Private key file (PEM)" placeholder="C:\certs\overglow.key" value={String(web.keyPath ?? '')} onChange={set('keyPath')} />
+          <Input label="Certificate file (PEM)" placeholder="C:\certs\backbloom.crt" value={String(web.crtPath ?? '')} onChange={set('crtPath')} />
+          <Input label="Private key file (PEM)" placeholder="C:\certs\backbloom.key" value={String(web.keyPath ?? '')} onChange={set('keyPath')} />
           <Input label="Key password" type="password" autoComplete="new-password" hint="Only if the key is protected with a password." value={String(web.keyPassPhrase ?? '')} onChange={set('keyPassPhrase')} />
         </Advanced>
       </Section>

@@ -6,7 +6,7 @@ import { Logo } from '../components/Logo';
 import { MOCK_PASSWORD } from '../api/mock';
 import { MIN_PASSWORD_LENGTH } from '../settings/password';
 
-/** Shown only on other devices (phones, other computers); the computer Overglow runs on never needs to sign in. */
+/** Shown only on other devices (phones, other computers); the computer Backbloom runs on never needs to sign in. */
 export function LoginScreen() {
   const { login, backend, sessionError } = useConnection();
   const [password, setPassword] = useState('');
@@ -50,7 +50,7 @@ export function LoginScreen() {
               Sign in
             </h1>
             <p className="text-[13px] text-ink-muted">
-              Enter the Overglow password you set on the computer that runs Overglow (Settings → Security there).
+              Enter the Backbloom password you set on the computer that runs Backbloom (Settings → Security there).
             </p>
           </div>
         </div>

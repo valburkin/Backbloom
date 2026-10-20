@@ -1,5 +1,5 @@
 {
-  "source": "C++ reference: overglow::ImageColorAveraging + LedString::createLedString (tests/golden/MappingGolden.cpp)",
+  "source": "C++ reference: ImageColorAveraging + LedString::createLedString (tests/golden/MappingGolden.cpp)",
   "description": "Quadrants, whole frame, center and edge strips.",
   "tolerance": 0,
   "leds": [

@@ -34,12 +34,12 @@ export function WelcomeView(p: WelcomeViewProps) {
           <Logo size={40} />
           <div>
             <h1 id="welcome-title" className="text-xl font-semibold">
-              Welcome to Overglow
+              Welcome to Backbloom
             </h1>
             <p className="text-[13px] text-ink-muted">
               {setup.importedFrom
-                ? 'Your HyperHDR settings were imported. Check what Overglow will drive, then start the lighting.'
-                : 'Check what Overglow will drive, then start the lighting.'}
+                ? 'Your HyperHDR settings were imported. Check what Backbloom will drive, then start the lighting.'
+                : 'Check what Backbloom will drive, then start the lighting.'}
             </p>
           </div>
         </header>
@@ -47,7 +47,7 @@ export function WelcomeView(p: WelcomeViewProps) {
         {setup.otherApp && <OtherAppNotice app={setup.otherApp} />}
         {!blocked && p.otherAppQuit && (
           <p role="status" className="flex items-center gap-2 rounded-xl border border-ok/30 bg-ok/10 p-3 text-[13px] text-ok">
-            <CheckCircle2 size={16} aria-hidden /> HyperHDR has quit. Overglow can take over your lights now.
+            <CheckCircle2 size={16} aria-hidden /> HyperHDR has quit. Backbloom can take over your lights now.
           </p>
         )}
 
@@ -89,7 +89,7 @@ export function WelcomeView(p: WelcomeViewProps) {
               onChange={(e) => p.onAutostart(e.target.checked)}
             />
             <span>
-              <span className="font-medium text-ink">Start Overglow when I sign in to Windows</span>
+              <span className="font-medium text-ink">Start Backbloom when I sign in to Windows</span>
               <span className="block text-ink-muted">Off unless you tick it. You can change it later in the tray menu.</span>
             </span>
           </label>

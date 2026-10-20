@@ -44,7 +44,7 @@ function PowerCard() {
               {source && <span className="text-ink-faint"> · priority {source.priority}</span>}
             </>
           ) : (
-            'Overglow is paused. Turn it on to light things up again.'
+            'Backbloom is paused. Turn it on to light things up again.'
           )}
         </p>
       </div>
@@ -461,7 +461,7 @@ export function HomePage() {
             </Card>
           </a>
           <p className="px-1 text-xs text-ink-faint">
-            {sysInfo?.overglow?.version ? `Service version ${sysInfo.overglow.version} · ` : ''}
+            {sysInfo?.backbloom?.version ? `Service version ${sysInfo.backbloom.version} · ` : ''}
             {backend.url}
           </p>
         </div>

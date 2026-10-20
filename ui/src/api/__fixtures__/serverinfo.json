@@ -114,7 +114,7 @@
  "imageToLedMappingType": "advanced",
  "instance": [
   {
-   "friendly_name": "My Overglow Config",
+   "friendly_name": "My Backbloom Config",
    "instance": 0,
    "running": true
   }

@@ -1,11 +1,11 @@
-# Overglow
+# Backbloom
 
-Overglow is an ambient lighting app for Windows. It captures the screen (including HDR displays) or the sound that is
+Backbloom is an ambient lighting app for Windows. It captures the screen (including HDR displays) or the sound that is
 playing, maps the picture to the LEDs around your TV or monitor and drives them in real time, with color calibration,
 smoothing and effects. It runs in the tray and is configured from a web UI, which phones on the same network can open
 too once you allow it (Settings > Network).
 
-Overglow started as a fork of [HyperHDR](https://github.com/awawa-dev/HyperHDR) and is now a C# / .NET 10 app with a
+Backbloom started as a fork of [HyperHDR](https://github.com/awawa-dev/HyperHDR) and is now a C# / .NET 10 app with a
 React UI; see [Credits](#credits).
 
 ## Features
@@ -23,7 +23,7 @@ React UI; see [Credits](#credits).
 - **Control**: JSON-RPC over WebSocket and HTTP (compatible with HyperHDR clients for the commands the UI uses), MQTT
   with Home Assistant discovery; other devices and mDNS advertisement only after you turn remote access on.
 - **Import and first run**: HyperHDR v17-v24 settings databases are imported on the first start; a welcome window
-  shows what was imported, and the LEDs stay off until you press Start lighting. While HyperHDR runs, Overglow sends
+  shows what was imported, and the LEDs stay off until you press Start lighting. While HyperHDR runs, Backbloom sends
   nothing to the LEDs and asks you to quit HyperHDR.
 - **Network only when asked**: the app listens on 127.0.0.1 until you turn remote access on (with an explanation of
   the Windows Firewall question that follows); device discovery runs only when you press Find.
@@ -68,7 +68,7 @@ npm run build            # -> ui/dist, copied next to the app by the backend bui
 cd ../backend
 dotnet build -warnaserror
 dotnet test
-dotnet run --project src/Overglow.App -c Release -- --capture synthetic --data-dir .local/dev
+dotnet run --project src/Backbloom.App -c Release -- --capture synthetic --data-dir .local/dev
 
 # installer (UI build, self-contained publish, Velopack package) -> artifacts/releases
 cd ..
@@ -76,7 +76,7 @@ cd ..
 ```
 
 A build run from the source tree keeps its settings in `backend/.local/data` and doesn't import HyperHDR settings
-unless told to (`--legacy-data-dir`). Every copy listens on `127.0.0.1:18290` only unless remote access is turned on. `overglow --help` lists every option. More in
+unless told to (`--legacy-data-dir`). Every copy listens on `127.0.0.1:18290` only unless remote access is turned on. `backbloom --help` lists every option. More in
 [docs/development.md](docs/development.md) and [packaging/README.md](packaging/README.md).
 
 ## Documentation
@@ -91,7 +91,7 @@ unless told to (`--legacy-data-dir`). Every copy listens on `127.0.0.1:18290` on
 
 ## Credits
 
-Overglow is derived from [HyperHDR](https://github.com/awawa-dev/HyperHDR) by awawa-dev (MIT), which is derived from
+Backbloom is derived from [HyperHDR](https://github.com/awawa-dev/HyperHDR) by awawa-dev (MIT), which is derived from
 [Hyperion.ng](https://github.com/hyperion-project/hyperion.ng) (MIT). The C# backend is a port of HyperHDR's C++ code;
 golden fixtures exported from it keep the behavior identical where it should be. See [NOTICE.md](NOTICE.md),
 [LICENSE](LICENSE) (HyperHDR's MIT License, kept as required attribution) and

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Backbloom.Core\Backbloom.Core.csproj" />
+  </ItemGroup>
+</Project>

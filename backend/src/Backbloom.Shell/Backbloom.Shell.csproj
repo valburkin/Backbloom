@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Desktop integration, platform-neutral: power and session policy, tray menu, window placement, autostart and single instance.</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Backbloom.Engine\Backbloom.Engine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Backbloom.Shell.Tests" />
+  </ItemGroup>
+</Project>

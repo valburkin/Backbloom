@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Windows implementations of the platform interfaces: high-resolution clock, machine load, power and session events, tray icon, WebView2 window, autostart.</Description>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Backbloom.Engine\Backbloom.Engine.csproj" />
+    <ProjectReference Include="..\Backbloom.Shell\Backbloom.Shell.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" />
+    <PackageReference Include="TerraFX.Interop.Windows" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\branding\backbloom.ico" LogicalName="Backbloom.Platform.Windows.backbloom.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Backbloom.Shell.Tests" />
+  </ItemGroup>
+</Project>

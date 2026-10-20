@@ -1,11 +1,11 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Runtime.InteropServices;
-using Overglow.Tests.Network;
+using Backbloom.Tests.Network;
 
 [assembly: AssemblyFixture(typeof(NetworkListenerGuard))]
 
-namespace Overglow.Tests.Network;
+namespace Backbloom.Tests.Network;
 
 /// <summary>
 /// Fails the test run when the test process listens on anything but loopback: a TCP listener or a UDP socket bound to

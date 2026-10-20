@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     1. ui/: npm ci (when node_modules is missing) and npm run build -> ui/dist
-    2. backend/: dotnet publish of Overglow.App, self-contained win-x64, ReadyToRun, with ui/dist as ui/
+    2. backend/: dotnet publish of Backbloom.App, self-contained win-x64, ReadyToRun, with ui/dist as ui/
     3. Velopack (vpk, pinned in packaging/dotnet-tools.json): Setup.exe, the full package, the portable zip and the
        release feed files for the channel, in artifacts/releases.
 
@@ -69,7 +69,7 @@ if ($Dev) {
     # SemVer: 0.1.3 < 0.1.4-dev.20261020.103045 < 0.1.4-dev.20261020.110000 < 0.1.4
     $version = '{0}.{1}.{2}-dev.{3}' -f $Matches[1], $Matches[2], ([int] $Matches[3] + 1), (Get-Date -Format 'yyyyMMdd.HHmmss')
 }
-Write-Host "Overglow $version, channel $Channel"
+Write-Host "Backbloom $version, channel $Channel"
 
 if (-not $SkipUi) {
     Push-Location (Join-Path $repo 'ui')
@@ -83,9 +83,9 @@ if (-not (Test-Path (Join-Path $repo 'ui/dist/index.html'))) { throw 'ui/dist/in
 
 Remove-Item $publish, $releases -Recurse -Force -ErrorAction SilentlyContinue
 Invoke-Step 'Publish the backend' {
-    & $dotnet publish (Join-Path $repo 'backend/src/Overglow.App/Overglow.App.csproj') -c Release -r win-x64 -o $publish --nologo "-p:Version=$version"
+    & $dotnet publish (Join-Path $repo 'backend/src/Backbloom.App/Backbloom.App.csproj') -c Release -r win-x64 -o $publish --nologo "-p:Version=$version"
 }
-foreach ($required in 'overglow.exe', 'ui/index.html', 'LICENSE.txt', 'NOTICE.md', 'THIRD-PARTY-NOTICES.md') {
+foreach ($required in 'backbloom.exe', 'ui/index.html', 'LICENSE.txt', 'NOTICE.md', 'THIRD-PARTY-NOTICES.md') {
     if (-not (Test-Path (Join-Path $publish $required))) { throw "The published folder lacks $required." }
 }
 
@@ -94,15 +94,15 @@ try {
     Invoke-Step 'Restore vpk' { & $dotnet tool restore }
     $pack = @(
         'vpk', 'pack',
-        '--packId', 'OverglowApp',
-        '--packTitle', 'Overglow',
-        '--packAuthors', 'Overglow',
+        '--packId', 'BackbloomApp',
+        '--packTitle', 'Backbloom',
+        '--packAuthors', 'Backbloom',
         '--packVersion', $version,
         '--packDir', $publish,
-        '--mainExe', 'overglow.exe',
+        '--mainExe', 'backbloom.exe',
         '--runtime', 'win-x64',
         '--channel', $Channel,
-        '--icon', (Join-Path $repo 'branding/overglow.ico'),
+        '--icon', (Join-Path $repo 'branding/backbloom.ico'),
         '--splashImage', (Join-Path $repo 'branding/installer/splash.png'),
         '--shortcuts', 'StartMenuRoot',
         '--outputDir', $releases

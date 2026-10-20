@@ -2,7 +2,7 @@ import type { BackendConfig, ServerInfo } from '../../api/types';
 import type { LayoutSpec } from '../../layout';
 import { driverName } from '../devices/drivers';
 
-/** One line of the welcome's "what Overglow will drive" summary. */
+/** One line of the welcome's "what Backbloom will drive" summary. */
 export interface SummaryRow {
   label: string;
   value: string;

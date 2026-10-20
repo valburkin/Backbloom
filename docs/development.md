@@ -20,7 +20,7 @@
 cd backend
 dotnet build -warnaserror          # warnings are errors, analyzers and code style enforced
 dotnet test                        # every test project (xUnit v3)
-dotnet test tests/Overglow.Core.Tests --filter "FullyQualifiedName~Smoothing"
+dotnet test tests/Backbloom.Core.Tests --filter "FullyQualifiedName~Smoothing"
 
 cd ../ui
 npm ci
@@ -35,7 +35,7 @@ npm run build                      # ui/dist, copied next to the app by the back
 
 ```powershell
 cd backend
-dotnet run --project src/Overglow.App -c Release -- --capture synthetic --port 18290 --data-dir .local/dev --legacy-data-dir none
+dotnet run --project src/Backbloom.App -c Release -- --capture synthetic --port 18290 --data-dir .local/dev --legacy-data-dir none
 ```
 
 - A build from the source tree uses `backend/.local/data` unless `--data-dir` says otherwise, listens on 127.0.0.1
@@ -45,7 +45,7 @@ dotnet run --project src/Overglow.App -c Release -- --capture synthetic --port 1
 - `--service` runs without tray and window (logs in the console); `--quit --data-dir <dir>` stops an instance.
 - Several instances run side by side with different data directories and ports.
 
-When a real setup is running on the same computer (HyperHDR on 8090/8092/19400/19444, or an installed Overglow on
+When a real setup is running on the same computer (HyperHDR on 8090/8092/19400/19444, or an installed Backbloom on
 18290), use other ports, a data directory of your own and `--legacy-data-dir none`, and never point a test instance
 at a real LED controller.
 
@@ -68,7 +68,7 @@ at a real LED controller.
 - C# latest, nullable, file-scoped namespaces, `TreatWarningsAsErrors`, `AnalysisLevel latest-recommended`, code
   style enforced in the build (`backend/.editorconfig`).
 - Dependency rules between projects: see [architecture.md](architecture.md). Services are created only in
-  `Overglow.App` (constructor injection, no static singletons). Platform code only in `*.Windows` projects.
+  `Backbloom.App` (constructor injection, no static singletons). Platform code only in `*.Windows` projects.
 - Logging through `[LoggerMessage]` methods.
 - Ported code names its HyperHDR source file in its doc comments (`sources/...` paths refer to the C++ code at commit
   `9f49bd2`) and keeps the MIT attribution.

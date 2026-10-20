@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Backbloom.Capture\Backbloom.Capture.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Backbloom.Core.Tests\Golden\TestImages.cs" Link="Golden\TestImages.cs" />
+  </ItemGroup>
+</Project>

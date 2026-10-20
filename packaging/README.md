@@ -1,6 +1,6 @@
 # Packaging (Windows)
 
-Overglow ships as a per-user installer made with [Velopack](https://velopack.io) (MIT): no administrator rights, a
+Backbloom ships as a per-user installer made with [Velopack](https://velopack.io) (MIT): no administrator rights, a
 Start menu shortcut, an entry in Apps & features, and automatic updates.
 
 ## Building the installer
@@ -13,15 +13,15 @@ $env:DOTNET_ROOT = 'C:\Code\deps\dotnet'     # the development machine; CI uses 
 The script
 
 1. builds the UI (`npm ci` when `node_modules` is missing, `npm run build`);
-2. publishes `backend/src/Overglow.App` self-contained for win-x64 with ReadyToRun into `artifacts/publish` (the UI as
-   `ui/`, `LICENSE.txt`, `NOTICE.md`, `THIRD-PARTY-NOTICES.md` next to `overglow.exe`);
+2. publishes `backend/src/Backbloom.App` self-contained for win-x64 with ReadyToRun into `artifacts/publish` (the UI as
+   `ui/`, `LICENSE.txt`, `NOTICE.md`, `THIRD-PARTY-NOTICES.md` next to `backbloom.exe`);
 3. packs it with `vpk` (pinned in `dotnet-tools.json`, restored with `dotnet tool restore`) into `artifacts/releases`:
 
 | File | |
 |---|---|
-| `OverglowApp-<channel>-Setup.exe` | the installer (about 81 MB) |
-| `OverglowApp-<version>-<channel>-full.nupkg` | the full release package (about 74 MB); later releases add delta packages |
-| `OverglowApp-<channel>-Portable.zip` | a portable copy |
+| `BackbloomApp-<channel>-Setup.exe` | the installer (about 81 MB) |
+| `BackbloomApp-<version>-<channel>-full.nupkg` | the full release package (about 74 MB); later releases add delta packages |
+| `BackbloomApp-<channel>-Portable.zip` | a portable copy |
 | `releases.<channel>.json`, `RELEASES-<channel>`, `assets.<channel>.json` | the release feed |
 
 The version is the `<Version>` in `backend/Directory.Build.props` (the only place it is set). Nothing is installed or
@@ -34,16 +34,16 @@ the 0.1.4 release over all of them (SemVer orders pre-releases before the releas
 
 ## Install, first run, reinstall, uninstall
 
-Velopack installs without a wizard: `Setup.exe` shows its splash screen, installs and starts Overglow, so the app's
+Velopack installs without a wizard: `Setup.exe` shows its splash screen, installs and starts Backbloom, so the app's
 first window is the installer's "finish page".
 
-1. **Install.** Into `%LOCALAPPDATA%\OverglowApp` (`Update.exe`, `current\` with the app), with a Start menu shortcut
+1. **Install.** Into `%LOCALAPPDATA%\BackbloomApp` (`Update.exe`, `current\` with the app), with a Start menu shortcut
    and an entry in Apps & features; no administrator rights, nothing else is registered (no autostart, no firewall
-   rule). The package id is `OverglowApp` rather than `Overglow` because Velopack deletes its whole folder on
-   uninstall, and `%LOCALAPPDATA%\Overglow` is the data directory, which must survive.
+   rule). The package id is `BackbloomApp` rather than `Backbloom` because Velopack deletes its whole folder on
+   uninstall, and `%LOCALAPPDATA%\Backbloom` is the data directory, which must survive.
 2. **First start.** HyperHDR's settings are imported (from `%LOCALAPPDATA%\HyperHDR`, only copied) and the window opens
    in front with the **welcome**: what was imported (LEDs, controllers with driver and address, captured monitor,
-   effects), an unticked "Start Overglow when I sign in to Windows" box and **Start lighting**. Nothing is sent to the
+   effects), an unticked "Start Backbloom when I sign in to Windows" box and **Start lighting**. Nothing is sent to the
    LEDs and the startup effect doesn't run before that. While HyperHDR runs, the welcome says so (quit it from its
    tray icon; turn off its autostart under Windows Settings > Apps > Startup) and Start lighting waits until it has
    quit. The welcome comes back on every start until the lighting was started once (the window opens even when
@@ -54,13 +54,13 @@ first window is the installer's "finish page".
    next and that Private networks are enough, and after choosing the password other devices sign in with) does it
    listen on the network and advertise itself with mDNS. The app's own window never asks for a password. Device
    discovery runs only on Find and uses short-lived ephemeral sockets.
-4. **Reinstall.** Running `Setup.exe` again on a computer where Overglow is installed: Velopack reports that it is
+4. **Reinstall.** Running `Setup.exe` again on a computer where Backbloom is installed: Velopack reports that it is
    already installed and offers to repair (reinstall) it. Either way only the program folder is replaced; settings,
-   logs, the first-run flag and the window position in `%LOCALAPPDATA%\Overglow` are kept, so a reinstall neither
+   logs, the first-run flag and the window position in `%LOCALAPPDATA%\Backbloom` are kept, so a reinstall neither
    imports HyperHDR again nor shows the welcome again. To start over completely, uninstall, delete
-   `%LOCALAPPDATA%\Overglow` and install again.
-5. **Update.** A newer release is applied at the next start (see below); an update from 0.1.0 counts as past its
-   first run (the database migration marks it), so the lights start as before unless HyperHDR runs.
+   `%LOCALAPPDATA%\Backbloom` and install again.
+5. **Update.** A newer release is applied at the next start (see below); settings and the first-run flag are kept,
+   so the lights start as before unless HyperHDR runs.
 6. **Uninstall** (Apps & features). It first asks the running app to quit (so the LEDs are switched off) and removes
    the "Start with Windows" entry; the data directory is kept. A firewall rule Windows created when the user allowed
    remote access stays until removed under Windows Security > Firewall & network protection > Allow an app through
@@ -74,10 +74,10 @@ next start, before the lights come on. A failed check is retried after an hour.
 
 | Option | Environment | |
 |---|---|---|
-| `--update-url <url>` | `OVERGLOW_UPDATE_URL` | release feed: the folder that holds `releases.<channel>.json` and the packages (https, http or file URL) |
-| `--update-channel <name>` | `OVERGLOW_UPDATE_CHANNEL` | channel to follow; default: the one the installed package was built for |
+| `--update-url <url>` | `BACKBLOOM_UPDATE_URL` | release feed: the folder that holds `releases.<channel>.json` and the packages (https, http or file URL) |
+| `--update-channel <name>` | `BACKBLOOM_UPDATE_CHANNEL` | channel to follow; default: the one the installed package was built for |
 
-The built-in feed is the placeholder `UpdateSettings.PlaceholderFeedUrl` (`https://updates.overglow.invalid/windows`),
+The built-in feed is the placeholder `UpdateSettings.PlaceholderFeedUrl` (`https://updates.backbloom.invalid/windows`),
 which turns updates off until a real update server exists; set the real URL there once it does. To publish a release,
 upload the contents of `artifacts/releases` to the feed folder (keep the older packages, Velopack builds deltas from
 them: download the previous `releases.<channel>.json` and packages into `artifacts/releases` before packing).
@@ -92,7 +92,7 @@ The package is unsigned today, so SmartScreen warns when the installer is downlo
 command with `{{file}}` for the file to sign; `vpk` signs every program and library of the package and `Setup.exe`:
 
 ```powershell
-./packaging/build.ps1 -SignTemplate 'signtool sign /fd sha256 /tr http://timestamp.digicert.com /td sha256 /f C:\keys\overglow.pfx /p <password> {{file}}'
+./packaging/build.ps1 -SignTemplate 'signtool sign /fd sha256 /tr http://timestamp.digicert.com /td sha256 /f C:\keys\backbloom.pfx /p <password> {{file}}'
 ```
 
 (or `/sha1 <thumbprint>` for a certificate in the store, or an Azure Trusted Signing setup through `vpk`'s
@@ -103,13 +103,13 @@ command with `{{file}}` for the file to sign; `vpk` signs every program and libr
 Installing writes to the user's profile (Start menu, uninstall entry, `%LOCALAPPDATA%`), so a test build is checked
 without installing it:
 
-- the package contents: `artifacts/releases/*-full.nupkg` is a zip; `lib/app/` must hold `overglow.exe`, `ui/index.html`,
+- the package contents: `artifacts/releases/*-full.nupkg` is a zip; `lib/app/` must hold `backbloom.exe`, `ui/index.html`,
   `sq.version` and the license files;
 - the app from the publish folder, on a test data directory and port:
 
   ```powershell
-  artifacts/publish/overglow.exe --service --port 19090 --data-dir C:\Code\deps\testdata\finalize --legacy-data-dir none --capture synthetic
-  artifacts/publish/overglow.exe --quit --data-dir C:\Code\deps\testdata\finalize
+  artifacts/publish/backbloom.exe --service --port 19090 --data-dir C:\Code\deps\testdata\finalize --legacy-data-dir none --capture synthetic
+  artifacts/publish/backbloom.exe --quit --data-dir C:\Code\deps\testdata\finalize
   ```
 
 ## Third-party notices

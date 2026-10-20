@@ -1,0 +1,30 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Backbloom.App/Backbloom.App.csproj" />
+    <Project Path="src/Backbloom.Audio/Backbloom.Audio.csproj" />
+    <Project Path="src/Backbloom.Audio.Windows/Backbloom.Audio.Windows.csproj" />
+    <Project Path="src/Backbloom.Capture/Backbloom.Capture.csproj" />
+    <Project Path="src/Backbloom.Capture.Windows/Backbloom.Capture.Windows.csproj" />
+    <Project Path="src/Backbloom.Core/Backbloom.Core.csproj" />
+    <Project Path="src/Backbloom.Devices/Backbloom.Devices.csproj" />
+    <Project Path="src/Backbloom.Discovery/Backbloom.Discovery.csproj" />
+    <Project Path="src/Backbloom.Engine/Backbloom.Engine.csproj" />
+    <Project Path="src/Backbloom.Mqtt/Backbloom.Mqtt.csproj" />
+    <Project Path="src/Backbloom.Platform.Windows/Backbloom.Platform.Windows.csproj" />
+    <Project Path="src/Backbloom.Server/Backbloom.Server.csproj" />
+    <Project Path="src/Backbloom.Settings/Backbloom.Settings.csproj" />
+    <Project Path="src/Backbloom.Shell/Backbloom.Shell.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Backbloom.Audio.Tests/Backbloom.Audio.Tests.csproj" />
+    <Project Path="tests/Backbloom.Capture.Tests/Backbloom.Capture.Tests.csproj" />
+    <Project Path="tests/Backbloom.Capture.Windows.Tests/Backbloom.Capture.Windows.Tests.csproj" />
+    <Project Path="tests/Backbloom.Core.Tests/Backbloom.Core.Tests.csproj" />
+    <Project Path="tests/Backbloom.Devices.Tests/Backbloom.Devices.Tests.csproj" />
+    <Project Path="tests/Backbloom.Discovery.Tests/Backbloom.Discovery.Tests.csproj" />
+    <Project Path="tests/Backbloom.Engine.Tests/Backbloom.Engine.Tests.csproj" />
+    <Project Path="tests/Backbloom.Server.Tests/Backbloom.Server.Tests.csproj" />
+    <Project Path="tests/Backbloom.Settings.Tests/Backbloom.Settings.Tests.csproj" />
+    <Project Path="tests/Backbloom.Shell.Tests/Backbloom.Shell.Tests.csproj" />
+  </Folder>
+</Solution>

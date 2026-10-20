@@ -46,7 +46,7 @@ describe('who signs in', () => {
   it('never offers a factory password', () => {
     const html = render(<LoginScreen />, new MockBackend({ requireAuth: true }));
     expect(html).toContain('Sign in');
-    expect(html).toContain('password you set on the computer that runs Overglow');
+    expect(html).toContain('password you set on the computer that runs Backbloom');
     expect(html).not.toMatch(/factory|default password|without signing in/i);
   });
 });
@@ -71,11 +71,11 @@ describe('Settings → Security', () => {
     expect(html).toContain('Set password');
     expect(html).not.toContain('Current password');
     expect(html.match(/type="password"/g)).toHaveLength(2);
-    expect(html).not.toMatch(/factory|overglow”|“overglow/i);
+    expect(html).not.toMatch(/factory|backbloom”|“backbloom/i);
   });
 
   it('says whether remote access is protected', () => {
-    expect(renderToStaticMarkup(<RemoteAccessProtection setup={setup({})} />)).toContain('only this computer can open Overglow');
+    expect(renderToStaticMarkup(<RemoteAccessProtection setup={setup({})} />)).toContain('only this computer can open Backbloom');
     expect(renderToStaticMarkup(<RemoteAccessProtection setup={setup({ remoteAccess: on, passwordSet: true })} />)).toContain('on and protected');
     expect(renderToStaticMarkup(<RemoteAccessProtection setup={setup({ remoteAccess: on })} />)).toContain('no password is set');
   });
@@ -85,7 +85,7 @@ describe('password hints', () => {
   it('rates length, variety and common choices', () => {
     expect(passwordStrength('')).toBe('short');
     expect(passwordStrength('abc1234')).toBe('short');
-    expect(passwordStrength('overglow1')).toBe('weak');
+    expect(passwordStrength('backbloom1')).toBe('weak');
     expect(passwordStrength('aaaaaaaaaaaa')).toBe('weak');
     expect(passwordStrength('sunflower')).toBe('weak');
     expect(passwordStrength('Sunflower7')).toBe('fair');

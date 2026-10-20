@@ -44,6 +44,6 @@ Effects bring their own smoothing configuration (for example 200 ms at 25 Hz, or
 ## Difference from HyperHDR
 
 HyperHDR's Hybrid and HybridRgb transitions never finished when a target channel was below the minimal backlight
-(black, or the zero channels of a saturated color), so smoothing kept sending at the full rate forever. Overglow
+(black, or the zero channels of a saturated color), so smoothing kept sending at the full rate forever. Backbloom
 finishes them when such a channel rests at the backlight level; see
 [backend/tests/fixtures/README.md](../backend/tests/fixtures/README.md).

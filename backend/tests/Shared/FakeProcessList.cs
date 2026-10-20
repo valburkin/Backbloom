@@ -1,6 +1,6 @@
-using Overglow.Engine.Platform;
+using Backbloom.Engine.Platform;
 
-namespace Overglow.Tests.Platform;
+namespace Backbloom.Tests.Platform;
 
 /// <summary>
 /// A process list the tests control: test hosts use it so the real HyperHDR running on a development machine doesn't

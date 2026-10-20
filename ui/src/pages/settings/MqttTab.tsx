@@ -14,7 +14,7 @@ export function MqttTab({ ps }: { ps: PageSettings }) {
     <Section
       title="MQTT"
       icon={<Radio size={18} />}
-      description="Connect Overglow to a home automation system (Home Assistant, Node-RED…) through an MQTT broker. It publishes its state and accepts commands."
+      description="Connect Backbloom to a home automation system (Home Assistant, Node-RED…) through an MQTT broker. It publishes its state and accepts commands."
     >
       <SchemaForm
         schema={schema}

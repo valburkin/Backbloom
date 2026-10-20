@@ -79,7 +79,7 @@ export function CapturePage() {
   const threshold = range('blackborderdetector', 'threshold', { min: 0, max: 100 });
 
   return (
-    <PageFrame title="Screen capture" subtitle="How Overglow watches your screen." settings={ps}>
+    <PageFrame title="Screen capture" subtitle="How Backbloom watches your screen." settings={ps}>
       <Section
         title="Capture"
         icon={<ScreenShare size={18} />}

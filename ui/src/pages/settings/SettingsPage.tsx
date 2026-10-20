@@ -37,7 +37,7 @@ export function SettingsPage({ tab, onTab }: { tab: string | null; onTab: (t: st
   return (
     <PageFrame
       title="Settings"
-      subtitle="Security, network, integrations and information about Overglow."
+      subtitle="Security, network, integrations and information about Backbloom."
       settings={active.config || ps.dirty ? ps : undefined}
       toolbar={
         <div role="tablist" aria-label="Settings sections" className="scroll-thin -mx-1 flex gap-1 overflow-x-auto px-1 pb-1">

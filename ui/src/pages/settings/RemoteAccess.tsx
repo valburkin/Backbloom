@@ -62,20 +62,20 @@ export function RemoteAccessDialog({
     >
       <div className="space-y-4 text-[13px] text-ink-muted">
         <p>
-          <span className="font-medium text-ink">What it does:</span> Overglow starts accepting connections from your local network, so you can open this
+          <span className="font-medium text-ink">What it does:</span> Backbloom starts accepting connections from your local network, so you can open this
           page on your phone, a tablet or another computer, and it announces itself on the network so apps can find it. Until now it only accepted
           connections from this computer.
         </p>
         <div className="rounded-xl border border-accent/30 bg-accent/10 p-3 text-ink">
           <p className="font-medium">Windows will ask next</p>
           <p className="mt-1 text-ink-muted">
-            Right after you turn this on, Windows Security asks whether Overglow may communicate on networks. Allow <span className="font-medium text-ink">Private
+            Right after you turn this on, Windows Security asks whether Backbloom may communicate on networks. Allow <span className="font-medium text-ink">Private
             networks</span> only (your home network), not Public networks such as café, hotel or airport Wi-Fi.
           </p>
         </div>
         {passwordSet ? (
           <p>
-            <span className="font-medium text-ink">Who can change settings:</span> other devices sign in with your Overglow password (you can change it
+            <span className="font-medium text-ink">Who can change settings:</span> other devices sign in with your Backbloom password (you can change it
             in Settings → Security). This computer never needs it.
           </p>
         ) : (
@@ -91,7 +91,7 @@ export function RemoteAccessDialog({
           </div>
         )}
         <p>
-          <span className="font-medium text-ink">Turning it off:</span> come back here and choose Turn off. Overglow then listens on this computer only
+          <span className="font-medium text-ink">Turning it off:</span> come back here and choose Turn off. Backbloom then listens on this computer only
           again. To remove the Windows permission as well, open Windows Security → Firewall &amp; network protection → Allow an app through firewall.
         </p>
       </div>
@@ -147,8 +147,8 @@ export function RemoteAccessSection({ ps }: { ps: PageSettings }) {
       icon={<Smartphone size={18} />}
       description={
         status?.enabled
-          ? 'Other devices on your network can open Overglow.'
-          : 'Off: Overglow only accepts connections from this computer, so Windows never asks for network access.'
+          ? 'Other devices on your network can open Backbloom.'
+          : 'Off: Backbloom only accepts connections from this computer, so Windows never asks for network access.'
       }
       actions={
         status && !status.fixedByCommandLine ? (
@@ -168,7 +168,7 @@ export function RemoteAccessSection({ ps }: { ps: PageSettings }) {
         <p className="text-[13px] text-ink-muted">Loading…</p>
       ) : status.fixedByCommandLine ? (
         <Callout icon={<ShieldCheck size={15} />}>
-          Overglow was started with <span className="font-mono">--bind</span>, which decides where it listens{status.enabled ? '' : ' (this computer only)'}; this
+          Backbloom was started with <span className="font-mono">--bind</span>, which decides where it listens{status.enabled ? '' : ' (this computer only)'}; this
           setting has no effect.
         </Callout>
       ) : null}

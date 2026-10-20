@@ -1,0 +1,35 @@
+<Project>
+  <!--
+    The shader bytecode (*.cso) is checked in, so building needs no Windows SDK. When the SDK's fxc is installed and an
+    .hlsl file is newer than its bytecode, the bytecode is rebuilt (fxc output is deterministic; commit the result).
+    Pass -p:Fxc=<path to fxc.exe> to use a specific compiler.
+  -->
+  <PropertyGroup>
+    <ShaderDirectory>$(MSBuildThisFileDirectory)</ShaderDirectory>
+    <WindowsKitsRoot Condition="'$(WindowsKitsRoot)' == '' and '$(OS)' == 'Windows_NT'">$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots', 'KitsRoot10', null, RegistryView.Registry32))</WindowsKitsRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(ShaderDirectory)*.hlsl" />
+    <Shader Include="$(ShaderDirectory)Downscale.hlsl" Stage="vs" EntryPoint="VSMain" Bytecode="$(ShaderDirectory)Downscale.vs.cso" />
+    <Shader Include="$(ShaderDirectory)Downscale.hlsl" Stage="ps" EntryPoint="PSMain" Bytecode="$(ShaderDirectory)Downscale.ps.cso" />
+  </ItemGroup>
+
+  <Target Name="FindFxc" Condition="'$(Fxc)' == '' and '$(WindowsKitsRoot)' != ''">
+    <ItemGroup>
+      <_FxcCandidate Include="$(WindowsKitsRoot)bin\10.*\x64\fxc.exe" />
+    </ItemGroup>
+    <PropertyGroup>
+      <Fxc>%(_FxcCandidate.FullPath)</Fxc>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="CompileShaders" BeforeTargets="BeforeBuild" DependsOnTargets="FindFxc" Inputs="@(Shader)" Outputs="%(Shader.Bytecode)">
+    <Message Condition="'$(Fxc)' == ''" Importance="normal" Text="fxc not found; using the checked-in bytecode %(Shader.Bytecode)" />
+    <Exec Condition="'$(Fxc)' != ''" Command="&quot;$(Fxc)&quot; /nologo /T %(Shader.Stage)_5_0 /E %(Shader.EntryPoint) /O3 /WX /Qstrip_debug /Qstrip_priv /Fo &quot;%(Shader.Bytecode)&quot; &quot;%(Shader.FullPath)&quot;" StandardOutputImportance="low" />
+  </Target>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(ShaderDirectory)*.cso" LogicalName="Backbloom.Capture.Windows.Shaders.%(Filename)%(Extension)" WithCulture="false" />
+  </ItemGroup>
+</Project>

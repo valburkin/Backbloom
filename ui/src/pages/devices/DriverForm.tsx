@@ -32,7 +32,7 @@ export function DiscoveryDialog({ open, onCancel, onConfirm }: { open: boolean; 
     >
       <div className="space-y-3 text-[13px] text-ink-muted">
         <p>
-          Overglow asks the devices on your local network once whether they are LED controllers (the same kind of question your phone asks to find a
+          Backbloom asks the devices on your local network once whether they are LED controllers (the same kind of question your phone asks to find a
           printer) and lists the ones that answer within a few seconds. Nothing found is changed or contacted otherwise.
         </p>
         <p>

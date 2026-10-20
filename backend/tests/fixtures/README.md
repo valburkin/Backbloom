@@ -13,7 +13,7 @@ regenerated. Treat them as the specification of HyperHDR's behavior. Change one 
 How they were produced: the Qt test programs in `tests/golden/` (`MappingGolden.cpp`, `ColorGolden.cpp`,
 `BlackBorderGolden.cpp`, `HdrGolden.cpp`, `SmoothingGolden.cpp`, `EffectsGolden.cpp`, helpers in `GoldenFixture.*` and
 `TestImages.*`) ran the real C++ classes on deterministic inputs and wrote these files
-(`OVERGLOW_UPDATE_FIXTURES=1 ctest --preset win-release -L golden`; without the variable ctest compared its output with
+(`ctest --preset win-release -L golden` with the update variable of `GoldenFixture.cpp` set; without it ctest compared its output with
 the committed files; the RGBW fixtures in `rgbw/` come from `ColorGolden.cpp` too). The exporter was added in commit
 `cd0932d`; commit `9f49bd2` is the last one that contains it and the whole C++ code
 (`git show 9f49bd2:tests/golden/ColorGolden.cpp`, or `git worktree add <dir> 9f49bd2` to build it).

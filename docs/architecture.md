@@ -1,6 +1,6 @@
 # Architecture
 
-One process (`overglow.exe`) does everything: capture, color processing, smoothing, LED output, the web server for the
+One process (`backbloom.exe`) does everything: capture, color processing, smoothing, LED output, the web server for the
 UI and the API, the tray and the window. [backend/README.md](../backend/README.md) describes each subsystem in detail;
 this page is the overview.
 
@@ -16,7 +16,7 @@ frame source (DXGI screen capture | effect | static color | synthetic test patte
   -> every enabled controller (LED device runner, one thread each) and the UI's live preview
 ```
 
-HyperHDR ran one complete pipeline per "instance"; Overglow runs one pipeline that fans out to several controllers.
+HyperHDR ran one complete pipeline per "instance"; Backbloom runs one pipeline that fans out to several controllers.
 
 The `LightingGate` (Engine) can hold the output: the controllers stay closed while the first-run welcome wasn't
 completed or HyperHDR runs (`OtherAppMonitor` behind the `IProcessList` platform interface). Network access is
@@ -27,11 +27,11 @@ while a search runs (see [backend/README.md](../backend/README.md#first-run-hype
 
 | Layer | Projects | Contents |
 |---|---|---|
-| 1 | `Overglow.Core`, `Overglow.Settings`, `Overglow.Discovery`, `Overglow.Mqtt` | Pure logic (layout, mapping, color, smoothing, priorities, effects, music analysis); settings schemas, SQLite store, HyperHDR import; mDNS/SSDP; the MQTT connection. No references to each other. |
-| 2 | `Overglow.Capture`, `Overglow.Audio`, `Overglow.Devices`; `Overglow.Capture.Windows`, `Overglow.Audio.Windows` | Frame and sound source abstractions; LED drivers and their lifecycle; the Windows implementations (TerraFX interop). |
-| 3 | `Overglow.Engine` | Orchestration: frame loop, component switches, sources, controllers, effects, preview feed. |
-| 4 | `Overglow.Server`, `Overglow.Shell`; `Overglow.Platform.Windows` | Kestrel JSON-RPC + UI files + MQTT integration; tray menu, window placement, power policy, single instance; Windows tray, WebView2 window, autostart, power and session events. |
-| 5 | `Overglow.App` | Composition root (the only place that creates services), command line, logging, installer hooks and updates. |
+| 1 | `Backbloom.Core`, `Backbloom.Settings`, `Backbloom.Discovery`, `Backbloom.Mqtt` | Pure logic (layout, mapping, color, smoothing, priorities, effects, music analysis); settings schemas, SQLite store, HyperHDR import; mDNS/SSDP; the MQTT connection. No references to each other. |
+| 2 | `Backbloom.Capture`, `Backbloom.Audio`, `Backbloom.Devices`; `Backbloom.Capture.Windows`, `Backbloom.Audio.Windows` | Frame and sound source abstractions; LED drivers and their lifecycle; the Windows implementations (TerraFX interop). |
+| 3 | `Backbloom.Engine` | Orchestration: frame loop, component switches, sources, controllers, effects, preview feed. |
+| 4 | `Backbloom.Server`, `Backbloom.Shell`; `Backbloom.Platform.Windows` | Kestrel JSON-RPC + UI files + MQTT integration; tray menu, window placement, power policy, single instance; Windows tray, WebView2 window, autostart, power and session events. |
+| 5 | `Backbloom.App` | Composition root (the only place that creates services), command line, logging, installer hooks and updates. |
 
 A project may only reference projects of lower layers. Platform code lives only in `*.Windows` projects behind
 interfaces defined above them, so macOS and Linux get their own projects later.

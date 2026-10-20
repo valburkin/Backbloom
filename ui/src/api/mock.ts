@@ -69,18 +69,18 @@ function sceneColor(x: number, y: number, t: number): Rgb {
 }
 
 const LOG_LINES: Array<[string, string, string]> = [
-  ['INFO', 'MAIN', 'Starting Overglow (demo)'],
-  ['INFO', 'Overglow.Server.WebServer', 'Listening on http://127.0.0.1:18290'],
-  ['INFO', 'Overglow.Devices.LedDeviceRunner', 'WLED controller wled-mock.local: 168 LEDs, 2 outputs'],
-  ['INFO', 'Overglow.Engine.OutputStage', 'Smoothing: HybridRgbInterpolator, 150 ms, 50 Hz'],
-  ['DEBUG', 'Overglow.Capture.Windows.DxgiScreenSource', 'Screen capture started: \\\\.\\DISPLAY5, 491x205 frames at up to 30 fps'],
-  ['WARNING', 'Overglow.Devices.LedDeviceRunner', 'Slow answer from wled-mock.local (180 ms)'],
-  ['INFO', 'Overglow.Engine.EffectEngine', 'Effect started: Rainbow swirl fast'],
-  ['ERROR', 'Overglow.Mqtt.MqttConnection', 'Couldn’t reach the MQTT broker (demo message)'],
+  ['INFO', 'MAIN', 'Starting Backbloom (demo)'],
+  ['INFO', 'Backbloom.Server.WebServer', 'Listening on http://127.0.0.1:18290'],
+  ['INFO', 'Backbloom.Devices.LedDeviceRunner', 'WLED controller wled-mock.local: 168 LEDs, 2 outputs'],
+  ['INFO', 'Backbloom.Engine.OutputStage', 'Smoothing: HybridRgbInterpolator, 150 ms, 50 Hz'],
+  ['DEBUG', 'Backbloom.Capture.Windows.DxgiScreenSource', 'Screen capture started: \\\\.\\DISPLAY5, 491x205 frames at up to 30 fps'],
+  ['WARNING', 'Backbloom.Devices.LedDeviceRunner', 'Slow answer from wled-mock.local (180 ms)'],
+  ['INFO', 'Backbloom.Engine.EffectEngine', 'Effect started: Rainbow swirl fast'],
+  ['ERROR', 'Backbloom.Mqtt.MqttConnection', 'Couldn’t reach the MQTT broker (demo message)'],
 ];
 
 /**
- * In-memory stand-in for Overglow, built from fixtures captured from the .NET app (see __fixtures__): a two-output
+ * In-memory stand-in for Backbloom, built from fixtures captured from the .NET app (see __fixtures__): a two-output
  * WLED controller with the product owner's 168-LED layout. Implements the same Backend interface as WsClient,
  * with the app's behavior: auth errors, partial setconfig that rejects invalid values with per-field `errors`,
  * stored adjustments, restore while running, live LED colors, logs, performance reports and the screen capture's
@@ -207,7 +207,7 @@ export class MockBackend implements Backend {
         }
         return fail('unknown or missing subcommand');
       case 'instance':
-        if (subcommand === 'switchTo') return params.instance === 0 ? ok() : fail("Selected Overglow instance isn't running");
+        if (subcommand === 'switchTo') return params.instance === 0 ? ok() : fail("Selected Backbloom instance isn't running");
         return fail('Command not implemented');
       case 'componentstate': {
         const { component, state } = (params.componentstate ?? {}) as { component?: string; state?: boolean };
@@ -270,7 +270,7 @@ export class MockBackend implements Backend {
       case 'save-db':
         needAdmin();
         return ok({
-          version: 'Overglow_export_format_v1',
+          version: 'Backbloom_export_format_v1',
           instances: [{ instance: 0, friendly_name: 'First LED instance', enabled: 1 }],
           settings: Object.entries(this.config).map(([type, c]) => ({ type, config: JSON.stringify(c), instance: 0 })),
         });
@@ -356,7 +356,7 @@ export class MockBackend implements Backend {
         if (typeof params.autostart === 'boolean') this.setup.autostart = { ...this.setup.autostart, enabled: params.autostart && this.setup.autostart.available };
         return this.updateSetup({ firstRunCompleted: true });
       case 'autostart':
-        if (!this.setup.autostart.available) return fail("This copy of Overglow can't start with the system");
+        if (!this.setup.autostart.available) return fail("This copy of Backbloom can't start with the system");
         if (typeof params.enabled !== 'boolean') return fail('enabled (true or false) is required');
         return this.updateSetup({ autostart: { available: true, enabled: params.enabled } });
       case 'acknowledge':
@@ -465,7 +465,7 @@ export class MockBackend implements Backend {
       list.push({
         priority: UI_PRIORITY,
         componentId: this.source.kind === 'color' ? 'COLOR' : 'EFFECT',
-        origin: 'Overglow UI@127.0.0.1',
+        origin: 'Backbloom UI@127.0.0.1',
         owner: this.source.kind === 'effect' ? this.source.name : undefined,
         active: true,
         visible: false,

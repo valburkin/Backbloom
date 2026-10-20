@@ -10,10 +10,10 @@
     <Deterministic>true</Deterministic>
     <InvariantGlobalization>true</InvariantGlobalization>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <Company>Overglow</Company>
-    <Product>Overglow</Product>
-    <Copyright>Copyright (c) 2026 Overglow. Portions ported from HyperHDR, copyright (c) 2020-2026 awawa-dev (MIT).</Copyright>
-    <Version>0.1.4</Version>
+    <Company>Backbloom</Company>
+    <Product>Backbloom</Product>
+    <Copyright>Copyright (c) 2026 Backbloom. Portions ported from HyperHDR, copyright (c) 2020-2026 awawa-dev (MIT).</Copyright>
+    <Version>0.1.6</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(CI)' == 'true'">

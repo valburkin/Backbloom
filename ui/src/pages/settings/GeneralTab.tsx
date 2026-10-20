@@ -40,7 +40,7 @@ export function GeneralTab({ ps }: { ps: PageSettings }) {
   const exportSettings = () =>
     void run('export', 'Couldn’t export the settings', async () => {
       const data = await api.exportSettings();
-      download(`overglow-settings-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data, null, 2));
+      download(`backbloom-settings-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data, null, 2));
     });
 
   // The backend applies a backup while running and lists what it adapted; sections the backup lacks (e.g. the
@@ -61,7 +61,7 @@ export function GeneralTab({ ps }: { ps: PageSettings }) {
     if (!file) return;
     try {
       const data = JSON.parse(await file.text()) as Obj;
-      if (!data || typeof data.version !== 'string' || !Array.isArray(data.settings)) throw new Error('This isn’t a settings backup from Overglow.');
+      if (!data || typeof data.version !== 'string' || !Array.isArray(data.settings)) throw new Error('This isn’t a settings backup from Backbloom.');
       setRestore({ name: file.name, data });
     } catch (e) {
       toast('bad', 'Can’t use that file', e instanceof SyntaxError ? 'The file isn’t valid JSON.' : e instanceof Error ? e.message : String(e));
@@ -86,7 +86,7 @@ export function GeneralTab({ ps }: { ps: PageSettings }) {
         />
         <Toggle
           label="Start with the lights off"
-          hint="Overglow starts paused; turn the lights on from Home."
+          hint="Backbloom starts paused; turn the lights on from Home."
           checked={general.disableLedsStartup === true}
           onChange={(v) => ps.setPath('general', ['disableLedsStartup'], v)}
         />
@@ -155,7 +155,7 @@ export function GeneralTab({ ps }: { ps: PageSettings }) {
           <p>
             All current settings will be replaced with the ones in <span className="font-medium">{restore?.name}</span>.
           </p>
-          <Callout tone="info">The lights switch to the restored settings right away. Your current settings are kept in the backups folder of Overglow’s data folder.</Callout>
+          <Callout tone="info">The lights switch to the restored settings right away. Your current settings are kept in the backups folder of Backbloom’s data folder.</Callout>
         </div>
       </Dialog>
     </>
