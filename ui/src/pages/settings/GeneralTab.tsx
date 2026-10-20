@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Download, HardDrive, LogIn, LogOut, SlidersHorizontal, Upload, Wifi } from 'lucide-react';
+import { Download, HardDrive, LogOut, SlidersHorizontal, Upload, Wifi } from 'lucide-react';
 import { Button, Dialog, StatusDot } from '../../components/ui';
 import { Callout, Input, Section, Toggle } from '../../components/form';
 import { useConfig, type PageSettings } from '../../app/config';
@@ -28,7 +28,7 @@ function download(name: string, text: string, type = 'application/json') {
 }
 
 export function GeneralTab({ ps }: { ps: PageSettings }) {
-  const { status, backend, auth, sysInfo, logout, requestLogin, api } = useConnection();
+  const { status, backend, remote, sysInfo, logout, api } = useConnection();
   const { reload } = useConfig();
   const toast = useToast();
   const { run, busy } = useAction();
@@ -124,20 +124,16 @@ export function GeneralTab({ ps }: { ps: PageSettings }) {
           <Row label="Address">
             <code className="font-mono text-[13px] text-ink-muted">{backend.url}</code>
           </Row>
-          <Row label="Access">{auth === 'admin' ? 'Signed in' : auth === 'readOnly' ? 'View only' : '—'}</Row>
+          <Row label="Access">{remote ? 'Signed in from another device' : 'This computer: full access, no password needed'}</Row>
           <Row label="Computer">{sysInfo?.system?.hostName ?? '—'}</Row>
         </div>
-        <div className="flex justify-end">
-          {auth === 'admin' ? (
+        {remote && (
+          <div className="flex justify-end">
             <Button size="sm" icon={<LogOut size={15} />} onClick={() => void logout()}>
               Sign out
             </Button>
-          ) : (
-            <Button size="sm" variant="primary" icon={<LogIn size={15} />} onClick={requestLogin}>
-              Sign in
-            </Button>
-          )}
-        </div>
+          </div>
+        )}
       </Section>
 
       <Dialog

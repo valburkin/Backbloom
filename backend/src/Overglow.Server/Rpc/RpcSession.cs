@@ -42,6 +42,7 @@ public sealed class RpcSession : IDisposable
     /// <summary>Client address, used in log messages and as the "origin" suffix.</summary>
     public string Peer { get; }
 
+    /// <summary>A connection from this computer (loopback, see <see cref="Auth.LocalAccess"/>): full access without a password.</summary>
     public bool IsLocal { get; }
 
     /// <summary>One-shot HTTP request: no subscriptions or streams.</summary>

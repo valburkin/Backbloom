@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { Eye, Loader2, RotateCcw, Save, TriangleAlert } from 'lucide-react';
-import { useConnection } from '../app/connection';
+import { Loader2, RotateCcw, Save, TriangleAlert } from 'lucide-react';
 import { useConfig, type PageSettings } from '../app/config';
 import { Button, cx } from './ui';
 import { PageHeader } from './PageHeader';
@@ -51,19 +50,7 @@ export function PageFrame({
 }
 
 function SettingsGate({ settings, children }: { settings: PageSettings; children: ReactNode }) {
-  const { auth, requestLogin } = useConnection();
   const { status, error, reload } = useConfig();
-  if (auth === 'readOnly')
-    return (
-      <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-surface p-10 text-center">
-        <Eye size={26} className="text-accent-strong" />
-        <p className="font-medium">Sign in to see and change these settings</p>
-        <p className="max-w-sm text-[13px] text-ink-muted">You’re looking around without signing in, so settings stay hidden.</p>
-        <Button variant="primary" onClick={requestLogin}>
-          Sign in
-        </Button>
-      </div>
-    );
   if (status === 'error')
     return (
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-bad/30 bg-bad/10 p-4 text-[13px] text-bad">

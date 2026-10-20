@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,12 +12,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Overglow.App;
 using Overglow.Devices;
 using Overglow.Engine.Platform;
+using Overglow.Server.Auth;
 using Overglow.Settings;
 using Overglow.Tests.Platform;
 
 namespace Overglow.Server.Tests;
 
-/// <summary>The real host (same composition as the app) on a random loopback port with a temporary data directory.</summary>
+/// <summary>
+/// The real host (same composition as the app) on a random loopback port with a temporary data directory. Requests
+/// with a <see cref="PeerHeader"/> look to the server as if they came from that address (as Kestrel would report a
+/// device on the network), so tests reach "remote" code paths without listening on the network.
+/// </summary>
 internal sealed class TestServer : IAsyncDisposable
 {
     private readonly WebApplication _app;
@@ -35,6 +42,15 @@ internal sealed class TestServer : IAsyncDisposable
 
     public IServiceProvider Services => _app.Services;
 
+    /// <summary>Test-only request header: the peer address the server sees (see <see cref="PeerFilter"/>).</summary>
+    public const string PeerHeader = "X-Test-Peer";
+
+    /// <summary>A device on the local network.</summary>
+    public static readonly IPAddress NetworkPeer = IPAddress.Parse("192.168.1.50");
+
+    /// <summary>A password for tests that sign in from another device.</summary>
+    public const string Password = "test-password";
+
     public static string NewDataDirectory()
     {
         var dir = Path.Combine(Path.GetTempPath(), $"overglow-server-{Guid.NewGuid():N}");
@@ -48,9 +64,10 @@ internal sealed class TestServer : IAsyncDisposable
     /// <summary>
     /// Starts a server in a new data directory; <paramref name="settings"/> (sections as JSON) are stored first, with
     /// the startup effect off unless they contain <c>foregroundEffect</c>, and the first run completed unless
-    /// <paramref name="firstRun"/> (so the LEDs run as before the first-run welcome existed).
+    /// <paramref name="firstRun"/> (so the LEDs run as before the first-run welcome existed); <paramref name="password"/>
+    /// is set when given (other devices are refused without one).
     /// </summary>
-    public static async Task<TestServer> StartAsync(string? settings = null, bool firstRun = false, Action<AppOptions, IServiceCollection>? configure = null)
+    public static async Task<TestServer> StartAsync(string? settings = null, bool firstRun = false, Action<AppOptions, IServiceCollection>? configure = null, string? password = null)
     {
         var dir = NewDataDirectory();
         var sections = JsonNode.Parse(settings ?? "{}")!.AsObject();
@@ -66,6 +83,11 @@ internal sealed class TestServer : IAsyncDisposable
             if (!firstRun)
             {
                 services.Setup.CompleteFirstRun();
+            }
+
+            if (password is not null)
+            {
+                Assert.True(new AuthService(services.Auth).SetPassword(password));
             }
         }
 
@@ -83,6 +105,7 @@ internal sealed class TestServer : IAsyncDisposable
             (options, services) =>
             {
                 services.AddSingleton<IProcessList>(new FakeProcessList());
+                services.AddSingleton<IStartupFilter, PeerFilter>();
                 configure?.Invoke(options, services);
             });
         await app.StartAsync();
@@ -105,12 +128,26 @@ internal sealed class TestServer : IAsyncDisposable
         }
     }
 
-    public async Task<RpcClient> ConnectAsync()
+    /// <summary>A WebSocket client from this computer, or from <paramref name="peer"/> (see <see cref="PeerHeader"/>).</summary>
+    public async Task<RpcClient> ConnectAsync(IPAddress? peer = null, string? origin = null)
     {
         var socket = new ClientWebSocket();
+        if (peer is not null)
+        {
+            socket.Options.SetRequestHeader(PeerHeader, peer.ToString());
+        }
+
+        if (origin is not null)
+        {
+            socket.Options.SetRequestHeader("Origin", origin);
+        }
+
         await socket.ConnectAsync(new Uri($"ws://{BaseUri.Authority}"), TestContext.Current.CancellationToken);
         return new RpcClient(socket);
     }
+
+    /// <summary>A WebSocket client on another device (<see cref="NetworkPeer"/>).</summary>
+    public Task<RpcClient> ConnectFromNetworkAsync() => ConnectAsync(NetworkPeer);
 
     public async ValueTask DisposeAsync()
     {
@@ -121,6 +158,24 @@ internal sealed class TestServer : IAsyncDisposable
             DeleteDirectory(DataDirectory);
         }
     }
+}
+
+/// <summary>Sets the connection's peer address from <see cref="TestServer.PeerHeader"/> before anything else runs.</summary>
+internal sealed class PeerFilter : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+    {
+        app.Use((context, nextMiddleware) =>
+        {
+            if (IPAddress.TryParse(context.Request.Headers[TestServer.PeerHeader].ToString(), out var peer))
+            {
+                context.Connection.RemoteIpAddress = peer;
+            }
+
+            return nextMiddleware(context);
+        });
+        next(app);
+    };
 }
 
 /// <summary>A minimal client of the JSON-RPC protocol: replies are matched by tan, everything else is an event.</summary>

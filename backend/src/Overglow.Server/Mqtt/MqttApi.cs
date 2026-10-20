@@ -4,9 +4,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using Overglow.Mqtt;
-using Overglow.Server.Auth;
 using Overglow.Server.Rpc;
-using Overglow.Settings;
 
 namespace Overglow.Server.Mqtt;
 
@@ -39,8 +37,8 @@ public sealed record MqttIntegrationSettings(string Topic, bool ApiAccess, bool 
 
 /// <summary>
 /// JSON-RPC over MQTT (port of the C++ <c>mqtt::received</c> / <c>executeJson</c>): every message on
-/// <c>&lt;topic&gt;/JsonAPI</c> is run like a request of a local client (the rights of a local connection under the
-/// <c>network</c> settings), and all replies it produced are published as one JSON array on
+/// <c>&lt;topic&gt;/JsonAPI</c> is run with API rights but without configuration access (anyone who can publish on the
+/// broker could send it; HyperHDR gave it the rights of a local client), and all replies it produced are published as one JSON array on
 /// <c>&lt;topic&gt;/JsonAPI/response</c> (QoS 2, as in C++). A message that isn't JSON gets
 /// <c>{ success: false, error }</c>. Messages are handled one at a time, in order.
 /// </summary>
@@ -48,7 +46,6 @@ public sealed partial class MqttApi : IAsyncDisposable
 {
     private readonly MqttConnection _mqtt;
     private readonly RpcDispatcher _dispatcher;
-    private readonly ISettingsStore _settings;
     private readonly ILogger _logger;
     private readonly Channel<string> _requests = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
     private readonly CancellationTokenSource _stop = new();
@@ -56,11 +53,10 @@ public sealed partial class MqttApi : IAsyncDisposable
     private readonly Task _worker;
     private IAsyncDisposable? _subscription;
 
-    private MqttApi(MqttConnection mqtt, RpcDispatcher dispatcher, ISettingsStore settings, MqttIntegrationSettings topics, ILogger logger)
+    private MqttApi(MqttConnection mqtt, RpcDispatcher dispatcher, MqttIntegrationSettings topics, ILogger logger)
     {
         _mqtt = mqtt;
         _dispatcher = dispatcher;
-        _settings = settings;
         _logger = logger;
         _responseTopic = topics.ResponseTopic;
         _worker = Task.Run(() => RunAsync(_stop.Token));
@@ -68,14 +64,13 @@ public sealed partial class MqttApi : IAsyncDisposable
 
     /// <summary>Subscribes to the request topic (kept across reconnects by the connection).</summary>
     public static async Task<MqttApi> StartAsync(
-        MqttConnection mqtt, RpcDispatcher dispatcher, ISettingsStore settings, MqttIntegrationSettings topics, ILogger logger, CancellationToken cancellationToken)
+        MqttConnection mqtt, RpcDispatcher dispatcher, MqttIntegrationSettings topics, ILogger logger, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(mqtt);
         ArgumentNullException.ThrowIfNull(dispatcher);
-        ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(topics);
         ArgumentNullException.ThrowIfNull(logger);
-        var api = new MqttApi(mqtt, dispatcher, settings, topics, logger);
+        var api = new MqttApi(mqtt, dispatcher, topics, logger);
         api._subscription = await mqtt.SubscribeAsync(topics.ApiTopic, (_, payload) => api._requests.Writer.TryWrite(payload), cancellationToken);
         api.LogListening(topics.ApiTopic, topics.ResponseTopic);
         return api;
@@ -116,8 +111,7 @@ public sealed partial class MqttApi : IAsyncDisposable
         }
 
         var output = new CollectingOutput();
-        var (authorized, admin) = AccessPolicy.FromSettings(_settings.GetSection("network")).InitialRights(isLocal: true);
-        using (var session = new RpcSession(output, "MQTT", isLocal: true, authorized, admin))
+        using (var session = new RpcSession(output, "MQTT", isLocal: false, authorized: true, admin: false))
         {
             IReadOnlyList<JsonObject> messages = request switch
             {

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Eye, Info, LayoutTemplate, Loader2, MonitorPlay, RotateCcw } from 'lucide-react';
+import { Info, LayoutTemplate, Loader2, MonitorPlay, RotateCcw } from 'lucide-react';
 import type { LayoutIssue } from '../../layout';
 import { Button, Card, Segmented } from '../../components/ui';
 import { PageHeader } from '../../components/PageHeader';
@@ -18,7 +18,7 @@ import { IssueSummary } from './IssueSummary';
 
 export function LayoutPage() {
   const { state, dispatch, load, reload, issues, validatorError, blockers, aspect, setAspect } = useEditor();
-  const { auth, requestLogin, backend } = useConnection();
+  const { backend } = useConnection();
   const [templateOpen, setTemplateOpen] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const [found, setFound] = useState<FoundLed | null>(null);
@@ -51,15 +51,6 @@ export function LayoutPage() {
         <div className="grid h-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]">
           {/* Left: canvas + tools */}
           <div className="scroll-thin min-w-0 space-y-4 p-6 lg:overflow-y-auto">
-            {auth === 'readOnly' && (
-              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-2 p-3 text-[13px] text-ink-muted">
-                <Eye size={16} className="text-accent-strong" />
-                You’re looking around without signing in. You can try things out, but you’ll need to sign in to save.
-                <Button size="sm" variant="secondary" className="ml-auto" onClick={requestLogin}>
-                  Sign in
-                </Button>
-              </div>
-            )}
             {load.note && (
               <div className="flex gap-2 rounded-xl border border-line bg-surface-2 p-3 text-[13px] text-ink-muted">
                 <Info size={16} className="mt-px shrink-0 text-accent-strong" />

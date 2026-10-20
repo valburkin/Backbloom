@@ -78,8 +78,38 @@ extension (single-page fallback; the UI routes by URL hash today), caches the co
 (`immutable`) and revalidates everything else (`no-cache` with ETag), so a new version shows up at once. Missing files
 with an extension stay 404. After rebuilding the UI, rebuild the backend (or pass `--ui-dir ../ui/dist`) to serve it.
 
-The default admin password is `overglow` (as in the C++ build). Local clients need it for configuration unless
-`network.localAdminAuth` is `false`.
+The UI from this computer (the app's window, a browser here) never asks for a password; other devices sign in (see
+[Access](#access-this-computer-and-other-devices)).
+
+### Access: this computer and other devices
+
+`Overglow.Server/Auth/LocalAccess` decides, per connection:
+
+| Peer | Rights |
+|---|---|
+| loopback: 127.0.0.0/8, `::1`, IPv4-mapped `::ffff:127.x` | full access (API and configuration), no password |
+| anything else (only reachable with remote access on, or `--bind`) | none until it signs in with the password, a user token or an API token; refused (403) while no password is set |
+| MQTT `JsonAPI` | API rights, no configuration access (anyone who can publish on the broker could send it) |
+
+- Only the socket's peer address counts (Kestrel's `RemoteIpAddress`; no forwarded-headers middleware), so
+  `X-Forwarded-For` / `Forwarded` can't make a client local, and a browser here that opens this computer's LAN address
+  is another device.
+- DNS rebinding and cross-site requests: any website open in a local browser can send requests to 127.0.0.1, so
+  `LocalRequestGuard` (the first middleware) refuses loopback requests whose `Host` isn't `localhost`, a 127.x
+  address or `[::1]` (any port), or whose `Origin`, when there is one, isn't such a host over http(s) (`null` origins
+  included). It applies to the UI files, `POST /json-rpc` and the WebSocket handshake alike. Other devices may use
+  any host name (`<pc>.local`, its address); they have to sign in anyway.
+- No factory password. `AuthService` starts without one; `authorize newPassword` sets it without the current password
+  from this computer (also how a forgotten one is replaced) and for the first password, while a device that signed in
+  must give the current one. A HyperHDR password other than its factory default is imported and counts as set.
+- Remote access needs a password: `setconfig` refuses `network.remoteAccess: true` without one
+  (`ConfigCommand.PasswordNeeded`), and `RemoteAccess` keeps the network endpoints closed until one exists (a
+  restored backup or an older database can't open them either). The UI's remote access dialog asks for the password
+  (twice, with a strength hint) before it turns remote access on.
+- HyperHDR's `apiAuth`, `localApiAuth`, `localAdminAuth`, `internetAccessAPI`, `restirctedInternetAccessAPI` and
+  `ipWhitelist` are gone from the `network` schema: imports drop them (`LegacyMigrations.RemoveAccessOptions`),
+  schema 4 removes them from stored settings, and `setconfig` ignores them so older clients that send the whole
+  section back keep working.
 
 ## Projects
 
@@ -504,13 +534,14 @@ window stays connected). Specific addresses rather than 0.0.0.0, so they never o
 tests (127.0.0.2 as the "network" address, `RemoteAccessOptions`) exercise the same binding. Unbinding waits for open
 connections on those endpoints to end (a few seconds). The mDNS responder starts and stops with them. `--bind` fixes
 one address instead and the setting has no effect. The UI explains what turning it on does (and that Windows asks
-next, Private networks only) before it sets the setting.
+next, Private networks only) before it sets the setting. Without a password the endpoints stay closed even when the
+setting is on (see [Access](#access-this-computer-and-other-devices)); setting one opens them at once.
 
 **Protocol.** `setup` (Overglow addition): `getstate` for any authorized session; `start` `{ autostart? }`,
 `autostart` `{ enabled }`, `acknowledge` `{ topic: "discovery" }` for admins. Each replies with
 `{ firstRunCompleted, outputHeld, otherApp: { name, executable } | null, importedFrom, autostart: { available, enabled },
-remoteAccess: { enabled, fixedByCommandLine, port, urls, advertised }, acknowledged }`, which the `setup-update` event
-pushes on every change.
+remoteAccess: { enabled, fixedByCommandLine, port, urls, advertised }, passwordSet, acknowledged }`, which the
+`setup-update` event pushes on every change (also when the password is set).
 
 ## MQTT integration
 
@@ -628,6 +659,9 @@ Deliberate differences from the C++ backend (its bug backlog):
    up through `settings-update` (HyperHDR quit the process). Sections the backup doesn't contain get their defaults;
    an absent `layout` is not announced by an event, so clients reload the config after a restore.
 7. `layout` has no default: `getconfig` omits it until a client saves one.
+8. Access: this computer always has full access and other devices always sign in; there is no factory password, and
+   HyperHDR's `network` access options are gone (see [Access](#access-this-computer-and-other-devices)). `getstate`
+   of `setup` needs a signed-in session like every other command.
 
 Also: `logout` returns the connection to the rights it had before signing in, and the identify blink is applied
 before the controller's color order (so it is really red, green, blue on GRB strips).
@@ -648,7 +682,9 @@ a validated in-memory copy, every update is one transaction written before the c
 marks the file, `PRAGMA user_version` is the schema version: `SettingsDatabase.Migrations` lists the forward steps, each
 applied once in its own transaction; a file from a newer version is refused, never rewritten. Schema 2 converts a stored
 `systemGrabber.hdrToneMapping` switch into the mode, as the import does; schema 3 marks a database that was already in
-use as past its first run (see [First run](#first-run-hyperhdr-and-network-access)). Schema 1:
+use as past its first run (see [First run](#first-run-hyperhdr-and-network-access)); schema 4 removes HyperHDR's
+`network` access options and the factory password `overglow` that earlier versions stored (`admin_password.is_default`
+is written as 0 since; a row marked 1 is never read). Schema 1:
 
 | Table | Holds |
 |---|---|
@@ -689,7 +725,9 @@ Rules, all idempotent and logged one line each (never with secrets):
 - every section is then repaired against its schema;
 - credentials: the admin password hash (salted SHA-512) and API token hashes are imported as `LegacySha512` and keep
   working; `AuthService` replaces them with PBKDF2 on first use. A password still at HyperHDR's or the C++ build's
-  factory default becomes this version's default (`overglow`, flagged as default).
+  factory default isn't imported: this version has no factory password, the user sets one for remote access;
+- HyperHDR's `network` access options (`apiAuth`, `localApiAuth`, `localAdminAuth`, internet access, IP whitelist)
+  are removed.
 
 Converting is a pure function of the source, so importing the same file again changes nothing.
 
@@ -762,7 +800,8 @@ tolerance.
   brightness still applies to all controllers. The `instance` command still reports one instance (controllers aren't
   instances).
 - Desktop shell: only Windows has a tray, window and power events; macOS/Linux run headless. The tray menu uses the light system menu style (no dark mode). The
-  WebView2 window doesn't sign in by itself (the UI asks for the password unless `network.localAdminAuth` is off).
+  With `--bind` to a single network address the window reaches the server through that address, so it counts as
+  another device and signs in.
   A `--service` process in a console isn't told about a logoff (only console close and shutdown are handled), and
   `--service` can't run as a Windows service (session 0) yet. Brightness from Home Assistant scales its static color
   only; the screen keeps the configured brightness.

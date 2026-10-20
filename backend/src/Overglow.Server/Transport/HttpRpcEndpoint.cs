@@ -2,15 +2,15 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
 using Overglow.Server.Auth;
 using Overglow.Server.Rpc;
-using Overglow.Settings;
 
 namespace Overglow.Server.Transport;
 
 /// <summary>
 /// <c>POST /json-rpc</c>: one command per request, answered with its reply. Sessions don't persist between requests;
-/// remote clients authenticate with <c>Authorization: token &lt;API or user token&gt;</c>.
+/// this computer has full access, other devices authenticate with <c>Authorization: token &lt;API or user token&gt;</c>
+/// and are refused while no password is set (see <see cref="LocalAccess"/>).
 /// </summary>
-public sealed class HttpRpcEndpoint(RpcDispatcher dispatcher, ISettingsStore settings, AuthService auth, ServerOptions options)
+public sealed class HttpRpcEndpoint(RpcDispatcher dispatcher, AuthService auth, ServerOptions options)
 {
     public const string Path = "/json-rpc";
 
@@ -18,8 +18,14 @@ public sealed class HttpRpcEndpoint(RpcDispatcher dispatcher, ISettingsStore set
     {
         ArgumentNullException.ThrowIfNull(context);
         var connection = context.Connection;
-        var isLocal = NetworkOrigin.IsLocal(connection.RemoteIpAddress, connection.LocalIpAddress);
-        var (authorized, admin) = AccessPolicy.FromSettings(settings.GetSection("network")).InitialRights(isLocal);
+        var isLocal = LocalAccess.IsLoopback(connection.RemoteIpAddress);
+        if (!isLocal && !auth.HasPassword)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
+        bool authorized = isLocal, admin = isLocal;
 
         var header = context.Request.Headers.Authorization.ToString();
         if (header.StartsWith("token ", StringComparison.OrdinalIgnoreCase))

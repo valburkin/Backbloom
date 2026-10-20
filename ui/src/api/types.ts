@@ -249,6 +249,8 @@ export interface SetupState {
     urls: string[];
     advertised: boolean;
   };
+  /** The user set a password (or one was imported). Other devices need it; remote access can't be turned on without it. */
+  passwordSet: boolean;
   /** Explanations the user has read ("discovery"). */
   acknowledged: string[];
 }

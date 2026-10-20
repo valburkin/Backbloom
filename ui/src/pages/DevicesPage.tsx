@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Cpu, Loader2, Plus, RefreshCw, Trash2 } from
 import { controllerFromWledConfig, stripLedCount, type Controller, type LayoutSpec } from '../layout';
 import { Badge, Button, Card, Dialog, EmptyState, IconButton, Segmented, Stepper, StatusDot, TextField } from '../components/ui';
 import { PageFrame } from '../components/PageFrame';
-import { Callout, Select, Switch } from '../components/form';
+import { Select, Switch } from '../components/form';
 import { SaveBar } from '../components/SaveBar';
 import { useConnection } from '../app/connection';
 import { useEditor } from '../app/editor';
@@ -397,7 +397,6 @@ function ControllerCard({ controller, index }: { controller: Controller; index: 
 
 export function DevicesPage() {
   const { state } = useEditor();
-  const { auth, requestLogin } = useConnection();
   const [adding, setAdding] = useState(false);
   const controllers = state.spec.controllers;
   const total = controllers.reduce((n, c) => n + c.outputs.reduce((m, o) => m + o.length, 0), 0);
@@ -407,14 +406,6 @@ export function DevicesPage() {
       subtitle="Your LED controllers: how Overglow reaches each one, and the outputs your strips are wired to. One picture feeds them all."
       actions={<SaveBar />}
     >
-      {auth === 'readOnly' && (
-        <Callout tone="info">
-          <button type="button" className="font-medium text-accent-strong hover:underline" onClick={requestLogin}>
-            Sign in
-          </button>{' '}
-          to see and change the LED driver settings.
-        </Callout>
-      )}
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="text-[15px] font-semibold">Controllers</h2>

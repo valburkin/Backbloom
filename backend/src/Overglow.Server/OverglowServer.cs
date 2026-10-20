@@ -15,6 +15,7 @@ public static class OverglowServer
     public static IServiceCollection AddOverglowServer(this IServiceCollection services)
     {
         services.AddSingleton<AuthService>();
+        services.AddSingleton<LocalRequestGuard>();
         services.AddSingleton<Payloads>();
         services.AddSingleton<PerformanceMonitor>();
         services.AddSingleton<EventSubscriptions>();
@@ -49,12 +50,15 @@ public static class OverglowServer
 
     /// <summary>
     /// WebSocket JSON-RPC on any path, <c>POST /json-rpc</c>, and the UI's static files when
-    /// <see cref="ServerOptions.UiDirectory"/> exists (see <see cref="UiFiles"/>).
+    /// <see cref="ServerOptions.UiDirectory"/> exists (see <see cref="UiFiles"/>); first of all, loopback requests
+    /// that name another host or origin are refused (<see cref="LocalRequestGuard"/>).
     /// </summary>
     public static WebApplication UseOverglowServer(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
         var options = app.Services.GetRequiredService<ServerOptions>();
+        var guard = app.Services.GetRequiredService<LocalRequestGuard>();
+        app.Use(guard.InvokeAsync);
         app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
         app.Use(async (context, next) =>
         {

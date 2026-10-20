@@ -1,51 +1,82 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Copy, KeyRound, Lock, Plus, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react';
 import { Button, Dialog, IconButton } from '../../components/ui';
-import { Callout, Input, Section, Toggle } from '../../components/form';
-import type { PageSettings } from '../../app/config';
+import { Callout, Input, Section } from '../../components/form';
+import { NewPasswordFields } from '../../components/PasswordFields';
 import { useConnection } from '../../app/connection';
 import { useAction } from '../../app/useAction';
 import { useToast } from '../../app/toast';
-import type { TokenInfo } from '../../api/types';
+import { hrefFor } from '../../app/router';
+import { newPasswordProblem } from '../../settings/password';
+import type { SetupState, TokenInfo } from '../../api/types';
 
-type Obj = Record<string, unknown>;
-
-function PasswordForm() {
-  const { api, defaultPassword } = useConnection();
+/**
+ * Sets or changes the password other devices sign in with. This computer never needs it, so it may set a new one
+ * without the current one (also how a forgotten password is replaced); another device that signed in confirms it.
+ */
+export function PasswordForm({ passwordSet, remote }: { passwordSet: boolean; remote: boolean }) {
+  const { api, applySetup, setup } = useConnection();
   const { run, busy } = useAction();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const needsCurrent = remote && passwordSet;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (next.length < 8) return setError('Use at least 8 characters for the new password.');
-    if (next !== confirm) return setError('The new passwords don’t match.');
-    const ok = await run('password', 'Couldn’t change the password', () => api.changePassword(current, next), 'Password changed');
+    const problem = newPasswordProblem(next, confirm);
+    if (problem) return setError(problem);
+    const ok = await run(
+      'password',
+      passwordSet ? 'Couldn’t change the password' : 'Couldn’t set the password',
+      () => api.setPassword(next, needsCurrent ? current : undefined),
+      passwordSet ? 'Password changed' : 'Password set',
+    );
     if (ok) {
       setCurrent('');
       setNext('');
       setConfirm('');
-    } else setError('Check the current password and try again.');
+      if (setup && !setup.passwordSet) applySetup({ ...setup, passwordSet: true });
+    } else if (needsCurrent) setError('Check the current password and try again.');
   };
   return (
     <form onSubmit={(e) => void submit(e)} className="space-y-4">
-      {defaultPassword && (
-        <Callout tone="warn" icon={<ShieldAlert size={16} />}>
-          You’re still using the factory password (“overglow”). Anyone who knows it can change your settings.
-        </Callout>
+      {needsCurrent && (
+        <Input className="sm:max-w-[calc(50%-0.5rem)]" label="Current password" type="password" autoComplete="current-password" value={current} onChange={setCurrent} />
       )}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Input label="Current password" type="password" autoComplete="current-password" value={current} onChange={setCurrent} />
-        <Input label="New password" type="password" autoComplete="new-password" value={next} onChange={setNext} hint="At least 8 characters." />
-        <Input label="Repeat new password" type="password" autoComplete="new-password" value={confirm} onChange={setConfirm} />
-      </div>
-      {error && <p role="alert" className="text-[13px] text-bad">{error}</p>}
-      <Button type="submit" variant="primary" icon={<Lock size={15} />} disabled={busy === 'password' || !current || !next}>
-        Change password
+      <NewPasswordFields password={next} confirm={confirm} onPassword={setNext} onConfirm={setConfirm} label={passwordSet ? 'New password' : 'Password'} />
+      {error && (
+        <p role="alert" className="text-[13px] text-bad">
+          {error}
+        </p>
+      )}
+      <Button type="submit" variant="primary" icon={<Lock size={15} />} disabled={busy === 'password' || !next || !confirm || (needsCurrent && !current)}>
+        {passwordSet ? 'Change password' : 'Set password'}
       </Button>
     </form>
+  );
+}
+
+/** Whether other devices can reach Overglow, and whether they have to sign in. */
+export function RemoteAccessProtection({ setup }: { setup: SetupState }) {
+  const network = <a className="font-medium text-accent-strong underline-offset-2 hover:underline" href={hrefFor('settings', 'network')}>Settings → Network</a>;
+  if (!setup.remoteAccess.enabled)
+    return (
+      <Callout tone="ok" icon={<ShieldCheck size={16} />}>
+        Remote access is off: only this computer can open Overglow, and it never needs a password. Turn it on in {network}.
+      </Callout>
+    );
+  if (setup.passwordSet)
+    return (
+      <Callout tone="ok" icon={<ShieldCheck size={16} />}>
+        Remote access is on and protected: other devices must sign in with your password. This computer never needs it.
+      </Callout>
+    );
+  return (
+    <Callout tone="bad" icon={<ShieldAlert size={16} />}>
+      Overglow listens on your network, but no password is set, so other devices can’t sign in. Set a password above.
+    </Callout>
   );
 }
 
@@ -127,85 +158,25 @@ function Tokens() {
   );
 }
 
-function AddressList({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
-  const [text, setText] = useState<string | null>(null);
-  return (
-    <Input
-      label="Allowed IP addresses"
-      hint="Separate addresses with commas."
-      value={text ?? value.join(', ')}
-      onChange={(v) => {
-        setText(v);
-        onChange(
-          v
-            .split(',')
-            .map((x) => x.trim())
-            .filter(Boolean),
-        );
-      }}
-    />
-  );
-}
-
-export function SecurityTab({ ps }: { ps: PageSettings }) {
-  const net = ps.value<Obj>('network');
-  const set = (k: string) => (v: unknown) => ps.setPath('network', [k], v);
-  const whitelist = Array.isArray(net.ipWhitelist) ? (net.ipWhitelist as string[]) : [];
+export function SecurityTab() {
+  const { setup, remote } = useConnection();
+  const passwordSet = setup?.passwordSet ?? false;
   return (
     <>
-      <Section title="Password" icon={<Lock size={18} />} description="Needed to change settings from this page.">
-        <PasswordForm />
+      <Section
+        title="Password"
+        icon={<Lock size={18} />}
+        description={
+          passwordSet
+            ? 'Other devices (your phone, a tablet, another computer) sign in with it. This computer never needs it.'
+            : 'No password is set. This computer never needs one; other devices do, so remote access asks you to set it first.'
+        }
+      >
+        <PasswordForm passwordSet={passwordSet} remote={remote} />
       </Section>
 
-      <Section title="Who can change settings" icon={<ShieldCheck size={18} />}>
-        <Toggle
-          label="Ask for the password on my home network"
-          hint="When off, anyone on your Wi-Fi or LAN can open this page and change everything without a password."
-          checked={net.localAdminAuth === true}
-          onChange={set('localAdminAuth')}
-        />
-        {net.localAdminAuth !== true && (
-          <Callout tone="warn" icon={<ShieldAlert size={16} />}>
-            No password is needed on your home network. Only turn this off on a network you fully trust.
-          </Callout>
-        )}
-        <Toggle
-          label="Apps need permission"
-          hint="Apps and plugins that control the lights must use a token (see below)."
-          checked={net.apiAuth === true}
-          onChange={set('apiAuth')}
-        />
-        {net.apiAuth === true && (
-          <>
-            <Toggle
-              label="…also on my home network"
-              hint="Off: apps on your home network may control the lights without a token."
-              checked={net.localApiAuth === true}
-              onChange={set('localApiAuth')}
-            />
-            <Toggle
-              label="Allow access from the internet"
-              hint="Lets devices outside your home network connect (if your router forwards the port)."
-              checked={net.internetAccessAPI === true}
-              onChange={set('internetAccessAPI')}
-            />
-          </>
-        )}
-        {net.apiAuth === true && net.internetAccessAPI === true && (
-          <>
-            <Callout tone="bad" icon={<ShieldAlert size={16} />}>
-              Overglow is reachable from the internet. Use a strong password, and restrict access to known addresses if you can.
-            </Callout>
-            <Toggle
-              label="Only from these addresses"
-              checked={net.restirctedInternetAccessAPI === true}
-              onChange={set('restirctedInternetAccessAPI')}
-            />
-            {net.restirctedInternetAccessAPI === true && (
-              <AddressList value={whitelist} onChange={set('ipWhitelist')} />
-            )}
-          </>
-        )}
+      <Section title="Remote access" icon={<ShieldCheck size={18} />}>
+        {setup ? <RemoteAccessProtection setup={setup} /> : <p className="text-[13px] text-ink-muted">Loading…</p>}
       </Section>
 
       <Section title="App tokens" icon={<KeyRound size={18} />} description="Give an app (a Stream Deck plugin, a home automation…) its own key that you can revoke at any time.">

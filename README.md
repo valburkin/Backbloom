@@ -27,6 +27,8 @@ React UI; see [Credits](#credits).
   nothing to the LEDs and asks you to quit HyperHDR.
 - **Network only when asked**: the app listens on 127.0.0.1 until you turn remote access on (with an explanation of
   the Windows Firewall question that follows); device discovery runs only when you press Find.
+- **No password on your PC**: the app's window and browsers on the same computer have full access. Other devices
+  sign in with a password you choose when you turn remote access on; there is no factory password.
 
 ## Supported devices
 
@@ -85,6 +87,7 @@ unless told to (`--legacy-data-dir`). Every copy listens on `127.0.0.1:18290` on
 - [Smoothing](docs/smoothing.md): the interpolators compared
 - [Development guide](docs/development.md)
 - [Backend reference](backend/README.md): every subsystem in detail
+- [Roadmap](docs/roadmap.md): what's next
 
 ## Credits
 

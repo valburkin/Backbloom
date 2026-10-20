@@ -43,7 +43,7 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal("Rainbow swirl fast", all["foregroundEffect"]!["effect"]!.GetValue<string>());
         Assert.Equal(20, all["systemGrabber"]!["fps"]!.GetValue<int>());
         Assert.Single(all["leds"]!.AsArray());
-        Assert.True(all["network"]!["localAdminAuth"]!.GetValue<bool>());
+        Assert.Equal(["remoteAccess"], all["network"]!.AsObject().Select(p => p.Key));
         var controller = Assert.Single(Open().Controllers);
         Assert.Equal((0, true), (controller.Id, controller.Enabled));
     }
@@ -272,6 +272,49 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Database_Version4_RemovesTheAccessOptionsAndTheFactoryPassword()
+    {
+        // an Overglow 0.1 database (schema 3) with HyperHDR's access options and the factory password "overglow"
+        var path = Path.Combine(_dir.Path, SettingsDatabase.FileName);
+        using (var v3 = SettingsDatabase.Open(path, [.. SettingsDatabase.Migrations.Take(3)]))
+        {
+            v3.Write((c, t) =>
+            {
+                SettingsDatabase.Execute(c, t, """
+                    INSERT INTO settings (section, value, updated_at)
+                    VALUES ('network', '{"remoteAccess":false,"apiAuth":true,"internetAccessAPI":false,"restirctedInternetAccessAPI":false,"ipWhitelist":[],"localApiAuth":false,"localAdminAuth":true}', '2026-10-01T00:00:00Z');
+                    INSERT INTO admin_password (id, algorithm, hash, salt, iterations, is_default, updated_at)
+                    VALUES (1, 'Pbkdf2Sha256', x'01', x'02', 1000, 1, '2026-10-01T00:00:00Z');
+                    """);
+                return 0;
+            });
+        }
+
+        var open = Track(OpenStore.In(_dir.Path));
+        Assert.Equal("""{"remoteAccess":false}""", open.Store.GetSection("network")!.ToJsonString());
+        Assert.Null(new SqliteAuthStore(open.Database).Load().Password);
+    }
+
+    [Fact]
+    public void Database_Version4_KeepsAPasswordTheUserSet()
+    {
+        var path = Path.Combine(_dir.Path, SettingsDatabase.FileName);
+        using (var v3 = SettingsDatabase.Open(path, [.. SettingsDatabase.Migrations.Take(3)]))
+        {
+            v3.Write((c, t) =>
+            {
+                SettingsDatabase.Execute(c, t, """
+                    INSERT INTO admin_password (id, algorithm, hash, salt, iterations, is_default, updated_at)
+                    VALUES (1, 'Pbkdf2Sha256', x'01', x'02', 1000, 0, '2026-10-01T00:00:00Z');
+                    """);
+                return 0;
+            });
+        }
+
+        Assert.Equal([1], new SqliteAuthStore(Track(OpenStore.In(_dir.Path)).Database).Load().Password!.Hash);
+    }
+
+    [Fact]
     public void Database_RefusesFilesThatArentOverglowSettings()
     {
         var path = new LegacyDatabaseBuilder().Write(_dir.File("hyperhdr.db"));
@@ -297,7 +340,6 @@ public sealed class SettingsStoreTests : IDisposable
 
         var data = new AuthData(
             new SecretHash([1, 2, 3], [4, 5], 1000),
-            false,
             [
                 new ApiToken("a1b2c", "Stream Deck", new SecretHash([9], [8], 10), new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero)),
                 new ApiToken("ffff0", "Old", new SecretHash([7], [], 0, SecretAlgorithm.LegacySha512), null),
@@ -308,7 +350,6 @@ public sealed class SettingsStoreTests : IDisposable
 
         Assert.Equal([1, 2, 3], loaded.Password!.Hash);
         Assert.Equal(1000, loaded.Password.Iterations);
-        Assert.False(loaded.IsDefaultPassword);
         Assert.Equal(["a1b2c", "ffff0"], loaded.Tokens.Select(t => t.Id));
         Assert.Equal(("Stream Deck", data.Tokens[0].LastUse), (loaded.Tokens[0].Comment, loaded.Tokens[0].LastUse));
         Assert.Equal(SecretAlgorithm.LegacySha512, loaded.Tokens[1].Secret.Algorithm);

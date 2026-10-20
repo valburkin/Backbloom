@@ -12,14 +12,11 @@ export interface WelcomeViewProps {
   setup: SetupState;
   config: BackendConfig | null;
   serverInfo: ServerInfo | null;
-  /** Signed in as admin: may start the lighting. */
-  canStart: boolean;
   starting: boolean;
   error: string | null;
   autostart: boolean;
   onAutostart(v: boolean): void;
   onStart(): void;
-  onSignIn(): void;
   onLookAround(): void;
   /** HyperHDR quit while the welcome was open. */
   otherAppQuit: boolean;
@@ -81,7 +78,6 @@ export function WelcomeView(p: WelcomeViewProps) {
               </div>
             )}
           </dl>
-          {!p.config && <p className="mt-2 text-[13px] text-ink-muted">Sign in to see the capture and effect settings.</p>}
         </section>
 
         {setup.autostart.available && (
@@ -90,7 +86,6 @@ export function WelcomeView(p: WelcomeViewProps) {
               type="checkbox"
               className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
               checked={p.autostart}
-              disabled={!p.canStart}
               onChange={(e) => p.onAutostart(e.target.checked)}
             />
             <span>
@@ -112,21 +107,15 @@ export function WelcomeView(p: WelcomeViewProps) {
             <Button variant="ghost" onClick={p.onLookAround}>
               Look around first
             </Button>
-            {p.canStart ? (
-              <Button
-                variant="primary"
-                icon={p.starting ? <Loader2 size={16} className="animate-spin" /> : <Power size={16} />}
-                disabled={blocked || p.starting}
-                title={blocked ? `Quit ${setup.otherApp?.name} first` : undefined}
-                onClick={p.onStart}
-              >
-                {blocked ? `Waiting for ${setup.otherApp?.name} to quit…` : 'Start lighting'}
-              </Button>
-            ) : (
-              <Button variant="primary" onClick={p.onSignIn}>
-                Sign in to start
-              </Button>
-            )}
+            <Button
+              variant="primary"
+              icon={p.starting ? <Loader2 size={16} className="animate-spin" /> : <Power size={16} />}
+              disabled={blocked || p.starting}
+              title={blocked ? `Quit ${setup.otherApp?.name} first` : undefined}
+              onClick={p.onStart}
+            >
+              {blocked ? `Waiting for ${setup.otherApp?.name} to quit…` : 'Start lighting'}
+            </Button>
           </div>
         </footer>
       </main>
@@ -136,7 +125,7 @@ export function WelcomeView(p: WelcomeViewProps) {
 
 /** Shown instead of the app until the lighting was started once (a fresh install or a HyperHDR import). */
 export function WelcomeScreen({ onLookAround }: { onLookAround(): void }) {
-  const { setup, serverInfo, auth, api, applySetup, requestLogin } = useConnection();
+  const { setup, serverInfo, api, applySetup } = useConnection();
   const { config } = useConfig();
   const [autostart, setAutostart] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -162,13 +151,11 @@ export function WelcomeScreen({ onLookAround }: { onLookAround(): void }) {
       setup={setup}
       config={config}
       serverInfo={serverInfo}
-      canStart={auth === 'admin'}
       starting={starting}
       error={error}
       autostart={autostart}
       onAutostart={setAutostart}
       onStart={() => void start()}
-      onSignIn={requestLogin}
       onLookAround={onLookAround}
       otherAppQuit={sawOtherApp && !setup.otherApp}
     />

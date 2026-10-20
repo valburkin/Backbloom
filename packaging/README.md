@@ -46,7 +46,8 @@ first window is the installer's "finish page".
    hook.
 3. **Network.** The app listens on 127.0.0.1 only, so Windows doesn't ask about network access. Only when the user
    turns on Settings > Network > "Control from your phone / other devices" (after an explanation that Windows asks
-   next and that Private networks are enough) does it listen on the network and advertise itself with mDNS. Device
+   next and that Private networks are enough, and after choosing the password other devices sign in with) does it
+   listen on the network and advertise itself with mDNS. The app's own window never asks for a password. Device
    discovery runs only on Find and uses short-lived ephemeral sockets.
 4. **Reinstall.** Running `Setup.exe` again on a computer where Overglow is installed: Velopack reports that it is
    already installed and offers to repair (reinstall) it. Either way only the program folder is replaced; settings,

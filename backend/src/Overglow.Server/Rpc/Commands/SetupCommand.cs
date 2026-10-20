@@ -1,13 +1,15 @@
 using System.Text.Json.Nodes;
 using Overglow.Engine;
 using Overglow.Engine.Platform;
+using Overglow.Server.Auth;
 using Overglow.Settings;
 
 namespace Overglow.Server.Rpc;
 
 /// <summary>
 /// The first-run welcome and the network explanations as one state: whether the lighting was started once, why the
-/// LEDs are held (HyperHDR running), what was imported, autostart, remote access and which explanations were read.
+/// LEDs are held (HyperHDR running), what was imported, autostart, remote access, whether a password is set (remote
+/// access needs one) and which explanations were read.
 /// <see cref="Changed"/> drives the <c>setup-update</c> event.
 /// </summary>
 public sealed class SetupService : IDisposable
@@ -15,20 +17,24 @@ public sealed class SetupService : IDisposable
     private readonly LightingGate _gate;
     private readonly ISetupState _setup;
     private readonly INetworkAccess _network;
+    private readonly AuthService _auth;
     private readonly IAutostart? _autostart;
 
     /// <param name="autostart">"Start with Windows"; null where the app has no desktop integration (headless, tests).</param>
-    public SetupService(LightingGate gate, ISetupState setup, INetworkAccess network, IAutostart? autostart = null)
+    public SetupService(LightingGate gate, ISetupState setup, INetworkAccess network, AuthService auth, IAutostart? autostart = null)
     {
         ArgumentNullException.ThrowIfNull(gate);
         ArgumentNullException.ThrowIfNull(setup);
         ArgumentNullException.ThrowIfNull(network);
+        ArgumentNullException.ThrowIfNull(auth);
         _gate = gate;
         _setup = setup;
         _network = network;
+        _auth = auth;
         _autostart = autostart;
         _gate.Changed += OnGateChanged;
         _network.Changed += OnNetworkChanged;
+        _auth.PasswordChanged += OnNetworkChanged;
     }
 
     /// <summary>Raised after anything in <see cref="State"/> changed.</summary>
@@ -36,7 +42,7 @@ public sealed class SetupService : IDisposable
 
     /// <summary>
     /// <c>{ firstRunCompleted, outputHeld, otherApp: { name, executable } | null, importedFrom, autostart: { available,
-    /// enabled }, remoteAccess: { enabled, fixedByCommandLine, port, urls, advertised }, acknowledged: [topics] }</c>
+    /// enabled }, remoteAccess: { enabled, fixedByCommandLine, port, urls, advertised }, passwordSet, acknowledged: [topics] }</c>
     /// </summary>
     public JsonObject State()
     {
@@ -69,6 +75,7 @@ public sealed class SetupService : IDisposable
                 ["urls"] = urls,
                 ["advertised"] = network.Advertised,
             },
+            ["passwordSet"] = _auth.HasPassword,
             ["acknowledged"] = acknowledged,
         };
     }
@@ -115,6 +122,7 @@ public sealed class SetupService : IDisposable
     {
         _gate.Changed -= OnGateChanged;
         _network.Changed -= OnNetworkChanged;
+        _auth.PasswordChanged -= OnNetworkChanged;
     }
 
     private void ApplyAutostart(bool enabled)

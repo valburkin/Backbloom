@@ -4,7 +4,11 @@ using Overglow.Server.Auth;
 
 namespace Overglow.Server.Rpc;
 
-/// <summary><c>authorize</c>: login/logout, password and API tokens (port of HyperAPI::handleAuthorizeCommand).</summary>
+/// <summary>
+/// <c>authorize</c>: login/logout, password and API tokens (port of HyperAPI::handleAuthorizeCommand).
+/// <c>newPasswordRequired</c> is true while no password is set; <c>newPassword</c> <c>{ newPassword, password? }</c>
+/// needs the current password only from another device that signed in (this computer, and the first password, don't).
+/// </summary>
 public sealed class AuthorizeCommand(AuthService auth) : IRpcCommand
 {
     public string Name => "authorize";
@@ -43,7 +47,7 @@ public sealed class AuthorizeCommand(AuthService auth) : IRpcCommand
                 break;
 
             case "newPasswordRequired":
-                context.Reply(new JsonObject { ["newPasswordRequired"] = auth.HasDefaultPassword });
+                context.Reply(new JsonObject { ["newPasswordRequired"] = !auth.HasPassword });
                 break;
 
             case "logout":
@@ -60,19 +64,7 @@ public sealed class AuthorizeCommand(AuthService auth) : IRpcCommand
                 break;
 
             case "newPassword":
-                if (!session.Admin)
-                {
-                    context.Fail("No Authorization");
-                }
-                else if (auth.ChangePassword(context.GetString("password") ?? string.Empty, context.GetString("newPassword") ?? string.Empty))
-                {
-                    context.Reply();
-                }
-                else
-                {
-                    context.Fail("Failed to update user password");
-                }
-
+                NewPassword(context);
                 break;
 
             case "getTokenList":
@@ -122,6 +114,28 @@ public sealed class AuthorizeCommand(AuthService auth) : IRpcCommand
         }
 
         return ValueTask.CompletedTask;
+    }
+
+    private void NewPassword(RpcContext context)
+    {
+        var session = context.Session;
+        var next = context.GetString("newPassword") ?? string.Empty;
+        if (!session.Admin)
+        {
+            context.Fail("No Authorization");
+        }
+        else if (next.Length < AuthService.MinPasswordLength)
+        {
+            context.Fail($"The password needs at least {AuthService.MinPasswordLength} characters");
+        }
+        else if (session.IsLocal || !auth.HasPassword ? auth.SetPassword(next) : auth.ChangePassword(context.GetString("password") ?? string.Empty, next))
+        {
+            context.Reply();
+        }
+        else
+        {
+            context.Fail("Failed to update user password");
+        }
     }
 
     private void Login(RpcContext context)

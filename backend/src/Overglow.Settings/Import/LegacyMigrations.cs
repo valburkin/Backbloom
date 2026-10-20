@@ -38,6 +38,14 @@ public static class LegacyMigrations
         "logger", "general", "soundEffect", "videoDetection", "mqtt", "automaticToneMapping", "layout", "grabberV4L2",
     };
 
+    /// <summary>
+    /// HyperHDR's access options in <c>network</c>, which this version doesn't have: this computer always has full
+    /// access and other devices always need the password or a token (see Overglow.Server's LocalAccess). Imports and
+    /// schema 4 remove them; <c>setconfig</c> ignores them, so older clients that send them back still work.
+    /// </summary>
+    public static readonly IReadOnlyList<string> RemovedNetworkOptions =
+        ["apiAuth", "localApiAuth", "localAdminAuth", "internetAccessAPI", "restirctedInternetAccessAPI", "ipWhitelist"];
+
     private const string RainbowSwirl = "Rainbow swirl";
     private const string FullColorMoodBlobs = "Full color mood blobs";
     private const string WarmMoodBlobs = "Warm mood blobs";
@@ -116,6 +124,8 @@ public static class LegacyMigrations
         ReplaceUnavailableDevice(config, isDeviceAvailable, changes);
         RenameFactoryName(config, changes);
         DropEmptyLayout(config, changes);
+        RemoveAccessOptions(config, changes);
+
         if (config["systemGrabber"] is JsonObject capture)
         {
             ConvertToneMapping(capture, changes);
@@ -255,6 +265,23 @@ public static class LegacyMigrations
 
         config["device"] = fallback;
         changes.Add($"{(owner is null ? string.Empty : owner + ": ")}The LED device type '{type}' is not supported by this version. The LED output has been switched to the 'file' device (no physical output); select a supported LED device in the LED hardware settings");
+    }
+
+    /// <summary>Removes <see cref="RemovedNetworkOptions"/> from the <c>network</c> section.</summary>
+    public static void RemoveAccessOptions(JsonObject config, List<string> changes)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(changes);
+        if (config["network"] is not JsonObject network)
+        {
+            return;
+        }
+
+        var removed = RemovedNetworkOptions.Where(network.Remove).ToList();
+        if (removed.Count > 0)
+        {
+            changes.Add($"Removed the network access options ({string.Join(", ", removed)}): this computer always has full access, other devices always need the password");
+        }
     }
 
     /// <summary>HyperHDR's factory configuration name becomes this product's (a name the user chose is kept).</summary>

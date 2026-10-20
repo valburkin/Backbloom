@@ -62,6 +62,10 @@ public sealed class ImporterTests : IDisposable
         Assert.False(store.GetSection("systemControl")!.AsObject().ContainsKey("cecControl"));
         Assert.Equal("My Overglow Config", store.GetSection("general")!["name"]!.GetValue<string>());
         Assert.Equal(100, store.GetSection("ledConfig")!["classic"]!["top"]!.GetValue<int>());
+
+        // HyperHDR's localAdminAuth (on in the owner's setup) and the other access options are gone
+        Assert.Equal("""{"remoteAccess":false}""", store.GetSection("network")!.ToJsonString());
+        Assert.Contains(outcome.Result.Changes, c => c.StartsWith("Removed the network access options (", StringComparison.Ordinal) && c.Contains("localAdminAuth", StringComparison.Ordinal));
         Assert.Null(store.GetSection("layout"));
 
         foreach (var removed in new[] { "videoGrabber", "videoControl", "videoDetection", "automaticToneMapping", "flatbufServer", "protoServer", "jsonServer", "forwarder", "rawUdpServer" })
@@ -70,7 +74,6 @@ public sealed class ImporterTests : IDisposable
         }
 
         var auth = services.Auth.Load();
-        Assert.False(auth.IsDefaultPassword);
         Assert.True(Verify(auth.Password!, Fixtures.OwnerPassword));
         Assert.False(Verify(auth.Password!, "hyperhdr"));
         Assert.Equal("00000000-0000-5000-8000-000000000001", services.Database.GetOrCreateInstanceId());
@@ -138,7 +141,6 @@ public sealed class ImporterTests : IDisposable
         Assert.Null(services.Store.GetSection("layout"));
         var auth = services.Auth.Load();
         Assert.Null(auth.Password);
-        Assert.True(auth.IsDefaultPassword);
     }
 
     [Fact]
@@ -215,7 +217,6 @@ public sealed class ImporterTests : IDisposable
         var factory = new LegacyDatabaseBuilder().User("Hyperhdr", "hyperhdr", "ffee").Write(_dir.File("factory.db"));
         services.ImportDatabase(factory);
         Assert.Null(services.Auth.Load().Password);
-        Assert.True(services.Auth.Load().IsDefaultPassword);
     }
 
     [Fact]

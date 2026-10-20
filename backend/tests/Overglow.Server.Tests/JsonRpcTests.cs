@@ -1,7 +1,10 @@
+using System.Net;
 using System.Net.Http.Headers;
+using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
+using Overglow.Server.Rpc;
 using Overglow.Settings;
 using Overglow.Settings.Storage;
 
@@ -9,39 +12,87 @@ namespace Overglow.Server.Tests;
 
 public sealed class JsonRpcTests
 {
-    private const string LocalAdmin = """{ "network": { "localAdminAuth": false } }""";
-
     private static JsonObject Obj(string json) => JsonNode.Parse(json)!.AsObject();
 
     private static bool Success(JsonObject reply) => reply["success"]!.GetValue<bool>();
 
     private static string? Error(JsonObject reply) => reply["error"]?.GetValue<string>();
 
+    private static bool Required(JsonObject reply, string name) => reply["info"]![name]!.GetValue<bool>();
+
     [Fact]
-    public async Task Authorize_PasswordLoginTokenLoginAndLogout()
+    public async Task ThisComputer_HasFullAccessWithoutPassword()
     {
         await using var server = await TestServer.StartAsync();
-        await using var client = await server.ConnectAsync();
+        await using var client = await server.ConnectAsync(origin: $"http://127.0.0.1:{server.BaseUri.Port}");
 
-        Assert.False((await client.CallAsync("authorize", "tokenRequired"))["info"]!["required"]!.GetValue<bool>());
-        Assert.True((await client.CallAsync("authorize", "adminRequired"))["info"]!["adminRequired"]!.GetValue<bool>());
-        Assert.True((await client.CallAsync("authorize", "newPasswordRequired"))["info"]!["newPasswordRequired"]!.GetValue<bool>());
+        Assert.False(Required(await client.CallAsync("authorize", "tokenRequired"), "required"));
+        Assert.False(Required(await client.CallAsync("authorize", "adminRequired"), "adminRequired"));
+        Assert.True(Required(await client.CallAsync("authorize", "newPasswordRequired"), "newPasswordRequired"));
+        Assert.True(Success(await client.CallAsync("config", "getconfig")));
+
+        // there is no factory password
+        Assert.Equal("No Authorization", Error(await client.CallAsync("authorize", "login", Obj("""{ "password": "overglow" }"""))));
+        Assert.True(Success(await client.CallAsync("authorize", "logout")));
+        Assert.False(Required(await client.CallAsync("authorize", "adminRequired"), "adminRequired"));
+    }
+
+    [Fact]
+    public async Task OtherDevices_AreRefusedUntilAPasswordIsSet()
+    {
+        await using var server = await TestServer.StartAsync();
+        await Assert.ThrowsAsync<WebSocketException>(server.ConnectFromNetworkAsync);
+        using var http = new HttpClient { BaseAddress = server.BaseUri };
+        Assert.Equal(HttpStatusCode.Forbidden, (await PostAsync(http, """{"command":"sysinfo","tan":1}""", TestServer.NetworkPeer)).StatusCode);
+
+        await using (var local = await server.ConnectAsync())
+        {
+            Assert.True(Success(await local.CallAsync("authorize", "newPassword", Obj("""{ "newPassword": "long-enough-1" }"""))));
+        }
+
+        await using var remote = await server.ConnectFromNetworkAsync();
+        Assert.True(Required(await remote.CallAsync("authorize", "tokenRequired"), "required"));
+    }
+
+    [Fact]
+    public async Task OtherDevices_NeedThePasswordWhateverTheirAddress()
+    {
+        await using var server = await TestServer.StartAsync(password: TestServer.Password);
+        foreach (var address in new[] { "10.0.0.7", "fe80::1", "2001:db8::5", "::ffff:192.168.1.50" })
+        {
+            await using var client = await server.ConnectAsync(IPAddress.Parse(address));
+            Assert.True(Required(await client.CallAsync("authorize", "adminRequired"), "adminRequired"), address);
+            Assert.Equal("No Authorization", Error(await client.CallAsync("serverinfo")));
+        }
+    }
+
+    [Fact]
+    public async Task OtherDevices_SignInWithThePassword()
+    {
+        await using var server = await TestServer.StartAsync(password: TestServer.Password);
+        await using var client = await server.ConnectFromNetworkAsync();
+
+        Assert.True(Required(await client.CallAsync("authorize", "tokenRequired"), "required"));
+        Assert.True(Required(await client.CallAsync("authorize", "adminRequired"), "adminRequired"));
+        Assert.False(Required(await client.CallAsync("authorize", "newPasswordRequired"), "newPasswordRequired"));
 
         var denied = await client.CallAsync("config", "getconfig");
         Assert.Equal("No Authorization", Error(denied));
         Assert.Equal("config", denied["command"]!.GetValue<string>());
+        Assert.Equal("No Authorization", Error(await client.CallAsync("serverinfo")));
 
         Assert.Equal("Password too short", Error(await client.CallAsync("authorize", "login", Obj("""{ "password": "short" }"""))));
         Assert.Equal("No Authorization", Error(await client.CallAsync("authorize", "login", Obj("""{ "password": "wrong-password" }"""))));
 
-        var login = await client.CallAsync("authorize", "login", Obj("""{ "password": "overglow" }"""));
+        var login = await client.CallAsync("authorize", "login", new JsonObject { ["password"] = TestServer.Password });
         Assert.Equal("authorize-login", login["command"]!.GetValue<string>());
         var token = login["info"]!["token"]!.GetValue<string>();
-        Assert.False((await client.CallAsync("authorize", "adminRequired"))["info"]!["adminRequired"]!.GetValue<bool>());
+        Assert.False(Required(await client.CallAsync("authorize", "adminRequired"), "adminRequired"));
         Assert.True(Success(await client.CallAsync("config", "getconfig")));
 
         Assert.True(Success(await client.CallAsync("authorize", "logout")));
-        Assert.True((await client.CallAsync("authorize", "adminRequired"))["info"]!["adminRequired"]!.GetValue<bool>());
+        Assert.True(Required(await client.CallAsync("authorize", "adminRequired"), "adminRequired"));
+        Assert.Equal("No Authorization", Error(await client.CallAsync("serverinfo")));
 
         Assert.True(Success(await client.CallAsync("authorize", "login", new JsonObject { ["token"] = token })));
         Assert.True(Success(await client.CallAsync("config", "getconfig")));
@@ -49,14 +100,109 @@ public sealed class JsonRpcTests
     }
 
     [Fact]
-    public async Task Authorize_ChangePasswordAndApiTokens()
+    public async Task LoopbackPeers_AreThisComputer()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
+        foreach (var address in new[] { "127.0.0.1", "127.10.20.30", "::1", "::ffff:127.0.0.1" })
+        {
+            await using var client = await server.ConnectAsync(IPAddress.Parse(address));
+            Assert.False(Required(await client.CallAsync("authorize", "adminRequired"), "adminRequired"), address);
+        }
+    }
+
+    [Fact]
+    public async Task ForwardedHeaders_DontMakeAClientLocal()
+    {
+        await using var server = await TestServer.StartAsync(password: TestServer.Password);
+        using var http = new HttpClient { BaseAddress = server.BaseUri };
+        const string GetConfig = """{"command":"config","subcommand":"getconfig","tan":1}""";
+        var forwarded = new Dictionary<string, string> { ["X-Forwarded-For"] = "127.0.0.1", ["Forwarded"] = "for=127.0.0.1", ["X-Real-IP"] = "127.0.0.1" };
+
+        using var remote = await PostAsync(http, GetConfig, TestServer.NetworkPeer, headers: forwarded);
+        Assert.Equal("No Authorization", Error(Obj(await remote.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))));
+
+        using var local = await PostAsync(http, GetConfig, headers: new Dictionary<string, string> { ["X-Forwarded-For"] = "192.168.1.50" });
+        Assert.True(Success(Obj(await local.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))));
+    }
+
+    [Fact]
+    public async Task LoopbackRequests_NamingAnotherSite_AreRefused()
+    {
+        // DNS rebinding names the attacker's host; a cross-site request carries the attacker's origin
+        (string? Host, string? Origin)[] cases =
+        [
+            ("evil.example", null), ("evil.example:18290", null), ("127.0.0.1.evil.example", null), ("localhost.evil.example", null),
+            (null, "https://evil.example"), (null, "http://evil.example:18290"), (null, "null"), (null, "http://192.168.1.50:18290"), (null, "file://"),
+        ];
+        await using var server = await TestServer.StartAsync();
+        using var http = new HttpClient { BaseAddress = server.BaseUri };
+        foreach (var (host, origin) in cases)
+        {
+            var headers = origin is null ? null : new Dictionary<string, string> { ["Origin"] = origin };
+            using var post = await PostAsync(http, """{"command":"config","subcommand":"getconfig","tan":1}""", host: host, headers: headers);
+            Assert.Equal(HttpStatusCode.Forbidden, post.StatusCode);
+
+            using var page = new HttpRequestMessage(HttpMethod.Get, "/");
+            page.Headers.Host = host;
+            if (origin is not null)
+            {
+                page.Headers.Add("Origin", origin);
+            }
+
+            using var response = await http.SendAsync(page, TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task LoopbackRequests_FromThisComputer_AreServed()
+    {
+        (string Host, string? Origin)[] cases =
+        [
+            ("localhost", "http://localhost:4730"), ("LOCALHOST:18290", null), ("127.0.0.1:18290", "http://127.0.0.1:18290"),
+            ("127.0.0.2", "https://127.0.0.1"), ("[::1]:18290", "http://[::1]:18290"),
+        ];
+        await using var server = await TestServer.StartAsync();
+        using var http = new HttpClient { BaseAddress = server.BaseUri };
+        foreach (var (host, origin) in cases)
+        {
+            var headers = origin is null ? null : new Dictionary<string, string> { ["Origin"] = origin };
+            using var post = await PostAsync(http, """{"command":"config","subcommand":"getconfig","tan":1}""", host: host, headers: headers);
+            Assert.True(Success(Obj(await post.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))), host);
+        }
+    }
+
+    [Fact]
+    public async Task WebSocket_FromAnotherSite_IsRefused()
+    {
+        await using var server = await TestServer.StartAsync();
+        await Assert.ThrowsAsync<WebSocketException>(() => server.ConnectAsync(origin: "https://evil.example"));
+        await using var client = await server.ConnectAsync(origin: "http://localhost:4730");
+        Assert.True(Success(await client.CallAsync("config", "getconfig")));
+    }
+
+    [Fact]
+    public async Task OtherDevices_MayUseAnyHostAndOrigin()
+    {
+        await using var server = await TestServer.StartAsync(password: TestServer.Password);
+        using var http = new HttpClient { BaseAddress = server.BaseUri };
+        using var post = await PostAsync(http, """{"command":"sysinfo","tan":1}""", TestServer.NetworkPeer, host: "my-pc.local:18290",
+            headers: new Dictionary<string, string> { ["Origin"] = "http://my-pc.local:18290" });
+        Assert.Equal("No Authorization", Error(Obj(await post.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))));
+    }
+
+    [Fact]
+    public async Task Authorize_PasswordChangesAndApiTokens()
+    {
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
 
-        Assert.Equal("Failed to update user password", Error(await client.CallAsync("authorize", "newPassword", Obj("""{ "password": "nope", "newPassword": "long-enough-1" }"""))));
-        Assert.True(Success(await client.CallAsync("authorize", "newPassword", Obj("""{ "password": "overglow", "newPassword": "long-enough-1" }"""))));
-        Assert.False((await client.CallAsync("authorize", "newPasswordRequired"))["info"]!["newPasswordRequired"]!.GetValue<bool>());
+        Assert.Equal("The password needs at least 8 characters", Error(await client.CallAsync("authorize", "newPassword", Obj("""{ "newPassword": "short" }"""))));
+        Assert.True(Success(await client.CallAsync("authorize", "newPassword", Obj("""{ "newPassword": "long-enough-1" }"""))));
+        Assert.False(Required(await client.CallAsync("authorize", "newPasswordRequired"), "newPasswordRequired"));
+
+        // this computer may replace it without the current one (a forgotten password)
+        Assert.True(Success(await client.CallAsync("authorize", "newPassword", Obj("""{ "newPassword": "long-enough-2" }"""))));
 
         var created = (await client.CallAsync("authorize", "createToken", Obj("""{ "comment": "Stream Deck" }""")))["info"]!;
         var secret = created["token"]!.GetValue<string>();
@@ -67,14 +213,24 @@ public sealed class JsonRpcTests
         using var http = new HttpClient { BaseAddress = server.BaseUri };
         using var request = new HttpRequestMessage(HttpMethod.Post, "/json-rpc") { Content = new StringContent("""{"command":"sysinfo","tan":5}""", Encoding.UTF8) };
         request.Headers.Authorization = new AuthenticationHeaderValue("token", secret);
+        request.Headers.Add(TestServer.PeerHeader, TestServer.NetworkPeer.ToString());
         using var response = await http.SendAsync(request, TestContext.Current.CancellationToken);
         Assert.True(Success(Obj(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))));
+
+        // another device needs the current password to change it
+        await using (var remote = await server.ConnectFromNetworkAsync())
+        {
+            Assert.True(Success(await remote.CallAsync("authorize", "login", Obj("""{ "password": "long-enough-2" }"""))));
+            Assert.Equal("Failed to update user password", Error(await remote.CallAsync("authorize", "newPassword", Obj("""{ "password": "long-enough-1", "newPassword": "long-enough-3" }"""))));
+            Assert.True(Success(await remote.CallAsync("authorize", "newPassword", Obj("""{ "password": "long-enough-2", "newPassword": "long-enough-3" }"""))));
+        }
 
         Assert.True(Success(await client.CallAsync("authorize", "deleteToken", new JsonObject { ["id"] = created["id"]!.GetValue<string>() })));
         Assert.Empty((await client.CallAsync("authorize", "getTokenList"))["info"]!.AsArray());
         using var file = new FileStream(Path.Combine(server.DataDirectory, SettingsDatabase.FileName), FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(file, Encoding.Latin1);
-        Assert.DoesNotContain("long-enough-1", await reader.ReadToEndAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        var content = await reader.ReadToEndAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("long-enough", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -87,15 +243,14 @@ public sealed class JsonRpcTests
             await using (var server = await TestServer.StartInAsync(dir))
             await using (var client = await server.ConnectAsync())
             {
-                Assert.True(Success(await client.CallAsync("authorize", "login", Obj("""{ "password": "overglow" }"""))));
-                Assert.True(Success(await client.CallAsync("authorize", "newPassword", Obj("""{ "password": "overglow", "newPassword": "long-enough-2" }"""))));
+                Assert.True(Success(await client.CallAsync("authorize", "newPassword", Obj("""{ "newPassword": "long-enough-2" }"""))));
                 secret = (await client.CallAsync("authorize", "createToken", Obj("""{ "comment": "Phone" }""")))["info"]!["token"]!.GetValue<string>();
             }
 
             await using (var server = await TestServer.StartInAsync(dir))
-            await using (var client = await server.ConnectAsync())
+            await using (var client = await server.ConnectFromNetworkAsync())
             {
-                Assert.False((await client.CallAsync("authorize", "newPasswordRequired"))["info"]!["newPasswordRequired"]!.GetValue<bool>());
+                Assert.False(Required(await client.CallAsync("authorize", "newPasswordRequired"), "newPasswordRequired"));
                 Assert.Equal("No Authorization", Error(await client.CallAsync("authorize", "login", Obj("""{ "password": "overglow" }"""))));
                 Assert.True(Success(await client.CallAsync("authorize", "login", Obj("""{ "password": "long-enough-2" }"""))));
                 Assert.Equal("Phone", Assert.Single((await client.CallAsync("authorize", "getTokenList"))["info"]!.AsArray())!["comment"]!.GetValue<string>());
@@ -109,9 +264,56 @@ public sealed class JsonRpcTests
     }
 
     [Fact]
+    public async Task RemoteAccess_NeedsAPasswordFirst()
+    {
+        await using var server = await TestServer.StartAsync();
+        await using var client = await server.ConnectAsync();
+
+        var refused = await client.CallAsync("config", "setconfig", Obj("""{ "config": { "network": { "remoteAccess": true } } }"""));
+        Assert.Equal(ConfigCommand.PasswordNeeded, Error(refused));
+        Assert.False(server.Services.GetRequiredService<ISettingsStore>().GetSection("network")!["remoteAccess"]!.GetValue<bool>());
+
+        // HyperHDR's access options are ignored (older clients send them back)
+        Assert.True(Success(await client.CallAsync("config", "setconfig", Obj("""{ "config": { "network": { "remoteAccess": false, "localAdminAuth": true, "apiAuth": false } } }"""))));
+        var network = (await client.CallAsync("config", "getconfig"))["info"]!["network"]!.AsObject();
+        Assert.Equal(["remoteAccess"], network.Select(p => p.Key));
+
+        Assert.True(Success(await client.CallAsync("authorize", "newPassword", Obj("""{ "newPassword": "long-enough-1" }"""))));
+        Assert.True(Success(await client.CallAsync("config", "setconfig", Obj("""{ "config": { "network": { "remoteAccess": true } } }"""))));
+    }
+
+    // the screen source shows once the first frame of the test pattern arrived
+    private static async Task WaitForTheTestPatternAsync(RpcClient client)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!(await client.CallAsync("serverinfo"))["info"]!["priorities"]![0]!["visible"]!.GetValue<bool>())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "The test pattern didn't show");
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+        }
+    }
+
+    private static async Task<HttpResponseMessage> PostAsync(HttpClient http, string body, IPAddress? peer = null, string? host = null, Dictionary<string, string>? headers = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/json-rpc") { Content = new StringContent(body, Encoding.UTF8) };
+        request.Headers.Host = host;
+        if (peer is not null)
+        {
+            request.Headers.Add(TestServer.PeerHeader, peer.ToString());
+        }
+
+        foreach (var (name, value) in headers ?? [])
+        {
+            request.Headers.Add(name, value);
+        }
+
+        return await http.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task Backup_SaveAndRestoreWhileRunning()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
         await client.CallAsync("serverinfo", parameters: Obj("""{ "subscribe": ["settings-update", "leds-update"] }"""));
         Assert.True(Success(await client.CallAsync("config", "setconfig", Obj("""{ "config": { "logger": { "level": "warn" } } }"""))));
@@ -140,8 +342,8 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task Backup_NeedsAdminRights()
     {
-        await using var server = await TestServer.StartAsync();
-        await using var client = await server.ConnectAsync();
+        await using var server = await TestServer.StartAsync(password: TestServer.Password);
+        await using var client = await server.ConnectFromNetworkAsync();
 
         Assert.Equal("No Authorization", Error(await client.CallAsync("save-db")));
         Assert.Equal("No Authorization", Error(await client.CallAsync("load-db", parameters: Obj("""{ "config": {} }"""))));
@@ -150,8 +352,9 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task ServerInfo_ReportsWhatTheUiReads()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
+        await WaitForTheTestPatternAsync(client);
 
         var reply = await client.CallAsync("serverinfo", parameters: Obj("""{ "subscribe": ["performance-update"] }"""));
         var info = reply["info"]!;
@@ -192,7 +395,7 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task SetConfig_MergesSectionsRejectsInvalidValuesAndPushesUpdates()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
         await client.CallAsync("serverinfo", parameters: Obj("""{ "subscribe": ["settings-update", "leds-update", "imageToLedMapping-update"] }"""));
 
@@ -234,7 +437,7 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task SetConfig_WorksWhileTheLightsAreOff()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
 
         Assert.True(Success(await client.CallAsync("componentstate", parameters: Obj("""{ "componentstate": { "component": "ALL", "state": false } }"""))));
@@ -255,7 +458,7 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task Adjustment_IsAppliedAndStored()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using (var client = await server.ConnectAsync())
         {
             await client.CallAsync("serverinfo", parameters: Obj("""{ "subscribe": ["adjustment-update", "settings-update"] }"""));
@@ -281,7 +484,7 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task ComponentState_SwitchesAndNotifies()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
         await client.CallAsync("serverinfo", parameters: Obj("""{ "subscribe": ["components-update", "priorities-update"] }"""));
 
@@ -313,7 +516,7 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task Color_ClearAndSourceSelect_DriveThePriorities()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
         await client.CallAsync("serverinfo", parameters: Obj("""{ "subscribe": ["priorities-update"] }"""));
 
@@ -351,7 +554,7 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task Effect_RunsIsListedAndClears()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
 
         var info = (await client.CallAsync("serverinfo"))["info"]!;
@@ -391,7 +594,7 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task Color_ExpiresAfterItsDuration()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
 
         Assert.True(Success(await client.CallAsync("color", parameters: Obj("""{ "priority": 2, "color": [0, 0, 255], "duration": 300 }"""))));
@@ -417,7 +620,7 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task LedStream_PushesColorsUntilStopped()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
 
         var start = await client.CallAsync("ledcolors", "ledstream-start");
@@ -433,7 +636,7 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task LedDevice_IdentifyDiscoverAndErrors()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
 
         Assert.Equal("leddevice-identify", (await client.CallAsync("leddevice", "identify", Obj("""{ "ledDeviceType": "blink", "params": { "blinkIndex": 0 } }""")))["command"]!.GetValue<string>());
@@ -448,7 +651,7 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task Logging_RepliesFirstThenStreamsHistory()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
 
         var reply = await client.CallAsync("logging", "start");
@@ -460,20 +663,21 @@ public sealed class JsonRpcTests
     }
 
     [Fact]
-    public async Task Http_ServesCommandsWithLocalRights()
+    public async Task Http_ServesCommandsWithTheRightsOfTheClient()
     {
-        await using var server = await TestServer.StartAsync();
+        await using var server = await TestServer.StartAsync(password: TestServer.Password);
         using var http = new HttpClient { BaseAddress = server.BaseUri };
 
-        async Task<JsonObject> Post(string body)
+        async Task<JsonObject> Post(string body, IPAddress? peer = null)
         {
-            using var response = await http.PostAsync("/json-rpc", new StringContent(body, Encoding.UTF8), TestContext.Current.CancellationToken);
+            using var response = await PostAsync(http, body, peer);
             Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
             return Obj(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         }
 
         Assert.True(Success(await Post("""{"command":"serverinfo","tan":1}""")));
-        Assert.Equal("No Authorization", Error(await Post("""{"command":"config","subcommand":"getconfig","tan":2}""")));
+        Assert.True(Success(await Post("""{"command":"config","subcommand":"getconfig","tan":2}""")));
+        Assert.Equal("No Authorization", Error(await Post("""{"command":"serverinfo","tan":1}""", TestServer.NetworkPeer)));
         Assert.Equal("Errors during message parsing, please consult the Overglow log.", Error(await Post("not json")));
         Assert.Equal("Command not implemented", Error(await Post("""{"command":"nope","tan":3}""")));
     }

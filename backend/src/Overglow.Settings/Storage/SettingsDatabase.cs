@@ -63,6 +63,16 @@ public sealed class SettingsDatabase : IDisposable
             INSERT INTO meta (key, value)
             SELECT 'first_run_completed', 'upgrade' WHERE EXISTS (SELECT 1 FROM meta WHERE key = 'initialized_at');
             """)),
+
+        // This computer always has full access and other devices always sign in, so HyperHDR's access options are
+        // gone (LegacyMigrations.RemovedNetworkOptions; imports drop them too), and so is the factory password: until
+        // the user sets one there is none, and remote access stays closed.
+        new(4, "network: access options removed; factory password removed", (c, t) => Execute(c, t, """
+            UPDATE settings
+            SET value = json_remove(value, '$.apiAuth', '$.localApiAuth', '$.localAdminAuth', '$.internetAccessAPI', '$.restirctedInternetAccessAPI', '$.ipWhitelist')
+            WHERE section = 'network' AND json_valid(value);
+            DELETE FROM admin_password WHERE is_default <> 0;
+            """)),
     ];
 
     private readonly SqliteConnection _connection;

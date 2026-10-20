@@ -65,7 +65,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const loadedSession = useRef(-1);
   const loadSeq = useRef(0);
 
-  const ready = (conn.auth === 'admin' || conn.auth === 'readOnly') && conn.serverInfo !== null && conn.status === 'open';
+  const ready = conn.auth === 'admin' && conn.serverInfo !== null && conn.status === 'open';
 
   const doLoad = useCallback(() => {
     const seq = ++loadSeq.current;
@@ -109,10 +109,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
   const save = useCallback(async () => {
     if (saving) return;
-    if (conn.auth !== 'admin') {
-      conn.requestLogin();
-      return;
-    }
+    if (conn.auth !== 'admin') return;
     if (blockers.length) return;
     setSaving(true);
     const spec = state.spec;

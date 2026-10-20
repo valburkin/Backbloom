@@ -1,24 +1,23 @@
 import { useState, type FormEvent } from 'react';
-import { Eye, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { Button, TextField } from '../components/ui';
 import { useConnection } from '../app/connection';
 import { Logo } from '../components/Logo';
 import { MOCK_PASSWORD } from '../api/mock';
+import { MIN_PASSWORD_LENGTH } from '../settings/password';
 
-/** The backend's factory default (the legacy UI signs in with it automatically; here it's an explicit choice). */
-const FACTORY_PASSWORD = 'overglow';
-
+/** Shown only on other devices (phones, other computers); the computer Overglow runs on never needs to sign in. */
 export function LoginScreen() {
-  const { login, continueReadOnly, tokenRequired, defaultPassword, backend, sessionError } = useConnection();
+  const { login, backend, sessionError } = useConnection();
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const attempt = async (pw: string) => {
+  const attempt = async () => {
     setBusy(true);
     setError(null);
     try {
-      await login(pw);
+      await login(password);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg === 'No Authorization' ? 'That password didn’t work. Try again.' : msg);
@@ -29,11 +28,11 @@ export function LoginScreen() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (password.length < 8) {
-      setError('The password has at least 8 characters.');
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`The password has at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
-    void attempt(password);
+    void attempt();
   };
 
   return (
@@ -50,7 +49,9 @@ export function LoginScreen() {
             <h1 id="login-title" className="text-lg font-semibold">
               Sign in
             </h1>
-            <p className="text-[13px] text-ink-muted">Enter the password of your lighting service to change settings.</p>
+            <p className="text-[13px] text-ink-muted">
+              Enter the Overglow password you set on the computer that runs Overglow (Settings → Security there).
+            </p>
           </div>
         </div>
         <TextField label="Password" type="password" value={password} onChange={setPassword} autoFocus />
@@ -64,31 +65,10 @@ export function LoginScreen() {
           {busy ? 'Signing in…' : 'Sign in'}
         </Button>
 
-        {defaultPassword && (
-          <div className="mt-4 rounded-xl border border-warn/30 bg-warn/10 p-3 text-[13px] text-warn">
-            This system still uses the factory password.
-            <button type="button" className="ml-1 font-medium underline underline-offset-2" disabled={busy} onClick={() => void attempt(FACTORY_PASSWORD)}>
-              Continue with the factory password
-            </button>
-            <span className="text-warn/80"> — consider changing it in Settings later.</span>
-          </div>
-        )}
-
         {backend.mode === 'mock' && (
           <p className="mt-4 text-center text-xs text-ink-faint">
             Demo mode — the password is <code className="font-mono text-ink-muted">{MOCK_PASSWORD}</code>
           </p>
-        )}
-
-        {!tokenRequired && (
-          <button
-            type="button"
-            onClick={continueReadOnly}
-            className="mx-auto mt-5 flex items-center gap-1.5 text-[13px] text-ink-muted hover:text-ink"
-          >
-            <Eye size={14} />
-            Look around without signing in
-          </button>
         )}
       </form>
     </div>

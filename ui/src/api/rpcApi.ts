@@ -42,22 +42,12 @@ export class RpcApi {
 
   // ---- authorization ----
 
-  /** True when the backend requires a token for *any* command (typically remote connections). */
-  async tokenRequired(): Promise<boolean> {
-    return info<{ required?: boolean }>(await this.backend.call('authorize', 'tokenRequired')).required === true;
-  }
-
-  /** True when this session is not yet admin-authorized (needed for getconfig / setconfig). */
+  /**
+   * True when this session must sign in: a connection from another device (this computer always has full access,
+   * see the backend's LocalAccess).
+   */
   async adminRequired(): Promise<boolean> {
     return info<{ adminRequired?: boolean }>(await this.backend.call('authorize', 'adminRequired')).adminRequired === true;
-  }
-
-  /** True when the backend still uses its factory-default password. */
-  async newPasswordRequired(): Promise<boolean> {
-    return (
-      info<{ newPasswordRequired?: boolean }>(await this.backend.call('authorize', 'newPasswordRequired'))
-        .newPasswordRequired === true
-    );
   }
 
   /** Password login. Resolves with the session token (reusable via loginWithToken) when the backend returns one. */
@@ -73,8 +63,12 @@ export class RpcApi {
     await this.backend.call('authorize', 'logout');
   }
 
-  async changePassword(password: string, newPassword: string): Promise<void> {
-    await this.backend.call('authorize', 'newPassword', { password, newPassword });
+  /**
+   * Sets the password. `current` is needed only from another device that signed in; this computer (and the first
+   * password) doesn't need it.
+   */
+  async setPassword(newPassword: string, current?: string): Promise<void> {
+    await this.backend.call('authorize', 'newPassword', current === undefined ? { newPassword } : { password: current, newPassword });
   }
 
   async listTokens(): Promise<TokenInfo[]> {

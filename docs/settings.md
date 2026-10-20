@@ -47,7 +47,12 @@ What the import does (idempotent, one log line per change, never logging secrets
 - HDR tone mapping on becomes `auto` (applied only while the captured monitor is in HDR mode; HyperHDR also applied
   it to SDR monitors, which oversaturates the colors), off stays `off`;
 - the admin password and API tokens keep working (their HyperHDR hashes are replaced by PBKDF2 at the first sign-in);
-  a factory password becomes Overglow's factory password `overglow`.
+  a password still at HyperHDR's factory default isn't imported (Overglow has no factory password; the user sets one
+  when turning on remote access);
+- HyperHDR's access options in `network` (`apiAuth`, `localApiAuth`, `localAdminAuth`, `internetAccessAPI`,
+  `restirctedInternetAccessAPI`, `ipWhitelist`) are removed: this computer always has full access, other devices
+  always sign in. Schema migration 4 removes them from databases of earlier Overglow versions, together with the
+  factory password `overglow` those versions stored.
 
 ## First run
 
@@ -61,8 +66,10 @@ Independently of the first run, the LEDs are held while HyperHDR (`hyperhdr.exe`
 Overglow checks every 2 seconds and takes over when it has quit.
 
 `network.remoteAccess` (default off, also for imports): off, the web UI only accepts connections from this computer;
-on, it also listens on the computer's network addresses and announces itself with mDNS. Autostart is off unless the
-user turns it on (welcome checkbox, tray menu).
+on, it also listens on the computer's network addresses and announces itself with mDNS. It needs a password set by
+the user (or imported from HyperHDR): the UI asks for one when remote access is turned on, and the listeners stay
+closed without it. This computer never needs the password. Autostart is off unless the user turns it on (welcome
+checkbox, tray menu).
 
 Backups (`save-db`) use the `Overglow_export_format_v1` JSON format; `load-db` also accepts HyperHDR's v17/v20
 exports. Credentials are never part of a backup.

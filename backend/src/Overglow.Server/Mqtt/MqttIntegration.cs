@@ -99,7 +99,7 @@ public sealed partial class MqttIntegration(
 
             if (integration.ApiAccess)
             {
-                _api ??= await MqttApi.StartAsync(mqtt, dispatcher, settings, integration, logger, cancellationToken);
+                _api ??= await MqttApi.StartAsync(mqtt, dispatcher, integration, logger, cancellationToken);
             }
             else
             {

@@ -58,7 +58,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const configRef = useRef(config);
   configRef.current = config;
 
-  const ready = conn.status === 'open' && (conn.auth === 'admin' || conn.auth === 'readOnly');
+  const ready = conn.status === 'open' && conn.auth === 'admin';
 
   const load = useCallback(() => {
     const n = ++seq.current;
@@ -105,10 +105,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
   const save = useCallback(
     async (page: string, labels: Record<string, string> = {}): Promise<boolean> => {
-      if (conn.auth !== 'admin') {
-        conn.requestLogin();
-        return false;
-      }
+      if (conn.auth !== 'admin') return false;
       const draft = draftsRef.current[page];
       const sections = dirtySections(draft);
       if (!draft || !sections.length) return true;

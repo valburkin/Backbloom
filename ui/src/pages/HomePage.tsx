@@ -262,13 +262,13 @@ function BrightnessCard() {
 }
 
 function IntensityCard() {
-  const { auth, api, requestLogin } = useConnection();
+  const { api } = useConnection();
   const { config } = useConfig();
   const { run, busy } = useAction();
   const current = detectIntensity(config);
   const [preview, setPreview] = useState<IntensityPreset['id'] | null>(null);
   const shown = INTENSITY_PRESETS.find((p) => p.id === (preview ?? (current !== 'custom' ? current : null)));
-  const canEdit = auth === 'admin' && !!config;
+  const canEdit = !!config;
   return (
     <Card className="p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -314,13 +314,6 @@ function IntensityCard() {
               ))}
             </dl>
           </>
-        ) : auth !== 'admin' ? (
-          <p className="text-ink-muted">
-            <button type="button" className="text-accent-strong underline-offset-2 hover:underline" onClick={requestLogin}>
-              Sign in
-            </button>{' '}
-            to change how calm or punchy the lights feel.
-          </p>
         ) : (
           <p className="text-ink-muted">
             Your smoothing and color settings don’t match a preset. Pick one to replace them, or fine-tune on the{' '}
@@ -429,7 +422,7 @@ function ControllerRates({ controllers }: { controllers: ControllerPerformance[]
 }
 
 export function HomePage() {
-  const { serverInfo, sysInfo, backend, auth } = useConnection();
+  const { serverInfo, sysInfo, backend } = useConnection();
   const { state } = useEditor();
   const ledTotal = state.spec.strips.reduce((n, s) => n + stripLedCount(s), 0);
   const host = sysInfo?.system?.hostName ?? serverInfo?.hostname;
@@ -439,7 +432,7 @@ export function HomePage() {
       <PageHeader
         title="Home"
         subtitle={host ? `Running on ${host}` : undefined}
-        actions={backend.mode === 'mock' ? <Badge tone="accent">Demo data</Badge> : auth === 'readOnly' ? <Badge>View only</Badge> : null}
+        actions={backend.mode === 'mock' ? <Badge tone="accent">Demo data</Badge> : null}
       />
       <div className="mx-auto grid max-w-6xl gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
         <div className="space-y-4">

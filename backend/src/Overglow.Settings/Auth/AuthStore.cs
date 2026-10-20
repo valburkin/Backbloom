@@ -21,10 +21,10 @@ public sealed record SecretHash(byte[] Hash, byte[] Salt, int Iterations, Secret
 /// <summary>An API token for another app; only its hash is stored, the secret is shown once when it is created.</summary>
 public sealed record ApiToken(string Id, string Comment, SecretHash Secret, DateTimeOffset? LastUse);
 
-/// <summary>Everything the access control persists.</summary>
-public sealed record AuthData(SecretHash? Password, bool IsDefaultPassword, IReadOnlyList<ApiToken> Tokens)
+/// <summary>Everything the access control persists; <see cref="Password"/> is null until the user sets one.</summary>
+public sealed record AuthData(SecretHash? Password, IReadOnlyList<ApiToken> Tokens)
 {
-    public static AuthData Empty { get; } = new(null, true, []);
+    public static AuthData Empty { get; } = new(null, []);
 }
 
 public interface IAuthStore
@@ -34,7 +34,11 @@ public interface IAuthStore
     void Save(AuthData data);
 }
 
-/// <summary>Credentials in the <c>admin_password</c> and <c>api_tokens</c> tables of the settings database (hashes only).</summary>
+/// <summary>
+/// Credentials in the <c>admin_password</c> and <c>api_tokens</c> tables of the settings database (hashes only).
+/// <c>admin_password.is_default</c> marked the factory password of versions before schema 4, which removed it; rows
+/// are written with 0, and a row marked 1 is never read as a password.
+/// </summary>
 public sealed class SqliteAuthStore(SettingsDatabase db, TimeProvider? time = null) : IAuthStore
 {
     private readonly TimeProvider _time = time ?? TimeProvider.System;
@@ -42,15 +46,13 @@ public sealed class SqliteAuthStore(SettingsDatabase db, TimeProvider? time = nu
     public AuthData Load() => db.Read(c =>
     {
         SecretHash? password = null;
-        var isDefault = true;
         using (var command = c.CreateCommand())
         {
-            command.CommandText = "SELECT algorithm, hash, salt, iterations, is_default FROM admin_password WHERE id = 1";
+            command.CommandText = "SELECT algorithm, hash, salt, iterations FROM admin_password WHERE id = 1 AND is_default = 0";
             using var reader = command.ExecuteReader();
             if (reader.Read())
             {
                 password = new SecretHash((byte[])reader[1], (byte[])reader[2], reader.GetInt32(3), Enum.Parse<SecretAlgorithm>(reader.GetString(0)));
-                isDefault = reader.GetInt64(4) != 0;
             }
         }
 
@@ -67,7 +69,7 @@ public sealed class SqliteAuthStore(SettingsDatabase db, TimeProvider? time = nu
             }
         }
 
-        return password is null && tokens.Count == 0 ? AuthData.Empty : new AuthData(password, isDefault, tokens);
+        return password is null && tokens.Count == 0 ? AuthData.Empty : new AuthData(password, tokens);
     });
 
     public void Save(AuthData data)
@@ -81,10 +83,9 @@ public sealed class SqliteAuthStore(SettingsDatabase db, TimeProvider? time = nu
             {
                 SettingsDatabase.Execute(c, t, """
                     INSERT INTO admin_password (id, algorithm, hash, salt, iterations, is_default, updated_at)
-                    VALUES (1, $algorithm, $hash, $salt, $iterations, $default, $now)
+                    VALUES (1, $algorithm, $hash, $salt, $iterations, 0, $now)
                     """,
-                    ("$algorithm", p.Algorithm.ToString()), ("$hash", p.Hash), ("$salt", p.Salt), ("$iterations", p.Iterations),
-                    ("$default", data.IsDefaultPassword ? 1 : 0), ("$now", now));
+                    ("$algorithm", p.Algorithm.ToString()), ("$hash", p.Hash), ("$salt", p.Salt), ("$iterations", p.Iterations), ("$now", now));
             }
 
             SettingsDatabase.Execute(c, t, "DELETE FROM api_tokens");

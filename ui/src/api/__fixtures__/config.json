@@ -163,13 +163,7 @@
   "username": ""
  },
  "network": {
-  "apiAuth": true,
-  "internetAccessAPI": false,
-  "ipWhitelist": [],
-  "localAdminAuth": true,
-  "localApiAuth": false,
-  "remoteAccess": false,
-  "restirctedInternetAccessAPI": false
+  "remoteAccess": false
  },
  "smoothing": {
   "antiFlickeringFilter": true,

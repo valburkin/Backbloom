@@ -4,7 +4,7 @@ import { encode } from 'uqr';
 import config from '../../../api/__fixtures__/config.json';
 import serverInfo from '../../../api/__fixtures__/serverinfo.json';
 import type { BackendConfig, ServerInfo, SetupState } from '../../../api/types';
-import { MockBackend, MOCK_LAN_URL, MOCK_PASSWORD } from '../../../api/mock';
+import { MockBackend, MOCK_LAN_URL, MOCK_PASSWORD, REMOTE_ACCESS_NEEDS_PASSWORD } from '../../../api/mock';
 import { RpcApi } from '../../../api/rpcApi';
 import { qrPath } from '../../../components/QrCode';
 import { DiscoveryDialog } from '../../devices/DriverForm';
@@ -19,6 +19,7 @@ const setup: SetupState = {
   importedFrom: 'C:\\Users\\me\\AppData\\Local\\HyperHDR\\db\\hyperhdr.db',
   autostart: { available: true, enabled: false },
   remoteAccess: { enabled: false, fixedByCommandLine: false, port: 18290, urls: [], advertised: false },
+  passwordSet: false,
   acknowledged: [],
 };
 
@@ -29,13 +30,11 @@ function view(overrides: Partial<WelcomeViewProps> = {}): string {
       setup={setup}
       config={config as BackendConfig}
       serverInfo={serverInfo as ServerInfo}
-      canStart
       starting={false}
       error={null}
       autostart={false}
       onAutostart={noop}
       onStart={noop}
-      onSignIn={noop}
       onLookAround={noop}
       otherAppQuit={false}
       {...overrides}
@@ -105,12 +104,6 @@ describe('welcome screen', () => {
     expect(view({ otherAppQuit: true })).toContain('HyperHDR has quit.');
   });
 
-  it('asks to sign in before starting', () => {
-    const html = view({ canStart: false, config: null });
-    expect(html).toContain('Sign in to start');
-    expect(html).toContain('Sign in to see the capture and effect settings.');
-  });
-
   it('hides autostart where the app can’t start with the system', () => {
     expect(view({ setup: { ...setup, autostart: { available: false, enabled: false } } })).not.toContain('sign in to Windows');
   });
@@ -118,14 +111,27 @@ describe('welcome screen', () => {
 
 describe('network explanations', () => {
   it('explains remote access and the firewall prompt before turning it on', () => {
-    const html = renderToStaticMarkup(<RemoteAccessDialog open busy={false} onCancel={noop} onConfirm={noop} />);
+    const html = renderToStaticMarkup(<RemoteAccessDialog open busy={false} passwordSet onCancel={noop} onConfirm={noop} />);
     expect(html).toContain('Let your phone and other devices connect?');
     expect(html).toContain('Windows will ask next');
     expect(html).toContain('Private');
     expect(html).toContain('not Public networks');
     expect(html).toContain('Turn off');
     expect(html).toContain('Turn on remote access');
-    expect(renderToStaticMarkup(<RemoteAccessDialog open={false} busy={false} onCancel={noop} onConfirm={noop} />)).toBe('');
+    expect(html).toContain('sign in with your Overglow password');
+    expect(html).not.toContain('type="password"');
+    expect(renderToStaticMarkup(<RemoteAccessDialog open={false} busy={false} passwordSet onCancel={noop} onConfirm={noop} />)).toBe('');
+  });
+
+  it('asks for a password before turning remote access on when none is set', () => {
+    const html = renderToStaticMarkup(<RemoteAccessDialog open busy={false} passwordSet={false} onCancel={noop} onConfirm={noop} />);
+    expect(html).toContain('Choose a password for other devices.');
+    expect(html.match(/type="password"/g)).toHaveLength(2);
+    expect(html).toContain('Repeat the password');
+    expect(html).toContain('Use at least 8 characters.');
+    // nothing to confirm until the password is valid
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>(<[^>]*>)*Set password and turn on/);
+    expect(html).not.toContain('overglow');
   });
 
   it('shows the address and a QR code once on', () => {
@@ -174,21 +180,27 @@ describe('mock backend setup flow (like the .NET app)', () => {
     expect((await api.acknowledge('discovery')).acknowledged).toEqual(['discovery']);
   });
 
-  it('turns remote access on through the setting', async () => {
+  it('turns remote access on through the setting once a password is set', async () => {
     const { backend, api } = await connected();
     const events: SetupState[] = [];
     backend.onEvent('setup-update', (e) => events.push(e.data as SetupState));
     const network = (await api.getConfig()).network as Record<string, unknown>;
     expect(network.remoteAccess).toBe(false);
+    expect((await api.setupState()).passwordSet).toBe(false);
 
+    await expect(api.setConfig({ network: { ...network, remoteAccess: true } })).rejects.toThrow(REMOTE_ACCESS_NEEDS_PASSWORD);
+    await expect(api.setPassword('short')).rejects.toThrow('at least 8 characters');
+    await api.setPassword('long-enough-1');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events.at(-1)?.passwordSet).toBe(true);
     await api.setConfig({ network: { ...network, remoteAccess: true } });
     await new Promise((r) => setTimeout(r, 0));
     expect(events.at(-1)?.remoteAccess).toMatchObject({ enabled: true, urls: [MOCK_LAN_URL] });
   });
 
-  it('needs the password to start', async () => {
+  it('needs the password to start from another device', async () => {
     const { api } = await connected({ requireAuth: true, firstRun: true });
-    await expect(api.setupState()).resolves.toMatchObject({ firstRunCompleted: false });
+    await expect(api.setupState()).rejects.toThrow('No Authorization');
     await expect(api.startLighting()).rejects.toThrow('No Authorization');
     await api.login(MOCK_PASSWORD);
     await expect(api.startLighting()).resolves.toMatchObject({ firstRunCompleted: true, outputHeld: false });

@@ -55,7 +55,8 @@ at a real LED controller.
   is gone); change one only for a deliberate deviation and document it in its README.
 - Allocation tests guard the hot path; new per-frame code must not allocate.
 - Tests never listen on the network: hosts use `--bind 127.0.0.1` (or the default, loopback only; remote access tests
-  use 127.0.0.2 as the "network" address), fakes bind to loopback, and the `NetworkListenerGuard` assembly fixture
+  use 127.0.0.2 as the "network" address; the server tests' `X-Test-Peer` header, read by a test-only startup filter,
+  makes a request look like it came from another device), fakes bind to loopback, and the `NetworkListenerGuard` assembly fixture
   fails any test assembly whose process listens on another address (Windows Firewall would prompt for each test
   executable).
 - HyperHDR runs on the development machine, so test hosts replace the process list with `FakeProcessList`

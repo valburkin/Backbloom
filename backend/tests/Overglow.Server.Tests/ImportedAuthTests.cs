@@ -20,7 +20,7 @@ public sealed class ImportedAuthTests : IDisposable
         Assert.Equal(SecretAlgorithm.LegacySha512, services.Auth.Load().Password!.Algorithm);
 
         var auth = new AuthService(services.Auth);
-        Assert.False(auth.HasDefaultPassword);
+        Assert.True(auth.HasPassword);
         Assert.Equal(LoginResult.WrongPassword, auth.CheckPassword("hyperhdr"));
         Assert.Equal(LoginResult.Success, auth.CheckPassword("fixture-password"));
 

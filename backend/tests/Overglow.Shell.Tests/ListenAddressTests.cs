@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Overglow.App;
 using Overglow.Discovery.Mdns;
 using Overglow.Server;
+using Overglow.Server.Auth;
 
 namespace Overglow.Shell.Tests;
 
@@ -19,10 +20,7 @@ namespace Overglow.Shell.Tests;
 /// </summary>
 public sealed class ListenAddressTests
 {
-    private const string RemoteAccessOn = """
-        { "network": { "remoteAccess": true, "apiAuth": true, "internetAccessAPI": false, "restirctedInternetAccessAPI": false,
-                       "ipWhitelist": [], "localApiAuth": false, "localAdminAuth": true } }
-        """;
+    private const string RemoteAccessOn = """{ "network": { "remoteAccess": true } }""";
 
     private static readonly IPAddress s_network = IPAddress.Parse("127.0.0.2");
 
@@ -77,7 +75,12 @@ public sealed class ListenAddressTests
         using var loopback = new TcpClient();
         await loopback.ConnectAsync(IPAddress.Loopback, port, TestContext.Current.CancellationToken);
 
+        // other devices couldn't sign in yet: the setting alone doesn't open the network
         SetRemoteAccess(host, true);
+        Assert.False(network.Status.Enabled);
+        Assert.False(await AcceptsAsync(s_network, port));
+
+        Assert.True(host.App.Services.GetRequiredService<AuthService>().SetPassword("long-enough-1"));
         Wait.Until(() => AcceptsAsync(s_network, port).GetAwaiter().GetResult(), 10000);
         Assert.True(network.Status.Enabled);
         Assert.True(network.Status.Advertised);

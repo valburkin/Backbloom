@@ -4,11 +4,10 @@ import type { Backend, ChannelAdjustment, ComponentInfo, ConnectionStatus, Insta
 
 /**
  * - checking: talking to the backend to find out what's needed
- * - login:    admin password needed (login screen shown)
+ * - login:    another device that hasn't signed in (login screen shown); this computer never sees it
  * - admin:    full access
- * - readOnly: user chose to look around without signing in (no config access, no saving)
  */
-export type AuthState = 'checking' | 'login' | 'admin' | 'readOnly';
+export type AuthState = 'checking' | 'login' | 'admin';
 
 export interface ConnectionContextValue {
   backend: Backend;
@@ -17,10 +16,8 @@ export interface ConnectionContextValue {
   auth: AuthState;
   /** Bumps on every (re)established session; consumers reload per-session data when it changes. */
   session: number;
-  /** Backend still uses its factory-default password. */
-  defaultPassword: boolean;
-  /** Every command needs auth (remote access); read-only browsing isn't possible. */
-  tokenRequired: boolean;
+  /** This page runs on another device and had to sign in (on this computer it never has to). */
+  remote: boolean;
   serverInfo: ServerInfo | null;
   sysInfo: SysInfo | null;
   /** First run, HyperHDR, autostart and remote access (null: not loaded, or a backend without the setup command). */
@@ -29,8 +26,6 @@ export interface ConnectionContextValue {
   applySetup(state: SetupState): void;
   sessionError: string | null;
   login(password: string): Promise<void>;
-  continueReadOnly(): void;
-  requestLogin(): void;
   logout(): Promise<void>;
 }
 
@@ -58,18 +53,31 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+/**
+ * What a new session may do: this computer has full access at once (the backend never asks it for a password);
+ * another device signs in, or reuses the token of an earlier sign-in (`dropToken` when that token stopped working).
+ */
+export async function sessionAccess(api: RpcApi, token: string | null): Promise<{ auth: 'admin' | 'login'; remote: boolean; dropToken: boolean }> {
+  if (!(await api.adminRequired())) return { auth: 'admin', remote: false, dropToken: false };
+  if (!token) return { auth: 'login', remote: true, dropToken: false };
+  try {
+    await api.loginWithToken(token);
+    return { auth: 'admin', remote: true, dropToken: false };
+  } catch {
+    return { auth: 'login', remote: true, dropToken: true };
+  }
+}
+
 export function ConnectionProvider({ backend, children }: { backend: Backend; children: ReactNode }) {
   const api = useMemo(() => new RpcApi(backend), [backend]);
   const [status, setStatus] = useState<ConnectionStatus>(backend.status);
   const [auth, setAuth] = useState<AuthState>('checking');
   const [session, setSession] = useState(0);
-  const [defaultPassword, setDefaultPassword] = useState(false);
-  const [tokenRequired, setTokenRequired] = useState(false);
+  const [remote, setRemote] = useState(false);
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
   const [sysInfo, setSysInfo] = useState<SysInfo | null>(null);
   const [setup, setSetup] = useState<SetupState | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
-  const readOnlyChosen = useRef(false);
   const generation = useRef(0);
 
   const loadInfo = useCallback(
@@ -88,30 +96,12 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
     setAuth('checking');
     setSessionError(null);
     try {
-      const needsToken = await api.tokenRequired();
-      let adminNeeded = await api.adminRequired();
-      if (adminNeeded) {
-        const token = readToken();
-        if (token) {
-          try {
-            await api.loginWithToken(token);
-            adminNeeded = false;
-          } catch {
-            writeToken(null);
-          }
-        }
-      }
+      const access = await sessionAccess(api, readToken());
+      if (access.dropToken) writeToken(null);
       if (gen !== generation.current) return;
-      setTokenRequired(needsToken);
-      if (adminNeeded) {
-        setDefaultPassword(await api.newPasswordRequired().catch(() => false));
-        if (gen !== generation.current) return;
-        if (readOnlyChosen.current && !needsToken) {
-          await loadInfo(gen);
-          setAuth('readOnly');
-        } else {
-          setAuth('login');
-        }
+      setRemote(access.remote);
+      if (access.auth === 'login') {
+        setAuth('login');
       } else {
         await loadInfo(gen);
         setAuth('admin');
@@ -191,7 +181,6 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
     async (password: string) => {
       const token = await api.login(password);
       if (token) writeToken(token);
-      readOnlyChosen.current = false;
       const gen = ++generation.current;
       await loadInfo(gen); // re-subscribe: settings-update is only granted to admin sessions
       setAuth('admin');
@@ -200,32 +189,8 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
     [api, loadInfo],
   );
 
-  const continueReadOnly = useCallback(() => {
-    readOnlyChosen.current = true;
-    const gen = ++generation.current;
-    setAuth('checking');
-    loadInfo(gen)
-      .then(() => {
-        if (gen !== generation.current) return;
-        setAuth('readOnly');
-        setSession((s) => s + 1);
-      })
-      .catch((e) => {
-        if (gen === generation.current) {
-          setSessionError(message(e));
-          setAuth('login');
-        }
-      });
-  }, [loadInfo]);
-
-  const requestLogin = useCallback(() => {
-    readOnlyChosen.current = false;
-    setAuth('login');
-  }, []);
-
   const logout = useCallback(async () => {
     writeToken(null);
-    readOnlyChosen.current = false;
     await api.logout().catch(() => undefined);
     void startSession();
   }, [api, startSession]);
@@ -236,16 +201,13 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
     status,
     auth,
     session,
-    defaultPassword,
-    tokenRequired,
+    remote,
     serverInfo,
     sysInfo,
     setup,
     applySetup: setSetup,
     sessionError,
     login,
-    continueReadOnly,
-    requestLogin,
     logout,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { Loader2, ShieldCheck, Smartphone } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { KeyRound, Loader2, ShieldCheck, Smartphone } from 'lucide-react';
 import { Button, Dialog } from '../../components/ui';
 import { Callout, Section } from '../../components/form';
+import { NewPasswordFields } from '../../components/PasswordFields';
 import { QrCode } from '../../components/QrCode';
+import { newPasswordProblem } from '../../settings/password';
 import type { PageSettings } from '../../app/config';
 import { useConnection } from '../../app/connection';
 import { useAction } from '../../app/useAction';
@@ -10,8 +12,32 @@ import type { SetupState } from '../../api/types';
 
 type Obj = Record<string, unknown>;
 
-/** What turning remote access on does, said before it happens (Windows asks for network access right after). */
-export function RemoteAccessDialog({ open, busy, onCancel, onConfirm }: { open: boolean; busy: boolean; onCancel(): void; onConfirm(): void }) {
+/**
+ * What turning remote access on does, said before it happens (Windows asks for network access right after). Other
+ * devices always sign in, so without a password yet the dialog asks for one first: `onConfirm` receives it then.
+ */
+export function RemoteAccessDialog({
+  open,
+  busy,
+  passwordSet,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  busy: boolean;
+  passwordSet: boolean;
+  onCancel(): void;
+  onConfirm(password?: string): void;
+}) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  useEffect(() => {
+    if (!open) {
+      setPassword('');
+      setConfirm('');
+    }
+  }, [open]);
+  const problem = passwordSet ? null : newPasswordProblem(password, confirm);
   return (
     <Dialog
       open={open}
@@ -22,8 +48,14 @@ export function RemoteAccessDialog({ open, busy, onCancel, onConfirm }: { open: 
           <Button variant="ghost" onClick={onCancel}>
             Not now
           </Button>
-          <Button variant="primary" disabled={busy} icon={busy ? <Loader2 size={15} className="animate-spin" /> : undefined} onClick={onConfirm}>
-            Turn on remote access
+          <Button
+            variant="primary"
+            disabled={busy || problem !== null}
+            title={problem ?? undefined}
+            icon={busy ? <Loader2 size={15} className="animate-spin" /> : undefined}
+            onClick={() => onConfirm(passwordSet ? undefined : password)}
+          >
+            {passwordSet ? 'Turn on remote access' : 'Set password and turn on'}
           </Button>
         </>
       }
@@ -41,10 +73,23 @@ export function RemoteAccessDialog({ open, busy, onCancel, onConfirm }: { open: 
             networks</span> only (your home network), not Public networks such as café, hotel or airport Wi-Fi.
           </p>
         </div>
-        <p>
-          <span className="font-medium text-ink">Who can change settings:</span> other devices need the Overglow password (Settings → Security) to change
-          anything.
-        </p>
+        {passwordSet ? (
+          <p>
+            <span className="font-medium text-ink">Who can change settings:</span> other devices sign in with your Overglow password (you can change it
+            in Settings → Security). This computer never needs it.
+          </p>
+        ) : (
+          <div className="space-y-3 rounded-xl border border-line bg-surface-2 p-3">
+            <p className="flex items-start gap-2 text-ink">
+              <KeyRound size={15} className="mt-0.5 shrink-0 text-accent-strong" />
+              <span>
+                <span className="font-medium">Choose a password for other devices.</span>{' '}
+                <span className="text-ink-muted">They sign in with it; this computer never needs it. You can change it later in Settings → Security.</span>
+              </span>
+            </p>
+            <NewPasswordFields password={password} confirm={confirm} onPassword={setPassword} onConfirm={setConfirm} label="Password" />
+          </div>
+        )}
         <p>
           <span className="font-medium text-ink">Turning it off:</span> come back here and choose Turn off. Overglow then listens on this computer only
           again. To remove the Windows permission as well, open Windows Security → Firewall &amp; network protection → Allow an app through firewall.
@@ -86,8 +131,9 @@ export function RemoteAccessSection({ ps }: { ps: PageSettings }) {
   const [asking, setAsking] = useState(false);
   const status = setup?.remoteAccess;
 
-  const apply = (on: boolean) =>
+  const apply = (on: boolean, password?: string) =>
     run('remote-access', on ? 'Couldn’t turn on remote access' : 'Couldn’t turn off remote access', async () => {
+      if (password !== undefined) await api.setPassword(password);
       // stored at once (not with the page's Save), so the explanation and the change go together
       const network = { ...ps.value<Obj>('network'), remoteAccess: on };
       await api.setConfig({ network });
@@ -127,7 +173,13 @@ export function RemoteAccessSection({ ps }: { ps: PageSettings }) {
         </Callout>
       ) : null}
       {status?.enabled && <RemoteAccessAddresses status={status} />}
-      <RemoteAccessDialog open={asking} busy={busy === 'remote-access'} onCancel={() => setAsking(false)} onConfirm={() => void apply(true)} />
+      <RemoteAccessDialog
+        open={asking}
+        busy={busy === 'remote-access'}
+        passwordSet={setup?.passwordSet ?? false}
+        onCancel={() => setAsking(false)}
+        onConfirm={(password) => void apply(true, password)}
+      />
     </Section>
   );
 }

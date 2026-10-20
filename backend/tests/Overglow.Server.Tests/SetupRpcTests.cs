@@ -5,14 +5,12 @@ namespace Overglow.Server.Tests;
 /// <summary>The <c>setup</c> command and the <c>setup-update</c> event the first-run welcome uses.</summary>
 public sealed class SetupRpcTests
 {
-    private const string LocalAdmin = """{ "network": { "localAdminAuth": false } }""";
-
     private static JsonObject Obj(string json) => JsonNode.Parse(json)!.AsObject();
 
     [Fact]
     public async Task Welcome_StateStartAndEvent()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin, firstRun: true);
+        await using var server = await TestServer.StartAsync(firstRun: true);
         await using var client = await server.ConnectAsync();
         await client.CallAsync("serverinfo", null, Obj("""{ "subscribe": ["setup-update"] }"""));
 
@@ -25,6 +23,7 @@ public sealed class SetupRpcTests
         Assert.False(state["remoteAccess"]!["enabled"]!.GetValue<bool>());
         Assert.True(state["remoteAccess"]!["fixedByCommandLine"]!.GetValue<bool>());
         Assert.Empty(state["remoteAccess"]!["urls"]!.AsArray());
+        Assert.False(state["passwordSet"]!.GetValue<bool>());
         Assert.Empty(state["acknowledged"]!.AsArray());
 
         var started = await client.CallAsync("setup", "start");
@@ -39,19 +38,22 @@ public sealed class SetupRpcTests
         Assert.False((await client.CallAsync("setup", "acknowledge", Obj("""{ "topic": "firewall" }""")))["success"]!.GetValue<bool>());
         Assert.Equal("This copy of Overglow can't start with the system", (await client.CallAsync("setup", "autostart", Obj("""{ "enabled": true }""")))["error"]!.GetValue<string>());
         Assert.Equal("unknown or missing subcommand", (await client.CallAsync("setup", "nope"))["error"]!.GetValue<string>());
+
+        Assert.True((await client.CallAsync("authorize", "newPassword", Obj("""{ "newPassword": "long-enough-1" }""")))["success"]!.GetValue<bool>());
+        Assert.True(client.NextEvent("setup-update", e => e["data"]!["passwordSet"]!.GetValue<bool>())["data"]!["passwordSet"]!.GetValue<bool>());
     }
 
     [Fact]
-    public async Task OnlyAdminsStartTheLighting()
+    public async Task OtherDevicesSignInToStartTheLighting()
     {
-        await using var server = await TestServer.StartAsync(firstRun: true);
-        await using var client = await server.ConnectAsync();
+        await using var server = await TestServer.StartAsync(firstRun: true, password: TestServer.Password);
+        await using var client = await server.ConnectFromNetworkAsync();
 
-        Assert.True((await client.CallAsync("setup", "getstate"))["success"]!.GetValue<bool>());
+        Assert.Equal("No Authorization", (await client.CallAsync("setup", "getstate"))["error"]!.GetValue<string>());
         Assert.Equal("No Authorization", (await client.CallAsync("setup", "start"))["error"]!.GetValue<string>());
-        Assert.False((await client.CallAsync("setup", "getstate"))["info"]!["firstRunCompleted"]!.GetValue<bool>());
 
-        Assert.True((await client.CallAsync("authorize", "login", Obj("""{ "password": "overglow" }""")))["success"]!.GetValue<bool>());
+        Assert.True((await client.CallAsync("authorize", "login", new JsonObject { ["password"] = TestServer.Password }))["success"]!.GetValue<bool>());
+        Assert.True((await client.CallAsync("setup", "getstate"))["info"]!["passwordSet"]!.GetValue<bool>());
         Assert.True((await client.CallAsync("setup", "start"))["info"]!["firstRunCompleted"]!.GetValue<bool>());
     }
 }

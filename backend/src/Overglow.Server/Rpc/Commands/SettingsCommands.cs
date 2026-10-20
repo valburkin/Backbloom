@@ -1,16 +1,21 @@
 using System.Text.Json.Nodes;
 using Overglow.Engine;
+using Overglow.Server.Auth;
 using Overglow.Settings;
+using Overglow.Settings.Import;
 
 namespace Overglow.Server.Rpc;
 
 /// <summary>
 /// <c>config</c>: <c>getschema</c>, <c>getconfig</c> and <c>setconfig</c>. setconfig replaces the top-level sections
 /// it receives and keeps the others; invalid values reject the whole update with per-field errors (HyperHDR silently
-/// reset them to defaults), and saving also works while the lights are off.
+/// reset them to defaults), and saving also works while the lights are off. HyperHDR's removed access options in
+/// <c>network</c> are ignored, and <c>network.remoteAccess</c> can't be turned on before a password is set.
 /// </summary>
-public sealed class ConfigCommand(ISettingsStore settings, SettingsSchema schema) : IRpcCommand
+public sealed class ConfigCommand(ISettingsStore settings, SettingsSchema schema, AuthService auth) : IRpcCommand
 {
+    public const string PasswordNeeded = "Set a password before turning on remote access: other devices need it to sign in";
+
     public string Name => "config";
 
     public RpcAccess Access => RpcAccess.Authorized;
@@ -44,6 +49,17 @@ public sealed class ConfigCommand(ISettingsStore settings, SettingsSchema schema
                 {
                     context.Fail("The config parameter must be an object");
                     break;
+                }
+
+                if (config.ContainsKey("network"))
+                {
+                    config = config.DeepClone().AsObject();
+                    LegacyMigrations.RemoveAccessOptions(config, []);
+                    if (config["network"]?["remoteAccess"] is JsonValue on && on.TryGetValue(out bool enabled) && enabled && !auth.HasPassword)
+                    {
+                        context.Fail(PasswordNeeded);
+                        break;
+                    }
                 }
 
                 var result = settings.Update(config);

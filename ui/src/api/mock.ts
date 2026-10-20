@@ -23,7 +23,7 @@ import { validate, type Issue } from '../schema/schema';
 import { compileLayout, type DriverSettings, type LayoutSpec } from '../layout';
 
 export interface MockOptions {
-  /** Require a password before config access (password: MOCK_PASSWORD). */
+  /** Act like a connection from another device: sign in first (password: MOCK_PASSWORD). Otherwise this computer, no password set. */
   requireAuth?: boolean;
   /** Simulated round-trip latency in ms. */
   latencyMs?: number;
@@ -41,6 +41,8 @@ export interface MockOptions {
 export const MOCK_LAN_URL = 'http://192.168.1.20:18290/';
 
 export const MOCK_PASSWORD = 'password';
+/** The backend's reply to turning remote access on before a password is set (ConfigCommand.PasswordNeeded). */
+export const REMOTE_ACCESS_NEEDS_PASSWORD = 'Set a password before turning on remote access: other devices need it to sign in';
 export const MOCK_WLED_HOST = 'wled-mock.local';
 const MOCK_TOKEN = 'mock-user-token-0123456789abcdef0123456789abcdef';
 const COMPONENTS = ['ALL', 'SMOOTHING', 'BLACKBORDER', 'SYSTEMGRABBER', 'LEDDEVICE'];
@@ -94,7 +96,7 @@ export class MockBackend implements Backend {
   private readonly seed: BackendConfig;
   private fx: MockFixtures | null = null;
   private admin = false;
-  private password = MOCK_PASSWORD;
+  private password: string | null;
   private config: BackendConfig = {};
   private components = new Map(COMPONENTS.map((c) => [c, c !== 'BLACKBORDER']));
   private source: Source | null = null;
@@ -111,6 +113,7 @@ export class MockBackend implements Backend {
   constructor(options: MockOptions = {}) {
     this.latencyMs = options.latencyMs ?? 60;
     this.requireAuth = options.requireAuth ?? false;
+    this.password = this.requireAuth ? MOCK_PASSWORD : null;
     this.seed = clone(options.config ?? {});
     this.setup = {
       firstRunCompleted: !options.firstRun,
@@ -119,6 +122,7 @@ export class MockBackend implements Backend {
       importedFrom: options.firstRun ? 'C:\\Users\\demo\\AppData\\Local\\HyperHDR\\db\\hyperhdr.db' : null,
       autostart: { available: options.autostart ?? true, enabled: false },
       remoteAccess: { enabled: false, fixedByCommandLine: false, port: 18290, urls: [], advertised: false },
+      passwordSet: this.password !== null,
       acknowledged: [],
     };
   }
@@ -194,6 +198,8 @@ export class MockBackend implements Backend {
         if (subcommand === 'getconfig') return ok(clone(this.config));
         if (subcommand === 'setconfig') {
           const sent = clone((params.config ?? {}) as BackendConfig);
+          if ((sent.network as { remoteAccess?: boolean } | undefined)?.remoteAccess === true && this.password === null)
+            return fail(REMOTE_ACCESS_NEEDS_PASSWORD);
           const errors = this.checkConfig(sent);
           if (errors.length) return reject(errors);
           this.writeConfig(sent);
@@ -258,7 +264,8 @@ export class MockBackend implements Backend {
       case 'leddevice':
         return ok(this.ledDevice(subcommand, params, fail));
       case 'setup':
-        if (subcommand !== 'getstate') needAdmin();
+        // only this computer and devices that signed in (which are admins here)
+        needAdmin();
         return ok(this.setupCommand(subcommand, params, fail));
       case 'save-db':
         needAdmin();
@@ -292,11 +299,11 @@ export class MockBackend implements Backend {
   private authorize(subcommand: string | undefined, params: Record<string, unknown>, fail: (e: string) => never): unknown {
     switch (subcommand) {
       case 'tokenRequired':
-        return { required: false };
+        return { required: !this.admin };
       case 'adminRequired':
         return { adminRequired: !this.admin };
       case 'newPasswordRequired':
-        return { newPasswordRequired: false };
+        return { newPasswordRequired: this.password === null };
       case 'logout':
         this.admin = !this.requireAuth;
         return undefined;
@@ -308,15 +315,20 @@ export class MockBackend implements Backend {
         }
         const pw = String(params.password ?? '');
         if (pw.length < 8) return fail('Password too short');
-        if (pw !== this.password) return fail('No Authorization');
+        if (this.password === null || pw !== this.password) return fail('No Authorization');
         this.admin = true;
         return { token: MOCK_TOKEN };
       }
-      case 'newPassword':
+      case 'newPassword': {
         if (!this.admin) return fail('No Authorization');
-        if (params.password !== this.password) return fail('Failed to change password');
-        this.password = String(params.newPassword);
+        const next = String(params.newPassword ?? '');
+        if (next.length < 8) return fail('The password needs at least 8 characters');
+        // like the backend: only another device that signed in must confirm the current password
+        if (this.requireAuth && this.password !== null && params.password !== this.password) return fail('Failed to update user password');
+        this.password = next;
+        if (!this.setup.passwordSet) this.updateSetup({ passwordSet: true });
         return undefined;
+      }
       case 'getTokenList':
         if (!this.admin) return fail('No Authorization');
         return clone(this.tokens);

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Overglow.Discovery;
 using Overglow.Discovery.Mdns;
 using Overglow.Server;
+using Overglow.Server.Auth;
 using Overglow.Settings;
 
 namespace Overglow.App;
@@ -73,15 +74,17 @@ public sealed record RemoteAccessOptions(Func<IReadOnlyList<IPAddress>> NetworkA
 /// <summary>
 /// Opt-in network access (<c>network.remoteAccess</c>, off by default and after a HyperHDR import). Off: the server
 /// listens on 127.0.0.1 only and nothing is advertised, so Windows never asks for network access. On (after the
-/// UI's explanation): an endpoint per interface address is bound and the UI advertised with mDNS (port 5353), both
-/// live, and again when the computer's addresses change; off again closes both. <c>--bind</c> overrides the setting
-/// with one fixed address.
+/// UI's explanation) and with a password set (other devices couldn't sign in without one; <c>setconfig</c> refuses
+/// to turn it on before): an endpoint per interface address is bound and the UI advertised with mDNS (port 5353),
+/// both live, and again when the computer's addresses change; off again closes both. <c>--bind</c> overrides the
+/// setting with one fixed address.
 /// </summary>
 internal sealed partial class RemoteAccess(
     AppOptions options,
     RemoteAccessOptions remote,
     ServerOptions server,
     ISettingsStore settings,
+    AuthService auth,
     MdnsService mdns,
     NetworkEndpointConfiguration endpoint,
     IServer kestrel,
@@ -111,6 +114,7 @@ internal sealed partial class RemoteAccess(
     public Task StartAsync(CancellationToken cancellationToken)
     {
         settings.Changed += OnSettingsChanged;
+        auth.PasswordChanged += Apply;
         NetworkChange.NetworkAddressChanged += OnAddressChanged;
 
         // the actual port is known once Kestrel listens (tests use port 0)
@@ -129,6 +133,7 @@ internal sealed partial class RemoteAccess(
     public Task StopAsync(CancellationToken cancellationToken)
     {
         settings.Changed -= OnSettingsChanged;
+        auth.PasswordChanged -= Apply;
         NetworkChange.NetworkAddressChanged -= OnAddressChanged;
         lock (_lock)
         {
@@ -162,7 +167,7 @@ internal sealed partial class RemoteAccess(
 
             var port = ListeningPort();
             var fixedAddress = options.BindAddress;
-            var listensOnNetwork = fixedAddress is null ? IsEnabledIn(settings.GetSection("network")) : !IPAddress.IsLoopback(fixedAddress);
+            var listensOnNetwork = fixedAddress is null ? IsEnabledIn(settings.GetSection("network")) && auth.HasPassword : !IPAddress.IsLoopback(fixedAddress);
             var addresses = !listensOnNetwork ? []
                 : fixedAddress is null || fixedAddress.Equals(IPAddress.Any) ? remote.NetworkAddresses()
                 : [fixedAddress];

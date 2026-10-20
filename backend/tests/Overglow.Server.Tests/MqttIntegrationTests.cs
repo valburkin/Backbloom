@@ -144,7 +144,7 @@ public sealed class MqttIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task JsonApi_HasTheRightsOfALocalClient()
+    public async Task JsonApi_HasApiRightsButNoConfigAccess()
     {
         await using var server = await StartAsync();
         Next("Overglow/status", p => p == "online");

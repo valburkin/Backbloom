@@ -15,14 +15,15 @@ public enum LoginResult
 public sealed record TokenInfo(string Id, string Comment, DateTimeOffset? LastUse);
 
 /// <summary>
-/// Password and token checks (port of HyperHDR's AccessManager / AuthTable semantics): one admin password
-/// (factory default "overglow" until changed), a user token issued on login that is valid until the process restarts,
-/// and API tokens for other apps. Secrets are stored as PBKDF2-SHA256 hashes only; hashes imported from HyperHDR
-/// (salted SHA-512) keep working and are replaced by PBKDF2 the first time they are used.
+/// Password and token checks (port of HyperHDR's AccessManager / AuthTable semantics): one admin password, a user
+/// token issued on login that is valid until the process restarts, and API tokens for other apps. There is no factory
+/// password: until the user sets one (or one is imported from HyperHDR) no password login works, and other devices
+/// can't connect (see <see cref="LocalAccess"/>; this computer never needs it). Secrets are stored as PBKDF2-SHA256
+/// hashes only; hashes imported from HyperHDR (salted SHA-512) keep working and are replaced by PBKDF2 the first time
+/// they are used.
 /// </summary>
 public sealed class AuthService
 {
-    public const string DefaultPassword = "overglow";
     public const int MinPasswordLength = 8;
     public const int UserTokenLength = 64;
     public const int ApiTokenLength = 36;
@@ -45,12 +46,6 @@ public sealed class AuthService
         _store = store;
         _time = time ?? TimeProvider.System;
         _data = store.Load();
-        if (_data.Password is null)
-        {
-            _data = _data with { Password = Hash(DefaultPassword, PasswordIterations), IsDefaultPassword = true };
-            store.Save(_data);
-        }
-
         UserToken = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(UserTokenLength / 2));
         _userToken = Encoding.ASCII.GetBytes(UserToken);
     }
@@ -58,16 +53,20 @@ public sealed class AuthService
     /// <summary>Raised after an API token was created or deleted.</summary>
     public event Action<IReadOnlyList<TokenInfo>>? TokensChanged;
 
+    /// <summary>Raised after the password was set or changed.</summary>
+    public event Action? PasswordChanged;
+
     /// <summary>Token returned by a password login; valid until restart.</summary>
     public string UserToken { get; }
 
-    public bool HasDefaultPassword
+    /// <summary>The user set a password (or one was imported); remote access needs one.</summary>
+    public bool HasPassword
     {
         get
         {
             lock (_lock)
             {
-                return _data.IsDefaultPassword;
+                return _data.Password is not null;
             }
         }
     }
@@ -75,7 +74,7 @@ public sealed class AuthService
     public LoginResult CheckPassword(string password)
     {
         ArgumentNullException.ThrowIfNull(password);
-        SecretHash stored;
+        SecretHash? stored;
         lock (_lock)
         {
             if (_time.GetUtcNow() < _blockedUntil)
@@ -83,16 +82,16 @@ public sealed class AuthService
                 return LoginResult.Blocked;
             }
 
-            stored = _data.Password!;
+            stored = _data.Password;
         }
 
-        var ok = Verify(password, stored);
+        var ok = stored is not null && Verify(password, stored);
         lock (_lock)
         {
             if (ok)
             {
                 _failedLogins = 0;
-                if (stored.Algorithm != SecretAlgorithm.Pbkdf2Sha256 && ReferenceEquals(stored, _data.Password))
+                if (stored!.Algorithm != SecretAlgorithm.Pbkdf2Sha256 && ReferenceEquals(stored, _data.Password))
                 {
                     // a password imported from HyperHDR: store it the way this version does
                     _data = _data with { Password = Hash(password, PasswordIterations) };
@@ -138,23 +137,35 @@ public sealed class AuthService
         }
     }
 
+    /// <summary>
+    /// Sets the admin password without asking for the current one: for this computer, which has full access anyway
+    /// (also the way to recover a forgotten password), and for the first password. False when it is too short.
+    /// </summary>
+    public bool SetPassword(string next)
+    {
+        ArgumentNullException.ThrowIfNull(next);
+        if (next.Length < MinPasswordLength)
+        {
+            return false;
+        }
+
+        var hash = Hash(next, PasswordIterations);
+        lock (_lock)
+        {
+            _data = _data with { Password = hash };
+            _store.Save(_data);
+        }
+
+        PasswordChanged?.Invoke();
+        return true;
+    }
+
     /// <summary>Changes the admin password; false when the current one is wrong or the new one too short.</summary>
     public bool ChangePassword(string current, string next)
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(next);
-        if (next.Length < MinPasswordLength || CheckPassword(current) != LoginResult.Success)
-        {
-            return false;
-        }
-
-        lock (_lock)
-        {
-            _data = _data with { Password = Hash(next, PasswordIterations), IsDefaultPassword = next == DefaultPassword };
-            _store.Save(_data);
-        }
-
-        return true;
+        return next.Length >= MinPasswordLength && CheckPassword(current) == LoginResult.Success && SetPassword(next);
     }
 
     public IReadOnlyList<TokenInfo> ListTokens()

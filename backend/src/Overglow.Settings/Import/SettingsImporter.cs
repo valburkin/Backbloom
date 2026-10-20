@@ -22,7 +22,7 @@ public sealed record ImportResult(SettingsContent Content, AuthData? Auth, strin
 /// </summary>
 public sealed class SettingsImporter(SettingsSchema schema)
 {
-    /// <summary>HyperHDR's and the Overglow C++ build's factory passwords: an admin password still set to one of them is reset to this version's default.</summary>
+    /// <summary>HyperHDR's and the Overglow C++ build's factory passwords: an admin password still set to one of them isn't imported (this version has no factory password).</summary>
     private static readonly string[] s_factoryPasswords = ["hyperhdr", "overglow"];
 
     private static readonly string[] s_adminUsers = ["admin", "Hyperhdr"];
@@ -170,13 +170,13 @@ public sealed class SettingsImporter(SettingsSchema schema)
 
         if (s_factoryPasswords.Any(p => string.Equals(LegacyHash(p, admin.Salt), admin.PasswordHash, StringComparison.OrdinalIgnoreCase)))
         {
-            changes.Add("The factory default password was still in use; the default password of this version applies");
-            return new AuthData(null, true, tokens);
+            changes.Add("The factory default password was still in use and wasn't imported; set a password before turning on remote access");
+            return new AuthData(null, tokens);
         }
 
         changes.Add("Imported the admin password (it keeps working)");
         var password = new SecretHash(System.Convert.FromHexString(admin.PasswordHash), Encoding.UTF8.GetBytes(admin.Salt), 0, SecretAlgorithm.LegacySha512);
-        return new AuthData(password, false, tokens);
+        return new AuthData(password, tokens);
     }
 
     private static bool IsHex(string text, int length) => text.Length == length && text.All(char.IsAsciiHexDigit);

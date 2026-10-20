@@ -30,15 +30,13 @@ const NAV: Array<{ route: Route; label: string; icon: ReactNode }> = [
 ];
 
 function ConnectionPill() {
-  const { status, backend, auth } = useConnection();
+  const { status, backend } = useConnection();
   const tone = status === 'open' ? 'ok' : status === 'reconnecting' || status === 'connecting' ? 'warn' : 'bad';
   const label =
     status === 'open'
       ? backend.mode === 'mock'
         ? 'Demo mode'
-        : auth === 'readOnly'
-          ? 'Connected · view only'
-          : 'Connected'
+        : 'Connected'
       : status === 'reconnecting'
         ? 'Reconnecting…'
         : status === 'connecting'

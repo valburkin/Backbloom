@@ -7,7 +7,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Overglow.Server.Auth;
 using Overglow.Server.Rpc;
-using Overglow.Settings;
 
 namespace Overglow.Server.Transport;
 
@@ -15,10 +14,11 @@ namespace Overglow.Server.Transport;
 /// JSON-RPC over WebSocket on any path of the web port (the UI connects to <c>ws://host:port</c>). Requests of one
 /// connection are handled in order; replies and events leave through one queue so they never interleave. When the
 /// app shuts down, connections are closed at once (Kestrel would otherwise wait for them until its shutdown timeout).
+/// This computer has full access; other devices sign in, and are refused while no password is set (see
+/// <see cref="LocalAccess"/>).
 /// </summary>
 public sealed partial class WebSocketRpcEndpoint(
     RpcDispatcher dispatcher,
-    ISettingsStore settings,
     AuthService auth,
     ServerOptions options,
     IHostApplicationLifetime lifetime,
@@ -30,21 +30,20 @@ public sealed partial class WebSocketRpcEndpoint(
     {
         ArgumentNullException.ThrowIfNull(context);
         var connection = context.Connection;
-        var isLocal = NetworkOrigin.IsLocal(connection.RemoteIpAddress, connection.LocalIpAddress);
+        var isLocal = LocalAccess.IsLoopback(connection.RemoteIpAddress);
         var peer = connection.RemoteIpAddress?.ToString() ?? "unknown";
-        if (!isLocal && auth.HasDefaultPassword)
+        if (!isLocal && !auth.HasPassword)
         {
-            // As in HyperHDR: remote access stays closed until the factory password was changed.
+            // nobody could sign in: remote access stays closed until the user set a password
             LogRemoteRefused(peer);
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return;
         }
 
         using var socket = await context.WebSockets.AcceptWebSocketAsync();
-        var (authorized, admin) = AccessPolicy.FromSettings(settings.GetSection("network")).InitialRights(isLocal);
         var output = new ChannelOutput();
-        using var session = new RpcSession(output, peer, isLocal, authorized, admin);
-        LogConnected(peer, isLocal, admin);
+        using var session = new RpcSession(output, peer, isLocal, authorized: isLocal, admin: isLocal);
+        LogConnected(peer, isLocal);
 
         var aborted = context.RequestAborted;
         using var stopping = CancellationTokenSource.CreateLinkedTokenSource(aborted, lifetime.ApplicationStopping);
@@ -118,8 +117,8 @@ public sealed partial class WebSocketRpcEndpoint(
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "WebSocket client {Peer} connected (local: {IsLocal}, admin without login: {Admin})")]
-    private partial void LogConnected(string peer, bool isLocal, bool admin);
+    [LoggerMessage(Level = LogLevel.Information, Message = "WebSocket client {Peer} connected (this computer: {IsLocal})")]
+    private partial void LogConnected(string peer, bool isLocal);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "WebSocket client {Peer} disconnected")]
     private partial void LogDisconnected(string peer);
@@ -127,7 +126,7 @@ public sealed partial class WebSocketRpcEndpoint(
     [LoggerMessage(Level = LogLevel.Debug, Message = "WebSocket client {Peer} connection lost: {Reason}")]
     private partial void LogConnectionLost(string peer, string reason);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Refused remote client {Peer}: change the default password to allow remote access")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Refused remote client {Peer}: no password is set (set one to allow remote access)")]
     private partial void LogRemoteRefused(string peer);
 
     /// <summary>Unbounded queue of serialized messages, drained by the send loop.</summary>

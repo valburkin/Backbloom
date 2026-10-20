@@ -21,7 +21,7 @@ export const SETTINGS_LABELS: Record<string, string> = {
 
 const TABS: Array<{ id: string; label: string; icon: ReactNode; config: boolean }> = [
   { id: 'general', label: 'General', icon: <SlidersHorizontal size={16} />, config: true },
-  { id: 'security', label: 'Security', icon: <Shield size={16} />, config: true },
+  { id: 'security', label: 'Security', icon: <Shield size={16} />, config: false },
   { id: 'network', label: 'Network', icon: <Network size={16} />, config: true },
   { id: 'mqtt', label: 'MQTT', icon: <Radio size={16} />, config: true },
   { id: 'logs', label: 'Logs', icon: <ScrollText size={16} />, config: true },
@@ -74,7 +74,7 @@ export function SettingsPage({ tab, onTab }: { tab: string | null; onTab: (t: st
     >
       <div role="tabpanel" id={`panel-${active.id}`} aria-labelledby={`tab-${active.id}`} className="space-y-6">
         {active.id === 'general' && <GeneralTab ps={ps} />}
-        {active.id === 'security' && <SecurityTab ps={ps} />}
+        {active.id === 'security' && <SecurityTab />}
         {active.id === 'network' && <NetworkTab ps={ps} />}
         {active.id === 'mqtt' && <MqttTab ps={ps} />}
         {active.id === 'logs' && <LogsTab ps={ps} />}

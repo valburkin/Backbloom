@@ -5,7 +5,7 @@ namespace Overglow.Server.Tests;
 /// <summary>The protocol of one layout driving several controllers, and old single-controller clients next to it.</summary>
 public sealed class MultiControllerRpcTests
 {
-    private const string LocalAdmin = """{ "network": { "localAdminAuth": false }, "smoothing": { "enable": false } }""";
+    private const string NoSmoothing = """{ "smoothing": { "enable": false } }""";
 
     private static JsonObject Obj(string json) => JsonNode.Parse(json)!.AsObject();
 
@@ -31,7 +31,7 @@ public sealed class MultiControllerRpcTests
     [Fact]
     public async Task SetConfig_Layout_DrivesEveryControllerAndReportsThem()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync(NoSmoothing);
         await using var client = await server.ConnectAsync();
         await client.CallAsync("serverinfo", parameters: Obj("""{ "subscribe": ["leds-update", "controllers-update", "settings-update"] }"""));
 
@@ -67,7 +67,7 @@ public sealed class MultiControllerRpcTests
     [Fact]
     public async Task Blink_AddressesAControllerAndAnLed()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync(NoSmoothing);
         await using var client = await server.ConnectAsync();
         Assert.True(Success(await client.CallAsync("config", "setconfig", new JsonObject { ["config"] = new JsonObject { ["layout"] = Layout() } })));
 
@@ -90,7 +90,7 @@ public sealed class MultiControllerRpcTests
     [Fact]
     public async Task LedStreamAndPerformance_CoverEveryController()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync(NoSmoothing);
         await using var client = await server.ConnectAsync();
         Assert.True(Success(await client.CallAsync("config", "setconfig", new JsonObject { ["config"] = new JsonObject { ["layout"] = Layout() } })));
 
@@ -114,7 +114,7 @@ public sealed class MultiControllerRpcTests
     [Fact]
     public async Task AnOldSingleControllerClient_KeepsWorking()
     {
-        await using var server = await TestServer.StartAsync(LocalAdmin);
+        await using var server = await TestServer.StartAsync(NoSmoothing);
         await using var client = await server.ConnectAsync();
         var single = Layout();
         single["controllers"]!.AsArray().RemoveAt(1);

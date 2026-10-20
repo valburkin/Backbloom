@@ -22,6 +22,24 @@ public sealed class MigrationTests
     }
 
     [Fact]
+    public void RemoveAccessOptions_DropsHyperHdrsLocalAndApiAuthentication()
+    {
+        var config = Parse("""
+            { "network": { "apiAuth": true, "internetAccessAPI": false, "restirctedInternetAccessAPI": false, "ipWhitelist": [],
+                           "localApiAuth": false, "localAdminAuth": true } }
+            """);
+
+        var changes = Run(LegacyMigrations.RemoveAccessOptions, config);
+
+        Assert.Empty(config["network"]!.AsObject());
+        Assert.Equal(
+            "Removed the network access options (apiAuth, localApiAuth, localAdminAuth, internetAccessAPI, restirctedInternetAccessAPI, ipWhitelist): " +
+            "this computer always has full access, other devices always need the password",
+            Assert.Single(changes));
+        Assert.Empty(Run(LegacyMigrations.RemoveAccessOptions, Parse("""{ "general": {} }""")));
+    }
+
+    [Fact]
     public void UpgradeFormat_Version1_LowersCountThresholdsThenMapsThemToTheSmallestStep()
     {
         var config = Parse("""
