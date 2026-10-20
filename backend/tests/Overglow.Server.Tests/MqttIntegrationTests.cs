@@ -198,7 +198,9 @@ public sealed class MqttIntegrationTests : IAsyncLifetime
         Assert.Equal("Overglow/light/state", discovery["state_topic"]!.GetValue<string>());
         Assert.Equal("Overglow/status", discovery["availability_topic"]!.GetValue<string>());
         Assert.Equal(["rgb"], discovery["supported_color_modes"]!.AsArray().Select(m => m!.GetValue<string>()));
-        Assert.Equal([HomeAssistantLight.ScreenEffect], discovery["effect_list"]!.AsArray().Select(m => m!.GetValue<string>()));
+        Assert.Equal(
+            [HomeAssistantLight.ScreenEffect, .. EffectEngine.Available.Select(e => e.Name)],
+            discovery["effect_list"]!.AsArray().Select(m => m!.GetValue<string>()));
         Assert.StartsWith("overglow_", discovery["unique_id"]!.GetValue<string>(), StringComparison.Ordinal);
 
         var state = JsonNode.Parse(Next("Overglow/light/state").Payload)!;
@@ -222,6 +224,15 @@ public sealed class MqttIntegrationTests : IAsyncLifetime
 
         await PublishAsync("Overglow/light/set", $$"""{ "state": "ON", "effect": "{{HomeAssistantLight.ScreenEffect}}" }""");
         Until(() => engine.Sources.Visible.Component == SourceComponent.SystemGrabber);
+        Next("Overglow/light/state", p => p.Contains($"\"effect\":\"{HomeAssistantLight.ScreenEffect}\"", StringComparison.Ordinal));
+
+        await PublishAsync("Overglow/light/set", """{ "state": "ON", "effect": "Breath" }""");
+        Until(() => (engine.Sources.Visible.Renderer as EffectSource)?.Definition.Name == "Breath");
+        Assert.Equal(HomeAssistantLight.ColorPriority, engine.Sources.Visible.Priority);
+        Next("Overglow/light/state", p => p.Contains("\"effect\":\"Breath\"", StringComparison.Ordinal));
+
+        await PublishAsync("Overglow/light/set", """{ "state": "ON", "effect": "Music: fullscreen pulse (MULTI COLOR)" }""");
+        Until(() => (engine.Sources.Visible.Renderer as EffectSource)?.Definition.IsMusic == true);
     }
 
     [Fact]

@@ -8,6 +8,7 @@ namespace Overglow.Core.Tests;
 /// The consistency rules of BlackBorderProcessor::updateBorder (the C++ processor needs a LightingInstance, so there
 /// is no exported fixture for it; the detector itself is covered by the golden test).
 /// </summary>
+[Collection(AllocationMeasurements.Name)]
 public sealed class BlackBorderProcessorTests
 {
     private const int Width = 64;
@@ -129,18 +130,15 @@ public sealed class BlackBorderProcessorTests
     public void Processing_DoesNotAllocatePerFrame()
     {
         var processor = new BlackBorderProcessor(BlackBorderOptions.Default);
-        // Warm up past tiered-JIT promotion so recompilation cannot allocate inside the measured window.
-        for (var i = 0; i < 100; i++)
+        void Frames()
         {
-            processor.Process((i % 3 == 0) ? s_letterbox3 : s_letterbox6);
+            for (var i = 0; i < 100; i++)
+            {
+                processor.Process((i % 3 == 0) ? s_letterbox3 : s_letterbox6);
+            }
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 100; i++)
-        {
-            processor.Process((i % 3 == 0) ? s_letterbox3 : s_letterbox6);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        // the warm-up goes past tiered-JIT promotion, so recompilation cannot allocate inside the measured window
+        Assert.Equal(0, Allocations.Measure(Frames, Frames));
     }
 }

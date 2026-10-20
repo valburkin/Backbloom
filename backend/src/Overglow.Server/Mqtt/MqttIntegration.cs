@@ -27,7 +27,10 @@ public sealed partial class MqttIntegration(
     public const string Offline = "offline";
 
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private MqttIntegrationSettings? _current;
+    private MqttIntegrationSettings? _applied;
+
+    // set once the API and the light run: only then is "online" announced (also after a reconnect)
+    private volatile MqttIntegrationSettings? _ready;
     private MqttApi? _api;
     private HomeAssistantLight? _light;
 
@@ -81,19 +84,19 @@ public sealed partial class MqttIntegration(
         {
             var integration = MqttIntegrationSettings.FromJson(section);
             var connection = MqttSettings.FromJson(section) with { Will = new MqttMessage(integration.AvailabilityTopic, Offline, Qos: 1, Retain: true) };
-            if (integration != _current)
+            _ready = null;
+            if (integration != _applied)
             {
                 await StopPartsAsync();
             }
 
             await mqtt.ConfigureAsync(connection, cancellationToken);
-            _current = integration;
+            _applied = integration;
             if (!connection.Enabled)
             {
                 return;
             }
 
-            await PublishOnlineAsync(cancellationToken);
             if (integration.ApiAccess)
             {
                 _api ??= await MqttApi.StartAsync(mqtt, dispatcher, settings, integration, logger, cancellationToken);
@@ -111,6 +114,9 @@ public sealed partial class MqttIntegration(
             {
                 await HomeAssistantLight.RemoveAsync(mqtt, server.InstanceId, cancellationToken);
             }
+
+            _ready = integration;
+            await PublishOnlineAsync(cancellationToken);
         }
         finally
         {
@@ -137,7 +143,7 @@ public sealed partial class MqttIntegration(
     }
 
     private Task<bool> PublishOnlineAsync(CancellationToken cancellationToken) =>
-        _current is { } current ? mqtt.PublishAsync(new MqttMessage(current.AvailabilityTopic, Online, Qos: 1, Retain: true), cancellationToken) : Task.FromResult(false);
+        _ready is { } current ? mqtt.PublishAsync(new MqttMessage(current.AvailabilityTopic, Online, Qos: 1, Retain: true), cancellationToken) : Task.FromResult(false);
 
     private void OnConnected() => _ = Task.Run(async () =>
     {

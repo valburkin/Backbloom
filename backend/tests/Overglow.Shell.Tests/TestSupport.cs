@@ -35,14 +35,25 @@ internal sealed class TestHost : IAsyncDisposable
         return dir;
     }
 
-    /// <summary>Starts a host; <paramref name="settings"/> (sections as JSON) are stored first.</summary>
+    /// <summary>The default startup effect, switched off so tests start with the screen visible.</summary>
+    public const string NoStartupEffect = """{ "enable": false, "type": "effect", "color": [255, 0, 0], "effect": "Rainbow swirl fast", "duration_ms": 3000 }""";
+
+    /// <summary>
+    /// Starts a host; <paramref name="settings"/> (sections as JSON) are stored first. The startup effect is off unless
+    /// the settings contain <c>foregroundEffect</c>.
+    /// </summary>
     public static async Task<TestHost> StartAsync(string? settings = null, Action<AppOptions, IServiceCollection>? configure = null)
     {
         var dir = NewDirectory();
-        if (settings is not null)
+        var sections = settings is null ? new JsonObject() : JsonNode.Parse(settings)!.AsObject();
+        if (!sections.ContainsKey("foregroundEffect"))
         {
-            using var services = SettingsServices.Open(new SettingsOptions(dir, null), Schema(), NullLoggerFactory.Instance);
-            var result = services.Store.Update(JsonNode.Parse(settings)!.AsObject());
+            sections["foregroundEffect"] = JsonNode.Parse(NoStartupEffect);
+        }
+
+        using (var services = SettingsServices.Open(new SettingsOptions(dir, null), Schema(), NullLoggerFactory.Instance))
+        {
+            var result = services.Store.Update(sections);
             Assert.True(result.Success, string.Join("; ", result.Errors));
         }
 
@@ -79,6 +90,62 @@ internal sealed class TestHost : IAsyncDisposable
 
 internal static class Wait
 {
+    /// <summary>Waits until the visible source matches, woken by <see cref="PriorityManager.VisibleChanged"/>.</summary>
+    public static VisibleSource ForVisible(LightingEngine engine, Func<VisibleSource, bool> condition, int timeoutMs = 5000)
+    {
+        using var changed = new SemaphoreSlim(0);
+        void OnChanged(VisibleSource _) => changed.Release();
+        engine.Sources.VisibleChanged += OnChanged;
+        try
+        {
+            ForSignal(() => condition(engine.Sources.Visible), changed, timeoutMs, "visible source");
+            return engine.Sources.Visible;
+        }
+        finally
+        {
+            engine.Sources.VisibleChanged -= OnChanged;
+        }
+    }
+
+    /// <summary>Waits until the screen is the visible source (it becomes one with its first captured frame).</summary>
+    public static void ForScreen(LightingEngine engine, int timeoutMs = 5000) =>
+        ForVisible(engine, v => v.Component == Core.Priorities.SourceComponent.SystemGrabber, timeoutMs);
+
+    /// <summary>Waits until <paramref name="component"/> is <paramref name="on"/>, woken by <see cref="ComponentStates.Changed"/>.</summary>
+    public static void ForComponent(LightingEngine engine, Component component, bool on, int timeoutMs = 5000)
+    {
+        using var changed = new SemaphoreSlim(0);
+        void OnChanged(Component c, bool _) => changed.Release();
+        engine.Components.Changed += OnChanged;
+        try
+        {
+            ForSignal(() => engine.Components.IsOn(component) == on, changed, timeoutMs, $"{component} {(on ? "on" : "off")}");
+        }
+        finally
+        {
+            engine.Components.Changed -= OnChanged;
+        }
+    }
+
+    private static void ForSignal(Func<bool> condition, SemaphoreSlim changed, int timeoutMs, string what)
+    {
+        var sw = Stopwatch.StartNew();
+        while (!condition())
+        {
+            var left = timeoutMs - (int)sw.ElapsedMilliseconds;
+            if (left <= 0 || !changed.Wait(left))
+            {
+                if (condition())
+                {
+                    return;
+                }
+
+                throw new TimeoutException($"Timed out waiting for {what}.");
+            }
+        }
+    }
+
+    /// <summary>Polls a state that raises no event (file contents).</summary>
     public static void Until(Func<bool> condition, int timeoutMs = 5000)
     {
         var sw = Stopwatch.StartNew();

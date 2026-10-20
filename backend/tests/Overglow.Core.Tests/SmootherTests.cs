@@ -4,6 +4,7 @@ using Overglow.Core.Smoothing;
 
 namespace Overglow.Core.Tests;
 
+[Collection(AllocationMeasurements.Name)]
 public sealed class SmootherTests
 {
     private static readonly Vector3[] s_black = [Vector3.Zero, Vector3.Zero];
@@ -147,18 +148,22 @@ public sealed class SmootherTests
             }
 
             // Warm up past tiered-JIT promotion so recompilation cannot allocate inside the measured window.
-            for (long t = 0; t < 2_000; t += 20)
-            {
-                Frame(t);
-            }
-
-            var before = GC.GetAllocatedBytesForCurrentThread();
-            for (long t = 2_000; t < 22_000; t += 20)
-            {
-                Frame(t);
-            }
-
-            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            var allocated = Allocations.Measure(
+                () =>
+                {
+                    for (long t = 0; t < 2_000; t += 20)
+                    {
+                        Frame(t);
+                    }
+                },
+                () =>
+                {
+                    for (long t = 2_000; t < 22_000; t += 20)
+                    {
+                        Frame(t);
+                    }
+                });
+            Assert.Equal(0, allocated);
         }
     }
 

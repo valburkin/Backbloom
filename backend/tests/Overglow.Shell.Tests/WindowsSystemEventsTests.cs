@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using Microsoft.Extensions.DependencyInjection;
+using Overglow.Core.Priorities;
 using Overglow.Engine;
 using Overglow.Platform.Windows.Desktop;
 using static Overglow.Platform.Windows.Desktop.WindowsSystemEvents;
@@ -56,8 +57,9 @@ public sealed partial class WindowsSystemEventsTests
         await using var host = await TestHost.StartAsync("""{ "general": { "disableOnLocked": true } }""");
         var window = host.App.Services.GetRequiredService<UiThread>().MessageWindow;
         var components = host.Engine.Components;
-        Assert.True(components.IsOn(Component.SystemGrabber));
-        Assert.True(host.Engine.Sources.Visible.HasSource);
+
+        // the screen is a source once it delivers its first frame
+        Wait.ForScreen(host.Engine);
 
         SendMessageW((nint)window, SessionChange, WtsSessionLock, 1);
         Assert.False(components.IsOn(Component.SystemGrabber));
@@ -65,8 +67,28 @@ public sealed partial class WindowsSystemEventsTests
 
         SendMessageW((nint)window, SessionChange, WtsSessionUnlock, 1);
         Assert.False(components.IsOn(Component.SystemGrabber));
-        Wait.Until(() => components.IsOn(Component.SystemGrabber), 6000);
-        Assert.True(host.Engine.Sources.Visible.HasSource);
+        Wait.ForComponent(host.Engine, Component.SystemGrabber, true, 6000);
+        Wait.ForScreen(host.Engine);
+    }
+
+    [Fact]
+    public async Task Lock_KeepsAnEffectShowing_AsCppDid()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763), "Windows only");
+        if (GetSystemMetrics(0x1000) != 0)
+        {
+            Assert.Skip("Remote desktop session: locks are ignored there.");
+        }
+
+        await using var host = await TestHost.StartAsync("""{ "general": { "disableOnLocked": true } }""");
+        var window = host.App.Services.GetRequiredService<UiThread>().MessageWindow;
+        Assert.True(host.Engine.RunEffect("Candle", 1, 0, "test"));
+
+        SendMessageW((nint)window, SessionChange, WtsSessionLock, 1);
+        Assert.False(host.Engine.Components.IsOn(Component.SystemGrabber));
+        Assert.Equal(SourceComponent.Effect, host.Engine.Sources.Visible.Component);
+        Assert.True(host.Engine.Components.OutputActive);
+        SendMessageW((nint)window, SessionChange, WtsSessionUnlock, 1);
     }
 
     [Fact]
@@ -78,7 +100,7 @@ public sealed partial class WindowsSystemEventsTests
         SendMessageW((nint)window, PowerBroadcast, PbtSuspend, 0);
         Assert.False(host.Engine.Components.IsOn(Component.All));
         SendMessageW((nint)window, PowerBroadcast, PbtResumeAutomatic, 0);
-        Wait.Until(() => host.Engine.Components.IsOn(Component.All), 6000);
+        Wait.ForComponent(host.Engine, Component.All, true, 6000);
     }
 
     [LibraryImport("user32.dll")]

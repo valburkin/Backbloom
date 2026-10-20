@@ -5,8 +5,19 @@ using Overglow.Core.Mapping;
 
 namespace Overglow.Core.Tests;
 
+[Collection(AllocationMeasurements.Name)]
 public sealed class HotPathAllocationTests
 {
+    private static object? s_kept;
+
+    [Fact]
+    public void Measurement_SeesEvenASmallAllocation()
+    {
+        Assert.Equal(0, Allocations.Measure(() => { }, () => { }));
+        Assert.InRange(Allocations.Measure(() => { }, () => s_kept = new byte[1]), 25, 64);
+        GC.KeepAlive(s_kept);
+    }
+
     [Fact]
     public void MappingProcessingAndQuantization_DoNotAllocatePerFrame()
     {
@@ -34,17 +45,21 @@ public sealed class HotPathAllocationTests
         }
 
         // Warm up past tiered-JIT promotion so recompilation cannot allocate inside the measured window.
-        for (var i = 0; i < 100; i++)
-        {
-            RunFrame();
-        }
-
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 200; i++)
-        {
-            RunFrame();
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        var allocated = Allocations.Measure(
+            () =>
+            {
+                for (var i = 0; i < 100; i++)
+                {
+                    RunFrame();
+                }
+            },
+            () =>
+            {
+                for (var i = 0; i < 200; i++)
+                {
+                    RunFrame();
+                }
+            });
+        Assert.Equal(0, allocated);
     }
 }

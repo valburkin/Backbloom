@@ -4,6 +4,7 @@ using Overglow.Core.Effects;
 
 namespace Overglow.Core.Tests;
 
+[Collection(AllocationMeasurements.Name)]
 public sealed class EffectTests
 {
     public static TheoryData<string> EffectNames() => [.. EffectCatalog.All.Select(e => e.Name)];
@@ -46,18 +47,15 @@ public sealed class EffectTests
             effect.Render(canvas, leds);
         }
 
-        for (var i = 0; i < 400; i++)
+        void Steps()
         {
-            Step();
+            for (var i = 0; i < 400; i++)
+            {
+                Step();
+            }
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 400; i++)
-        {
-            Step();
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, Allocations.Measure(Steps, Steps));
         Assert.InRange(effect.SleepTimeMs, 1, 1000);
     }
 

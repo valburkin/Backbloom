@@ -11,7 +11,8 @@ namespace Overglow.Server.Mqtt;
 /// <summary>
 /// The lights as one Home Assistant light entity through MQTT discovery (not in the C++ build): a retained
 /// <c>homeassistant/light/&lt;node&gt;/light/config</c> with the JSON schema, on/off (<c>ALL</c>), RGB color with
-/// brightness (a static color, scaled by the brightness) and the effect "Screen sync" (screen capture again), plus a
+/// brightness (a static color, scaled by the brightness) and as effects "Screen sync" (screen capture again) and every
+/// effect including music mode (run at priority 1 until something else is chosen), plus a
 /// retained state on <c>&lt;topic&gt;/light/state</c> that follows every change from any client. Availability is the
 /// integration's <c>&lt;topic&gt;/status</c>.
 /// </summary>
@@ -126,7 +127,7 @@ public sealed partial class HomeAssistantLight : IAsyncDisposable
         ["brightness_scale"] = 255,
         ["supported_color_modes"] = new JsonArray("rgb"),
         ["effect"] = true,
-        ["effect_list"] = new JsonArray(ScreenEffect),
+        ["effect_list"] = new JsonArray([ScreenEffect, .. EffectEngine.Available.Select(e => (JsonNode)e.Name)]),
         ["device"] = new JsonObject
         {
             ["identifiers"] = new JsonArray(NodeId(_server.InstanceId)),
@@ -157,9 +158,21 @@ public sealed partial class HomeAssistantLight : IAsyncDisposable
             ["brightness"] = brightness,
             ["color"] = new JsonObject { ["r"] = color.R, ["g"] = color.G, ["b"] = color.B },
         };
-        state["effect"] = visible.Component == SourceComponent.SystemGrabber ? ScreenEffect : null;
+        state["effect"] = EffectName(visible);
         return state;
     }
+
+    /// <summary>
+    /// The running effect's name; "Screen sync" while the screen shows or will with its next frame (it is a source only
+    /// while it delivers); null for a color.
+    /// </summary>
+    private string? EffectName(VisibleSource visible) => visible.Component switch
+    {
+        SourceComponent.Effect => (visible.Renderer as EffectSource)?.Definition.Name,
+        SourceComponent.SystemGrabber => ScreenEffect,
+        _ when !visible.HasSource && _engine.Components.IsOn(Component.SystemGrabber) => ScreenEffect,
+        _ => null,
+    };
 
     /// <summary>Applies a command of the JSON schema (exposed for tests).</summary>
     internal void Apply(JsonObject command)
@@ -171,12 +184,13 @@ public sealed partial class HomeAssistantLight : IAsyncDisposable
             return;
         }
 
-        if (command["effect"] is JsonValue e && e.TryGetValue(out string? effect) && effect == ScreenEffect)
+        var effect = command["effect"] is JsonValue e && e.TryGetValue(out string? name) ? name : null;
+        if (effect == ScreenEffect)
         {
             _engine.Clear(-1);
             _engine.Components.Set(Component.SystemGrabber, true);
         }
-        else
+        else if (effect is null || !_engine.RunEffect(effect, ColorPriority, 0, "Home Assistant"))
         {
             var hasColor = command["color"] is JsonObject;
             var hasBrightness = command["brightness"] is JsonValue;

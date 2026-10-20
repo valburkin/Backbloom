@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Overglow.Core.Color;
+using Overglow.Core.Effects;
 using Overglow.Core.Priorities;
 using Overglow.Engine;
 
@@ -8,8 +9,8 @@ namespace Overglow.Shell;
 
 /// <summary>
 /// The tray icon's menu and what its entries do (the C++ SystrayHandler, reorganized): open the window, lights on/off,
-/// screen sync, a static color, pause for 30 minutes, start with the OS, quit. The C++ "Instances" submenu is gone
-/// (one pipeline); its "Effects" submenu comes back with the effects.
+/// screen sync, music mode, an effect, a static color (all at priority 1, as C++ did), pause for 30 minutes, start with
+/// the OS, quit. The C++ "Instances" submenu is gone (one pipeline).
 /// </summary>
 public sealed partial class TrayMenu : IDisposable
 {
@@ -79,11 +80,18 @@ public sealed partial class TrayMenu : IDisposable
     {
         var lightsOn = _engine.Components.IsOn(Component.All);
         var visible = _engine.Sources.Visible;
-        var screen = lightsOn && visible.Component == SourceComponent.SystemGrabber;
+        var effect = lightsOn && visible.Component == SourceComponent.Effect ? (visible.Renderer as EffectSource)?.Definition.Name : null;
+
+        // the screen shows, or will with its first frame (it is a source only while it delivers)
+        var screen = lightsOn && (visible.Component == SourceComponent.SystemGrabber || (!visible.HasSource && _engine.Components.IsOn(Component.SystemGrabber)));
         var colors = Colors.Select(c => new TrayMenuItem(
             c.Name,
             () => ShowColor(c.Color),
-            Checked: lightsOn && visible.Component == SourceComponent.Color && visible.Priority == ColorPriority && visible.Color == c.Color)).ToList();
+            Checked: lightsOn && visible.HasSource && visible.Component == SourceComponent.Color && visible.Priority == ColorPriority && visible.Color == c.Color)).ToList();
+        TrayMenuItem EffectItem(EffectDefinition e) =>
+            new(e.IsMusic ? e.Name[MusicEffect.NamePrefix.Length..] : e.Name, () => RunEffect(e.Name), Checked: e.Name == effect);
+        var music = EffectEngine.Available.Where(e => e.IsMusic).Select(EffectItem).ToList();
+        var effects = EffectEngine.Available.Where(e => !e.IsMusic).Select(EffectItem).ToList();
         var pausedUntil = PausedUntil;
         var pause = pausedUntil is { } until
             ? new TrayMenuItem($"Resume (paused until {until.ToLocalTime().ToString("t", CultureInfo.CurrentCulture)})", Resume)
@@ -95,7 +103,9 @@ public sealed partial class TrayMenu : IDisposable
             TrayMenuItem.Separator,
             new TrayMenuItem("Lights", () => SetLights(!lightsOn), Checked: lightsOn),
             new TrayMenuItem("Screen sync", ShowScreen, Checked: screen),
-            new TrayMenuItem("Color", Children: colors),
+            new TrayMenuItem("Music", Children: music, Checked: music.Any(m => m.Checked)),
+            new TrayMenuItem("Effect", Children: effects, Checked: effects.Any(m => m.Checked)),
+            new TrayMenuItem("Color", Children: colors, Checked: colors.Any(m => m.Checked)),
             pause,
             TrayMenuItem.Separator,
             new TrayMenuItem(_autostart.Label, ToggleAutostart, Checked: _autostart.IsEnabled),
@@ -125,6 +135,16 @@ public sealed partial class TrayMenu : IDisposable
         CancelPause();
         _engine.SetColor(ColorPriority, color, 0, "System tray");
         _engine.Components.Set(Component.All, true);
+    }
+
+    /// <summary>Runs an effect (music mode is a "Music: " effect) until something else is chosen.</summary>
+    public void RunEffect(string name)
+    {
+        CancelPause();
+        if (_engine.RunEffect(name, ColorPriority, 0, "System tray"))
+        {
+            _engine.Components.Set(Component.All, true);
+        }
     }
 
     /// <summary>Lights off for <see cref="PauseDuration"/>, then on again unless someone switched them meanwhile.</summary>
