@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using Overglow.Settings.Layout;
 
 namespace Overglow.Settings.Storage;
 
@@ -17,6 +18,8 @@ public sealed partial class SqliteSettingsStore : ISettingsStore
 {
     /// <summary>The controller the <c>device</c> section refers to.</summary>
     public const int PrimaryController = 0;
+
+    private const string LayoutSection = "layout";
 
     /// <summary>Meta key of the last time anything was stored (absent while the store only holds defaults).</summary>
     public const string ModifiedKey = "modified_at";
@@ -108,8 +111,14 @@ public sealed partial class SqliteSettingsStore : ISettingsStore
         Dictionary<string, JsonNode> changed;
         lock (_lock)
         {
+            var (dropLayout, controllers) = PlanLayout(normalized, errors);
+            if (errors.Count > 0)
+            {
+                return SettingsUpdateResult.Rejected(errors);
+            }
+
             changed = normalized.Where(kv => !JsonNode.DeepEquals(GetLocked(kv.Key), kv.Value)).ToDictionary(StringComparer.Ordinal);
-            if (changed.Count == 0)
+            if (changed.Count == 0 && controllers is null && !dropLayout)
             {
                 return new SettingsUpdateResult([], []);
             }
@@ -120,14 +129,24 @@ public sealed partial class SqliteSettingsStore : ISettingsStore
                 {
                     foreach (var (section, value) in changed)
                     {
-                        if (section == SettingsSchema.ControllerSection)
-                        {
-                            UpsertControllerSection(c, t, PrimaryController, section, value, now);
-                        }
-                        else
+                        if (section != SettingsSchema.ControllerSection)
                         {
                             UpsertSection(c, t, section, value, now);
                         }
+                        else if (controllers is null)
+                        {
+                            UpsertControllerSection(c, t, PrimaryController, section, value, now);
+                        }
+                    }
+
+                    if (controllers is not null)
+                    {
+                        ReplaceControllers(c, t, controllers, now);
+                    }
+
+                    if (dropLayout)
+                    {
+                        SettingsDatabase.Execute(c, t, "DELETE FROM settings WHERE section = $section", ("$section", LayoutSection));
                     }
 
                     SettingsDatabase.SetMeta(c, t, ModifiedKey, now);
@@ -149,9 +168,24 @@ public sealed partial class SqliteSettingsStore : ISettingsStore
                     _sections[section] = value.DeepClone();
                 }
             }
+
+            if (controllers is not null)
+            {
+                _controllers = controllers;
+            }
+
+            if (dropLayout)
+            {
+                _sections.Remove(LayoutSection);
+                LogLayoutRemoved();
+            }
         }
 
-        Changed?.Invoke(new SettingsChange(changed));
+        if (changed.Count > 0)
+        {
+            Changed?.Invoke(new SettingsChange(changed));
+        }
+
         return new SettingsUpdateResult([], [.. changed.Keys]);
     }
 
@@ -190,6 +224,19 @@ public sealed partial class SqliteSettingsStore : ISettingsStore
             }
         }
 
+        if (sections[LayoutSection] is { } layout && errors.Count == 0)
+        {
+            var byIndex = controllers.Values.ToList();
+            var spec = LayoutSpecification.Normalize(layout, _schema, (i, _) => i < byIndex.Count ? byIndex[i].Device : null, errors);
+            if (spec is not null)
+            {
+                var derived = Derive(spec, errors);
+                sections[LayoutSection] = derived.Layout;
+                sections["leds"] = derived.Leds;
+                controllers = derived.Controllers;
+            }
+        }
+
         if (!controllers.ContainsKey(PrimaryController))
         {
             errors.Add(new SettingsError("controllers", $"must include controller {PrimaryController}"));
@@ -216,16 +263,12 @@ public sealed partial class SqliteSettingsStore : ISettingsStore
                 (c, t) =>
                 {
                     SettingsDatabase.Execute(c, t, "DELETE FROM settings");
-                    SettingsDatabase.Execute(c, t, "DELETE FROM controllers");
                     foreach (var (section, value) in sections)
                     {
                         UpsertSection(c, t, section, value!, now);
                     }
 
-                    foreach (var controller in controllers.Values)
-                    {
-                        InsertController(c, t, controller, now);
-                    }
+                    ReplaceControllers(c, t, controllers, now);
 
                     SettingsDatabase.SetMeta(c, t, ModifiedKey, now);
                 },
@@ -265,6 +308,112 @@ public sealed partial class SqliteSettingsStore : ISettingsStore
         SettingsDatabase.Execute(c, t, "INSERT INTO controllers (id, name, enabled) VALUES ($id, $name, $enabled)",
             ("$id", controller.Id), ("$name", controller.Name), ("$enabled", controller.Enabled ? 1 : 0));
         UpsertControllerSection(c, t, controller.Id, SettingsSchema.ControllerSection, controller.Device, now);
+    }
+
+    private static void ReplaceControllers(SqliteConnection c, SqliteTransaction t, SortedDictionary<int, ControllerSettings> controllers, string now)
+    {
+        SettingsDatabase.Execute(c, t, "DELETE FROM controllers");
+        foreach (var controller in controllers.Values)
+        {
+            InsertController(c, t, controller, now);
+        }
+    }
+
+    private static bool SameControllers(SortedDictionary<int, ControllerSettings> a, SortedDictionary<int, ControllerSettings> b) =>
+        a.Count == b.Count && a.Values.Zip(b.Values).All(p =>
+            p.First.Id == p.Second.Id && p.First.Name == p.Second.Name && p.First.Enabled == p.Second.Enabled && JsonNode.DeepEquals(p.First.Device, p.Second.Device));
+
+    // Text round trip: values built in code compare and serialize exactly like the ones read back from the database.
+    private static JsonNode Canonical(JsonNode node) => JsonNode.Parse(node.ToJsonString())!;
+
+    // A controller keeps its driver settings when a layout without them is saved: by id from the stored layout, or
+    // (no layout yet: the first save after a HyperHDR import) the stored controller at the same position.
+    private static JsonObject? ExistingDevice(JsonObject? layout, List<ControllerSettings> byIndex, int index, string id)
+    {
+        if (layout is not null)
+        {
+            return (layout["controllers"] as JsonArray)?.OfType<JsonObject>()
+                .FirstOrDefault(c => c["id"] is JsonValue v && v.TryGetValue(out string? s) && s == id)?["device"] as JsonObject;
+        }
+
+        return index < byIndex.Count ? byIndex[index].Device : null;
+    }
+
+    /// <summary>
+    /// The sections and controllers a normalized layout implies: <c>leds</c> is every controller's LEDs one after the
+    /// other, the controllers table mirrors the layout's controllers (ids 0, 1, ... in layout order; controller 0's
+    /// device is the <c>device</c> section).
+    /// </summary>
+    private (JsonObject Layout, JsonNode Leds, SortedDictionary<int, ControllerSettings> Controllers) Derive(JsonObject spec, List<SettingsError> errors)
+    {
+        var layout = Canonical(spec).AsObject();
+        var setup = LayoutSpecification.Compile(layout);
+        var leds = _schema.Validate("leds", Canonical(setup.AllLeds()), errors) ?? new JsonArray();
+        var controllers = new SortedDictionary<int, ControllerSettings>();
+        for (var i = 0; i < setup.Controllers.Count; i++)
+        {
+            var controller = setup.Controllers[i];
+            controllers[i] = new ControllerSettings(i, controller.Name, controller.Enabled, controller.Device);
+        }
+
+        return (layout, leds, controllers);
+    }
+
+    /// <summary>
+    /// Keeps the layout, <c>leds</c>, <c>device</c> and the controllers consistent for an update (see the README,
+    /// "LED controllers and the layout"); may add derived sections to <paramref name="sections"/>.
+    /// </summary>
+    /// <returns>Whether the stored layout is removed, and the controllers that replace the current ones (null: unchanged).</returns>
+    private (bool DropLayout, SortedDictionary<int, ControllerSettings>? Controllers) PlanLayout(Dictionary<string, JsonNode> sections, List<SettingsError> errors)
+    {
+        var current = _sections[LayoutSection] as JsonObject;
+        if (sections.TryGetValue(LayoutSection, out var incoming))
+        {
+            var byIndex = _controllers.Values.ToList();
+            var spec = LayoutSpecification.Normalize(incoming, _schema, (i, id) => ExistingDevice(current, byIndex, i, id), errors);
+            if (spec is null)
+            {
+                return (false, null);
+            }
+
+            if (sections.TryGetValue(SettingsSchema.ControllerSection, out var device))
+            {
+                spec["controllers"]![0]!["device"] = device.DeepClone();
+            }
+
+            var derived = Derive(spec, errors);
+            sections[LayoutSection] = derived.Layout;
+            sections["leds"] = derived.Leds;
+            sections[SettingsSchema.ControllerSection] = derived.Controllers[PrimaryController].Device.DeepClone();
+            return (false, SameControllers(derived.Controllers, _controllers) ? null : derived.Controllers);
+        }
+
+        if (current is null)
+        {
+            return (false, null);
+        }
+
+        if (sections.TryGetValue("leds", out var leds) && !JsonNode.DeepEquals(leds, _sections["leds"]))
+        {
+            var count = (current["controllers"] as JsonArray)?.Count ?? 0;
+            if (count > 1)
+            {
+                errors.Add(new SettingsError("leds", $"comes from the layout, which spans {count} controllers; save the layout instead"));
+                return (false, null);
+            }
+
+            // a single-controller client (HyperHDR's LED editor) takes over: the layout no longer describes the LEDs
+            return (true, null);
+        }
+
+        if (sections.TryGetValue(SettingsSchema.ControllerSection, out var primaryDevice))
+        {
+            var spec = current.DeepClone().AsObject();
+            spec["controllers"]![0]!["device"] = primaryDevice.DeepClone();
+            sections[LayoutSection] = spec;
+        }
+
+        return (false, null);
     }
 
     private JsonNode? GetLocked(string section) =>
@@ -346,6 +495,38 @@ public sealed partial class SqliteSettingsStore : ISettingsStore
             _db.Write((c, t) => InsertController(c, t, primary, now));
             _controllers[PrimaryController] = primary;
         }
+
+        LoadLayout();
+    }
+
+    // A stored layout is normalized like a saved one: one written by an older version gets each controller's driver
+    // settings from the controllers table (by position), and the derived leds and controllers are brought in line.
+    private void LoadLayout()
+    {
+        if (_sections[LayoutSection] is not { } stored)
+        {
+            return;
+        }
+
+        var errors = new List<SettingsError>();
+        var byIndex = _controllers.Values.ToList();
+        var spec = LayoutSpecification.Normalize(stored, _schema, (i, _) => i < byIndex.Count ? byIndex[i].Device : null, errors);
+        var derived = spec is null ? default : Derive(spec, errors);
+        if (spec is null || errors.Count > 0)
+        {
+            _sections.Remove(LayoutSection);
+            LogInvalidLayout(string.Join("; ", errors));
+            return;
+        }
+
+        _sections[LayoutSection] = derived.Layout;
+        _sections["leds"] = derived.Leds;
+        if (!SameControllers(derived.Controllers, _controllers))
+        {
+            var now = SettingsDatabase.Timestamp(_time.GetUtcNow());
+            _db.Write((c, t) => ReplaceControllers(c, t, derived.Controllers, now));
+            _controllers = derived.Controllers;
+        }
     }
 
     private JsonNode? LoadSection(string section, string json)
@@ -381,4 +562,10 @@ public sealed partial class SqliteSettingsStore : ISettingsStore
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Stored '{Section}' settings didn't match this version's schema and were repaired: {Fixes}")]
     private partial void LogRepairedSection(string section, string fixes);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The stored LED layout isn't valid and is ignored (the LEDs follow the 'leds' and 'device' settings): {Errors}")]
+    private partial void LogInvalidLayout(string errors);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The LED positions were saved without the layout: the layout is removed and the 'leds' setting describes the LEDs")]
+    private partial void LogLayoutRemoved();
 }

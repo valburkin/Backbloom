@@ -56,7 +56,7 @@ export type EditorAction =
   | { type: 'selectSegment'; index: number | null }
   | ({ type: 'addStrip'; controllerId?: string; output?: number; name?: string } & EditMeta)
   | ({ type: 'removeStrip'; stripId: string } & EditMeta)
-  | ({ type: 'updateStrip'; stripId: string; patch: Partial<Pick<Strip, 'name' | 'controllerId' | 'output'>> } & EditMeta)
+  | ({ type: 'updateStrip'; stripId: string; patch: Partial<Pick<Strip, 'name' | 'controllerId' | 'output' | 'brightness'>> } & EditMeta)
   | ({ type: 'moveStrip'; stripId: string; to: number } & EditMeta)
   | ({ type: 'setSegments'; stripId: string; segments: Segment[] } & EditMeta)
   | ({ type: 'addSegment'; stripId: string; segment?: Segment; index?: number } & EditMeta)
@@ -97,6 +97,11 @@ function moveItem<T>(arr: readonly T[], from: number, to: number): T[] {
   const [item] = out.splice(from, 1);
   out.splice(clamped, 0, item);
   return out;
+}
+
+/** Drops keys patched to undefined (e.g. brightness back to full), so the spec stays plain JSON. */
+function withoutUndefined<T extends object>(o: T): T {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 }
 
 function mapStrip(spec: LayoutSpec, stripId: string, fn: (s: Strip) => Strip): LayoutSpec {
@@ -183,7 +188,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const target = action.controllerId !== undefined && action.output !== undefined
         ? { controllerId: action.controllerId, output: action.output }
         : freeOutput(spec, action.controllerId);
-      const strip: Strip = { id, name: action.name ?? `Strip ${spec.strips.length + 1}`, ...target, segments: [newEdgeSegment()] };
+      // a new strip fills its output (one run along the bottom edge), so it starts out without a count warning
+      const length = spec.controllers.find((c) => c.id === target.controllerId)?.outputs.find((o) => o.index === target.output)?.length;
+      const strip: Strip = { id, name: action.name ?? `Strip ${spec.strips.length + 1}`, ...target, segments: [newEdgeSegment(length && length > 0 ? length : undefined)] };
       return commit(state, { ...spec, strips: [...spec.strips, strip] }, action, { stripId: id, segmentIndex: 0 });
     }
 
@@ -197,7 +204,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'updateStrip':
       if (!spec.strips.some((s) => s.id === action.stripId)) return state;
-      return commit(state, mapStrip(spec, action.stripId, (s) => ({ ...s, ...action.patch })), action);
+      return commit(state, mapStrip(spec, action.stripId, (s) => withoutUndefined({ ...s, ...action.patch })), action);
 
     case 'moveStrip': {
       const from = spec.strips.findIndex((s) => s.id === action.stripId);

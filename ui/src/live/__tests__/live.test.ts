@@ -15,6 +15,7 @@ describe('performance', () => {
       processingFps: 29.9,
       ledFps: 50,
       ledDropped: 3,
+      controllers: [{ id: '0', name: '', fps: 50, dropped: 3, latencyMs: null }],
       cpuPercent: 3,
       ram: { usedMb: 23475, totalMb: 64932, percent: 36 },
       temperature: null,
@@ -22,6 +23,24 @@ describe('performance', () => {
     s = performanceReducer(s, report(3, { remove: 1 }));
     expect(summarize(s).ledFps).toBeNull();
     expect(performanceReducer(s, { broadcast: [] })).toBe(s);
+  });
+
+  it('lists every controller and forgets the ones a broadcast no longer has', () => {
+    const led = (id: number, controller: string, param1: number, extra: object = {}) =>
+      report(3, { id, param1, controller, controllerName: controller.toUpperCase(), latencyMs: 0.42, ...extra });
+    let s = performanceReducer({}, { broadcast: [report(2, { param1: 60 }), led(1, 'desk', 59.6, { param4: 2 }), led(0, 'tv', 60.04), led(2, 'shelf', 60, { latencyMs: -1 })] });
+    const summary = summarize(s);
+    expect(summary.controllers).toEqual([
+      { id: 'tv', name: 'TV', fps: 60, dropped: 0, latencyMs: 0.42 },
+      { id: 'desk', name: 'DESK', fps: 59.6, dropped: 2, latencyMs: 0.42 },
+      { id: 'shelf', name: 'SHELF', fps: 60, dropped: 0, latencyMs: null },
+    ]);
+    expect(summary.ledFps).toBe(60);
+
+    s = performanceReducer(s, { broadcast: [report(2, { param1: 60 }), led(0, 'tv', 60)] });
+    expect(summarize(s).controllers.map((c) => c.id)).toEqual(['tv']);
+    // a broadcast without LED reports (or a single report) leaves them alone
+    expect(summarize(performanceReducer(s, { broadcast: [report(2)] })).controllers).toHaveLength(1);
   });
 
   it('treats warming-up reports as unknown', () => {

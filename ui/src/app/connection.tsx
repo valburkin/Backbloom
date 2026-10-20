@@ -165,6 +165,10 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
         const d = e.data as { leds?: ServerInfo['leds'] };
         setServerInfo((si) => (si && Array.isArray(d.leds) ? { ...si, leds: d.leds } : si));
       }),
+      backend.onEvent('controllers-update', (e) => {
+        const d = e.data as { controllers?: ServerInfo['controllers'] };
+        setServerInfo((si) => (si && Array.isArray(d.controllers) ? { ...si, controllers: d.controllers } : si));
+      }),
     ];
     return () => offs.forEach((off) => off());
   }, [backend]);

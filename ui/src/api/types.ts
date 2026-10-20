@@ -114,8 +114,27 @@ export interface ChannelAdjustment {
   [key: string]: unknown;
 }
 
+/** One LED controller as `serverinfo.controllers` / `controllers-update` report it (Overglow .NET backend). */
+export interface ControllerInfo {
+  id: string;
+  name: string;
+  /** LED driver type ("" when none is configured). */
+  type: string;
+  enabled: boolean;
+  /** False when nothing is sent to it (disabled, or unusable driver settings: see `status`). */
+  running: boolean;
+  state: 'off' | 'opening' | 'ready' | 'waitingToRetry' | 'failed' | 'closing';
+  status?: string | null;
+  /** First LED of this controller in `leds` and in the live LED stream. */
+  start: number;
+  ledCount: number;
+  /** `start` counts from the controller's first LED. */
+  strips: Array<{ id: string; name: string; start: number; length: number; brightness: number }>;
+}
+
 export interface ServerInfo {
   hostname?: string;
+  controllers?: ControllerInfo[];
   currentInstance?: number;
   instance?: InstanceInfo[];
   components?: ComponentInfo[];
@@ -180,6 +199,13 @@ export interface PerformanceReport {
   token: number;
   remove: number;
   refresh?: number;
+  /** LED reports (type 3) of the Overglow .NET backend: one per controller. */
+  controller?: string;
+  controllerName?: string;
+  ledCount?: number;
+  state?: string;
+  /** Average time from the engine handing over a frame until the controller had it, ms (-1: no new frames). */
+  latencyMs?: number;
 }
 
 export interface DiscoveredDevice {

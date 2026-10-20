@@ -10,14 +10,15 @@ using Overglow.Core.Priorities;
 using Overglow.Core.Smoothing;
 using Overglow.Engine.Platform;
 using Overglow.Settings;
+using Overglow.Settings.Layout;
 
 namespace Overglow.Engine;
 
 /// <summary>
 /// Wires the settings to the pipeline and the controllers: builds the color processor and LED map from the
-/// <c>color</c> and <c>leds</c> sections, smoothing from <c>smoothing</c>, black border detection from
-/// <c>blackborderdetector</c>, (re)creates controllers from <c>device</c>, registers the screen as a source and
-/// applies component switches. The API layer talks to this class only; it never reaches into the pipeline thread.
+/// <c>color</c> section and the controllers' LEDs, smoothing from <c>smoothing</c>, black border detection from
+/// <c>blackborderdetector</c>, configures the controllers from <c>layout</c> (or, without one, <c>device</c> +
+/// <c>leds</c>), registers the screen as a source and applies component switches. The API layer talks to this class only; it never reaches into the pipeline thread.
 /// </summary>
 public sealed partial class LightingEngine : IDisposable
 {
@@ -32,6 +33,7 @@ public sealed partial class LightingEngine : IDisposable
     private readonly ScreenActivity _screen;
     private readonly ILogger _logger;
     private readonly Lock _applyLock = new();
+    private volatile ControllerSetup _setup;
     private int _screenPriority;
     private bool _screenRegistered;
     private bool _disposed;
@@ -55,7 +57,8 @@ public sealed partial class LightingEngine : IDisposable
             ledDeviceOn: !(general?["disableLedsStartup"] is JsonValue v && v.TryGetValue(out bool off) && off),
             smoothingOn: smoothing.Enable,
             blackBorderOn: BorderEnabled(settings.GetSection("blackborderdetector")));
-        Layout = LedLayout.FromJson(settings.GetSection("leds"));
+        _setup = SetupFrom(settings);
+        Layout = LedLayout.FromJson(_setup.AllLeds());
         Sources = new PriorityManager(clock);
         _output = new OutputStage(devices, LedColors, clock, loggerFactory.CreateLogger<OutputStage>());
         _output.Configure(smoothing);
@@ -79,8 +82,18 @@ public sealed partial class LightingEngine : IDisposable
     /// <summary>Raised with the new <c>color.channelAdjustment</c> array after the color settings changed.</summary>
     public event Action<JsonArray>? AdjustmentChanged;
 
-    /// <summary>Raised with the new <c>leds</c> array after the layout changed.</summary>
+    /// <summary>Raised with the new <c>leds</c> array (every controller's LEDs) after the layout changed.</summary>
     public event Action<JsonArray>? LedsChanged;
+
+    /// <summary>Raised after the controllers changed: added, removed, other LEDs or driver settings.</summary>
+    public event Action? ControllersChanged;
+
+    /// <summary>Raised on a device thread when a controller changes state.</summary>
+    public event Action<DeviceInfo>? DeviceChanged
+    {
+        add => _devices.DeviceChanged += value;
+        remove => _devices.DeviceChanged -= value;
+    }
 
     /// <summary>Raised with "advanced" / "unicolor_mean" after the mapping type changed.</summary>
     public event Action<string>? MappingTypeChanged;
@@ -101,7 +114,11 @@ public sealed partial class LightingEngine : IDisposable
 
     public LedColorsFeed LedColors { get; } = new();
 
+    /// <summary>The LEDs of every controller, one controller after the other.</summary>
     public LedLayout Layout { get; private set; }
+
+    /// <summary>The controllers and their strips, as the settings describe them.</summary>
+    public ControllerSetup Setup => _setup;
 
     public LedMappingType MappingType => _pipeline.Config.Mapping.MappingType;
 
@@ -121,9 +138,9 @@ public sealed partial class LightingEngine : IDisposable
 
     public void Start()
     {
-        _devices.Configure(_settings.GetSection("device") as JsonObject, Layout.Count);
         lock (_applyLock)
         {
+            ApplySetup();
             UpdateScreenSource();
             UpdateOutput();
         }
@@ -131,7 +148,7 @@ public sealed partial class LightingEngine : IDisposable
         _output.Start();
         _pipeline.Start();
         Effects.Start();
-        LogStarted(Layout.Count, _source.Name);
+        LogStarted(Layout.Count, _setup.Controllers.Count, _source.Name);
     }
 
     /// <summary>Runs an effect (the <c>effect</c> command) for <paramref name="durationMs"/> ms (&lt;= 0: until cleared).</summary>
@@ -161,8 +178,12 @@ public sealed partial class LightingEngine : IDisposable
     public int AddSmoothingConfig(int configId, long settlingTimeMs, double updateFrequency, bool pause) =>
         _output.AddSmoothingConfig(configId, settlingTimeMs, updateFrequency, pause);
 
-    /// <summary>Blinks one LED on every controller (the UI's "find this LED").</summary>
-    public void IdentifyLed(int ledIndex) => _devices.Identify(ledIndex);
+    /// <summary>
+    /// Blinks one LED (the UI's "find this LED"): LED <paramref name="ledIndex"/> of controller
+    /// <paramref name="controllerId"/>, or without one the LED at that position among all controllers' LEDs.
+    /// </summary>
+    /// <returns>The controller and its own LED index, or null when there is no such LED or it isn't running.</returns>
+    public (string ControllerId, int LedIndex)? IdentifyLed(string? controllerId, int ledIndex) => _devices.Identify(controllerId, ledIndex);
 
     public void Dispose()
     {
@@ -189,6 +210,44 @@ public sealed partial class LightingEngine : IDisposable
         var mappingType = LedMappingTypes.Parse(color?["imageToLedMappingType"] is JsonValue t && t.TryGetValue(out string? s) ? s : null);
         var sparse = color?["sparse_processing"] is JsonValue sp && sp.TryGetValue(out bool b) && b;
         return new PipelineConfig(new LedMappingOptions(layout, mappingType, sparse), new ColorProcessor(adjustment));
+    }
+
+    private static ControllerSetup SetupFrom(ISettingsStore settings) =>
+        ControllerSetup.FromSettings(
+            settings.GetSection("layout"),
+            settings.GetSection("leds"),
+            settings.GetSection("device"),
+            settings.Controllers is [var first, ..] ? first.Name : "LED controller");
+
+    // Per-LED brightness from the strips' brightness, or null when every LED has full brightness.
+    private static float[]? GainsFor(ControllerSetup setup)
+    {
+        if (setup.Controllers.All(c => c.Strips.All(s => s.Brightness >= 1)))
+        {
+            return null;
+        }
+
+        var gains = new float[setup.LedCount];
+        Array.Fill(gains, 1f);
+        var start = 0;
+        foreach (var controller in setup.Controllers)
+        {
+            foreach (var strip in controller.Strips)
+            {
+                var from = Math.Min(start + strip.Start, gains.Length);
+                gains.AsSpan(from, Math.Min(strip.Length, gains.Length - from)).Fill((float)strip.Brightness);
+            }
+
+            start += controller.LedCount;
+        }
+
+        return gains;
+    }
+
+    private void ApplySetup()
+    {
+        _devices.Configure([.. _setup.Controllers.Select(c => new ControllerDevice(c.Id, c.Name, c.Device, c.LedCount, c.Enabled))]);
+        _output.SetLedGains(GainsFor(_setup));
     }
 
     // BlackBorderProcessor::handleSettingsUpdate reads "enable" with toBool(true); the schema default is false.
@@ -285,20 +344,25 @@ public sealed partial class LightingEngine : IDisposable
             }
 
             var previousType = _pipeline.Config.Mapping.MappingType;
-            if (change.Contains("leds"))
+            var controllersChanged = false;
+            if (change.Contains("layout") || change.Contains("leds") || change.Contains("device"))
             {
-                Layout = LedLayout.FromJson(change.Sections["leds"]);
+                var previous = _setup.AllLeds();
+                _setup = SetupFrom(_settings);
+                var allLeds = _setup.AllLeds();
+                if (!JsonNode.DeepEquals(previous, allLeds))
+                {
+                    Layout = LedLayout.FromJson(allLeds);
+                }
+
+                ApplySetup();
+                UpdateOutput();
+                controllersChanged = true;
             }
 
-            if (change.Contains("leds") || change.Contains("color"))
+            if (change.Contains("layout") || change.Contains("leds") || change.Contains("color"))
             {
                 _pipeline.Configure(BuildConfig(_settings.GetSection("color"), Layout));
-            }
-
-            if (change.Contains("leds") || change.Contains("device"))
-            {
-                _devices.Configure(_settings.GetSection("device") as JsonObject, Layout.Count);
-                UpdateOutput();
             }
 
             if (change.Sections.TryGetValue("smoothing", out var smoothing))
@@ -344,11 +408,16 @@ public sealed partial class LightingEngine : IDisposable
             {
                 MappingTypeChanged?.Invoke(type.ToSettingString());
             }
+
+            if (controllersChanged)
+            {
+                ControllersChanged?.Invoke();
+            }
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Lighting started: {Leds} LEDs, source '{Source}'")]
-    private partial void LogStarted(int leds, string source);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Lighting started: {Leds} LEDs on {Controllers} controller(s), source '{Source}'")]
+    private partial void LogStarted(int leds, int controllers, string source);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Component {Component} enabled: {On}")]
     private partial void LogComponent(Component component, bool on);

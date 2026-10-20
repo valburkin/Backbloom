@@ -39,6 +39,7 @@ public sealed partial class LedDeviceRunner : IDisposable
     private readonly Vector3[] _output;
     private readonly byte[] _bytes;
     private bool _hasPending;
+    private long _pendingSince;
 
     private volatile bool _enabled;
     private volatile bool _disposing;
@@ -125,6 +126,7 @@ public sealed partial class LedDeviceRunner : IDisposable
             }
 
             _hasPending = true;
+            _pendingSince = Stopwatch.GetTimestamp();
         }
 
         Signal();
@@ -311,6 +313,7 @@ public sealed partial class LedDeviceRunner : IDisposable
         }
 
         var hasNew = false;
+        long submittedAt = 0;
         lock (_frameLock)
         {
             if (_hasPending)
@@ -318,6 +321,7 @@ public sealed partial class LedDeviceRunner : IDisposable
                 (_pending, _current) = (_current, _pending);
                 _hasPending = false;
                 hasNew = true;
+                submittedAt = _pendingSince;
             }
         }
 
@@ -328,7 +332,10 @@ public sealed partial class LedDeviceRunner : IDisposable
             ApplyBlink();
             try
             {
-                Send(_output);
+                if (Send(_output) && hasNew)
+                {
+                    Stats.OnLatency(Stopwatch.GetTimestamp() - submittedAt);
+                }
             }
             catch (DeviceLostException ex)
             {
@@ -369,7 +376,7 @@ public sealed partial class LedDeviceRunner : IDisposable
         }
     }
 
-    private void Send(ReadOnlySpan<Vector3> colors)
+    private bool Send(ReadOnlySpan<Vector3> colors)
     {
         _lastWrite = Stopwatch.GetTimestamp();
         bool written;
@@ -391,6 +398,8 @@ public sealed partial class LedDeviceRunner : IDisposable
         {
             Stats.OnWriteError();
         }
+
+        return written;
     }
 
     private void Close()

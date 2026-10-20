@@ -22,6 +22,7 @@ export const SUBSCRIPTIONS = [
   'adjustment-update',
   'imageToLedMapping-update',
   'settings-update',
+  'controllers-update',
 ] as const;
 
 /** Priority and origin the UI uses for colors and effects it starts (the backend's web-UI slot). */
@@ -193,9 +194,13 @@ export class RpcApi {
 
   // ---- devices ----
 
-  /** Blink one LED of the current instance red → green → blue (~4.5 s). */
-  async blinkLed(index: number): Promise<void> {
-    await this.backend.call('leddevice', 'identify', { ledDeviceType: 'blink', params: { blinkIndex: index } });
+  /**
+   * Blink one LED red → green → blue (~4.5 s): LED `index` of the controller with that id, or without a controller
+   * the LED at that position among all controllers' LEDs.
+   */
+  async blinkLed(index: number, controllerId?: string): Promise<void> {
+    const params = controllerId === undefined ? { blinkIndex: index } : { blinkIndex: index, controller: controllerId };
+    await this.backend.call('leddevice', 'identify', { ledDeviceType: 'blink', params });
   }
 
   /** Devices the driver can find on the network / serial ports; `value` goes into the host or port setting. */

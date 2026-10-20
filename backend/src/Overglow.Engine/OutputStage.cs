@@ -30,6 +30,7 @@ public sealed partial class OutputStage : IDisposable
     private readonly Thread _thread;
     private Vector3[] _tickColors = [];
     private Vector3[] _emitColors = [];
+    private volatile float[]? _gains;
     private volatile bool _antiFlicker;
     private volatile bool _stopping;
     private bool _outputEnabled = true;
@@ -100,6 +101,12 @@ public sealed partial class OutputStage : IDisposable
         LogConfigured(settings.Enable, config.Type, config.SettlingTimeMs, config.UpdateIntervalMs, settings.AntiFlickeringFilter, settings.ContinuousOutput);
         _wake.Set();
     }
+
+    /// <summary>
+    /// Brightness per LED (the strips' <c>brightness</c>), applied to everything sent to the controllers and the live
+    /// preview after smoothing; null: full brightness. Used only while its length matches the frames.
+    /// </summary>
+    public void SetLedGains(float[]? gains) => _gains = gains;
 
     /// <summary>Switches smoothing on or off (the <c>SMOOTHING</c> component).</summary>
     public void SetSmoothingEnabled(bool enabled)
@@ -234,6 +241,14 @@ public sealed partial class OutputStage : IDisposable
             if (_antiFlicker)
             {
                 _filter.Apply(_emitColors);
+            }
+
+            if (_gains is { } gains && gains.Length == _emitColors.Length)
+            {
+                for (var i = 0; i < gains.Length; i++)
+                {
+                    _emitColors[i] *= gains[i];
+                }
             }
 
             _devices.Submit(_emitColors);

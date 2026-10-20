@@ -35,6 +35,8 @@ describe('loadLayout', () => {
     expect(res.source).toBe('legacy');
     expect(res.spec.controllers).toHaveLength(1);
     expect(res.spec.controllers[0].outputs.map((o) => o.length)).toEqual([91, 77]);
+    // the legacy device becomes the controller's driver settings
+    expect(res.spec.controllers[0].device).toEqual((await api.getConfig()).device);
     // Re-compiling the imported legacy layout reproduces the original rects.
     const leds = compileLayout(res.spec)[0].leds;
     expect(leds).toHaveLength(legacyLeds.length);
@@ -74,8 +76,8 @@ describe('saveLayout', () => {
     const { spec } = await loadLayout(api, { admin: true, serverInfo: si });
     const edited: LayoutSpec = { ...spec, strips: spec.strips.map((s, i) => (i === 0 ? { ...s, name: 'Renamed' } : s)) };
     const before = await api.getConfig();
-    const res = await saveLayout(api, edited, si);
-    expect(res).toMatchObject({ instance: 0, ledCount: 168, layoutPersisted: true });
+    const res = await saveLayout(api, edited);
+    expect(res).toEqual({ ledCount: 168, controllers: 1, layoutPersisted: true });
     const after = await api.getConfig();
     expect(isLayoutSpec(after.layout)).toBe(true);
     expect((after.layout as LayoutSpec).strips[0].name).toBe('Renamed');
@@ -83,12 +85,29 @@ describe('saveLayout', () => {
     expect((after.leds as unknown[]).length).toBe(168);
   });
 
-  it('refuses multi-controller layouts', async () => {
+  it('saves layouts that span several controllers', async () => {
     const { api } = await connected();
-    const c = { id: 'a', name: 'A', kind: 'wled' as const, host: 'a', outputs: [] };
-    const spec: LayoutSpec = { version: 1, controllers: [c, { ...c, id: 'b' }], strips: [] };
-    await expect(saveLayout(api, spec, null)).rejects.toThrow(/single-controller/);
-    expect(saveBlockers(spec, 0).map((b) => b.reason)).toEqual(['multiController']);
+    const { spec } = await loadLayout(api, { admin: true, serverInfo: await api.serverInfo() });
+    const desk = { id: 'desk', name: 'Desk', kind: 'ddp', host: '', outputs: [{ index: 0, start: 0, length: 30 }], device: { type: 'ddp', host: '10.0.0.9' } };
+    const multi: LayoutSpec = {
+      ...spec,
+      controllers: [...spec.controllers, desk],
+      strips: [...spec.strips, { id: 'desk-strip', name: 'Desk strip', controllerId: 'desk', output: 0, brightness: 0.5, segments: [{ kind: 'edge', count: 30, edge: 'left', from: 0, to: 1, depth: 0.1 }] }],
+    };
+    expect(saveBlockers(multi, 0)).toEqual([]);
+
+    expect(await saveLayout(api, multi)).toEqual({ ledCount: 198, controllers: 2, layoutPersisted: true });
+
+    const after = await api.getConfig();
+    expect((after.leds as unknown[]).length).toBe(198);
+    expect((after.layout as LayoutSpec).controllers[1].device).toEqual({ type: 'ddp', host: '10.0.0.9' });
+    const info = await api.serverInfo();
+    expect(info.controllers?.map((c) => [c.id, c.start, c.ledCount])).toEqual([
+      [spec.controllers[0].id, 0, 168],
+      ['desk', 168, 30],
+    ]);
+    await api.blinkLed(4, 'desk');
+    await expect(api.blinkLed(30, 'desk')).rejects.toThrow(/no LED 30/);
   });
 
   it('saveBlockers reports errors and missing controllers', () => {

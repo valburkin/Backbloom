@@ -89,6 +89,10 @@ export function StripPanel({
                     )}
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <CountBadge count={count} length={out?.length} />
+                      {spec.controllers.length > 1 && !selected && (
+                        <span className="truncate text-xs text-ink-faint">{spec.controllers.find((c) => c.id === strip.controllerId)?.name}</span>
+                      )}
+                      {strip.brightness !== undefined && strip.brightness < 1 && <Badge>{Math.round(strip.brightness * 100)} %</Badge>}
                       {errors > 0 && <Badge tone="bad">{errors} problem{errors === 1 ? '' : 's'}</Badge>}
                     </div>
                   </div>
@@ -144,6 +148,24 @@ export function StripPanel({
                       <Trash2 size={15} />
                     </IconButton>
                   </div>
+                )}
+                {selected && (
+                  <label className="flex items-center gap-2 border-t border-line px-3 py-2 text-xs text-ink-muted">
+                    Brightness
+                    <input
+                      type="range"
+                      aria-label={`Brightness of ${strip.name}`}
+                      className="min-w-0 flex-1"
+                      min={0}
+                      max={100}
+                      value={Math.round((strip.brightness ?? 1) * 100)}
+                      onChange={(e) => {
+                        const v = Number(e.target.value) / 100;
+                        dispatch({ type: 'updateStrip', stripId: strip.id, patch: { brightness: v >= 1 ? undefined : v }, coalesce: `strip-brightness-${strip.id}` });
+                      }}
+                    />
+                    <span className="w-10 text-right tabular-nums text-ink">{Math.round((strip.brightness ?? 1) * 100)} %</span>
+                  </label>
                 )}
               </div>
             </li>

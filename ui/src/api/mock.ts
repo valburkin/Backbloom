@@ -8,6 +8,7 @@ import {
   type BackendConfig,
   type CallOptions,
   type ConnectionStatus,
+  type ControllerInfo,
   type JsonSchema,
   type PerformanceReport,
   type PriorityInfo,
@@ -17,6 +18,7 @@ import {
 } from './types';
 import { propertyAt, validate } from '../schema/schema';
 import { setIn } from '../settings/drafts';
+import { compileLayout, type DriverSettings, type LayoutSpec } from '../layout';
 
 export interface MockOptions {
   /** Require a password before config access (password: MOCK_PASSWORD). */
@@ -92,8 +94,8 @@ export class MockBackend implements Backend {
   /** Adjustments applied with the `adjustment` command since the color settings were last saved. */
   private runtimeAdjustment: Record<string, unknown> | null = null;
   private logSeq = 0;
-  /** Log of LED indexes blinked, for tests / debugging. */
-  readonly blinks: number[] = [];
+  /** Log of LEDs blinked (controller id, or none for an index over all LEDs), for tests / debugging. */
+  readonly blinks: Array<{ index: number; controller?: string }> = [];
 
   constructor(options: MockOptions = {}) {
     this.latencyMs = options.latencyMs ?? 60;
@@ -302,9 +304,14 @@ export class MockBackend implements Backend {
     switch (subcommand) {
       case 'identify':
         if (type === 'blink') {
-          const idx = Number((params.params as { blinkIndex?: number } | undefined)?.blinkIndex);
-          this.blinks.push(idx);
-          console.info(`[mock] blink LED ${idx}`);
+          const p = (params.params ?? {}) as { blinkIndex?: number; controller?: string };
+          const index = Number(p.blinkIndex);
+          const controller = this.controllers().find((c) => (p.controller === undefined ? index >= c.start && index < c.start + c.ledCount : c.id === p.controller));
+          const local = p.controller === undefined && controller ? index - controller.start : index;
+          if (!controller || local < 0 || local >= controller.ledCount) return fail(`There is no LED ${index}${p.controller ? ` on controller "${p.controller}"` : ''}`);
+          this.blinks.push(p.controller === undefined ? { index } : { index, controller: p.controller });
+          console.info(`[mock] blink LED ${local} of ${controller.name}`);
+          return { controller: controller.id, blinkIndex: local };
         }
         return undefined;
       case 'discover': {
@@ -329,9 +336,26 @@ export class MockBackend implements Backend {
     }
   }
 
+  /**
+   * Like the backend: a saved layout is the source of truth. Each controller keeps its driver settings (by id, else
+   * the legacy `device` for the first one), `leds` becomes every controller's LEDs and `device` the first one's.
+   */
+  private applyLayout(next: BackendConfig): BackendConfig {
+    const spec = next.layout as LayoutSpec | undefined;
+    if (!spec || !Array.isArray(spec.controllers) || spec.controllers.length === 0) return next;
+    const previous = (this.config.layout as LayoutSpec | undefined)?.controllers ?? [];
+    const controllers = spec.controllers.map((c, i) => ({
+      ...c,
+      device: c.device ?? previous.find((p) => p.id === c.id)?.device ?? (i === 0 && !this.config.layout ? (this.config.device as DriverSettings) : { type: 'file', output: '/dev/null' }),
+    }));
+    const layout = { ...spec, controllers };
+    return { ...next, layout, leds: compileLayout(layout).flatMap((c) => c.leds), device: controllers[0].device };
+  }
+
   /** Partial setconfig: replace the sent sections; like the backend, reset invalid values to their defaults. */
-  private writeConfig(next: BackendConfig): void {
+  private writeConfig(sent: BackendConfig): void {
     const schema = this.fx!.schema;
+    const next = this.applyLayout(sent);
     for (const [section, value] of Object.entries(next)) {
       let fixed = value;
       const s = schema.properties[section] as JsonSchema | undefined;
@@ -386,7 +410,35 @@ export class MockBackend implements Backend {
       adjustment: [clone(this.activeAdjustment())] as ServerInfo['adjustment'],
       imageToLedMappingType: color.imageToLedMappingType,
       leds: clone(this.config.leds) as ServerInfo['leds'],
+      controllers: this.controllers(),
     };
+  }
+
+  /** `serverinfo.controllers`: the layout's controllers, else the one legacy controller. */
+  private controllers(): ControllerInfo[] {
+    const spec = this.config.layout as LayoutSpec | undefined;
+    const running = !!this.components.get('ALL') && !!this.components.get('LEDDEVICE');
+    const list = spec?.controllers?.length
+      ? spec.controllers.map((c) => ({
+          id: c.id,
+          name: c.name,
+          type: String(c.device?.type ?? c.kind),
+          enabled: c.enabled !== false,
+          ledCount: c.outputs.reduce((n, o) => Math.max(n, o.start + o.length), 0),
+          strips: spec.strips
+            .filter((s) => s.controllerId === c.id)
+            .map((s) => {
+              const o = c.outputs.find((x) => x.index === s.output);
+              return { id: s.id, name: s.name, start: o?.start ?? 0, length: o?.length ?? 0, brightness: s.brightness ?? 1 };
+            }),
+        }))
+      : [{ id: 'controller-1', name: 'LED controller', type: String((this.config.device as { type?: string })?.type ?? ''), enabled: true, ledCount: ((this.config.leds as unknown[]) ?? []).length, strips: [] }];
+    let start = 0;
+    return list.map((c) => {
+      const info: ControllerInfo = { ...c, running: c.enabled, state: running && c.enabled ? 'ready' : 'off', status: null, start };
+      start += c.ledCount;
+      return info;
+    });
   }
 
   private activeAdjustment(): Record<string, unknown> {
@@ -442,9 +494,24 @@ export class MockBackend implements Backend {
 
   private emitPerformance(): void {
     const jitter = () => Math.round(Math.random() * 10) / 10;
+    const leds: PerformanceReport[] = this.controllers().map((c, i) => ({
+      type: 3,
+      id: i,
+      name: c.type,
+      param1: c.running ? 49.6 + jitter() : 0,
+      param2: 2980,
+      param3: 1790,
+      param4: 0,
+      token: 1,
+      remove: 0,
+      controller: c.id,
+      controllerName: c.name,
+      ledCount: c.ledCount,
+      latencyMs: 0.4 + jitter() / 10,
+    }));
     const reports: PerformanceReport[] = [
       { type: 2, id: 0, name: 'First LED instance', param1: 29.8 + jitter(), param2: 0, param3: 0, param4: 0, token: 1, remove: 0 },
-      { type: 3, id: 0, name: 'wled', param1: 49.6 + jitter(), param2: 2980, param3: 1790, param4: 0, token: 1, remove: 0 },
+      ...leds,
       {
         type: 4,
         id: -1,

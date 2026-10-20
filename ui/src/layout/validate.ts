@@ -122,6 +122,18 @@ export function validateLayout(spec: LayoutSpec): LayoutIssue[] {
       }
     }
     const sorted = [...c.outputs].sort((a, b) => a.start - b.start);
+    // The controller's LEDs are its outputs one after the other, so its LED count is their sum (as the backend checks).
+    let end = 0;
+    for (const o of sorted) {
+      if (isInt(o.start) && o.start > end) {
+        add(
+          'error',
+          `${capitalize(outputLabel(o))} of ${controllerLabel(c)} starts at LED ${o.start}, leaving LEDs ${end}–${o.start - 1} ` +
+            'without an output. Outputs must follow each other from LED 0.',
+        );
+      }
+      end = Math.max(end, o.start + o.length);
+    }
     for (let i = 1; i < sorted.length; i++) {
       const prev = sorted[i - 1];
       const cur = sorted[i];
@@ -148,6 +160,9 @@ export function validateLayout(spec: LayoutSpec): LayoutIssue[] {
     s.segments.forEach((seg, i) =>
       validateSegment(seg, `Segment ${i + 1} of ${stripLabel(s)}`, (sev, msg) => add(sev, capitalize(msg), i)),
     );
+    if (s.brightness !== undefined && !(Number.isFinite(s.brightness) && s.brightness >= 0 && s.brightness <= 1)) {
+      add('error', `${label} has a brightness of ${String(s.brightness)}; it must be between 0 and 100 %.`);
+    }
 
     const c = controllers.get(s.controllerId);
     if (!c) {

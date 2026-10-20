@@ -203,7 +203,8 @@ public sealed class MqttIntegrationTests : IAsyncLifetime
             discovery["effect_list"]!.AsArray().Select(m => m!.GetValue<string>()));
         Assert.StartsWith("overglow_", discovery["unique_id"]!.GetValue<string>(), StringComparison.Ordinal);
 
-        var state = JsonNode.Parse(Next("Overglow/light/state").Payload)!;
+        // the screen becomes visible with its first frame, which may come after the first state was published
+        var state = JsonNode.Parse(Next("Overglow/light/state", p => p.Contains(HomeAssistantLight.ScreenEffect, StringComparison.Ordinal)).Payload)!;
         Assert.Equal("ON", state["state"]!.GetValue<string>());
         Assert.Equal(HomeAssistantLight.ScreenEffect, state["effect"]!.GetValue<string>());
 

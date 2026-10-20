@@ -4,7 +4,7 @@ The C# / .NET 10 port of the Overglow backend. The C++ code in `sources/` and `i
 implementation: behavior is ported from it file by file and compared with golden fixtures exported from it. It is
 deleted once this backend reaches parity.
 
-Status: **port steps 1-4, 5a, 5b and 6a** (engine features: smoothing, priorities, black borders, system load; see
+Status: **port steps 1-4, 5a, 5b, 6a and 6b** (engine features: smoothing, priorities, black borders, system load; see
 [Engine features](#engine-features-port-step-5a); effects and music mode, see
 [Effects and music mode](#effects-and-music-mode-port-step-5b)). The React UI in `ui/` connects to it, screen capture
 (or a synthetic test pattern) drives the LEDs through the real mapping and color pipeline, and every LED driver of the
@@ -14,7 +14,8 @@ exported from the C++ reference exactly. Settings (port step 4) live in SQLite, 
 HyperHDR databases. Windows screen capture with HDR tone mapping (port step 3) drives the pipeline from the
 `systemGrabber` settings; see [Screen capture](#screen-capture-windows). Port step 6c makes it a desktop app (tray
 icon, a window with the UI, single instance, autostart, sleep and lock handling, log file; see
-[Desktop shell](#desktop-shell-port-step-6c)) and adds the [MQTT integration](#mqtt-integration).
+[Desktop shell](#desktop-shell-port-step-6c)) and adds the [MQTT integration](#mqtt-integration). Port step 6b drives
+several LED controllers from one layout (see [LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)).
 
 Portions of this code are ported from [HyperHDR](https://github.com/awawa-dev/HyperHDR) (MIT, copyright awawa-dev);
 the source file each part comes from is named in its doc comments.
@@ -123,7 +124,7 @@ the C++ fixtures by `Core.Tests`; `Audio` only gets the sound into that analysis
 | Frame loop (1, above-normal priority) | `LightingPipeline` | capture (or step the visible effect) -> map -> process -> hand frames to controllers and the preview feed |
 | Sound capture (1 while a music effect runs, above-normal) | `WasapiSession` | read the device's buffers, convert them into blocks, analyze each block |
 | Smoothing (1, above-normal priority) | `OutputStage` | while smoothing runs: one tick per update interval (interpolate, anti-flicker filter, hand the frame to the controllers and the preview); idle otherwise |
-| One per controller | `LedDeviceRunner` | open (with retries), send the newest frame, refresh, blink, close |
+| One per controller | `LedDeviceRunner` | open (with retries), send the newest frame (its slice of the LEDs), refresh, blink, close |
 | Thread pool | ASP.NET Core | JSON-RPC requests (in order per connection), event pushes, LED stream timers |
 | UI (1, STA, Windows) | `UiThread` | Win32 message loop: hidden message window (power/session notifications, tray callbacks), tray menu, WebView2 window |
 | Log file (1, below normal) | `RollingFileLoggerProvider` | writes queued log lines |
@@ -133,7 +134,8 @@ the C++ fixtures by `Core.Tests`; `Audio` only gets the sound into that analysis
   the stats), never queued.
 - Settings changes arrive on request threads. They build new immutable objects (`PipelineConfig`: LED map options +
   `ColorProcessor`) and swap them in with one reference write; the frame loop picks them up on its next frame.
-- Controllers are recreated when `device` or `leds` change; the old one is switched off (black frame, power off) first.
+- When `layout`, `device` or `leds` change, a controller is recreated only if its driver settings, name or LED count
+  changed (the old one is switched off first: black frame, power off); the others keep running at their new position.
 - Events (`*-update`) are raised on the thread that caused the change; each WebSocket session serializes them into
   its own outbound queue, drained by one send loop.
 
@@ -226,8 +228,9 @@ raising the system timer resolution, which Qt's precise timer (`timeSetEvent`, 1
 integers (C++ rounded them through `float`, which loses millisecond precision after 4.6 hours of uptime). After a
 smoothing restart a static color is drawn again, so the next change still fades (HyperHDR re-ran its LED update).
 
-Measured (Release, `SmoothingProfile`, explicit test): owner's 168 LEDs, synthetic source at 60 fps, four file
-controllers to the null device: 1.25 % of one core without smoothing, 1.72 % with HybridRgb at 50 Hz. Neither path
+Measured (Release, then `SmoothingProfile`, explicit test): owner's 168 LEDs, synthetic source at 60 fps, four file
+controllers to the null device: 1.25 % of one core without smoothing, 1.72 % with HybridRgb at 50 Hz (the test is now
+`PipelineProfile`, see [LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)). Neither path
 allocates (`Pipeline_SteadyStateDoesNotAllocate`, `SmoothingTicks_DoNotAllocate`).
 
 ### Sources and priorities
@@ -461,6 +464,80 @@ Port of `sources/mqtt` on top of the shared `MqttConnection` (MQTTnet), in `Over
 | Availability (new) | `<topic>/status`: `online` (retained) after every connect, `offline` as the connection's last will and published before a clean disconnect. |
 | Home Assistant (new) | With `homeAssistantDiscovery` (new setting, default on): a retained discovery config on `homeassistant/light/overglow_<id>/light/config` (JSON schema, RGB, brightness, effect list "Screen sync" plus every effect and music effect, device = `general.name`), commands on `<topic>/light/set` (`OFF` -> `ALL` off; `ON` -> on; a color -> static color at priority 1 scaled by the brightness; effect "Screen sync" -> colors cleared, capture on; any other effect -> runs at priority 1) and the retained state on `<topic>/light/state`, published on every change from any client. Switching discovery off removes the entity (empty retained config). |
 
+## LED controllers and the layout (port step 6b)
+
+One capture, one mapping pass, many controllers on one clock: users think in strips, and a strip is wired to an output
+of a controller. There are no per-controller pipelines ("instances").
+
+**Data model.** The `layout` setting (the UI's `LayoutSpec`, `ui/src/layout/types.ts`) is the source of truth:
+
+```
+{ version: 1,
+  controllers: [{ id, name, enabled?, kind?, host?, outputs: [{ index, start, length, pin? }],
+                  device: { type, colorOrder, refreshTime, ...driver settings } }],
+  strips: [{ id, name, controllerId, output, brightness?, segments: [edge | fixed | off] }] }
+```
+
+`Overglow.Settings/Layout`: `LayoutSpecification.Normalize` validates it (rejecting with `layout.<path>` errors, like
+every setting) and fills in each controller's `device`; `Compile` turns it into one sampling area per LED per
+controller, exactly like the UI's `compileLayout` (both are checked against
+`tests/fixtures/layouts/ui-multi-controller.*.json`); `ControllerSetup` is what the engine runs. Rules: at least one
+controller; unique controller and strip ids; a controller's outputs have unique indexes, at least 1 LED each, and follow
+each other from LED 0 without gaps or overlaps, so its LED count is the sum of its outputs (at most 10,000); a strip
+names an existing controller and output (one strip per output) and has at most as many LEDs as the output (fewer: the
+rest stays dark, the UI warns); `brightness` 0..1; each `device` is validated against its driver's schema (defaults
+filled in). Properties the backend doesn't use (`kind`, `host`, `pin`, ...) are kept.
+
+The store keeps the other sections consistent with it, in the same transaction:
+
+| Saved | Effect |
+|---|---|
+| `layout` | `leds` = every controller's LEDs one after the other; `device` = the first controller's; the `controllers` table mirrors the layout (ids 0..N-1, name, enabled, device; backups and HyperHDR-format exports keep working). A controller sent without `device` keeps the one it had (by id), else (first save after an import) the stored controller at its position, else the default (`file`). `leds` sent along is replaced by the derived one. |
+| `device` (old clients) | changes the first controller of the layout |
+| `leds` (old clients, HyperHDR's LED editor) | unchanged: nothing happens. Different, with a one-controller layout: the layout is removed and `leds` + `device` describe the LEDs again; with several controllers: rejected ("save the layout instead") |
+| neither (a HyperHDR import, no layout saved yet) | the legacy controller: `device` driving `leds`, id `controller-1` |
+
+**Migration.** Nothing is rewritten: a configuration without `layout` (every HyperHDR import) runs as one controller
+from `leds` + `device`, as before; the first layout saved by the UI takes over (the UI builds it from those two and
+keeps the device). A layout stored by the previous version (without devices, one controller) gets the stored
+controller's device on load; an invalid stored layout is ignored with a warning (the LEDs follow `leds` + `device`).
+Imported HyperHDR instances beyond the first are still stored as controllers but get LEDs only when a layout uses them.
+
+**Engine.** The mapping runs once per frame over the union of all controllers' LEDs (the pipeline's `LedLayout` is
+`leds`), so N controllers cost one `ImageToLedMap` pass, one color pass and one smoother, exactly like one controller
+with that many LEDs; per-controller rect sets would only add work. `DeviceManager` gives controller N the slice that
+follows controllers 0..N-1 (`Submit` hands each runner a `ReadOnlySpan` slice; no allocation), every controller gets
+every frame from the same thread, and each runner sends on its own thread, so a slow, unreachable or retrying controller
+only drops its own frames (`MultiControllerTests`: a driver whose writes take 300 ms doesn't delay the others or
+`Submit`). Strip brightness is a per-LED gain applied after smoothing and the anti-flicker filter (`OutputStage`;
+null when every strip is at 100 %), so the preview shows it too. Each runner measures the time from `Submit` until the
+driver had written the frame (`FrameStats` latency).
+
+**Protocol** (additions; old single-controller clients keep working):
+
+| | |
+|---|---|
+| `config getconfig` / `setconfig` | `layout` with every controller's `device`; `leds` (all LEDs) and `device` (first controller) as above |
+| `serverinfo.controllers`, event `controllers-update` | `[{ id, name, type, enabled, running, state, status, start, ledCount, strips: [{ id, name, start, length, brightness }] }]`; `start` is the controller's first LED in `leds` and in the LED stream, a strip's `start` counts within its controller; the event follows layout changes and state changes (ready, retrying, ...) |
+| `performance-update` | one LED report (type 3) per controller: `id` = position, `param1` updates/s, `param2` written, `param3` submitted, `param4` dropped since the last report, plus `controller`, `controllerName`, `ledCount`, `state`, `latencyMs` |
+| `leddevice identify` `blink` | `params: { blinkIndex, controller? }`: `controller` is an id (or a position); without it `blinkIndex` counts over all LEDs (old clients, one controller: unchanged). Replies `{ controller, blinkIndex }`; an LED that doesn't exist or a controller that isn't running is an error |
+| `ledcolors` stream | `leds` covers every controller's LEDs; each message and the `ledstream-start` reply carry `controllers: [{ id, start, length }]` |
+
+**UI** (`ui/`): the Layout page saves layouts with any number of controllers (`saveLayout` sends `layout`, plus the
+compiled `leds` for backends that don't compile layouts); the Devices page lists every controller with its outputs, an
+on/off switch, its state and its driver settings (the schema form per controller, saved with the layout), and adds
+WLED controllers (outputs read from the device) or controllers of any other driver (LED count entered); Find LED and
+the driver test blink address a controller; each strip has a brightness slider; Home lists the LED updates and delay
+per controller when there are several.
+
+Measured (Release, synthetic source at 60 fps, smoothing off, file controllers writing to the null device, process CPU
+over 30-60 s, 24 logical cores, other load on the machine): the owner's 168 LEDs on one controller 0.8-1.1 % of one
+core; the same plus two test strips (30 and 20 LEDs) on two more controllers 0.9-1.9 %; noise dominates the
+difference. `PipelineProfile` (explicit test, in process): 0.5 % (1 controller) vs 0.5-1.3 % (3 controllers); every
+controller written at 60.0 (50.0 with smoothing) frames/s. A live run with three file controllers (91 + 77 LEDs on A,
+30 on B, 20 on C) wrote exactly 168 / 30 / 20 LEDs per line, each line equal to its own slice of the live stream's
+frames and never to another position, all three at 60.06 updates/s, latency 0.03 ms.
+
 ## JSON-RPC protocol
 
 Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): requests
@@ -474,7 +551,7 @@ Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): r
 | `save-db`, `load-db` | done (backups in the C++ export format; HyperHDR backups are accepted) |
 | `componentstate` ALL, SMOOTHING, BLACKBORDER, SYSTEMGRABBER, LEDDEVICE | done |
 | `color`, `clear`, `clearall`, `sourceselect` | done (see [Sources and priorities](#sources-and-priorities)) |
-| `adjustment`, `ledcolors` ledstream-start/stop, `leddevice` identify/discover/getProperties, `logging`, `instance` switchTo | done |
+| `adjustment`, `ledcolors` ledstream-start/stop, `leddevice` identify/discover/getProperties, `logging`, `instance` switchTo | done (several controllers: see [LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)) |
 | `effect` (`priority` 1..253, `effect.name`, `duration`, `origin`) | done (see [Effects](#effects)); `effect.args`, `pythonScript` and `imageData` are rejected (C++ rejected arguments too) |
 | `image`, imagestream | not yet ("Command not implemented") |
 
@@ -527,10 +604,11 @@ many controllers:
 |---|---|
 | global types (`general`, `logger`, `network`, `webConfig`, `mqtt`, `systemGrabber`, `soundEffect`, `layout`) | pipeline sections |
 | per-instance types of the first instance (`leds`, `ledConfig`, `color`, `smoothing`, `blackborderdetector`, `foregroundEffect`, `backgroundEffect`, `effects`, `systemControl`) | pipeline sections |
-| `device` of instance N (in instance order), name and enabled flag from `instances` | controller N; controller 0 is the `device` of `getconfig`/`setconfig` |
+| `device` of instance N (in instance order), name and enabled flag from `instances` | controller N; controller 0 is the `device` of `getconfig`/`setconfig` (with a `layout`, the table mirrors its controllers) |
 | per-instance settings of further instances | not imported (reported) |
 
-The engine drives controller 0 today; the other controllers are stored for the multi-controller work.
+Without a `layout` the engine drives controller 0 (`device` + `leds`); a saved layout describes every controller (see
+[LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)).
 
 **Import** (`SettingsImporter`, `LegacyMigrations`, ported from InstanceConfig, SettingsMigration, LegacyMigration and
 AccessManager/AuthTable): reads HyperHDR v17 to 24-beta databases (`hyperhdr_instance` column, user `Hyperhdr`) and
@@ -619,14 +697,18 @@ tolerance.
   the owner has chosen an interpolator.
 - Drivers: RGBW dithering uses the device's `refreshTime` rather than the smoothing clock. The Hue API v2 channel
   identify (flashing a channel of a running stream) isn't ported. Serial USB ids are read from the Windows device path
-  (Linux/macOS list the ports without them). Only controller 0 runs, as before.
+  (Linux/macOS list the ports without them).
 - Screen capture: rotated monitors are captured in scanout orientation (the C++ grabber mis-scaled them); the
   "please wait" image while the default LUT is built is not shown (frames pass without the LUT for ~0.3 s);
   `serverinfo.systemGrabbers.modes` lists only the captured monitor (Engine/Server should list `Monitors`); the
   duplication stays open while `SYSTEMGRABBER` is off; HDR content has no highlight roll-off (clipped at SDR white, as
   in C++). The desktop tests skip when the desktop delivers no frames (monitor off).
-- Multiple controllers: the store keeps a list of controllers and `DeviceManager` fans out to a list, but the engine
-  and the protocol still use controller 0 (`device`) only.
+- Multiple controllers: the UI reads WLED outputs itself (browser fetch); other drivers get their LED count typed in
+  (no driver reports it yet). Strip brightness scales the processed (gamma-encoded) values, not linear light. Old
+  clients that save `leds` remove a one-controller layout (by design) and can't change a multi-controller one. The
+  imported HyperHDR instances' own LED layouts aren't converted (they had their own `leds`); MQTT/Home Assistant
+  brightness still applies to all controllers. The `instance` command still reports one instance (controllers aren't
+  instances).
 - The UI's restore dialog still says the app closes to apply a backup; it doesn't any more.
 - Desktop shell: only Windows has a tray, window and power events; macOS/Linux run headless. The tray menu uses the light system menu style (no dark mode). The
   WebView2 window doesn't sign in by itself (the UI asks for the password unless `network.localAdminAuth` is off).

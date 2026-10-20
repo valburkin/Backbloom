@@ -117,10 +117,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     setSaving(true);
     const spec = state.spec;
     try {
-      const res = await saveLayout(conn.api, spec, conn.serverInfo);
+      const res = await saveLayout(conn.api, spec);
       dispatch({ type: 'markSaved', spec });
       setLoad((l) => ({ ...l, source: 'saved', note: undefined }));
-      if (res.layoutPersisted) toast('ok', 'Layout saved', `${res.ledCount} LEDs are now mapped to your screen.`);
+      if (res.layoutPersisted)
+        toast('ok', 'Layout saved', `${res.ledCount} LEDs${res.controllers > 1 ? ` on ${res.controllers} controllers` : ''} are now mapped to your screen.`);
       else
         toast(
           'info',

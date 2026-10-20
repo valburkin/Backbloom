@@ -1,7 +1,7 @@
 {
   "type": "object",
   "required": true,
-  "comment": "High-level LED layout (LayoutSpec) owned by the new UI. Validated deeply by the UI; the backend only checks the envelope.",
+  "comment": "LED layout (the UI's LayoutSpec): controllers with outputs and driver settings, strips wired to outputs. The envelope is checked here; Layout/LayoutSpecification validates the rest.",
   "properties": {
     "version": {
       "type": "integer",

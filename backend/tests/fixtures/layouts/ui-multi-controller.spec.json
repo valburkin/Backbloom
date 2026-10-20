@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "controllers": [
+    {
+      "id": "wled-monitor-local",
+      "name": "Monitor and ceiling",
+      "kind": "wled",
+      "host": "wled-monitor.local",
+      "outputs": [
+        { "index": 0, "start": 0, "length": 91, "pin": 16 },
+        { "index": 1, "start": 91, "length": 77, "pin": 2 }
+      ],
+      "device": { "type": "file", "output": "a.txt", "printTimeStamp": false, "colorOrder": "rgb" }
+    },
+    {
+      "id": "desk",
+      "name": "Desk",
+      "kind": "file",
+      "host": "",
+      "outputs": [{ "index": 0, "start": 0, "length": 30 }],
+      "device": { "type": "file", "output": "b.txt", "printTimeStamp": false }
+    },
+    {
+      "id": "shelf",
+      "name": "Shelf",
+      "kind": "file",
+      "host": "",
+      "outputs": [
+        { "index": 0, "start": 0, "length": 10 },
+        { "index": 1, "start": 10, "length": 15 }
+      ],
+      "device": { "type": "file", "output": "c.txt", "printTimeStamp": false, "colorOrder": "grb" }
+    }
+  ],
+  "strips": [
+    {
+      "id": "monitor",
+      "name": "Monitor",
+      "controllerId": "wled-monitor-local",
+      "output": 0,
+      "segments": [
+        { "kind": "edge", "count": 18, "edge": "bottom", "from": 1, "to": 0.5, "depth": 0.2, "blend": 1.2 },
+        { "kind": "fixed", "count": 5, "area": { "hmin": 0.42, "hmax": 0.58, "vmin": 0.8, "vmax": 1 } },
+        { "kind": "edge", "count": 9, "edge": "bottom", "from": 0.5, "to": 1.0127, "depth": 0.12, "blend": 1.2 },
+        { "kind": "edge", "count": 7, "edge": "right", "from": 0.97, "to": 0.03, "depth": 0.0502, "blend": 1.2 },
+        { "kind": "edge", "count": 18, "edge": "top", "from": 1.0127, "to": -0.0127, "depth": 0.12, "blend": 1.2 },
+        { "kind": "edge", "count": 7, "edge": "left", "from": 0.03, "to": 0.97, "depth": 0.0502, "blend": 1.2 },
+        { "kind": "edge", "count": 9, "edge": "bottom", "from": -0.0127, "to": 0.5, "depth": 0.12, "blend": 1.2 },
+        { "kind": "fixed", "count": 5, "area": { "hmin": 0.42, "hmax": 0.58, "vmin": 0.8, "vmax": 1 } },
+        { "kind": "edge", "count": 13, "edge": "bottom", "from": 0.5, "to": 0, "depth": 0.2, "blend": 1.2 }
+      ]
+    },
+    {
+      "id": "ceiling",
+      "name": "Ceiling",
+      "controllerId": "wled-monitor-local",
+      "output": 1,
+      "segments": [{ "kind": "edge", "count": 77, "edge": "top", "from": 1, "to": 0, "depth": 0.25, "blend": 5 }]
+    },
+    {
+      "id": "desk-strip",
+      "name": "Desk strip",
+      "controllerId": "desk",
+      "output": 0,
+      "segments": [
+        { "kind": "edge", "count": 28, "edge": "left", "from": 1, "to": 0, "depth": 0.1 },
+        { "kind": "off", "count": 2 }
+      ]
+    },
+    {
+      "id": "shelf-top",
+      "name": "Shelf top",
+      "controllerId": "shelf",
+      "output": 0,
+      "segments": [{ "kind": "fixed", "count": 10, "area": { "hmin": 0.25, "hmax": 0.75, "vmin": 0, "vmax": 0.3333 } }]
+    },
+    {
+      "id": "shelf-side",
+      "name": "Shelf side",
+      "controllerId": "shelf",
+      "output": 1,
+      "brightness": 0.5,
+      "segments": [{ "kind": "edge", "count": 12, "edge": "right", "from": 0.1, "to": 0.9, "depth": 0.07, "blend": 0.8 }]
+    }
+  ]
+}

@@ -63,6 +63,8 @@ export interface Strip {
   /** ControllerOutput.index this strip is wired to. */
   output: number;
   segments: Segment[];
+  /** Scale for this strip's colors, 0..1 (e.g. a brighter ceiling strip). Default 1. */
+  brightness?: number;
 }
 
 /** One physical data output of a controller, occupying [start, start + length) of the controller's LED index space. */
@@ -73,15 +75,26 @@ export interface ControllerOutput {
   pin?: number;
 }
 
-export type ControllerKind = 'wled';
+/**
+ * 'wled': the outputs are read from the WLED controller at `host`; anything else (the driver type, e.g. 'ddp',
+ * 'adalight', 'file') means the outputs are entered by hand.
+ */
+export type ControllerKind = 'wled' | (string & {});
+
+/** LED driver settings of one controller: the backend's `device` section shape (`type` + the driver's settings). */
+export type DriverSettings = Record<string, unknown> & { type?: string };
 
 export interface Controller {
   id: string;
   name: string;
   kind: ControllerKind;
-  /** Hostname or IP. */
+  /** Hostname or IP (WLED controllers; empty otherwise). */
   host: string;
   outputs: ControllerOutput[];
+  /** How Overglow talks to the controller. The backend fills it in when a layout without it is saved. */
+  device?: DriverSettings;
+  /** False: the controller keeps its place in the layout but nothing is sent to it. Default true. */
+  enabled?: boolean;
 }
 
 export interface LayoutSpec {

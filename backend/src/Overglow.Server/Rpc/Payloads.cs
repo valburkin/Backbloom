@@ -26,6 +26,7 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
 
         info["components"] = Components();
         info["leds"] = settings.GetSection("leds") ?? new JsonArray();
+        info["controllers"] = Controllers();
         info["imageToLedMappingType"] = engine.MappingType.ToSettingString();
 
         var available = new JsonArray();
@@ -75,6 +76,61 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
 
         return new JsonObject { ["priorities"] = priorities, ["priorities_autoselect"] = engine.Sources.AutoSelect };
     }
+
+    /// <summary>
+    /// <c>controllers</c> (an addition, also the <c>controllers-update</c> event): every LED controller in LED order,
+    /// <c>[{ id, name, type, enabled, running, state, status, start, ledCount, strips: [{ id, name, start, length, brightness }] }]</c>.
+    /// <c>start</c> is the controller's first LED in <c>leds</c> (and in the live LED stream); a strip's <c>start</c>
+    /// counts from the controller's first LED. <c>state</c>: off, opening, ready, waitingToRetry, failed, closing.
+    /// </summary>
+    public JsonArray Controllers()
+    {
+        var setup = engine.Setup;
+        var devices = engine.Devices;
+        var list = new JsonArray();
+        foreach (var controller in setup.Controllers)
+        {
+            var device = devices.FirstOrDefault(d => d.Id == controller.Id);
+            var strips = new JsonArray();
+            foreach (var strip in controller.Strips)
+            {
+                strips.Add((JsonNode)new JsonObject
+                {
+                    ["id"] = strip.Id,
+                    ["name"] = strip.Name,
+                    ["start"] = strip.Start,
+                    ["length"] = strip.Length,
+                    ["brightness"] = strip.Brightness,
+                });
+            }
+
+            list.Add((JsonNode)new JsonObject
+            {
+                ["id"] = controller.Id,
+                ["name"] = controller.Name,
+                ["type"] = device?.Type ?? DeviceConfig.GetString(controller.Device, "type", string.Empty),
+                ["enabled"] = controller.Enabled,
+                ["running"] = device?.Running ?? false,
+                ["state"] = StateId(device?.State ?? DeviceState.Off),
+                ["status"] = device?.Status,
+                ["start"] = device?.Start ?? 0,
+                ["ledCount"] = controller.LedCount,
+                ["strips"] = strips,
+            });
+        }
+
+        return list;
+    }
+
+    private static string StateId(DeviceState state) => state switch
+    {
+        DeviceState.Opening => "opening",
+        DeviceState.Ready => "ready",
+        DeviceState.WaitingToRetry => "waitingToRetry",
+        DeviceState.Failed => "failed",
+        DeviceState.Closing => "closing",
+        _ => "off",
+    };
 
     /// <summary><c>effects</c>: every effect that can be run, <c>[{ name }]</c>.</summary>
     public static JsonArray Effects()

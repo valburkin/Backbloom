@@ -22,6 +22,7 @@ public sealed class EventSubscriptions(
     [
         "components-update", "performance-update", "sessions-update", "priorities-update", "imageToLedMapping-update",
         "adjustment-update", "leds-colors", "live-video", "settings-update", "leds-update", "instance-update", "token-update",
+        "controllers-update",
     ];
 
     private static readonly TimeSpan s_performanceInterval = TimeSpan.FromSeconds(4);
@@ -88,6 +89,20 @@ public sealed class EventSubscriptions(
                     void Handler(JsonArray leds) => session.Send(RpcReplies.Event(name, new JsonObject { ["leds"] = leds.DeepClone() }));
                     engine.LedsChanged += Handler;
                     return new Subscription(() => engine.LedsChanged -= Handler);
+                }
+
+            case "controllers-update":
+                {
+                    // serverinfo.controllers again: after a layout change and when a controller changes state
+                    void Handler() => session.Send(RpcReplies.Event(name, new JsonObject { ["controllers"] = payloads.Controllers() }));
+                    void DeviceHandler(DeviceInfo _) => Handler();
+                    engine.ControllersChanged += Handler;
+                    engine.DeviceChanged += DeviceHandler;
+                    return new Subscription(() =>
+                    {
+                        engine.ControllersChanged -= Handler;
+                        engine.DeviceChanged -= DeviceHandler;
+                    });
                 }
 
             case "settings-update":

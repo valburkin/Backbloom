@@ -85,6 +85,16 @@ public sealed class SettingsSchema
     }
 
     /// <summary>
+    /// Validates the driver settings of one controller (the <c>device</c> section's rules) found at
+    /// <paramref name="path"/>, e.g. inside the <c>layout</c>; returns the normalized copy.
+    /// </summary>
+    public JsonNode? ValidateDevice(JsonNode? value, string path, List<SettingsError> errors)
+    {
+        ArgumentNullException.ThrowIfNull(errors);
+        return SchemaValidator.Validate(DeviceSchema(value, path, errors), value, path, errors);
+    }
+
+    /// <summary>
     /// Repairs one imported section (see <see cref="SchemaValidator.Repair"/>); null when the section is unknown or
     /// still invalid afterwards. <paramref name="fixes"/> lists every change and remaining problem.
     /// </summary>
@@ -144,11 +154,11 @@ public sealed class SettingsSchema
             return null;
         }
 
-        return section == ControllerSection ? DeviceSchema(value, errors) : schema;
+        return section == ControllerSection ? DeviceSchema(value, section, errors) : schema;
     }
 
     // The base device schema allows any extra property; the driver schema of the selected type adds its own rules.
-    private JsonObject DeviceSchema(JsonNode? value, List<SettingsError> errors)
+    private JsonObject DeviceSchema(JsonNode? value, string path, List<SettingsError> errors)
     {
         var schema = _sections[ControllerSection].DeepClone().AsObject();
         var type = (value as JsonObject)?["type"] is JsonValue tv && tv.TryGetValue(out string? t) ? t : null;
@@ -159,7 +169,7 @@ public sealed class SettingsSchema
 
         if (!_deviceSchemas.TryGetValue(type, out var driverSchema))
         {
-            errors.Add(new SettingsError("device.type", $"unknown LED device type \"{type}\" (available: {string.Join(", ", _deviceSchemas.Keys.Order(StringComparer.Ordinal))})"));
+            errors.Add(new SettingsError($"{path}.type", $"unknown LED device type \"{type}\" (available: {string.Join(", ", _deviceSchemas.Keys.Order(StringComparer.Ordinal))})"));
             return schema;
         }
 

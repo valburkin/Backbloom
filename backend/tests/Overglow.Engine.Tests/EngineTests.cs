@@ -136,18 +136,38 @@ public sealed class EngineTests : IDisposable
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Pipeline_SteadyStateDoesNotAllocate(bool smoothing)
+    [InlineData(false, 1)]
+    [InlineData(true, 1)]
+    [InlineData(false, 3)]
+    [InlineData(true, 3)]
+    public void Pipeline_SteadyStateDoesNotAllocate(bool smoothing, int controllers)
     {
         var registry = Registry();
         using var devices = Devices(registry);
-        devices.Configure(JsonNode.Parse("""{ "type": "file", "output": "/dev/null", "printTimeStamp": true }""")!.AsObject(), 168);
-        devices.SetEnabled(true);
+        JsonObject Device() => JsonNode.Parse("""{ "type": "file", "output": "/dev/null", "printTimeStamp": true }""")!.AsObject();
         var layout = LedLayout.FromJson(JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "layouts", "owner-168.json"))));
+        List<ControllerDevice> list = [new("tv", "TV", Device(), 168)];
+        var areas = layout.Areas.ToList();
+        for (var i = 1; i < controllers; i++)
+        {
+            list.Add(new ControllerDevice($"strip{i}", $"Strip {i}", Device(), 30));
+            areas.AddRange(Enumerable.Repeat(new LedArea(0, 1, 0.4, 0.6, 0, false), 30));
+        }
+
+        devices.Configure(list);
+        devices.SetEnabled(true);
+        layout = new LedLayout(areas);
         var config = new PipelineConfig(new LedMappingOptions(layout), new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.8f }));
         var clock = new ManualClock();
         using var output = new OutputStage(devices, new LedColorsFeed(), clock, NullLogger<OutputStage>.Instance);
+        if (controllers > 1)
+        {
+            // per-strip brightness on the extra strips
+            var gains = Enumerable.Repeat(1f, layout.Count).ToArray();
+            gains.AsSpan(168).Fill(0.5f);
+            output.SetLedGains(gains);
+        }
+
         output.Configure(SmoothingSettings.FromJson(JsonNode.Parse($$"""{ "enable": {{(smoothing ? "true" : "false")}}, "type": "HybridInterpolator", "updateFrequency": 50, "continuousOutput": true }""")));
         var screen = new VisibleSource(245, SourceComponent.SystemGrabber, Rgb8.Black, null, 0, 1);
         using var pipeline = new LightingPipeline(

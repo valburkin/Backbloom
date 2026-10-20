@@ -115,14 +115,20 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public void Update_StoresTheLayoutEnvelopeAsSent()
+    public void Update_KeepsLayoutPropertiesTheBackendDoesntUse()
     {
         var store = Open();
 
-        var result = store.Update(Parse("""{ "layout": { "version": 1, "controllers": [{ "id": "c" }], "strips": [], "extra": true } }"""));
+        var result = store.Update(Parse("""
+            { "layout": { "version": 1, "controllers": [{ "id": "c", "host": "x.local", "outputs": [{ "index": 0, "start": 0, "length": 1, "pin": 2 }] }],
+                          "strips": [], "extra": true } }
+            """));
 
-        Assert.True(result.Success);
-        Assert.True(store.GetSection("layout")!["extra"]!.GetValue<bool>());
+        Assert.True(result.Success, string.Join("; ", result.Errors));
+        var layout = store.GetSection("layout")!;
+        Assert.True(layout["extra"]!.GetValue<bool>());
+        Assert.Equal("x.local", layout["controllers"]![0]!["host"]!.GetValue<string>());
+        Assert.Equal(2, layout["controllers"]![0]!["outputs"]![0]!["pin"]!.GetValue<int>());
     }
 
     [Fact]

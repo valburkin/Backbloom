@@ -13,6 +13,7 @@ import { useThrottled } from '../app/useThrottled';
 import { hrefFor } from '../app/router';
 import { stripLedCount } from '../layout';
 import { useLedFrame, usePerformance } from '../live/hooks';
+import type { ControllerPerformance } from '../live/performance';
 import { currentSource, describeSource, effectLabel, splitEffects, type Mode } from '../control/modes';
 import { applyIntensity, describeIntensity, detectIntensity, INTENSITY_PRESETS, type IntensityPreset } from '../settings/intensity';
 import type { Rgb } from '../color/color';
@@ -387,7 +388,7 @@ function PerformanceCard() {
           icon={<MonitorSmartphone size={13} />}
           label="LED updates"
           value={perf.ledFps !== null ? `${perf.ledFps} /s` : dash}
-          sub={perf.ledDropped ? <span className="text-warn">{perf.ledDropped} dropped</span> : 'sent to the controller'}
+          sub={perf.controllers.length > 1 ? 'first controller, all listed below' : perf.ledDropped ? <span className="text-warn">{perf.ledDropped} dropped</span> : 'sent to the controller'}
         />
         <Stat icon={<Cpu size={13} />} label="CPU" value={perf.cpuPercent !== null ? `${perf.cpuPercent}%` : dash} sub="whole computer" />
         <Stat
@@ -397,7 +398,38 @@ function PerformanceCard() {
           sub={perf.ram ? `${(perf.ram.usedMb / 1024).toFixed(1)} of ${(perf.ram.totalMb / 1024).toFixed(0)} GB` : undefined}
         />
       </div>
+      {perf.controllers.length > 1 && <ControllerRates controllers={perf.controllers} />}
     </Card>
+  );
+}
+
+/** LED updates per controller, when more than one is fed. */
+function ControllerRates({ controllers }: { controllers: ControllerPerformance[] }) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-xl border border-line">
+      <table className="w-full text-[13px]">
+        <caption className="sr-only">LED updates per controller</caption>
+        <thead className="bg-surface-2 text-left text-xs text-ink-faint">
+          <tr>
+            <th className="px-3 py-2 font-medium">Controller</th>
+            <th className="px-3 py-2 text-right font-medium">Updates</th>
+            <th className="px-3 py-2 text-right font-medium">Delay</th>
+          </tr>
+        </thead>
+        <tbody>
+          {controllers.map((c) => (
+            <tr key={c.id} className="border-t border-line">
+              <td className="max-w-0 truncate px-3 py-2" title={c.name}>
+                {c.name}
+                {c.dropped > 0 && <span className="ml-2 text-xs text-warn">{c.dropped} dropped</span>}
+              </td>
+              <td className="px-3 py-2 text-right tabular-nums">{c.fps !== null ? `${c.fps} /s` : '—'}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-ink-muted">{c.latencyMs === null ? '—' : c.latencyMs < 0.1 ? '< 0.1 ms' : `${c.latencyMs} ms`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

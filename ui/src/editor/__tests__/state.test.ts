@@ -157,7 +157,25 @@ describe('editor reducer', () => {
     expect(added.id).toBe('strip-2');
     expect(added.output).toBe(1);
     expect(added.controllerId).toBe('wled-a');
+    expect(added.segments).toEqual([newEdgeSegment(77)]);
     expect(s.selection).toEqual({ stripId: 'strip-2', segmentIndex: 0 });
+  });
+
+  it('a strip brightness back at 100 % is dropped from the spec', () => {
+    let s = run(loaded(), { type: 'updateStrip', stripId: 'strip-2', patch: { brightness: 0.6 } });
+    expect(s.spec.strips[1].brightness).toBe(0.6);
+    s = run(s, { type: 'updateStrip', stripId: 'strip-2', patch: { brightness: undefined } });
+    expect('brightness' in s.spec.strips[1]).toBe(false);
+    expect(isDirty(s)).toBe(false);
+  });
+
+  it('controllers of other drivers sit next to WLED ones, with their own driver settings', () => {
+    const desk = { id: 'desk', name: 'Desk', kind: 'ddp', host: '', outputs: [{ index: 0, start: 0, length: 30 }], device: { type: 'ddp', host: '10.0.0.9' } };
+    let s = run(loaded(), { type: 'addController', controller: desk }, { type: 'addStrip', controllerId: 'desk', output: 0 });
+    s = run(s, { type: 'updateController', controllerId: 'desk', patch: { device: { type: 'ddp', host: '10.0.0.10' } } });
+    expect(s.spec.controllers.map((c) => c.id)).toEqual(['wled-a', 'desk']);
+    expect(s.spec.controllers[1].device).toEqual({ type: 'ddp', host: '10.0.0.10' });
+    expect(s.spec.strips[2]).toMatchObject({ controllerId: 'desk', output: 0, segments: [{ count: 30 }] });
   });
 
   it('removeStrip moves selection to a neighbor', () => {

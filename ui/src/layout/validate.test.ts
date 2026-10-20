@@ -80,6 +80,21 @@ describe('validateLayout', () => {
     expect(m).toEqual([expect.stringMatching(/^error: .*overlap \(LEDs 8–9/)]);
   });
 
+  it('reports outputs that leave a gap (the backend counts a controller as its outputs one after the other)', () => {
+    const c = controller({
+      outputs: [
+        { index: 0, start: 0, length: 10 },
+        { index: 1, start: 12, length: 5 },
+      ],
+    });
+    expect(messages(spec([], [c]))).toEqual([expect.stringMatching(/^error: Output 2 of "Desk WLED" starts at LED 12, leaving LEDs 10–11 without an output/)]);
+  });
+
+  it('reports a strip brightness outside 0..1', () => {
+    expect(messages(spec([strip({ segments: [edge()], brightness: 1.5 })]))).toEqual([expect.stringMatching(/^error: .*brightness of 1.5/)]);
+    expect(validateLayout(spec([strip({ brightness: 0.4 }), strip({ id: 'b', output: 1, segments: [edge({ count: 5 })] })]))).toEqual([]);
+  });
+
   it('reports duplicate ids', () => {
     const m = messages(spec([strip(), strip({ output: 1, segments: [edge({ count: 5 })] })], [controller(), controller()]));
     expect(m.some((x) => x.includes('Two controllers share the id "c"'))).toBe(true);
