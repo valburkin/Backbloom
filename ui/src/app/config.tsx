@@ -18,8 +18,18 @@ export interface ConfigContextValue {
   /** Page currently saving, if any. */
   saving: string | null;
   /** Saves the page's edited sections. Resolves true when they were stored. */
-  save(page: string, labels?: Record<string, string>): Promise<boolean>;
+  save(page: string, labels?: Record<string, string>, options?: SaveOptions): Promise<boolean>;
 }
+
+export interface SaveOptions {
+  /** Save only these of the edited sections. */
+  only?: ReadonlySet<string>;
+  /** Automatic save: no success toast, and invalid values just wait (the page shows them). */
+  quiet?: boolean;
+}
+
+/** Edits of auto-saving sections are stored this long after the last change. */
+export const AUTO_SAVE_MS = 500;
 
 const Ctx = createContext<ConfigContextValue | null>(null);
 
@@ -104,25 +114,25 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, [anyDirty]);
 
   const save = useCallback(
-    async (page: string, labels: Record<string, string> = {}): Promise<boolean> => {
+    async (page: string, labels: Record<string, string> = {}, { only, quiet = false }: SaveOptions = {}): Promise<boolean> => {
       if (conn.auth !== 'admin') return false;
       const draft = draftsRef.current[page];
-      const sections = dirtySections(draft);
+      const sections = dirtySections(draft).filter((s) => !only || only.has(s));
       if (!draft || !sections.length) return true;
       const partial: BackendConfig = {};
       for (const s of sections) partial[s] = draft.edits[s];
       const problems = sections.flatMap((s) => (schema?.properties[s] ? validate(schema.properties[s], partial[s], s) : []));
       if (problems.length) {
-        toast('bad', 'Some values need attention', problems.map((p) => `${labels[p.path] ?? p.path}: ${p.message}`).slice(0, 3).join(' '));
+        if (!quiet) toast('bad', 'Some values need attention', problems.map((p) => `${labels[p.path] ?? p.path}: ${p.message}`).slice(0, 3).join(' '));
         return false;
       }
       setSaving(page);
       try {
         // The backend stores the sections as sent or rejects the call; its settings-update events (sent before the
-        // reply) bring the stored values into `config`.
+        // reply) bring the stored values into `config`. Sections edited again meanwhile stay edited.
         await conn.api.setConfig(partial);
-        dispatchDraft({ type: 'saved', page, sections });
-        toast('ok', 'Settings saved');
+        dispatchDraft({ type: 'saved', page, sections, values: partial });
+        if (!quiet) toast('ok', 'Settings saved');
         return true;
       } catch (e) {
         toast('bad', 'Couldn’t save', saveErrorText(e, labels));
@@ -153,8 +163,13 @@ export interface PageSettings {
   value<T = Record<string, unknown>>(section: string): T;
   set(section: string, value: unknown): void;
   setPath(section: string, path: ReadonlyArray<string | number>, value: unknown): void;
+  /** Edits not stored yet, including auto-saving ones about to be. */
   dirty: boolean;
   dirtySections: string[];
+  /** Edits only the Save button stores (sections that don't save automatically). */
+  needsSave: boolean;
+  /** State of the automatic saving, for a small indicator. */
+  autoSave: 'idle' | 'pending' | 'saving' | 'saved' | 'failed';
   /** Section values as they were before editing (what Discard returns to). */
   baseline: Record<string, unknown>;
   issues: Issue[];
@@ -163,8 +178,11 @@ export interface PageSettings {
   discard(): void;
 }
 
-/** Local editing of some config sections for one page; see settings/drafts.ts. */
-export function usePageSettings(page: string, labels?: Record<string, string>): PageSettings {
+/**
+ * Local editing of some config sections for one page; see settings/drafts.ts. Sections in `autoSave` (true: all)
+ * are stored on their own shortly after each change (and when the page closes); the rest wait for Save.
+ */
+export function usePageSettings(page: string, labels?: Record<string, string>, autoSave: boolean | readonly string[] = false): PageSettings {
   const { config, schema, drafts, dispatchDraft, saving, save } = useConfig();
   const { auth } = useConnection();
   const draft = drafts[page];
@@ -188,6 +206,40 @@ export function usePageSettings(page: string, labels?: Record<string, string>): 
     () => dirtySections(draft).flatMap((s) => (schema?.properties[s] && draft ? validate(schema.properties[s], draft.edits[s], s) : [])),
     [draft, schema],
   );
+
+  const isAuto = (s: string) => autoSave === true || (Array.isArray(autoSave) && autoSave.includes(s));
+  const autoSections = sections.filter(isAuto);
+  const autoValid = !issues.some((i) => autoSections.some((s) => i.path === s || i.path.startsWith(`${s}.`)));
+  const [autoState, setAutoState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const flush = useRef<(() => void) | null>(null);
+  const autoKey = autoSections.length ? JSON.stringify(autoSections.map((s) => [s, draft?.edits[s]])) : '';
+  const canSave = auth === 'admin' && !!config;
+  // `save` changes with the connection state; that mustn't restart the wait
+  const saveAuto = () => save(page, labels, { only: new Set(autoSections), quiet: true });
+  const saveNow = useRef(saveAuto);
+  saveNow.current = saveAuto;
+  useEffect(() => {
+    if (!autoKey || !autoValid || !canSave) {
+      flush.current = null;
+      return;
+    }
+    const run = () => {
+      flush.current = null;
+      setAutoState('saving');
+      void saveNow.current().then((ok) => setAutoState(ok ? 'saved' : 'failed'));
+    };
+    flush.current = run;
+    const t = setTimeout(run, AUTO_SAVE_MS);
+    return () => clearTimeout(t);
+  }, [autoKey, autoValid, canSave]);
+  // Leaving the page doesn't drop a change made just before.
+  useEffect(() => () => flush.current?.(), []);
+  useEffect(() => {
+    if (autoState !== 'saved') return;
+    const t = setTimeout(() => setAutoState('idle'), 2000);
+    return () => clearTimeout(t);
+  }, [autoState]);
+
   return {
     ready: !!config && !!schema,
     canEdit: auth === 'admin' && !!config,
@@ -197,6 +249,8 @@ export function usePageSettings(page: string, labels?: Record<string, string>): 
     setPath,
     dirty: sections.length > 0,
     dirtySections: sections,
+    needsSave: sections.some((s) => !isAuto(s)),
+    autoSave: autoKey && autoValid && autoState !== 'saving' && autoState !== 'failed' ? 'pending' : autoState,
     baseline: draft?.baseline ?? {},
     issues,
     saving: saving === page,

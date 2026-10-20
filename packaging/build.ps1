@@ -8,7 +8,8 @@
     3. Velopack (vpk, pinned in packaging/dotnet-tools.json): Setup.exe, the full package, the portable zip and the
        release feed files for the channel, in artifacts/releases.
 
-    The version comes from backend/Directory.Build.props. Nothing is installed and nothing is uploaded.
+    The version comes from backend/Directory.Build.props (with -Dev: a pre-release of the next patch version).
+    Nothing is installed and nothing is uploaded.
 
 .PARAMETER Channel
     Release channel the package belongs to (an installed copy follows it). Default: stable.
@@ -24,8 +25,14 @@
 .PARAMETER SkipUi
     Use the existing ui/dist instead of building the UI.
 
+.PARAMETER Dev
+    Development build to try uncommitted changes: version <next patch>-dev.<date>.<time>, e.g.
+    0.1.4-dev.20261020.103045 after 0.1.3. Each build installs over the previous one, and the release of 0.1.4 over
+    all of them. Directory.Build.props is not changed.
+
 .EXAMPLE
     ./packaging/build.ps1
+    ./packaging/build.ps1 -Dev
     ./packaging/build.ps1 -Channel beta -SignTemplate 'signtool sign /fd sha256 /a {{file}}'
 #>
 [CmdletBinding()]
@@ -33,7 +40,8 @@ param(
     [string] $Channel = 'stable',
     [string] $SignTemplate,
     [string] $Output,
-    [switch] $SkipUi
+    [switch] $SkipUi,
+    [switch] $Dev
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,6 +64,11 @@ function Invoke-Step([string] $Name, [scriptblock] $Action) {
 [xml] $props = Get-Content (Join-Path $repo 'backend/Directory.Build.props')
 $version = ($props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1)
 if (-not $version) { throw 'No <Version> in backend/Directory.Build.props.' }
+if ($Dev) {
+    if ($version -notmatch '^(\d+)\.(\d+)\.(\d+)$') { throw "-Dev needs a release version in Directory.Build.props, not $version." }
+    # SemVer: 0.1.3 < 0.1.4-dev.20261020.103045 < 0.1.4-dev.20261020.110000 < 0.1.4
+    $version = '{0}.{1}.{2}-dev.{3}' -f $Matches[1], $Matches[2], ([int] $Matches[3] + 1), (Get-Date -Format 'yyyyMMdd.HHmmss')
+}
 Write-Host "Overglow $version, channel $Channel"
 
 if (-not $SkipUi) {
@@ -70,7 +83,7 @@ if (-not (Test-Path (Join-Path $repo 'ui/dist/index.html'))) { throw 'ui/dist/in
 
 Remove-Item $publish, $releases -Recurse -Force -ErrorAction SilentlyContinue
 Invoke-Step 'Publish the backend' {
-    & $dotnet publish (Join-Path $repo 'backend/src/Overglow.App/Overglow.App.csproj') -c Release -r win-x64 -o $publish --nologo
+    & $dotnet publish (Join-Path $repo 'backend/src/Overglow.App/Overglow.App.csproj') -c Release -r win-x64 -o $publish --nologo "-p:Version=$version"
 }
 foreach ($required in 'overglow.exe', 'ui/index.html', 'LICENSE.txt', 'NOTICE.md', 'THIRD-PARTY-NOTICES.md') {
     if (-not (Test-Path (Join-Path $publish $required))) { throw "The published folder lacks $required." }
@@ -101,5 +114,5 @@ finally { Pop-Location }
 
 Write-Host ''
 Get-ChildItem $releases -File | Sort-Object Name | ForEach-Object {
-    '{0,-45} {1,8:N1} MB' -f $_.Name, ($_.Length / 1MB)
+    '{0,-60} {1,8:N1} MB' -f $_.Name, ($_.Length / 1MB)
 }

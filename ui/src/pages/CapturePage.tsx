@@ -60,7 +60,7 @@ const BORDER_MODES: Record<string, { label: string; hint: string }> = {
 };
 
 export function CapturePage() {
-  const ps = usePageSettings('capture', LABELS);
+  const ps = usePageSettings('capture', LABELS, true);
   const { serverInfo } = useConnection();
   const control = ps.value<Obj>('systemControl');
   const grabber = ps.value<Obj>('systemGrabber');

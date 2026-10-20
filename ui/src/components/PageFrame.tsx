@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
-import { Loader2, RotateCcw, Save, TriangleAlert } from 'lucide-react';
+import { Check, Loader2, RotateCcw, Save, TriangleAlert } from 'lucide-react';
 import { useConfig, type PageSettings } from '../app/config';
 import { Button, cx } from './ui';
 import { PageHeader } from './PageHeader';
 
 /**
- * Standard page: header, scrolling content and — for settings pages — the unsaved-changes bar and the
- * sign-in / loading states. Content is only rendered once the page's settings are available.
+ * Standard page: header, scrolling content and — for settings pages — the auto-save indicator, the unsaved-changes
+ * bar (edits only Save stores, values that need attention, a failed automatic save) and the sign-in / loading states. Content is only rendered once the page's settings are available.
  */
 export function PageFrame({
   title,
@@ -35,11 +35,24 @@ export function PageFrame({
   gate?: boolean;
   children: ReactNode;
 }) {
+  const bar = !!settings && showsBar(settings);
+  const status = settings && <AutoSaveStatus settings={settings} />;
   return (
     <div className="relative flex h-full flex-col">
-      <PageHeader title={title} subtitle={subtitle} actions={actions} />
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        actions={
+          status || actions ? (
+            <>
+              {status}
+              {actions}
+            </>
+          ) : undefined
+        }
+      />
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-        <div className={cx('mx-auto space-y-6 p-4 sm:p-6', wide ? 'max-w-6xl' : 'max-w-4xl', settings?.dirty && 'pb-28')}>
+        <div className={cx('mx-auto space-y-6 p-4 sm:p-6', wide ? 'max-w-6xl' : 'max-w-4xl', bar && 'pb-28')}>
           {toolbar}
           {settings && gate ? <SettingsGate settings={settings}>{children}</SettingsGate> : children}
         </div>
@@ -69,8 +82,24 @@ function SettingsGate({ settings, children }: { settings: PageSettings; children
   return <>{children}</>;
 }
 
+function showsBar(settings: PageSettings): boolean {
+  return settings.dirty && (settings.needsSave || settings.issues.length > 0 || settings.autoSave === 'failed');
+}
+
+/** "Saving…" / "Saved" for pages whose changes are stored automatically. */
+function AutoSaveStatus({ settings }: { settings: PageSettings }) {
+  const s = settings.autoSave;
+  if (s !== 'pending' && s !== 'saving' && s !== 'saved') return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[13px] text-ink-faint" aria-live="polite">
+      {s === 'saved' ? <Check size={14} className="text-ok" /> : <Loader2 size={14} className="animate-spin" />}
+      {s === 'saved' ? 'Saved' : 'Saving…'}
+    </span>
+  );
+}
+
 function UnsavedBar({ settings, onDiscard, label }: { settings: PageSettings; onDiscard?: () => void; label?: string }) {
-  if (!settings.dirty) return null;
+  if (!showsBar(settings)) return null;
   const problems = settings.issues.length;
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4 sm:bottom-6">
@@ -85,8 +114,10 @@ function UnsavedBar({ settings, onDiscard, label }: { settings: PageSettings; on
             <span className="inline-flex items-center gap-1.5 text-bad">
               <TriangleAlert size={14} /> {problems === 1 ? 'One value needs attention' : `${problems} values need attention`}
             </span>
-          ) : (
+          ) : settings.needsSave ? (
             (label ?? 'You have unsaved changes')
+          ) : (
+            'Your last change couldn’t be saved'
           )}
         </p>
         <Button
@@ -107,7 +138,7 @@ function UnsavedBar({ settings, onDiscard, label }: { settings: PageSettings; on
           icon={settings.saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
           onClick={() => void settings.save()}
         >
-          {settings.saving ? 'Saving…' : 'Save'}
+          {settings.saving ? 'Saving…' : settings.needsSave ? 'Save' : 'Try again'}
         </Button>
       </div>
     </div>

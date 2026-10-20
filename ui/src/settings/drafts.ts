@@ -13,7 +13,8 @@ export type DraftsState = Record<string, PageDraft>;
 export type DraftsAction =
   | { type: 'edit'; page: string; section: string; value: unknown; current: unknown }
   | { type: 'discard'; page: string }
-  | { type: 'saved'; page: string; sections: string[] };
+  /** `values`: what was stored. A section edited again meanwhile stays edited, against the stored value. */
+  | { type: 'saved'; page: string; sections: string[]; values?: Record<string, unknown> };
 
 export function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -58,8 +59,12 @@ export function draftsReducer(state: DraftsState, action: DraftsAction): DraftsS
       const edits = { ...page.edits };
       const baseline = { ...page.baseline };
       for (const s of action.sections) {
-        delete edits[s];
-        delete baseline[s];
+        if (action.values && s in edits && !deepEqual(edits[s], action.values[s])) {
+          baseline[s] = action.values[s];
+        } else {
+          delete edits[s];
+          delete baseline[s];
+        }
       }
       return { ...state, [action.page]: { edits, baseline } };
     }

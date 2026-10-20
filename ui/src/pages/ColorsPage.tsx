@@ -72,7 +72,7 @@ function liveAdjustment(adj: Obj): Obj {
 }
 
 export function ColorsPage() {
-  const ps = usePageSettings('colors', LABELS);
+  const ps = usePageSettings('colors', LABELS, true);
   const { api } = useConnection();
   const color = ps.value<Obj>('color');
   const smoothing = ps.value<Obj>('smoothing');
@@ -85,7 +85,8 @@ export function ColorsPage() {
   const setSmooth = (key: string) => (v: unknown) => ps.setPath('smoothing', [key], v);
   const shown = (key: string) => !smoothSchema?.properties?.[key] || dependenciesMet(smoothSchema.properties[key], smoothing);
 
-  // Live preview: color changes go to the lights right away; Discard rolls them back.
+  // Live preview: color changes go to the lights right away, ahead of the automatic save; Discard (offered for
+  // values that need attention) rolls them back.
   const colorDirty = ps.dirtySections.includes('color');
   const sendLive = useThrottled((a: Obj) => void api.adjust(a).catch(() => undefined), 150);
   const lastSent = useRef<Obj | null>(null);

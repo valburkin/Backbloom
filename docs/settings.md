@@ -25,6 +25,9 @@ the program in `%LOCALAPPDATA%\OverglowApp`, separate from the data, so uninstal
 `backend/src/Overglow.Devices/Schemas`); defaults exist only there.
 
 - `setconfig` validates strictly: an invalid value is rejected with a per-field error and nothing is stored.
+- The UI stores most changes on its own, 0.5 s after the last edit or when the page closes (Colors, Screen capture,
+  Effects, Settings → General and Logs). `webConfig`, `network`, `mqtt` and the layout wait for Save, since a
+  half-typed port or address would take effect.
 - Imports and data written by an older schema version are repaired instead (numbers clamped, unknown fields dropped,
   invalid values reset to their default), and every repair is logged.
 - Every change is one SQLite transaction; `PRAGMA user_version` is the schema version and forward migrations run once

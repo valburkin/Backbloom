@@ -111,7 +111,7 @@ function SourceEffectForm({
 
 export function EffectsPage() {
   const { serverInfo, api, auth } = useConnection();
-  const ps = usePageSettings('effects', LABELS);
+  const ps = usePageSettings('effects', LABELS, true);
   const { run, busy } = useAction();
   const frame = useLedFrame();
   const [query, setQuery] = useState('');

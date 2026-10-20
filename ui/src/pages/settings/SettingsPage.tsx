@@ -19,6 +19,9 @@ export const SETTINGS_LABELS: Record<string, string> = {
   'logger.level': 'Log detail',
 };
 
+/** Stored as soon as they change; network and MQTT settings wait for Save (a half-typed port or address would apply). */
+const AUTO_SAVED = ['general', 'logger'];
+
 const TABS: Array<{ id: string; label: string; icon: ReactNode; config: boolean }> = [
   { id: 'general', label: 'General', icon: <SlidersHorizontal size={16} />, config: true },
   { id: 'security', label: 'Security', icon: <Shield size={16} />, config: false },
@@ -29,7 +32,7 @@ const TABS: Array<{ id: string; label: string; icon: ReactNode; config: boolean 
 ];
 
 export function SettingsPage({ tab, onTab }: { tab: string | null; onTab: (t: string) => void }) {
-  const ps = usePageSettings('settings', SETTINGS_LABELS);
+  const ps = usePageSettings('settings', SETTINGS_LABELS, AUTO_SAVED);
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
   return (
     <PageFrame

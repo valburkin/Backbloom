@@ -31,6 +31,17 @@ describe('draftsReducer', () => {
     expect(s.p).toBeUndefined();
     expect(draftsReducer(s, { type: 'discard', page: 'p' })).toBe(s);
   });
+
+  it('keeps a section edited again while it was being saved', () => {
+    let s: DraftsState = {};
+    s = draftsReducer(s, { type: 'edit', page: 'p', section: 'a', value: 1, current: 0 });
+    s = draftsReducer(s, { type: 'edit', page: 'p', section: 'b', value: 1, current: 0 });
+    // save sent a=1, b=1; a changed to 2 before the reply
+    s = draftsReducer(s, { type: 'edit', page: 'p', section: 'a', value: 2, current: 0 });
+    s = draftsReducer(s, { type: 'saved', page: 'p', sections: ['a', 'b'], values: { a: 1, b: 1 } });
+    expect(s.p.edits).toEqual({ a: 2 });
+    expect(s.p.baseline).toEqual({ a: 1 });
+  });
 });
 
 describe('helpers', () => {
