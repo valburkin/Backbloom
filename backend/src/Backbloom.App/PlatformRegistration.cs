@@ -5,9 +5,15 @@ using Backbloom.Platform.Windows;
 
 namespace Backbloom.App;
 
-/// <summary>Registers the platform's clock, system metrics and process list (portable fallbacks elsewhere).</summary>
+/// <summary>Registers the platform's clock, system and GPU metrics, process list and program list (portable fallbacks elsewhere).</summary>
 internal static class PlatformRegistration
 {
+    /// <summary>
+    /// Key of the system metrics the performance recording samples: its own instance, since a sample measures the time
+    /// since the previous one, and the UI's tiles sample on their own schedule.
+    /// </summary>
+    public const string RecorderMetrics = "recorder";
+
     public static IServiceCollection AddPlatform(this IServiceCollection services)
     {
         if (OperatingSystem.IsWindows())
@@ -18,7 +24,10 @@ internal static class PlatformRegistration
         {
             services.AddSingleton<IClock, SystemClock>();
             services.AddSingleton<ISystemMetrics, ProcessMetrics>();
+            services.AddKeyedSingleton<ISystemMetrics, ProcessMetrics>(RecorderMetrics);
+            services.AddSingleton<IGpuMetrics, NoGpuMetrics>();
             services.AddSingleton<IProcessList, PortableProcessList>();
+            services.AddSingleton<IProgramList, PortableProgramList>();
         }
 
         return services;
@@ -29,6 +38,9 @@ internal static class PlatformRegistration
     {
         services.AddSingleton<IClock, WindowsClock>();
         services.AddSingleton<ISystemMetrics, WindowsSystemMetrics>();
+        services.AddKeyedSingleton<ISystemMetrics, WindowsSystemMetrics>(RecorderMetrics);
+        services.AddSingleton<IGpuMetrics, WindowsGpuMetrics>();
         services.AddSingleton<IProcessList, WindowsProcessList>();
+        services.AddSingleton<IProgramList, WindowsProgramList>();
     }
 }

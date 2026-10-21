@@ -66,8 +66,10 @@ $version = ($props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where
 if (-not $version) { throw 'No <Version> in backend/Directory.Build.props.' }
 if ($Dev) {
     if ($version -notmatch '^(\d+)\.(\d+)\.(\d+)$') { throw "-Dev needs a release version in Directory.Build.props, not $version." }
-    # SemVer: 0.1.3 < 0.1.4-dev.20261020.103045 < 0.1.4-dev.20261020.110000 < 0.1.4
-    $version = '{0}.{1}.{2}-dev.{3}' -f $Matches[1], $Matches[2], ([int] $Matches[3] + 1), (Get-Date -Format 'yyyyMMdd.HHmmss')
+    # SemVer: 0.1.3 < 0.1.4-dev.20261020.103045 < 0.1.4-dev.20261020.110000 < 0.1.4. The time is a plain number:
+    # numeric identifiers can't have leading zeros (NuGet rejects 002820 after midnight), and they compare as numbers.
+    $now = Get-Date
+    $version = '{0}.{1}.{2}-dev.{3}.{4}' -f $Matches[1], $Matches[2], ([int] $Matches[3] + 1), $now.ToString('yyyyMMdd'), [int] $now.ToString('HHmmss')
 }
 Write-Host "Backbloom $version, channel $Channel"
 

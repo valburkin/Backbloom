@@ -55,18 +55,26 @@ public sealed class LedDeviceCommand(LightingEngine engine, DeviceTools tools) :
         }
     }
 
-    // params: { blinkIndex, controller? }. With a controller (its id, or its position as a number) blinkIndex counts
-    // from that controller's first LED; without one it is the position among all LEDs (HyperHDR's single device).
+    // params: { blinkIndex, controller?, hold? } or { stop: true, controller? }. With a controller (its id, or its
+    // position as a number) blinkIndex counts from that controller's first LED; without one it is the position among
+    // all LEDs (HyperHDR's single device). hold: true keeps the LED lit until the next blink, a stop or 120 s.
     private void Blink(RpcContext context, JsonObject? parameters)
     {
-        if (parameters?["blinkIndex"] is not JsonValue v || !v.TryGetValue(out double index))
+        if (!TryFlag(parameters, "stop", out var stop) || !TryFlag(parameters, "hold", out var hold))
+        {
+            context.Fail("params.stop and params.hold must be true or false");
+            return;
+        }
+
+        var index = 0.0;
+        if (!stop && (parameters?["blinkIndex"] is not JsonValue v || !v.TryGetValue(out index)))
         {
             context.Fail("params.blinkIndex must be a number");
             return;
         }
 
         string? controllerId = null;
-        switch (parameters["controller"])
+        switch (parameters?["controller"])
         {
             case null:
                 break;
@@ -77,11 +85,29 @@ public sealed class LedDeviceCommand(LightingEngine engine, DeviceTools tools) :
                 controllerId = engine.Setup.Controllers[(int)position].Id;
                 break;
             default:
-                context.Fail($"There is no controller {parameters["controller"]!.ToJsonString()}");
+                context.Fail($"There is no controller {parameters!["controller"]!.ToJsonString()}");
                 return;
         }
 
-        if (engine.IdentifyLed(controllerId, (int)index) is not { } blinking)
+        if (stop)
+        {
+            if (!engine.StopIdentify(controllerId))
+            {
+                context.Fail($"There is no controller \"{controllerId}\"");
+                return;
+            }
+
+            context.Reply(new JsonObject { ["controller"] = controllerId, ["stopped"] = true });
+            return;
+        }
+
+        if (engine.Components.OutputHeld)
+        {
+            context.Fail("Nothing is sent to the LEDs right now: the first-run welcome isn't completed, or another lighting app (HyperHDR) is running");
+            return;
+        }
+
+        if (engine.IdentifyLed(controllerId, (int)index, hold) is not { } blinking)
         {
             context.Fail(controllerId is null
                 ? $"There is no LED {(int)index} (the controllers have {engine.Setup.LedCount} LEDs), or its controller isn't running"
@@ -89,7 +115,19 @@ public sealed class LedDeviceCommand(LightingEngine engine, DeviceTools tools) :
             return;
         }
 
-        context.Reply(new JsonObject { ["controller"] = blinking.ControllerId, ["blinkIndex"] = blinking.LedIndex });
+        context.Reply(new JsonObject { ["controller"] = blinking.ControllerId, ["blinkIndex"] = blinking.LedIndex, ["hold"] = hold });
+    }
+
+    // An optional boolean parameter: absent or null is false.
+    private static bool TryFlag(JsonObject? parameters, string name, out bool value)
+    {
+        value = false;
+        return parameters?[name] switch
+        {
+            null => true,
+            JsonValue v => v.TryGetValue(out value),
+            _ => false,
+        };
     }
 }
 

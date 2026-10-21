@@ -11,12 +11,16 @@ frame source (DXGI screen capture | effect | static color | synthetic test patte
   -> priorities (the lowest active priority is visible; 255 = nothing, LEDs off)
   -> image-to-LED map (LED layout, black border, sparse sampling)  [pictures only]
   -> color processing (temperature, calibration, gamma, gains, backlight, power limit)
+  -> zones (parts of strips playing their own effect or color, written into their LEDs)
   -> smoothing (optional, own thread and rate)
   -> anti-flicker filter
   -> every enabled controller (LED device runner, one thread each) and the UI's live preview
 ```
 
 HyperHDR ran one complete pipeline per "instance"; Backbloom runs one pipeline that fans out to several controllers.
+
+Zones step their effects on the frame loop without waiting for them; the layout's profiles switch the compiled
+rects and zones while a program runs (`ProfileMonitor`, polling `IProcessList`).
 
 The `LightingGate` (Engine) can hold the output: the controllers stay closed while the first-run welcome wasn't
 completed or HyperHDR runs (`OtherAppMonitor` behind the `IProcessList` platform interface). Network access is
@@ -40,11 +44,11 @@ interfaces defined above them, so macOS and Linux get their own projects later.
 
 | Thread | Does |
 |---|---|
-| Frame loop (above normal) | capture or step the visible effect, map, process, hand the frame to the controllers and the preview |
+| Frame loop (above normal) | capture or step the visible effect, map, process, step the zones, hand the frame to the controllers and the preview |
 | Smoothing (above normal) | one tick per update interval while smoothing runs; idle otherwise |
 | One per controller | open with retries, send the newest frame, refresh, close |
 | Sound capture | while a music effect runs: read WASAPI buffers, analyze blocks |
-| Thread pool | JSON-RPC requests (in order per connection), event pushes, update checks |
+| Thread pool | JSON-RPC requests (in order per connection), event pushes, update checks, the process checks (HyperHDR, profile programs), the performance samples (with the GPU counters), the WLED status reads |
 | UI thread (STA) | Win32 message loop: tray, WebView2 window, power and session notifications |
 | Log writer | the rolling log file |
 

@@ -120,7 +120,10 @@ public sealed class SettingsStoreTests : IDisposable
         var store = Open();
 
         var result = store.Update(Parse("""
-            { "layout": { "version": 1, "controllers": [{ "id": "c", "host": "x.local", "outputs": [{ "index": 0, "start": 0, "length": 1, "pin": 2 }] }],
+            { "layout": { "version": 1,
+                          "room": { "width": 4, "depth": 4, "height": 2.6, "screen": { "x": 1.7, "y": 1.31, "width": 0.6, "height": 0.34 },
+                                    "furniture": "none" },
+                          "controllers": [{ "id": "c", "host": "x.local", "outputs": [{ "index": 0, "start": 0, "length": 1, "pin": 2 }] }],
                           "strips": [], "extra": true } }
             """));
 

@@ -160,11 +160,11 @@ the C++ fixtures by `Core.Tests`; `Audio` only gets the sound into that analysis
 
 | Thread | Owner | Does |
 |---|---|---|
-| Frame loop (1, above-normal priority) | `LightingPipeline` | capture (or step the visible effect) -> map -> process -> hand frames to controllers and the preview feed |
+| Frame loop (1, above-normal priority) | `LightingPipeline` | capture (or step the visible effect) -> map -> process -> zones (step their effects without waiting, write their colors) -> hand frames to controllers and the preview feed |
 | Sound capture (1 while a music effect runs, above-normal) | `WasapiSession` | read the device's buffers, convert them into blocks, analyze each block |
 | Smoothing (1, above-normal priority) | `OutputStage` | while smoothing runs: one tick per update interval (interpolate, anti-flicker filter, hand the frame to the controllers and the preview); idle otherwise |
 | One per controller | `LedDeviceRunner` | open (with retries), send the newest frame (its slice of the LEDs), refresh, blink, close |
-| Thread pool | ASP.NET Core, `OtherAppMonitor` | JSON-RPC requests (in order per connection), event pushes, LED stream timers, the HyperHDR process check every 2 s |
+| Thread pool | ASP.NET Core, `OtherAppMonitor`, `ProfileMonitor`, `PerformanceRecorder` | JSON-RPC requests (in order per connection), event pushes, LED stream timers, the HyperHDR process check, (while the layout has profiles) the profile programs check every 2 s, and the performance samples (CPU every 2 s, a sample every 10 s) |
 | UI (1, STA, Windows) | `UiThread` | Win32 message loop: hidden message window (power/session notifications, tray callbacks), tray menu, WebView2 window |
 | Log file (1, below normal) | `RollingFileLoggerProvider` | writes queued log lines |
 
@@ -190,6 +190,8 @@ measured code):
 - `ImageToLedMap` precomputes pixel offsets per LED into flat arrays;
 - `ColorProcessor` precomputes its lookup tables and is immutable;
 - `BlackBorderDetector` samples a few lines of the frame in place; `BlackBorderProcessor` only keeps counters;
+- zones keep their LED indices, linear colors and a scratch buffer for the color pass; their effects step and map like
+  the visible one (`ZoneTests` measures the screen path with and without smoothing and the idle path);
 - effects step on preallocated state (colors rotate in place, the canvas and its angle table are kept); the music
   analysis and `AudioBlockWriter` work in fixed buffers, and the WASAPI loop hands the device's buffer to the writer as
   a span (`WasapiSession` measures its own allocations; a live loopback test asserts 0);
@@ -308,6 +310,111 @@ map is rebuilt only when the border changes). Off: no border. Unlike HyperHDR th
 counter, the same quantity), else this process's share (`ProcessMetrics`). LED updates/s is what the controllers
 actually sent (the smoothing rate while smoothing runs).
 
+### Performance recording
+
+`PerformanceRecorder` (Engine) records how the app performs, for looking into a problem afterwards (a gaming session,
+a user's crash). When the app starts it writes a start line; then every 10 s one sample, a JSON object on one line,
+from counters that already exist (the engine's frame count, the controllers' `FrameStats`, `Environment.CpuUsage`,
+`GC`, `Process`, its own `ISystemMetrics` instance, keyed `recorder`, so the UI's tiles keep their own interval). A
+timer ticks every 2 s for the CPU peak; the sample is taken on the tick closest to 10 s (ticks come a few ms early or
+late). It runs on a timer thread, never on the frame loop; a sample costs a few ms of CPU (one `Process` snapshot), and
+an exception only skips the sample (logged once). `PerformanceRecording` (App) appends the lines to
+`logs/performance-yyyyMMdd.jsonl` (opened and closed per line, so the file can be read while the app runs; a new file
+per day, the newest 14 files kept, i.e. the last 14 days the app ran; about 4 MB per full day plus 1.3 MB per
+controller).
+
+The start line and the last 30 minutes (180 samples) stay in memory as their JSON lines. When the app ends on an
+unexpected error, `CrashReport` first appends the `FATAL` entry, naming `crash-yyyyMMdd-HHmmss.jsonl`, then writes the
+lines there (the newest 10 kept; a failure there never costs the entry), so a crash report can send the error, the log
+and the performance before it together. The recorder is taken once the app runs, so the crash path resolves no
+services. Up to 10 s before the crash are missing (the last sample is the last complete one).
+
+The log gets a warning when a controller starts dropping frames (at least 10 and 5 % of the frames handed to it in one
+sample; a frame counts as dropped only while the controller is ready: while it opens or waits to retry nothing is
+taken, which isn't falling behind) and a line when it
+keeps up again (below 1 %), and a warning when garbage collections paused the app for
+100 ms or more in one sample.
+
+GPU: `IGpuMetrics` (`WindowsGpuMetrics`, Platform.Windows) reads the performance counters Task Manager uses (PDH:
+`GPU Engine(*)\Utilization Percentage`, `GPU Adapter Memory(*)\Dedicated Usage`, `GPU Process Memory(*)\Dedicated
+Usage` / `Shared Usage`) on every 2 s tick: the busiest engine of any adapter, for the computer (summed over
+processes) and for Backbloom (the screen capture), time-weighted over the sample plus the peak tick, and the GPU
+memory in use. The query opens on the first tick (about 140 ms, not on the app's start); a reading then takes about
+1 ms. The wildcards are expanded on every collection, so the capture's device, created later, is included. With
+hundreds of instances a reading parses the names in place from one reused buffer and keeps a total per engine between
+readings, so it hardly allocates (the app's allocation numbers describe Backbloom, not its measuring). A failure only
+leaves the GPU unknown.
+
+LED power, for overheating questions: `LedDeviceRunner` measures each frame it sends on the device thread (not the
+frame loop; one pass over the colors, no allocation): the means of the red, green and blue channels (the share of full
+brightness the LEDs' PWM draws; the load is their mean), the brightest single LED, and how long the driver took to
+send it. `FrameStats` sums them and keeps the peaks, which only the recorder takes (through the engine) once per
+sample. The estimated current uses the controller's own LED current when it reports one (WLED's "LED current" per
+output, 255 meaning WS2815 at 12 mA), else WLED's default of 55 mA per LED at full white (WS281x at 5 V); it is what
+Backbloom asks for, before the controller's own brightness and power limit, and it is left out for lamps (Hue, LIFX,
+Nanoleaf, WiZ, Yeelight, Home Assistant, Zigbee2MQTT) and the file driver.
+
+Drivers whose controller reports about itself implement `ITelemetryDriver`. The WLED driver (checked against WLED's
+json.cpp, cfg.cpp and bus_manager.cpp, v16) reads `GET /json/cfg` once per connection for the power limiter: the global
+limit `hw.led.maxpwr`, each output's limit `hw.led.ins[].maxpwr` and LED current `ins[].ledma`; as WLED's
+`initializeABL`, the limiter is in use with a global limit and an output with an LED current, or without a global one,
+with an output that has both (then the limit is their sum); WLED 0.14 and older have one LED current `hw.led.ledma`
+and treat a limit below 150 mA as none; and "force max brightness" for realtime data
+(`if.live.maxbri`). While connected it reads `GET /json/si` (state and info, without the effect lists) every 10 s
+(never in `Write`, never while switched off; the readings are published only once a connection succeeded and cleared
+on close, which waits for the poll to end, so nothing it sends can come after the switch-off). It records WLED's
+current estimate only while the limiter is in use (`leds.pwr` is then the LEDs plus the controller's own 80-120 mA; v16
+reports those 80-120 mA without the limiter, and `leds.maxpwr` is the global setting whether in use or not), its
+brightness (`state.bri`: applied on top of what Backbloom sends unless "force max brightness" is on; a change
+between readings is logged, e.g. made in the WLED app), on, frame rate (`leds.fps`: LED updates, one per UDP packet
+above 489 LEDs), LED count, realtime state and sender (`live`, `lm`, `lip`: shows another program streaming to it),
+realtime override (`lor`: 1 until the realtime data ends, 2 until a restart), connected WLED apps (`ws`), chip, Wi-Fi,
+free memory, uptime and a temperature: entries of `sensor` and `u` with "temp" in the name and a degree unit (the
+Temperature usermod reports a missing sensor as `[0, " Sensor Error!"]`, which is skipped; "internal" names the chip's
+own, and a sensor elsewhere is preferred). A restart is noticed when the boot time (reading time minus uptime) moves by
+more than 30 s: while connected it is counted, logged as a warning (power or heat) and the realtime state (on,
+brightness) is sent again, as WLED forgot it, on every reading until that succeeds (a controller that just booted may
+not answer yet); noticed on connecting, it happened while switched off (e.g. the power
+supply was off) and is only logged. Three failed reads in a row are logged.
+
+The log warns when the limiter holds the LEDs at 95 % of its limit or more (until below 80 %) and when a temperature
+reaches 65 °C at a sensor or 85 °C for the chip (ESP32 chips run at 50-70 °C; WLED's own alarm is at 95 °C), until 5 °C
+below.
+
+For the crash report upload (not built yet): controller names and ids and the profile id are text the user typed;
+decide what is sent before uploading the lines. Short stutters don't show in 10 s averages; a frame-interval maximum
+or a count of late frames would be the next fields to add.
+
+Format, version 1 (fields are only added; a change of meaning raises `v`). Every line has `v` and `kind`.
+
+The start line (`kind` "start"):
+
+| Field | |
+|---|---|
+| `time` | local time with offset |
+| `version` | app version and build (`0.1.0+1a2b3c4d`) |
+| `os`, `runtime`, `cores` | operating system, .NET runtime, logical processors (`app.cpu` is a share of all of them) |
+| `pid`, `processStart` | process id and start time: a new start line marks a restart |
+
+A sample (`kind` "sample"):
+
+| Field | |
+|---|---|
+| `time`, `seconds` | local time with offset at the end of the sample, its length |
+| `app.cpu`, `app.cpuPeak` | this process's CPU, share of all cores (as Task Manager) over the sample and the highest 2 s value |
+| `app.privateMb`, `app.workingSetMb`, `app.heapMb` | private bytes, working set, managed heap |
+| `app.allocatedMbPerSecond`, `app.gcCollections`, `app.gcPauseMs` | allocation rate, collections of generations 0, 1, 2 and the time they paused the app, in the sample |
+| `app.threads`, `app.handles` | at the end of the sample |
+| `app.gpu`, `app.gpuPeak`, `app.gpuMemoryMb`, `app.gpuSharedMemoryMb` | Backbloom's GPU use (busiest engine, %, over the sample and the highest 2 s value), dedicated and shared GPU memory |
+| `computer.cpu`, `computer.memoryUsedMb`, `computer.memoryTotalMb` | the whole computer (null when unknown) |
+| `computer.gpu`, `computer.gpuPeak`, `computer.gpuMemoryUsedMb` | the whole computer's GPU use (as Task Manager) and dedicated GPU memory in use |
+| `lighting.source`, `lighting.profile`, `lighting.framesPerSecond`, `lighting.smoothingPerSecond` | frame source, active profile id (null: none), frame loop and smoothing rates |
+| `controllers[]` | `id`, `name`, `type`, `state` (`Disabled` when nothing is sent), `leds`, `updatesPerSecond` (frames sent), `submitted`, `dropped`, `writeErrors` (in the sample), `latencyMs` (average submit-to-sent time, null without new frames) |
+| `controllers[].writeMs`, `writeMsPeak` | time the driver took to send a frame, average and highest |
+| `controllers[].load`, `loadPeak`, `brightestLedPeak`, `loadRgb` | average and highest load of the frames sent, % of full white; the brightest single LED's peak; average red, green and blue (null when none were sent) |
+| `controllers[].milliampsPerLed`, `estimatedMa`, `estimatedPeakMa` | the LED current assumed and the current the load means (null for lamps and the file driver) |
+| `controllers[].controller` | what the controller reports (null when its driver doesn't read that or it is switched off): `ageSeconds` (since it was read), `powerMa` (null: unknown), `powerLimitMa` (null: no limiter), `milliampsPerLed`, `brightness` (0..255), `forceMaxBrightness`, `on`, `framesPerSecond`, `leds`, `live`, `liveMode`, `liveSource`, `realtimeOverride`, `clients`, `signal` (%), `rssi` (dBm), `wifiChannel`, `freeMemoryKb`, `uptimeSeconds`, `restarts` (noticed while this driver ran: across reconnects, reset when the controller's settings change), `temperatureC`, `temperatureSource`, `temperatureIsChip`, `chip`, `firmware`; each null when not reported |
+
 ## Effects and music mode (port step 5b)
 
 ### Effects
@@ -349,8 +456,8 @@ smoothing are followed roughly, and music effects hear `SyntheticMusic` (a two-b
 chords and an arpeggio, bass-heavy in the first bar and brighter in the second), one loop to learn the levels and one
 recorded, so the preview loops seamlessly. The UI asks for each effect as its card comes into view; previews are kept
 until the layout changes. Without enabled LEDs they use `EffectPreview.StandardFrame` (16 LEDs along the top and
-bottom, 9 per side). The UI draws them, and the live preview, on the layout as the Layout page does (each strip outside
-the screen edge it samples, strips on the same edge in their own lanes).
+bottom, 9 per side). The UI draws them, and the live preview, on the layout as the Layout page does (each LED where it is
+in the room, the walls and ceiling folded out around the front wall).
 
 **Music effects need sound capture.** Without it they would freeze on their last picture (HyperHDR ran them anyway).
 `EffectEngine.Run` refuses one while `SoundCapture.CanCapture` is false (`EffectStart.NoSound`; the `effect` command
@@ -441,7 +548,7 @@ Every driver of the C++ build is ported (sources/led-drivers); the settings keys
 
 | Type | Group | Transport | Notes |
 |---|---|---|---|
-| `wled` | network | REST + UDP | DRGB/DNRGB; discovery: mDNS `_wled._tcp` |
+| `wled` | network | REST + UDP | DRGB/DNRGB; discovery: mDNS `_wled._tcp`; reads WLED's power settings on connect and its status every 10 s while connected ([telemetry](#performance-recording)) |
 | `ddp` | network | UDP 4048 | RGB, classic RGBW (`rgbw` + `white_algorithm`), RGBW by the Infinite Color Engine |
 | `udpe131` | network | UDP 5568 | E1.31/sACN, 512 or 510 channels per universe, CID from the settings or random |
 | `udpartnet` | network | UDP 6454 | ArtDmx, channels per fixture, splitting, RGBW (ICE) |
@@ -530,7 +637,7 @@ wires them (`DesktopRegistration`).
 | Autostart | `RegistryAutostart`: value `Backbloom` in `HKCU\...\CurrentVersion\Run` (as C++), command `"<exe>" --no-window` plus `--data-dir` when it isn't the default; enabled only when the entry starts this executable (also C++'s bare-path entries). Off by default: only the user turns it on (tray menu, the welcome's checkbox, `setup autostart`). The key is a constructor parameter; the tests use a scratch key and never write the real Run key. |
 | Power and session | `WindowsSystemEvents` (hidden top-level window: `RegisterSuspendResumeNotification`, `RegisterPowerSettingNotification(GUID_SESSION_DISPLAY_STATUS)`, `WTSRegisterSessionNotification`, `WM_ENDSESSION`) raises `ISystemEvents`; `PowerPolicy` (port of `InstanceManager::hibernate`) reacts: sleep -> `ALL` off, wake-up -> on 3 s later; locked or display off with `general.disableOnLocked` -> `SYSTEMGRABBER` off (the screen source leaves, so the LEDs go dark unless a color or effect shows: an effect chosen by the user keeps running while locked, as in C++; without this setting the screen still leaves 800 ms after the lock screen stops its frames), unlocked and display on -> capture on 3 s later, and the screen shows again with its first frame. A lock in a remote desktop session is ignored (as C++). |
 | Startup | `general.disableLedsStartup` starts with `LEDDEVICE` off (engine, unchanged); `--no-window` keeps the window closed, except until the first-run welcome was completed (the window always opens then, so the welcome is seen). |
-| Logging | Console (when there is one), `logs/backbloom-yyyyMMdd.log` in the data directory and the UI's log view, at the level of the `logger` section (silent = errors only, warn, verbose = info, debug), applied at once when it changes. One plain-text line per message (time, level, category, rendered message template; exceptions indented below), written by a background thread; a new file per day and per 10 MB, the newest 10 kept. A failed start or a crash (unhandled exception) is appended there as a `FATAL` entry by `CrashReport` (directly, so it is recorded before logging exists and when the process ends), printed to the console if there is one, and shown in a message box (`ErrorDialog`) unless `--service`. |
+| Logging | Console (when there is one), `logs/backbloom-yyyyMMdd.log` in the data directory and the UI's log view, at the level of the `logger` section (silent = errors only, warn, verbose = info, debug), applied at once when it changes. One plain-text line per message (time, level, category, rendered message template; exceptions indented below), written by a background thread; a new file per day and per 10 MB, the newest 10 kept. A failed start or a crash (unhandled exception) is appended there as a `FATAL` entry by `CrashReport` (directly, so it is recorded before logging exists and when the process ends; with the [recent performance](#performance-recording) when there is any), printed to the console if there is one, and shown in a message box (`ErrorDialog`) unless `--service`. |
 | Shutdown | Quit, `--quit` and Ctrl+C stop the host: WebSocket clients are closed at once, the engine switches every controller off (black frame, then closed), then the tray icon goes. Where Windows ends the process as soon as a notification returns (`WM_ENDSESSION` at logoff/shutdown; console close and shutdown signals), the handler stops the host and waits up to 4.5 s for the LEDs (`GracefulShutdown`). C++ didn't handle the session end. |
 | Settings | Crash-safe as before: every change is one SQLite transaction (rollback journal, `synchronous=FULL` by default); `window.json` is written to a temporary file and moved over. |
 | Packaging | `backbloom.exe` is a `WinExe` with the Backbloom icon; the built UI is copied next to it (`ui/`, build and publish) when `ui/dist` exists. `packaging/build.ps1` publishes a self-contained ReadyToRun folder and packs the Velopack installer with automatic updates; see [packaging/README.md](../packaging/README.md). |
@@ -608,20 +715,86 @@ of a controller. There are no per-controller pipelines ("instances").
 
 ```
 { version: 1,
+  room: { width, depth, height, screen: { x, y, width, height }, furniture },
   controllers: [{ id, name, enabled?, kind?, host?, outputs: [{ index, start, length, pin? }],
                   device: { type, colorOrder, refreshTime, ...driver settings } }],
-  strips: [{ id, name, controllerId, output, brightness?, segments: [edge | fixed | off] }] }
+  strips: [{ id, name, controllerId, output, ledCount, path: [{ surface, x, y, at?, next? }],
+             dark?: [{ start, count }], depth?, blend?, brightness? }] }
+next: { kind: edge, from, to } | { kind: whole } | { kind: area, area } | { kind: none }
+    | { kind: effect, effect } | { kind: color, color: [r, g, b] } | { kind: gap }
+profiles?: [{ id, name, apps: [executable names], sections: { <strip id>: [section | null per section] } }]
 ```
+
+Strips are placed in a schematic room (meters): the screen hangs on the front wall, and a strip is a path of two or
+more points on the walls (`front`, `left`, `right`, `back`), the `ceiling` or the `floor`, each in that surface's own
+coordinates. The points split the strip into sections; a point's `next` is the section to the following point (the
+last point's is ignored). LED k sits at position k + 0.5 along the path: points matched to the real lights carry their
+LED position `at`, the others are spaced by length, and `gap` sections (no LEDs: a cut corner, a cable) count no length,
+so the LEDs spread over the other sections. An `edge` section repeats the stretch of the screen's outline from `from`
+to `to` (outline positions 0..4 clockwise from the top-left corner, one per edge, wrapping around): its LEDs spread
+evenly over the stretch, each `depth` (default 0.1) screen heights into the picture and as wide along the edge as the
+LED spacing there times `blend` (default 1.2). Without `next` (auto) a section is the edge stretch it faces: both ends
+seen straight on against the front wall (depth dropped), each at the nearest point of the outline, the short way
+round. `whole` LEDs show the whole picture, `area` LEDs one area, `none` LEDs stay off, as do LEDs in `dark`.
+`effect` and `color` LEDs play something of their own (a zone, see below), whatever the rest of the lights show.
 
 `Backbloom.Settings/Layout`: `LayoutSpecification.Normalize` validates it (rejecting with `layout.<path>` errors, like
 every setting) and fills in each controller's `device`; `Compile` turns it into one sampling area per LED per
-controller, exactly like the UI's `compileLayout` (both are checked against
-`tests/fixtures/layouts/ui-multi-controller.*.json`); `ControllerSetup` is what the engine runs. Rules: at least one
-controller; unique controller and strip ids; a controller's outputs have unique indexes, at least 1 LED each, and follow
-each other from LED 0 without gaps or overlaps, so its LED count is the sum of its outputs (at most 10,000); a strip
-names an existing controller and output (one strip per output) and has at most as many LEDs as the output (fewer: the
-rest stays dark, the UI warns); `brightness` 0..1; each `device` is validated against its driver's schema (defaults
-filled in). Properties the backend doesn't use (`kind`, `host`, `pin`, ...) are kept.
+controller with the same math as the UI's `ui/src/layout/room.ts` and `compile.ts` (both are checked against
+`tests/fixtures/layouts/ui-multi-controller.*.json`; the C# output matches bit for bit, the test allows one step of the
+4-decimal precision); `ControllerSetup` is what the engine runs. Compiling runs only when the layout changes, never per
+frame. Rules (the errors of the UI's `validate.ts`; its warnings aren't enforced): a room 0.5 to 50 m each way, a
+screen of positive size on the front wall, `furniture` desk, tv or none; at least one controller; unique controller and
+strip ids; a controller's outputs have unique indexes, at least 1 LED each, and follow each other from LED 0 without
+gaps or overlaps, so its LED count is the sum of its outputs (at most 10,000); a strip has a whole `ledCount` of at
+least 1, a path inside the room with a length above 0 outside its gaps, whose `at` positions lie within the strip and
+don't go backwards, sections of a known kind (`edge` with numeric `from` and `to`, `area` with numeric bounds, minimum
+not past maximum; an area reaching outside the picture is cut to fit; `effect` with a non-empty name, which needn't
+exist in the catalog; `color` with three whole numbers 0..255), `dark` ranges within the strip, `depth` in
+(0, 1], `blend` above 0 and `brightness` 0..1, names an existing controller and output (one strip per output) and has
+at most as many LEDs as the output (fewer: the rest stays dark, the UI warns); each `device` is validated against its
+driver's schema (defaults filled in); `profiles`, when present, is a list of profiles with unique non-empty ids, a
+name, `apps` as a list of non-empty program names and `sections` as an object of lists, whose entries are null (auto)
+or valid sections other than `gap`. A profile's list for a strip that isn't there, or whose length isn't the strip's
+section count, is only a warning in the UI and is ignored when the profile is applied, as are profiles without
+programs. Properties the backend doesn't use (`kind`, `host`, `pin`, `name`, and the `seat`, `show` and `area` of the
+earlier, never released room model) are kept.
+
+**Zones.** The LEDs of `effect` and `color` sections are disabled in the compiled `leds` (the screen's mapping skips
+them) and form zones (`ControllerSetup.Zones`, `compileZones`): one per distinct role (the same effect, or the same
+color) across strips and controllers, with each LED's index among all controllers' LEDs and the rect `auto` would
+give it (`CompileStrip(strip, room, zone: true)`), so an effect's picture flows across the zone as if it were the
+screen. Dark LEDs and LEDs past their output aren't in a zone. Checked against `ui-multi-controller.zones.json`
+(indices exactly, rects within 1e-4). The engine plays them over every frame (`ZoneLayer`):
+
+- an `effect` zone runs its own `EffectSource`, mapped with the zone's rects (with the user's mapping type) or, for
+  effects that set LED colors, with one color per zone LED; a music effect opens the sound capture like a visible one
+  and stays dark without sound; an effect name that isn't in the catalog leaves the zone dark (logged once);
+- a `color` zone shows its color;
+- effect zones go through the color settings like effects, color zones past them like static colors; then they are
+  written into their LEDs of the frame handed to `OutputStage` (smoothing, if on, and strip brightness apply to them
+  too);
+- zone effects step without waiting (`EffectSource.TryStep`, catching up on steps missed since the last call so they
+  keep their speed): with every frame of the visible source; while a visible effect waits for its next step (it
+  returns early for a zone step, `ILightSource.TryRender`'s `wakeAtMs`); and while nothing new comes (a static color,
+  no source, an inactive screen), when the frame loop wakes for the zones' next step (in slices of 20 ms, so a new
+  source still shows at once) and sends the last frame again with the zones' new colors. A screen capture isn't cut
+  short for them (the frame pacer would skip a frame), so while the screen shows they step with its frames;
+- while zones exist the controllers stay on without a source (the other LEDs are black); zone effects pause while the
+  output is off or held;
+- a layout change rebuilds the zones; an effect whose zone is still there keeps running (same instance).
+
+**Profiles.** `layout.profiles` give the strips' sections other roles while a program runs (a game, a video player):
+`LayoutSpecification.ApplyProfile` (`applyProfile` / `stripInProfile` in `ui/src/layout/profiles.ts`) puts a
+profile's sections onto each strip it lists with a list as long as the strip's sections (null: auto; gaps stay) and
+`Compile(spec, profileId)` compiles that (checked against `ui-multi-controller.witcher.*.json`). `ProfileMonitor`
+(Engine) asks `IProcessList.FindRunning` for each profile's programs, in list order, at start and every 2 s while the
+layout has profiles: the first profile one of whose programs runs (names compared case-insensitively) is applied with
+`LightingEngine.ApplyProfile`, which compiles the stored layout for it and swaps rects and zones without saving
+anything; controllers whose driver settings and LED count didn't change keep running (a profile can't change them).
+`profile select` chooses one by hand until it is set back to automatic (not saved: a restart chooses by the programs
+again); removing that profile from the layout goes back to automatic. Later layout saves are compiled for the active
+profile.
 
 The store keeps the other sections consistent with it, in the same transaction:
 
@@ -636,7 +809,9 @@ The store keeps the other sections consistent with it, in the same transaction:
 from `leds` + `device`, as before; the first layout saved by the UI takes over (the UI builds it from those two and
 keeps the device). A layout stored by the previous version (without devices, one controller) gets the stored
 controller's device on load; an invalid stored layout is ignored with a warning (the LEDs follow `leds` + `device`).
-Imported HyperHDR instances beyond the first are still stored as controllers but get LEDs only when a layout uses them.
+That includes layouts in the earlier, never released format (strips made of screen-edge `segments`, no room): there is
+no conversion, the UI starts a new room layout from `leds`. Imported HyperHDR instances beyond the first are still
+stored as controllers but get LEDs only when a layout uses them.
 
 **Engine.** The mapping runs once per frame over the union of all controllers' LEDs (the pipeline's `LedLayout` is
 `leds`), so N controllers cost one `ImageToLedMap` pass, one color pass and one smoother, exactly like one controller
@@ -655,8 +830,10 @@ driver had written the frame (`FrameStats` latency).
 | `config getconfig` / `setconfig` | `layout` with every controller's `device`; `leds` (all LEDs) and `device` (first controller) as above |
 | `serverinfo.controllers`, event `controllers-update` | `[{ id, name, type, enabled, running, state, status, start, ledCount, strips: [{ id, name, start, length, brightness }] }]`; `start` is the controller's first LED in `leds` and in the LED stream, a strip's `start` counts within its controller; the event follows layout changes and state changes (ready, retrying, ...) |
 | `performance-update` | one LED report (type 3) per controller: `id` = position, `param1` updates/s, `param2` written, `param3` submitted, `param4` dropped since the last report, plus `controller`, `controllerName`, `ledCount`, `state`, `latencyMs` |
-| `leddevice identify` `blink` | `params: { blinkIndex, controller? }`: `controller` is an id (or a position); without it `blinkIndex` counts over all LEDs (old clients, one controller: unchanged). Replies `{ controller, blinkIndex }`; an LED that doesn't exist or a controller that isn't running is an error |
+| `leddevice identify` `blink` | `params: { blinkIndex, controller?, hold? }` or `{ stop: true, controller? }`: `controller` is an id (or a position); without it `blinkIndex` counts over all LEDs (old clients, one controller: unchanged). `hold` keeps the LED cycling red, green, blue until the next blink, a stop or 120 s (`BlinkPattern.HoldTimeout`). Replies `{ controller, blinkIndex, hold }` (a stop: `{ controller, stopped }`); an LED that doesn't exist, a controller that isn't running, or a held output (first run, HyperHDR running) is an error. See [docs/protocol.md](../docs/protocol.md#finding-an-led-leddevice-identify-leddevicetype-blink) |
 | `ledcolors` stream | `leds` covers every controller's LEDs; each message and the `ledstream-start` reply carry `controllers: [{ id, start, length }]` |
+| `serverinfo.profile`, event `profile-update` | the active profile `{ id, name, manual }` or null; the event carries `{ profile }` |
+| `profile` | `getstate` (`{ profile }`), `select` `{ id: string \| null }` (null: choose by the running programs; replies `{ profile }`), `programs` (admins: the programs with a window, `{ programs: [{ exe, title }] }`, one per executable, sorted, from `IProgramList`: `EnumWindows` on Windows without tool, owned or cloaked windows, `Process.MainWindowTitle` elsewhere). See [docs/protocol.md](../docs/protocol.md#profiles-profile) |
 
 **UI** (`ui/`): the Layout page saves layouts with any number of controllers (`saveLayout` sends `layout`, plus the
 compiled `leds` for backends that don't compile layouts); the Devices page lists every controller with its outputs, an
@@ -689,6 +866,7 @@ Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): r
 | `adjustment`, `ledcolors` ledstream-start/stop, `leddevice` identify/discover/getProperties, `logging`, `instance` switchTo | done (several controllers: see [LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)) |
 | `effect` (`priority` 1..253, `effect.name`, `duration`, `origin`) | done (see [Effects](#effects)); `effect.args`, `pythonScript` and `imageData` are rejected (C++ rejected arguments too) |
 | `setup` getstate, start, autostart, acknowledge (+ `setup-update`) | new (see [First run, HyperHDR and network access](#first-run-hyperhdr-and-network-access)) |
+| `profile` getstate, select, programs (+ `profile-update`, `serverinfo.profile`) | new (see [LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)) |
 | `image`, imagestream | not yet ("Command not implemented") |
 
 Deliberate differences from the C++ backend (its bug backlog):
@@ -834,6 +1012,11 @@ tolerance.
   `serverinfo.systemGrabbers.modes` lists only the captured monitor (Engine/Server should list `Monitors`); the
   duplication stays open while `SYSTEMGRABBER` is off; HDR content has no highlight roll-off (clipped at SDR white, as
   in C++). The desktop tests skip when the desktop delivers no frames (monitor off).
+- Zones and profiles: zones are smoothed with the visible source's smoothing configuration (a music zone over a smoothed
+  screen is smoothed too); while the screen shows, zone effects step with the captured frames (`systemGrabber.fps`,
+  catching up so their speed is right); a music zone keeps the sound capture open while the output is held; the power
+  limit applies to each zone's colors separately. Effect previews (`effects previews`) show effects on the layout as
+  saved, not in zones or profiles.
 - Multiple controllers: the UI reads WLED outputs itself (browser fetch); other drivers get their LED count typed in
   (no driver reports it yet). Strip brightness scales the processed (gamma-encoded) values, not linear light. Old
   clients that save `leds` remove a one-controller layout (by design) and can't change a multi-controller one. The

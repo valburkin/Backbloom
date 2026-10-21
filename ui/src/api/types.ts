@@ -163,7 +163,25 @@ export interface ServerInfo {
   };
   systemGrabbers?: SystemGrabbers;
   imageToLedMappingType?: string;
+  /** The layout's profile whose roles the strips have now, or null (Backbloom addition; also pushed by profile-update). */
+  profile?: ActiveProfile | null;
   [key: string]: unknown;
+}
+
+/** A profile of the layout that runs (serverinfo.profile). */
+export interface ActiveProfile {
+  id: string;
+  name: string;
+  /** Chosen by hand (setProfile) rather than by a running program. */
+  manual: boolean;
+}
+
+/** A running program with a window, for the profile editor's program picker (`runningPrograms`). */
+export interface RunningProgram {
+  /** Executable name, e.g. witcher3.exe (what a profile's `apps` hold). */
+  exe: string;
+  /** The title of one of its windows. */
+  title: string;
 }
 
 /** HDR state of the screen capture (`serverinfo.systemGrabbers.hdr`, also pushed by `capture-update`). */

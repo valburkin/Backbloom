@@ -12,12 +12,17 @@ namespace Backbloom.Engine;
 /// deadlines on the injected clock, at most 100 ms apart) and turns its output into linear LED colors, LED colors
 /// through the sRGB table and pictures through its own image-to-LED map. Port of <c>Effect::run</c>
 /// (sources/effects/Effect.cpp). The effect pauses while it isn't visible (TryRender isn't called), as in HyperHDR.
-/// A music effect holds a sound capture handle until <see cref="Dispose"/>.
+/// A zone's effect is stepped with <see cref="TryStep"/>, which never waits. A music effect holds a sound capture
+/// handle until <see cref="Dispose"/>.
 /// </summary>
 public sealed class EffectSource : ILightSource, IDisposable
 {
     // Effects wait for their next step in slices of this, so a canceled render returns quickly.
     private const long WaitSliceMs = 20;
+
+    // TryStep catches up on at most this many missed steps per call (an effect stepped less often than it asks for
+    // keeps its speed; after a pause of more than MaxSleepTimeMs it starts over instead).
+    private const int MaxCatchUpSteps = 16;
 
     private readonly Effect _effect;
     private readonly IClock _clock;
@@ -56,24 +61,28 @@ public sealed class EffectSource : ILightSource, IDisposable
     /// <summary>The duration it was started with (-1: until cleared), as <c>activeEffects</c> reports it.</summary>
     public long DurationMs { get; }
 
-    public bool TryRender(LedMappingOptions mapping, Span<Vector3> linearColors, CancellationToken cancellationToken)
+    /// <summary>When the next step is due (clock milliseconds); in the past before the first step.</summary>
+    public long NextStepAt => _nextStep;
+
+    private long StepMs => Math.Min(_effect.SleepTimeMs, Effect.MaxSleepTimeMs);
+
+    /// <summary>Renders the next step when it is due, waiting for it unless <paramref name="cancellationToken"/> is canceled.</summary>
+    public bool TryRender(LedMappingOptions mapping, Span<Vector3> linearColors, CancellationToken cancellationToken) =>
+        TryRender(mapping, linearColors, long.MaxValue, cancellationToken);
+
+    public bool TryRender(LedMappingOptions mapping, Span<Vector3> linearColors, long wakeAtMs, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(mapping);
         var now = _clock.NowMilliseconds;
-        if (now - _nextStep > Effect.MaxSleepTimeMs)
-        {
-            // first step, or visible again after a pause: start over from now
-            _nextStep = now;
-        }
-
+        StartOverAfterPause(now);
         while (now < _nextStep)
         {
-            if (cancellationToken.IsCancellationRequested)
+            if (cancellationToken.IsCancellationRequested || now >= wakeAtMs)
             {
                 return false;
             }
 
-            _clock.SleepUntil(Math.Min(_nextStep, now + WaitSliceMs));
+            _clock.SleepUntil(Math.Min(Math.Min(_nextStep, wakeAtMs), now + WaitSliceMs));
             now = _clock.NowMilliseconds;
         }
 
@@ -82,13 +91,69 @@ public sealed class EffectSource : ILightSource, IDisposable
             return false;
         }
 
-        if (_leds.Length != linearColors.Length)
+        EnsureBuffer(linearColors.Length);
+        var output = _effect.Render(_canvas, _leds);
+        _nextStep += StepMs;
+        return Write(output, mapping, linearColors);
+    }
+
+    /// <summary>
+    /// Renders when a step is due at <paramref name="nowMs"/> and returns at once otherwise (a zone's effect, stepped
+    /// between the frame loop's other work). Steps missed since the last call are run too (only the last one is mapped),
+    /// so the effect keeps its speed when it is called less often than it asks for. Does not allocate in steady state.
+    /// </summary>
+    /// <returns>True when <paramref name="linearColors"/> got new colors.</returns>
+    public bool TryStep(LedMappingOptions mapping, Span<Vector3> linearColors, long nowMs)
+    {
+        ArgumentNullException.ThrowIfNull(mapping);
+        StartOverAfterPause(nowMs);
+        if (nowMs < _nextStep)
         {
-            _leds = new Rgb8[linearColors.Length];
+            return false;
         }
 
-        var output = _effect.Render(_canvas, _leds);
-        _nextStep += Math.Min(_effect.SleepTimeMs, Effect.MaxSleepTimeMs);
+        EnsureBuffer(linearColors.Length);
+        var output = EffectOutput.None;
+        for (var i = 0; i < MaxCatchUpSteps && nowMs >= _nextStep; i++)
+        {
+            var step = _effect.Render(_canvas, _leds);
+            _nextStep += StepMs;
+            if (step != EffectOutput.None)
+            {
+                output = step;
+            }
+        }
+
+        return Write(output, mapping, linearColors);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0 && _sound is not null)
+        {
+            _sound.Close(_soundHandle);
+        }
+    }
+
+    // First step, or stepped again after a pause: start over from now.
+    private void StartOverAfterPause(long now)
+    {
+        if (now - _nextStep > Effect.MaxSleepTimeMs)
+        {
+            _nextStep = now;
+        }
+    }
+
+    private void EnsureBuffer(int ledCount)
+    {
+        if (_leds.Length != ledCount)
+        {
+            _leds = new Rgb8[ledCount];
+        }
+    }
+
+    private bool Write(EffectOutput output, LedMappingOptions mapping, Span<Vector3> linearColors)
+    {
         switch (output)
         {
             case EffectOutput.Leds:
@@ -117,13 +182,5 @@ public sealed class EffectSource : ILightSource, IDisposable
 
         _produced = true;
         return true;
-    }
-
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref _disposed, 1) == 0 && _sound is not null)
-        {
-            _sound.Close(_soundHandle);
-        }
     }
 }

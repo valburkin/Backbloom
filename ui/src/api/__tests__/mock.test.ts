@@ -4,6 +4,7 @@ import { MockBackend } from '../mock';
 import { RpcError } from '../types';
 import { saveErrorText } from '../../app/config';
 import { toneMappingStatus } from '../../pages/CapturePage';
+import specJson from '../../../../backend/tests/fixtures/layouts/ui-multi-controller.spec.json';
 
 async function connected() {
   const backend = new MockBackend({ latencyMs: 0 });
@@ -50,6 +51,29 @@ describe('MockBackend like the .NET app', () => {
     expect(preview.frames.get('Candle')!.length % (preview.ledCount * 3)).toBe(0);
   });
 
+  it('activates a profile by hand until set back to automatic, and lists the programs with a window', async () => {
+    const { api, backend } = await connected();
+    const events: unknown[] = [];
+    backend.onEvent('profile-update', (e) => events.push(e.data));
+    expect(SUBSCRIPTIONS).toContain('profile-update');
+    expect((await api.serverInfo()).profile).toBeNull();
+    await expect(api.setProfile('witcher')).rejects.toThrow("The layout has no profile 'witcher'");
+
+    // no program runs in the mock, so only a profile chosen by hand runs
+    await api.setConfig({ layout: specJson });
+    const witcher = { id: 'witcher', name: 'Witcher 3', manual: true };
+    expect(await api.setProfile('witcher')).toEqual(witcher);
+    expect((await api.serverInfo()).profile).toEqual(witcher);
+    expect(await api.setProfile(null)).toBeNull();
+    expect((await api.serverInfo()).profile).toBeNull();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events).toEqual([{ profile: witcher }, { profile: null }]);
+
+    expect(await api.runningPrograms()).toEqual([
+      { exe: 'vlc.exe', title: 'VLC media player' },
+      { exe: 'witcher3.exe', title: 'The Witcher 3' },
+    ]);
+  });
   it('saves while the lights are off and stores adjustments', async () => {
     const { api } = await connected();
     await api.setComponent('ALL', false);

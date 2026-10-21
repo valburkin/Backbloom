@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import legacyLeds from '../../layout/__fixtures__/my-layout.json';
-import { compileLayout, type LayoutSpec } from '../../layout';
+import { compileLayout, defaultRoom, shapePath, type LayoutSpec } from '../../layout';
 import { RpcApi } from '../rpcApi';
 import { MockBackend, MOCK_PASSWORD } from '../mock';
 import { isLayoutSpec, loadLayout, saveBlockers, saveLayout } from '../layoutService';
@@ -28,6 +28,14 @@ describe('MockBackend', () => {
   });
 });
 
+describe('isLayoutSpec', () => {
+  it('accepts room layouts and turns down layouts in an older shape', () => {
+    expect(isLayoutSpec({ version: 1, room: defaultRoom(), controllers: [], strips: [] })).toBe(true);
+    expect(isLayoutSpec({ version: 1, controllers: [], strips: [] })).toBe(false);
+    expect(isLayoutSpec({ version: 1, room: defaultRoom(), controllers: [], strips: [{ id: 's', segments: [] }] })).toBe(false);
+  });
+});
+
 describe('loadLayout', () => {
   it('falls back to the legacy leds + WLED outputs when no layout is saved', async () => {
     const { api } = await connected();
@@ -37,17 +45,15 @@ describe('loadLayout', () => {
     expect(res.spec.controllers[0].outputs.map((o) => o.length)).toEqual([91, 77]);
     // the legacy device becomes the controller's driver settings
     expect(res.spec.controllers[0].device).toEqual((await api.getConfig()).device);
-    // Re-compiling the imported legacy layout reproduces the original rects.
+    // The imported strips run around the screen of a default room and light every LED (infer.test checks where).
+    expect(res.spec.room).toEqual(defaultRoom());
     const leds = compileLayout(res.spec)[0].leds;
     expect(leds).toHaveLength(legacyLeds.length);
-    leds.forEach((r, i) => {
-      expect(r.hmin).toBeCloseTo(legacyLeds[i].hmin, 2);
-      expect(r.vmax).toBeCloseTo(legacyLeds[i].vmax, 2);
-    });
+    expect(leds.every((r) => !r.disabled)).toBe(true);
   });
 
   it('prefers a saved layout setting', async () => {
-    const saved: LayoutSpec = { version: 1, controllers: [{ id: 'c', name: 'C', kind: 'wled', host: 'c.local', outputs: [] }], strips: [] };
+    const saved: LayoutSpec = { version: 1, room: defaultRoom(), controllers: [{ id: 'c', name: 'C', kind: 'wled', host: 'c.local', outputs: [] }], strips: [] };
     const { api } = await connected({ config: { layout: saved } });
     const res = await loadLayout(api, { admin: true, serverInfo: null });
     expect(res.source).toBe('saved');
@@ -85,7 +91,10 @@ describe('saveLayout', () => {
     const multi: LayoutSpec = {
       ...spec,
       controllers: [...spec.controllers, desk],
-      strips: [...spec.strips, { id: 'desk-strip', name: 'Desk strip', controllerId: 'desk', output: 0, brightness: 0.5, segments: [{ kind: 'edge', count: 30, edge: 'left', from: 0, to: 1, depth: 0.1 }] }],
+      strips: [
+        ...spec.strips,
+        { id: 'desk-strip', name: 'Desk strip', controllerId: 'desk', output: 0, brightness: 0.5, ledCount: 30, path: shapePath(spec.room, 'behind-furniture') },
+      ],
     };
     expect(saveBlockers(multi, 0)).toEqual([]);
 
@@ -104,6 +113,6 @@ describe('saveLayout', () => {
   });
 
   it('saveBlockers reports errors and missing controllers', () => {
-    expect(saveBlockers({ version: 1, controllers: [], strips: [] }, 2).map((b) => b.reason)).toEqual(['noController', 'errors']);
+    expect(saveBlockers({ version: 1, room: defaultRoom(), controllers: [], strips: [] }, 2).map((b) => b.reason)).toEqual(['noController', 'errors']);
   });
 });

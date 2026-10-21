@@ -16,10 +16,11 @@ public interface ILightSource
     /// Renders the next frame into <paramref name="linearColors"/> (one linear-light color 0..1 per LED of the
     /// layout in <paramref name="mapping"/>, which a source that paints pictures maps them with); the color settings
     /// and smoothing are applied afterwards. Blocks until the frame is due (like <c>IFrameSource.TryCapture</c>) and
-    /// returns false when there is nothing new or <paramref name="cancellationToken"/> was canceled (another source
-    /// became visible). Must not allocate in steady state.
+    /// returns false when there is nothing new, <paramref name="cancellationToken"/> was canceled (another source
+    /// became visible) or the clock reached <paramref name="wakeAtMs"/> before the frame was due (the frame loop has
+    /// other work then: the zones' next step). Must not allocate in steady state.
     /// </summary>
-    bool TryRender(LedMappingOptions mapping, Span<Vector3> linearColors, CancellationToken cancellationToken);
+    bool TryRender(LedMappingOptions mapping, Span<Vector3> linearColors, long wakeAtMs, CancellationToken cancellationToken);
 }
 
 /// <summary>What the frame loop shows now: a snapshot, replaced (never changed) when the visible source changes.</summary>

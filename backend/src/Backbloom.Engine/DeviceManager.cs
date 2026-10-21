@@ -17,6 +17,7 @@ public sealed record ControllerDevice(string Id, string Name, JsonObject? Device
 /// <param name="Start">Index of the controller's first LED among the pipeline's LEDs.</param>
 /// <param name="Type">The driver type ("" when none is configured).</param>
 /// <param name="Running">False when nothing is sent to it (disabled, or its driver settings are unusable: see <paramref name="Status"/>).</param>
+/// <param name="Telemetry">What the controller reports about itself (drivers that read it; null otherwise).</param>
 public sealed record DeviceInfo(
     string Id,
     string Name,
@@ -26,7 +27,8 @@ public sealed record DeviceInfo(
     bool Running,
     DeviceState State,
     string? Status,
-    FrameStatsSnapshot Stats);
+    FrameStatsSnapshot Stats,
+    ControllerTelemetry? Telemetry = null);
 
 /// <summary>
 /// Owns the LED device runners and fans every processed frame out to them: controller N gets the slice of the
@@ -63,6 +65,12 @@ public sealed partial class DeviceManager : IDisposable
 
     /// <summary>Every configured controller, in LED order.</summary>
     public IReadOnlyList<DeviceInfo> Devices => [.. _slots.Select(s => s.Describe())];
+
+    /// <summary>
+    /// The highest values of one frame of controller <paramref name="id"/> since the previous call (null when it has no
+    /// runner); they are reset, so only the performance recorder calls this.
+    /// </summary>
+    internal FramePeaks? TakePeaks(string id) => _slots.FirstOrDefault(s => s.Id == id)?.Runner?.Stats.TakePeaks();
 
     /// <summary>All LEDs of the controllers together.</summary>
     public int LedCount => _slots is [.., var last] ? last.Start + last.LedCount : 0;
@@ -146,12 +154,15 @@ public sealed partial class DeviceManager : IDisposable
 
     /// <summary>
     /// Blinks one LED (the UI's "find this LED"): LED <paramref name="ledIndex"/> of the controller with id
-    /// <paramref name="controllerId"/>, or, without an id, the LED at that position among all controllers' LEDs.
+    /// <paramref name="controllerId"/>, or, without an id, the LED at that position among all controllers' LEDs. It
+    /// replaces any blink on every controller; <paramref name="hold"/> keeps it on until it is stopped (see
+    /// <see cref="LedDeviceRunner.Identify"/>).
     /// </summary>
     /// <returns>The controller and its own LED index, or null when there is no such LED or the controller isn't running.</returns>
-    public (string ControllerId, int LedIndex)? Identify(string? controllerId, int ledIndex)
+    public (string ControllerId, int LedIndex)? Identify(string? controllerId, int ledIndex, bool hold = false)
     {
-        foreach (var slot in _slots)
+        var slots = _slots;
+        foreach (var slot in slots)
         {
             var local = controllerId is null ? ledIndex - slot.Start : ledIndex;
             if ((controllerId is null || slot.Id == controllerId) && (uint)local < (uint)slot.LedCount)
@@ -161,12 +172,37 @@ public sealed partial class DeviceManager : IDisposable
                     return null;
                 }
 
-                runner.Identify(local);
+                foreach (var other in slots)
+                {
+                    if (!ReferenceEquals(other.Runner, runner))
+                    {
+                        other.Runner?.StopIdentify();
+                    }
+                }
+
+                runner.Identify(local, hold);
                 return (slot.Id, local);
             }
         }
 
         return null;
+    }
+
+    /// <summary>Ends the blink on the controller with id <paramref name="controllerId"/>, or on every controller.</summary>
+    /// <returns>False when there is no controller with that id.</returns>
+    public bool StopIdentify(string? controllerId)
+    {
+        var found = controllerId is null;
+        foreach (var slot in _slots)
+        {
+            if (controllerId is null || slot.Id == controllerId)
+            {
+                slot.Runner?.StopIdentify();
+                found = true;
+            }
+        }
+
+        return found;
     }
 
     public void Dispose()
@@ -259,7 +295,7 @@ public sealed partial class DeviceManager : IDisposable
         public Slot Current() => owner._slots.FirstOrDefault(s => ReferenceEquals(s.Runner, Runner) && Runner is not null) ?? this;
 
         public DeviceInfo Describe() => Runner is { } r
-            ? new DeviceInfo(controller.Id, controller.Name, r.Type, Start, LedCount, true, r.State, r.Status, r.Stats.Snapshot())
+            ? new DeviceInfo(controller.Id, controller.Name, r.Type, Start, LedCount, true, r.State, r.Status, r.Stats.Snapshot(), r.Telemetry)
             : new DeviceInfo(controller.Id, controller.Name, type, Start, LedCount, false, DeviceState.Off, problem, default);
     }
 }

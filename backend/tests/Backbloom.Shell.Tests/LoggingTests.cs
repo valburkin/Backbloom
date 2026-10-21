@@ -41,7 +41,7 @@ public sealed class LoggingTests : IDisposable
             var logger = provider.CreateLogger("Backbloom.Test");
             Log.Hello(logger, "world");
             provider.Flush();
-            path = CrashReport.Write(_dir, "Backbloom couldn't start", new InvalidDataException("settings.db isn't readable"), _time);
+            path = CrashReport.Write(_dir, "Backbloom couldn't start", new InvalidDataException("settings.db isn't readable"), time: _time);
         }
 
         Assert.Equal(Path.Combine(logs, "backbloom-20261019.log"), path);
@@ -54,7 +54,7 @@ public sealed class LoggingTests : IDisposable
     [Fact]
     public void CrashReport_CreatesTheLogFolderWhenNothingWasLoggedYet()
     {
-        var path = CrashReport.Write(Path.Combine(_dir, "new"), "Backbloom couldn't start", new InvalidOperationException("boom"), _time);
+        var path = CrashReport.Write(Path.Combine(_dir, "new"), "Backbloom couldn't start", new InvalidOperationException("boom"), time: _time);
 
         Assert.Equal(Path.Combine(_dir, "new", "logs", "backbloom-20261019.log"), path);
         Assert.Contains("FATAL Backbloom: Backbloom couldn't start", File.ReadAllText(path!), StringComparison.Ordinal);
@@ -91,6 +91,77 @@ public sealed class LoggingTests : IDisposable
         Assert.Contains("backbloom-20261019-1.log", files);
         Assert.Contains("backbloom-20261020.log", files);
         Assert.DoesNotContain("backbloom-20260910.log", files);
+    }
+
+    [Fact]
+    public void CrashReport_WritesTheRecentPerformanceSamples_AndNamesTheFileInTheEntry()
+    {
+        var path = CrashReport.Write(_dir, "Backbloom stopped after an unexpected error", new InvalidOperationException("boom"), ["""{"v":1}""", """{"v":2}"""], _time);
+
+        var performance = Path.Combine(_dir, "logs", "crash-20261019-210000.jsonl");
+        Assert.Equal("{\"v\":1}\n{\"v\":2}\n", File.ReadAllText(performance));
+        Assert.Contains("FATAL Backbloom: Backbloom stopped after an unexpected error (performance before it: crash-20261019-210000.jsonl)", File.ReadAllText(path!), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CrashReport_WritesTheEntry_EvenWhenTheSamplesCantBeWritten()
+    {
+        Directory.CreateDirectory(Path.Combine(_dir, "logs", "crash-20261019-210000.jsonl"));
+
+        var path = CrashReport.Write(_dir, "Backbloom stopped after an unexpected error", new InvalidOperationException("boom"), ["""{"v":1}"""], _time);
+
+        Assert.Contains("FATAL Backbloom: Backbloom stopped after an unexpected error", File.ReadAllText(path!), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PerformanceFile_KeepsWriting_WhenAnOldFileCantBeDeleted()
+    {
+        var old = Path.Combine(_dir, "performance-20260901.jsonl");
+        File.WriteAllText(old, "old");
+        File.SetLastWriteTimeUtc(old, new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc));
+        for (var i = 0; i < PerformanceFile.RetainedFiles; i++)
+        {
+            File.WriteAllText(Path.Combine(_dir, $"performance-202609{10 + i}.jsonl"), "newer");
+        }
+
+        File.SetAttributes(old, FileAttributes.ReadOnly);
+        try
+        {
+            var file = new PerformanceFile(_dir, _time);
+            file.Append("""{"a":1}""");
+            file.Append("""{"a":2}""");
+            Assert.Equal("{\"a\":1}\n{\"a\":2}\n", File.ReadAllText(Path.Combine(_dir, "performance-20261019.jsonl")));
+            Assert.True(File.Exists(old));
+        }
+        finally
+        {
+            File.SetAttributes(old, FileAttributes.Normal);
+        }
+    }
+
+    [Fact]
+    public void PerformanceFile_AppendsOneLinePerSample_ANewFilePerDay_AndKeepsOnlyTheNewest()
+    {
+        for (var i = 0; i < 20; i++)
+        {
+            var old = Path.Combine(_dir, $"performance-202609{10 + i}.jsonl");
+            File.WriteAllText(old, "old");
+            File.SetLastWriteTimeUtc(old, new DateTime(2026, 9, 10 + i, 0, 0, 0, DateTimeKind.Utc));
+        }
+
+        var file = new PerformanceFile(_dir, _time);
+        file.Append("""{"a":1}""");
+        file.Append("""{"a":2}""");
+        Assert.Equal(Path.Combine(_dir, "performance-20261019.jsonl"), file.CurrentPath);
+        _time.Advance(TimeSpan.FromDays(1));
+        file.Append("""{"a":3}""");
+
+        Assert.Equal("{\"a\":1}\n{\"a\":2}\n", File.ReadAllText(Path.Combine(_dir, "performance-20261019.jsonl")));
+        Assert.Equal("{\"a\":3}\n", File.ReadAllText(Path.Combine(_dir, "performance-20261020.jsonl")));
+        var files = Directory.GetFiles(_dir, PerformanceFile.FilePattern).Select(Path.GetFileName).ToList();
+        Assert.Equal(PerformanceFile.RetainedFiles, files.Count);
+        Assert.Contains("performance-20260929.jsonl", files);
+        Assert.DoesNotContain("performance-20260917.jsonl", files);
     }
 
     [Theory]

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { defaultRoom } from './room';
 import { validateLayout } from './validate';
-import type { Controller, LayoutSpec, Segment, Strip } from './types';
+import type { Controller, LayoutSpec, Room, Strip } from './types';
 
 const controller = (over: Partial<Controller> = {}): Controller => ({
   id: 'c',
@@ -14,27 +15,22 @@ const controller = (over: Partial<Controller> = {}): Controller => ({
   ...over,
 });
 
-const edge = (over: Partial<Extract<Segment, { kind: 'edge' }>> = {}): Segment => ({
-  kind: 'edge',
-  count: 10,
-  edge: 'top',
-  from: 0,
-  to: 1,
-  depth: 0.1,
-  ...over,
-});
-
 const strip = (over: Partial<Strip> = {}): Strip => ({
   id: 'monitor',
   name: 'Monitor',
   controllerId: 'c',
   output: 0,
-  segments: [edge()],
+  ledCount: 10,
+  path: [
+    { surface: 'front', x: 2.3, y: 1.31 },
+    { surface: 'front', x: 1.7, y: 1.31 },
+  ],
   ...over,
 });
 
-const spec = (strips: Strip[], controllers: Controller[] = [controller()]): LayoutSpec => ({
+const spec = (strips: Strip[], controllers: Controller[] = [controller()], room: Room = defaultRoom()): LayoutSpec => ({
   version: 1,
+  room,
   controllers,
   strips,
 });
@@ -43,18 +39,18 @@ const messages = (s: LayoutSpec) => validateLayout(s).map((i) => `${i.severity}:
 
 describe('validateLayout', () => {
   it('accepts a correct layout', () => {
-    expect(validateLayout(spec([strip(), strip({ id: 'b', output: 1, segments: [edge({ count: 5 })] })]))).toEqual([]);
+    expect(validateLayout(spec([strip(), strip({ id: 'b', output: 1, ledCount: 5 })]))).toEqual([]);
   });
 
   it('reports missing LEDs as a warning with the count', () => {
-    const issues = validateLayout(spec([strip({ segments: [edge({ count: 7 })] })]));
+    const issues = validateLayout(spec([strip({ ledCount: 7 })]));
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({ severity: 'warning', stripId: 'monitor' });
-    expect(issues[0].message).toContain('3 LEDs missing');
+    expect(issues[0].message).toContain('last 3 LEDs');
   });
 
   it('reports extra LEDs as an error with the count', () => {
-    const [issue] = validateLayout(spec([strip({ segments: [edge({ count: 11 })] })]));
+    const [issue] = validateLayout(spec([strip({ ledCount: 11 })]));
     expect(issue.severity).toBe('error');
     expect(issue.message).toContain('1 LED too many');
   });
@@ -69,63 +65,71 @@ describe('validateLayout', () => {
     expect(m).toEqual([expect.stringMatching(/^error: Strip "Monitor" and strip "Other" are both wired to output 1/)]);
   });
 
-  it('reports overlapping outputs', () => {
-    const c = controller({
-      outputs: [
-        { index: 0, start: 0, length: 10 },
-        { index: 1, start: 8, length: 5 },
-      ],
-    });
-    const m = messages(spec([], [c]));
-    expect(m).toEqual([expect.stringMatching(/^error: .*overlap \(LEDs 8–9/)]);
-  });
-
-  it('reports outputs that leave a gap (the backend counts a controller as its outputs one after the other)', () => {
-    const c = controller({
-      outputs: [
-        { index: 0, start: 0, length: 10 },
-        { index: 1, start: 12, length: 5 },
-      ],
-    });
-    expect(messages(spec([], [c]))).toEqual([expect.stringMatching(/^error: Output 2 of "Desk WLED" starts at LED 12, leaving LEDs 10–11 without an output/)]);
-  });
-
-  it('reports a strip brightness outside 0..1', () => {
-    expect(messages(spec([strip({ segments: [edge()], brightness: 1.5 })]))).toEqual([expect.stringMatching(/^error: .*brightness of 1.5/)]);
-    expect(validateLayout(spec([strip({ brightness: 0.4 }), strip({ id: 'b', output: 1, segments: [edge({ count: 5 })] })]))).toEqual([]);
+  it('reports overlapping outputs and gaps between them', () => {
+    const overlap = controller({ outputs: [{ index: 0, start: 0, length: 10 }, { index: 1, start: 8, length: 5 }] });
+    expect(messages(spec([], [overlap]))).toEqual([expect.stringMatching(/^error: .*overlap \(LEDs 8–9/)]);
+    const gap = controller({ outputs: [{ index: 0, start: 0, length: 10 }, { index: 1, start: 12, length: 5 }] });
+    expect(messages(spec([], [gap]))).toEqual([expect.stringMatching(/^error: Output 2 of "Desk WLED" starts at LED 12, leaving LEDs 10–11 without an output/)]);
   });
 
   it('reports duplicate ids', () => {
-    const m = messages(spec([strip(), strip({ output: 1, segments: [edge({ count: 5 })] })], [controller(), controller()]));
+    const m = messages(spec([strip(), strip({ output: 1, ledCount: 5 })], [controller(), controller()]));
     expect(m.some((x) => x.includes('Two controllers share the id "c"'))).toBe(true);
     expect(m.some((x) => x.includes('Two strips share the id "monitor"'))).toBe(true);
   });
 
-  it('reports bad segment parameters with the segment index', () => {
-    const bad: Segment[] = [
-      edge({ count: 0 }),
-      edge({ count: 2, depth: 0 }),
-      edge({ count: 2, depth: 1.5 }),
-      edge({ count: 2, from: 0.5, to: 0.5 }),
-      edge({ count: 2, blend: 0 }),
-      { kind: 'fixed', count: 2, area: { hmin: 0.6, hmax: 0.4, vmin: 0, vmax: 1 } },
-      { kind: 'fixed', count: 2, area: { hmin: 0, hmax: 1, vmin: 0.9, vmax: 0.1 } },
-    ];
-    const issues = validateLayout(spec([strip({ segments: bad })])).filter((i) => i.segmentIndex !== undefined);
-    expect(issues.map((i) => i.segmentIndex)).toEqual([0, 1, 2, 3, 4, 5, 6]);
-    expect(issues.every((i) => i.severity === 'error')).toBe(true);
-    expect(issues[0].message).toMatch(/^Segment 1 of strip "Monitor" needs .* at least 1/);
-    expect(issues[3].message).toContain('same position');
-    expect(issues[5].message).toContain("left edge");
+  it('reports bad strip settings', () => {
+    const bad = (over: Partial<Strip>) => messages(spec([strip(over)])).filter((m) => m.startsWith('error'));
+    expect(bad({ ledCount: 0 })[0]).toMatch(/at least 1/);
+    expect(bad({ path: [strip().path[0]] })[0]).toMatch(/needs a path/);
+    expect(bad({ path: [strip().path[0], strip().path[0]] })[0]).toMatch(/same spot/);
+    expect(bad({ depth: 0 })[0]).toMatch(/looks 0 into the picture/);
+    expect(bad({ blend: 0 })[0]).toMatch(/blend of 0/);
+    expect(bad({ brightness: 1.5 })[0]).toMatch(/brightness of 1.5/);
+    expect(bad({ dark: [{ start: 8, count: 5 }] })[0]).toMatch(/LEDs 9–13 dark/);
   });
 
-  it('allows from == to for a single LED', () => {
-    const segments = [edge({ count: 1, from: 0.5, to: 0.5 }), { kind: 'off', count: 9 } as Segment];
-    expect(validateLayout(spec([strip({ segments })]))).toEqual([]);
+  it('reports bad sections with the point index, and strips that are all gaps', () => {
+    const [a, b] = strip().path;
+    const withSection = (next: unknown) => strip({ path: [{ ...a, next: next as never }, b] });
+    const first = (next: unknown) => validateLayout(spec([withSection(next)])).find((i) => i.severity === 'error');
+    expect(first({ kind: 'area' })).toMatchObject({ pointIndex: 0, message: expect.stringMatching(/Section 1 .* needs an area/) });
+    expect(first({ kind: 'area', area: { hmin: 0.6, hmax: 0.4, vmin: 0, vmax: 1 } })?.message).toMatch(/inside out/);
+    expect(first({ kind: 'edge', from: 0 })?.message).toMatch(/start and an end on the screen's outline/);
+    expect(first({ kind: 'sparkle' })?.message).toMatch(/isn't known/);
+    expect(first({ kind: 'effect', effect: ' ' })?.message).toMatch(/name of the effect/);
+    expect(first({ kind: 'color', color: [255, 0] })?.message).toMatch(/needs a color/);
+    expect(first({ kind: 'color', color: [255, 0, 256] })?.message).toMatch(/needs a color/);
+    expect(validateLayout(spec([withSection({ kind: 'effect', effect: 'Candle' })]))).toEqual([]);
+    expect(validateLayout(spec([withSection({ kind: 'color', color: [10, 20, 30] })]))).toEqual([]);
+    expect(first({ kind: 'gap' })?.message).toMatch(/no length with LEDs/);
+    expect(validateLayout(spec([withSection({ kind: 'edge', from: 3.5, to: 4.5 })]))).toEqual([]);
   });
 
-  it('warns about empty strips and controllers without outputs', () => {
-    expect(messages(spec([strip({ segments: [] })]))).toEqual([expect.stringMatching(/^warning: .*no segments yet.*10 LEDs/)]);
+  it('reports points outside the room or matched out of order, with the point index', () => {
+    const outside = validateLayout(spec([strip({ path: [strip().path[0], { surface: 'front', x: 9, y: 1 }] })]));
+    expect(outside[0]).toMatchObject({ severity: 'error', pointIndex: 1 });
+    expect(outside[0].message).toMatch(/Point 2 .* outside the room/);
+
+    const backwards = strip({
+      path: [
+        { surface: 'front', x: 1, y: 1, at: 6 },
+        { surface: 'front', x: 2, y: 1, at: 3 },
+        { surface: 'front', x: 3, y: 1 },
+      ],
+    });
+    expect(validateLayout(spec([backwards]))[0]).toMatchObject({ severity: 'error', pointIndex: 1 });
+    expect(messages(spec([strip({ path: [{ surface: 'front', x: 1, y: 1, at: 11 }, strip().path[1]] })]))[0]).toMatch(/outside the strip/);
+  });
+
+  it('reports a bad room', () => {
+    const room = defaultRoom();
+    const issues = validateLayout(spec([strip()], [controller()], { ...room, height: 0.2 }));
+    expect(issues[0]).toMatchObject({ severity: 'error', room: true });
+    expect(messages(spec([], [controller()], { ...room, screen: { ...room.screen, x: 3.8 } }))[0]).toMatch(/screen reaches past the front wall/);
+  });
+
+  it('warns about controllers without outputs', () => {
     expect(messages(spec([], [controller({ outputs: [] })]))).toEqual([expect.stringMatching(/^warning: .*no LED outputs/)]);
   });
 });

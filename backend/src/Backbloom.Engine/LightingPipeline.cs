@@ -6,6 +6,7 @@ using Backbloom.Core.Color;
 using Backbloom.Core.Imaging;
 using Backbloom.Core.Mapping;
 using Backbloom.Core.Priorities;
+using Backbloom.Engine.Platform;
 
 namespace Backbloom.Engine;
 
@@ -22,10 +23,18 @@ public sealed record PipelineConfig(LedMappingOptions Mapping, ColorProcessor Pr
 
 /// <summary>
 /// The single frame loop: the visible source (screen capture -> black border -> image-to-LED mapping, an effect, or a
-/// static color) -> color processing -> <see cref="OutputStage"/> (smoothing, controllers, live preview). Runs on one
-/// dedicated thread and does not allocate per frame (buffers are only resized when the LED count, frame size or
-/// border changes).
+/// static color) -> color processing -> the zones' colors in their LEDs (<see cref="ZoneLayer"/>) ->
+/// <see cref="OutputStage"/> (smoothing, controllers, live preview). Runs on one dedicated thread and does not allocate
+/// per frame (buffers are only resized when the LED count, frame size or border changes).
 /// </summary>
+/// <remarks>
+/// Zone effects step between the loop's other work without waiting: with every frame of the visible source, while an
+/// effect waits for its next step (it returns early when a zone step is due), and while nothing new comes (a static
+/// color, no source, a screen without frames), when the loop wakes for the zones' next step and sends the last frame
+/// again with the zones' new colors. A screen capture isn't cut short for them (that would skip capture frames), so
+/// while the screen shows, zones take a step with each captured frame (catching up on missed steps). They pause while
+/// the output is off or held.
+/// </remarks>
 public sealed partial class LightingPipeline : IDisposable
 {
     private static readonly TimeSpan s_idleWait = TimeSpan.FromMilliseconds(250);
@@ -33,12 +42,16 @@ public sealed partial class LightingPipeline : IDisposable
     // A probe of an inactive screen while an effect shows may delay the effect's next frame by this much at most.
     private static readonly TimeSpan s_probeBudget = TimeSpan.FromMilliseconds(20);
 
+    // While zones animate and nothing else happens, the loop looks for a new visible source this often at least.
+    private const long ZoneWaitSliceMs = 20;
+
     private readonly IFrameSource _source;
     private readonly ComponentStates _components;
     private readonly Func<VisibleSource> _visible;
     private readonly OutputStage _output;
     private readonly ILogger _logger;
     private readonly ScreenActivity? _screen;
+    private readonly IClock _clock;
     private readonly LedMapper _mapper = new();
     private readonly FramePool _frames = new(capacity: 1);
     private readonly AutoResetEvent _wake = new(false);
@@ -54,10 +67,14 @@ public sealed partial class LightingPipeline : IDisposable
     private VisibleSource? _rendered;
     private PipelineConfig? _renderedConfig;
     private volatile bool _refresh;
+    private volatile ZoneLayer _zones = ZoneLayer.Empty;
+    private Vector3[] _composed = [];
+    private float _composedBacklight;
     private long _frameCount;
     private bool _started;
 
     /// <param name="screen">Tracks whether the screen delivers frames (null: the screen always counts as active).</param>
+    /// <param name="clock">The clock zone effects step on (null: <see cref="SystemClock"/>).</param>
     public LightingPipeline(
         IFrameSource source,
         ComponentStates components,
@@ -65,7 +82,8 @@ public sealed partial class LightingPipeline : IDisposable
         OutputStage output,
         PipelineConfig config,
         ILogger<LightingPipeline> logger,
-        ScreenActivity? screen = null)
+        ScreenActivity? screen = null,
+        IClock? clock = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(components);
@@ -80,6 +98,7 @@ public sealed partial class LightingPipeline : IDisposable
         _config = config;
         _logger = logger;
         _screen = screen;
+        _clock = clock ?? new SystemClock();
         _mapper.MapRebuilt += map =>
         {
             LogMapRebuilt(map.Width, map.Height, map.Layout.Count, map.SampledPixels, map.HorizontalBorder, map.VerticalBorder);
@@ -102,6 +121,17 @@ public sealed partial class LightingPipeline : IDisposable
         ArgumentNullException.ThrowIfNull(config);
         _config = config;
         Wake();
+    }
+
+    /// <summary>The zones played over every frame.</summary>
+    public ZoneLayer Zones => _zones;
+
+    /// <summary>Plays these zones from the next frame on (the last frame is sent again with them).</summary>
+    public void ConfigureZones(ZoneLayer zones)
+    {
+        ArgumentNullException.ThrowIfNull(zones);
+        _zones = zones;
+        Refresh();
     }
 
     /// <summary>Black border detection with these settings for the screen, or none (null).</summary>
@@ -181,29 +211,43 @@ public sealed partial class LightingPipeline : IDisposable
             colors = new Vector3[ledCount];
         }
 
+        // zone effects pause while the output is off or held
+        var zones = _zones;
+        var stepping = zones.HasEffects && _components.OutputActive;
         var visible = _visible();
         if (visible.Component == SourceComponent.SystemGrabber && _components.CaptureActive)
         {
             if (!Capture(ref frame, colors, config, cancellationToken))
             {
                 _screen?.NoFrame();
+                if (stepping)
+                {
+                    StepZones(zones, config, ledCount);
+                }
+
                 return !cancellationToken.IsCancellationRequested;
             }
 
             _screen?.FrameCaptured();
             config.Processor.Process(colors);
-            _output.Submit(colors, config.Processor.MinimalBacklight);
+            Submit(colors, config.Processor.MinimalBacklight, zones, config, stepping);
         }
         else if (visible.Renderer is { } renderer && _components.IsOn(Component.All))
         {
-            if (!renderer.TryRender(config.Mapping, colors, RenderToken()) || !ReferenceEquals(visible, _visible()))
+            var wakeAt = stepping ? zones.NextDue : long.MaxValue;
+            if (!renderer.TryRender(config.Mapping, colors, wakeAt, RenderToken()) || !ReferenceEquals(visible, _visible()))
             {
-                // nothing new, or another source became visible meanwhile (its frame comes next)
+                // nothing new, a zone step is due, or another source became visible meanwhile (its frame comes next)
+                if (stepping)
+                {
+                    StepZones(zones, config, ledCount);
+                }
+
                 return !cancellationToken.IsCancellationRequested;
             }
 
             config.Processor.Process(colors);
-            _output.Submit(colors, config.Processor.MinimalBacklight);
+            Submit(colors, config.Processor.MinimalBacklight, zones, config, stepping);
             ProbeScreen(ref frame, colors, config, s_probeBudget);
         }
         else if (!ReferenceEquals(visible, _rendered) || !ReferenceEquals(config, _renderedConfig) || _refresh)
@@ -215,11 +259,15 @@ public sealed partial class LightingPipeline : IDisposable
             var lut = Srgb.U8ToLinear16;
             colors.AsSpan().Fill(new Vector3(lut[visible.Color.R] / 65535.0f, lut[visible.Color.G] / 65535.0f, lut[visible.Color.B] / 65535.0f));
             config.Passthrough.Process(colors);
-            _output.Submit(colors, config.Passthrough.MinimalBacklight);
+            Submit(colors, config.Passthrough.MinimalBacklight, zones, config, stepping);
         }
         else
         {
-            if (!ProbeScreen(ref frame, colors, config, s_idleWait))
+            if (stepping)
+            {
+                IdleWithZones(ref frame, colors, zones, config, ledCount);
+            }
+            else if (!ProbeScreen(ref frame, colors, config, s_idleWait))
             {
                 _wake.WaitOne(s_idleWait);
             }
@@ -231,6 +279,71 @@ public sealed partial class LightingPipeline : IDisposable
         return true;
     }
 
+    // Hands a processed frame to the output; with zones, a copy with the zones' colors in their LEDs (stepped first
+    // when due), kept so that zone steps can send it again.
+    private void Submit(Vector3[] colors, float minimalBacklight, ZoneLayer zones, PipelineConfig config, bool stepping)
+    {
+        if (zones.Count == 0)
+        {
+            _output.Submit(colors, minimalBacklight);
+            return;
+        }
+
+        if (_composed.Length != colors.Length)
+        {
+            _composed = new Vector3[colors.Length];
+        }
+
+        colors.CopyTo(_composed, 0);
+        _composedBacklight = minimalBacklight;
+        if (stepping)
+        {
+            zones.Step(_clock.NowMilliseconds, config);
+        }
+
+        zones.Compose(_composed, config);
+        _output.Submit(_composed, minimalBacklight);
+    }
+
+    // Steps the zone effects that are due; when one changed, the last frame goes out again with their new colors (black
+    // where nothing was drawn yet).
+    private void StepZones(ZoneLayer zones, PipelineConfig config, int ledCount)
+    {
+        if (!zones.Step(_clock.NowMilliseconds, config))
+        {
+            return;
+        }
+
+        if (_composed.Length != ledCount)
+        {
+            _composed = new Vector3[ledCount];
+            _composedBacklight = 0;
+        }
+
+        zones.Compose(_composed, config);
+        _output.Submit(_composed, _composedBacklight);
+    }
+
+    // Nothing new from the visible source while zone effects run: step them when due, else probe an inactive screen or
+    // wait until the next zone step (in slices, so a new visible source still shows within one).
+    private void IdleWithZones(ref Frame? frame, Span<Vector3> colors, ZoneLayer zones, PipelineConfig config, int ledCount)
+    {
+        var now = _clock.NowMilliseconds;
+        var due = zones.NextDue;
+        if (now >= due)
+        {
+            StepZones(zones, config, ledCount);
+            return;
+        }
+
+        if (ProbeScreen(ref frame, colors, config, TimeSpan.FromMilliseconds(Math.Min(due - now, (long)s_idleWait.TotalMilliseconds))) ||
+            _wake.WaitOne(0))
+        {
+            return;
+        }
+
+        _clock.SleepUntil(Math.Min(due, now + ZoneWaitSliceMs));
+    }
     // The token an effect waits on for its next step; a new one after Interrupt canceled it.
     private CancellationToken RenderToken()
     {

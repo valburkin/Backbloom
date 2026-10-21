@@ -31,8 +31,9 @@ uploaded by the script.
 [Branches and releases](../docs/development.md#branches-and-releases)); a release commit is tagged `v<version>` and its
 notes are its section in [CHANGELOG.md](../CHANGELOG.md). To try changes before a release, `-Dev` builds
 `<next patch>-dev.<date>.<time>` (e.g.
-`0.1.4-dev.20261020.103045` after 0.1.3) without changing any file: each dev build installs over the previous one, and
-the 0.1.4 release over all of them (SemVer orders pre-releases before the release).
+`0.1.4-dev.20261020.103045` after 0.1.3; the time without leading zeros, e.g. `.2820` at 00:28:20, as SemVer requires
+for numbers) without changing any file: each dev build installs over the previous one, and the 0.1.4 release over all
+of them (SemVer orders pre-releases before the release, and compares the numbers as numbers).
 
 ## Install, first run, reinstall, uninstall
 

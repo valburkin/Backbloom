@@ -19,9 +19,12 @@ public sealed class BackupTests : IDisposable
         using var source = Open("a");
         source.ImportDatabase(Fixtures.OwnerDatabase);
         Assert.True(source.Store.Update(TestSchema.Parse("""
-            { "layout": { "version": 1, "controllers": [{ "id": "c", "name": "First LED instance", "outputs": [{ "index": 0, "start": 0, "length": 168 }] }],
-                          "strips": [{ "id": "s", "name": "Top", "controllerId": "c", "output": 0,
-                                       "segments": [{ "kind": "edge", "count": 168, "edge": "top", "from": 0, "to": 1, "depth": 0.1 }] }] } }
+            { "layout": { "version": 1,
+                          "room": { "width": 4, "depth": 4, "height": 2.6, "screen": { "x": 1.7, "y": 1.31, "width": 0.6, "height": 0.34 },
+                                    "furniture": "desk" },
+                          "controllers": [{ "id": "c", "name": "First LED instance", "outputs": [{ "index": 0, "start": 0, "length": 168 }] }],
+                          "strips": [{ "id": "s", "name": "Top", "controllerId": "c", "output": 0, "ledCount": 168,
+                                       "path": [{ "surface": "front", "x": 1.7, "y": 1.31 }, { "surface": "front", "x": 2.3, "y": 1.31 }] }] } }
             """)).Success);
         var backup = SettingsBackup.Create(source.Store.Export());
 

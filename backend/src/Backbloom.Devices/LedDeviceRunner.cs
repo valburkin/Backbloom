@@ -14,7 +14,8 @@ public sealed record LedDeviceRunnerOptions(string Name, int LedCount, ColorOrde
 
 /// <summary>
 /// Runs one LED device on its own thread: opens it with retries, sends the newest frame (older unsent frames are
-/// dropped, never queued), refreshes, overlays the identify blink and switches the device off again.
+/// dropped, never queued), refreshes, overlays the identify blink and switches the device off again. A blink also runs
+/// while the runner is switched off: the device opens for it and closes again afterwards.
 /// </summary>
 /// <remarks>
 /// The pipeline thread only copies colors into a preallocated buffer in <see cref="Submit"/>, so a slow or
@@ -27,6 +28,8 @@ public sealed partial class LedDeviceRunner : IDisposable
 
     private readonly ILedDriver _driver;
     private readonly LedDeviceRunnerOptions _options;
+    private readonly TimeProvider _time;
+    private readonly Lock _blinkLock = new();
     private readonly ILogger _logger;
     private readonly DeviceStateMachine _machine = new();
     private readonly AutoResetEvent _signal = new(false);
@@ -44,15 +47,20 @@ public sealed partial class LedDeviceRunner : IDisposable
     private volatile bool _enabled;
     private volatile bool _disposing;
     private volatile bool _retryRequested;
+    // The blink, written under _blinkLock so a new blink never races with the end of the previous one (the index is
+    // also read without it to decide whether to tick); _redraw asks for the current frame once after a stopped blink.
     private int _blinkIndex = -1;
     private long _blinkStarted;
+    private bool _blinkHold;
+    private int _redraw;
     private long _retryAt;
     private long _lastWrite;
     private int _failedAttempts;
     private TimeSpan? _refresh;
     private bool _started;
 
-    public LedDeviceRunner(ILedDriver driver, LedDeviceRunnerOptions options, ILogger logger)
+    /// <param name="time">Clock of the identify blink (tests); the system clock by default.</param>
+    public LedDeviceRunner(ILedDriver driver, LedDeviceRunnerOptions options, ILogger logger, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(driver);
         ArgumentNullException.ThrowIfNull(options);
@@ -61,6 +69,7 @@ public sealed partial class LedDeviceRunner : IDisposable
         _driver = driver;
         _options = options;
         _logger = logger;
+        _time = time ?? TimeProvider.System;
         _pending = new Vector3[options.LedCount];
         _current = new Vector3[options.LedCount];
         _output = new Vector3[options.LedCount];
@@ -82,6 +91,35 @@ public sealed partial class LedDeviceRunner : IDisposable
     public DeviceState State => _machine.State;
 
     public FrameStats Stats { get; } = new();
+
+    /// <summary>What the controller reports about itself, when its driver reads that (<see cref="ITelemetryDriver"/>).</summary>
+    public ControllerTelemetry? Telemetry => (_driver as ITelemetryDriver)?.Telemetry;
+
+    /// <summary>
+    /// True while an identify blink runs. A blink is over when its time is up, also while the device couldn't open to
+    /// show it (it then stops trying for the blink).
+    /// </summary>
+    public bool Blinking
+    {
+        get
+        {
+            if (Volatile.Read(ref _blinkIndex) < 0)
+            {
+                return false;
+            }
+
+            lock (_blinkLock)
+            {
+                return _blinkIndex >= 0 && BlinkPattern.ColorAt(_time.GetElapsedTime(_blinkStarted), _blinkHold) is not null;
+            }
+        }
+    }
+
+    // The device is wanted: switched on, or showing a blink.
+    private bool Active => _enabled || Blinking;
+
+    // A blink was set and not yet taken off the LEDs (ApplyBlink clears it once it is over).
+    private bool BlinkPending => Volatile.Read(ref _blinkIndex) >= 0;
 
     /// <summary>Starts the device thread. The device opens once it is enabled.</summary>
     public void Start()
@@ -120,7 +158,8 @@ public sealed partial class LedDeviceRunner : IDisposable
             var n = Math.Min(colors.Length, _pending.Length);
             colors[..n].CopyTo(_pending);
             _pending.AsSpan(n).Clear();
-            if (_hasPending)
+            // a drop means the controller can't keep up: while it opens or waits to retry, nothing is taken anyway
+            if (_hasPending && _machine.State == DeviceState.Ready)
             {
                 Stats.OnDropped();
             }
@@ -132,16 +171,48 @@ public sealed partial class LedDeviceRunner : IDisposable
         Signal();
     }
 
-    /// <summary>Blinks one LED red, green and blue (4.5 s) while every other LED is black.</summary>
-    public void Identify(int ledIndex)
+    /// <summary>
+    /// Blinks one LED red, green and blue (4.5 s) while every other LED is black; <paramref name="hold"/> keeps it
+    /// cycling until <see cref="StopIdentify"/>, the next blink or <see cref="BlinkPattern.HoldTimeout"/>. A new blink
+    /// replaces the running one and starts over at red. While the runner is switched off, the device opens for the
+    /// blink and closes again after it; a device that gave up opening gets another attempt.
+    /// </summary>
+    public void Identify(int ledIndex, bool hold = false)
     {
-        if ((uint)ledIndex >= (uint)_options.LedCount)
+        if ((uint)ledIndex >= (uint)_options.LedCount || _disposing)
         {
             return;
         }
 
-        Volatile.Write(ref _blinkStarted, Stopwatch.GetTimestamp());
-        Volatile.Write(ref _blinkIndex, ledIndex);
+        lock (_blinkLock)
+        {
+            _blinkStarted = _time.GetTimestamp();
+            _blinkHold = hold;
+            Volatile.Write(ref _blinkIndex, ledIndex);
+        }
+
+        if (_machine.State == DeviceState.Failed)
+        {
+            _retryRequested = true;
+        }
+
+        Signal();
+    }
+
+    /// <summary>Ends the blink: the LEDs show the current frame again (or, switched off, the device closes).</summary>
+    public void StopIdentify()
+    {
+        lock (_blinkLock)
+        {
+            if (_blinkIndex < 0)
+            {
+                return;
+            }
+
+            Volatile.Write(ref _blinkIndex, -1);
+        }
+
+        Interlocked.Exchange(ref _redraw, 1);
         Signal();
     }
 
@@ -197,7 +268,7 @@ public sealed partial class LedDeviceRunner : IDisposable
                         return;
                     }
 
-                    if (_enabled)
+                    if (Active)
                     {
                         _retryRequested = false;
                         _failedAttempts = 0;
@@ -215,7 +286,7 @@ public sealed partial class LedDeviceRunner : IDisposable
                     break;
 
                 case DeviceState.WaitingToRetry:
-                    if (!_enabled || _disposing)
+                    if (!Active || _disposing)
                     {
                         MoveTo(DeviceState.Off);
                         break;
@@ -234,7 +305,7 @@ public sealed partial class LedDeviceRunner : IDisposable
                     break;
 
                 case DeviceState.Failed:
-                    if (_disposing || !_enabled)
+                    if (_disposing || !Active)
                     {
                         MoveTo(DeviceState.Off);
                     }
@@ -246,13 +317,14 @@ public sealed partial class LedDeviceRunner : IDisposable
                     }
                     else
                     {
-                        _signal.WaitOne();
+                        // a blink that made the device open while switched off ends by itself: look again then
+                        _signal.WaitOne(_enabled ? Timeout.InfiniteTimeSpan : s_blinkTick);
                     }
 
                     break;
 
                 case DeviceState.Ready:
-                    if (!_enabled || _disposing)
+                    if (!Active || _disposing)
                     {
                         Close();
                     }
@@ -304,10 +376,10 @@ public sealed partial class LedDeviceRunner : IDisposable
 
     private void Stream()
     {
-        var blinking = Volatile.Read(ref _blinkIndex) >= 0;
-        var timeout = blinking ? s_blinkTick : _refresh ?? Timeout.InfiniteTimeSpan;
+        var blinked = BlinkPending;
+        var timeout = blinked ? s_blinkTick : _refresh ?? Timeout.InfiniteTimeSpan;
         _signal.WaitOne(timeout);
-        if (!_enabled || _disposing)
+        if (!Active || _disposing)
         {
             return;
         }
@@ -325,11 +397,18 @@ public sealed partial class LedDeviceRunner : IDisposable
             }
         }
 
+        // a blink that ended (blinked) or was stopped (redraw) meanwhile gives way to the current frame
+        var redraw = Interlocked.Exchange(ref _redraw, 0) != 0;
         var refreshDue = _refresh is { } refresh && Stopwatch.GetElapsedTime(_lastWrite) >= refresh;
-        if (hasNew || blinking || refreshDue)
+        if (hasNew || blinked || BlinkPending || redraw || refreshDue)
         {
             _current.CopyTo(_output, 0);
-            ApplyBlink();
+            if (!ApplyBlink() && !_enabled)
+            {
+                // the blink is over while switched off: close (black) rather than show an old frame
+                return;
+            }
+
             try
             {
                 if (Send(_output) && hasNew)
@@ -361,18 +440,24 @@ public sealed partial class LedDeviceRunner : IDisposable
         MoveTo(DeviceState.WaitingToRetry);
     }
 
-    private void ApplyBlink()
+    // Overlays the blink on _output; false when there is none (any more).
+    private bool ApplyBlink()
     {
-        var index = Volatile.Read(ref _blinkIndex);
-        if (index < 0)
+        lock (_blinkLock)
         {
-            return;
-        }
+            var index = _blinkIndex;
+            if (index < 0)
+            {
+                return false;
+            }
 
-        var elapsed = Stopwatch.GetElapsedTime(Volatile.Read(ref _blinkStarted));
-        if (!BlinkPattern.Apply(_output, index, elapsed))
-        {
-            Interlocked.CompareExchange(ref _blinkIndex, -1, index);
+            if (BlinkPattern.Apply(_output, index, _time.GetElapsedTime(_blinkStarted), _blinkHold))
+            {
+                return true;
+            }
+
+            Volatile.Write(ref _blinkIndex, -1);
+            return false;
         }
     }
 
@@ -390,9 +475,11 @@ public sealed partial class LedDeviceRunner : IDisposable
             written = _driver.Write(_bytes);
         }
 
+        Stats.OnWriteTime(Stopwatch.GetTimestamp() - _lastWrite);
         if (written)
         {
             Stats.OnWritten();
+            MeasureLoad(colors);
         }
         else
         {
@@ -400,6 +487,27 @@ public sealed partial class LedDeviceRunner : IDisposable
         }
 
         return written;
+    }
+
+    // What the LEDs draw, before the controller's own brightness: the means of the channels (0..1, shares of full
+    // white) and the brightest LED. One pass over the colors, on the device thread.
+    private void MeasureLoad(ReadOnlySpan<Vector3> colors)
+    {
+        if (colors.IsEmpty)
+        {
+            return;
+        }
+
+        var sum = Vector3.Zero;
+        var brightest = 0f;
+        foreach (var color in colors)
+        {
+            var c = Vector3.Clamp(color, Vector3.Zero, Vector3.One);
+            sum += c;
+            brightest = MathF.Max(brightest, c.X + c.Y + c.Z);
+        }
+
+        Stats.OnSent(sum / colors.Length, brightest / 3.0);
     }
 
     private void Close()

@@ -10,6 +10,8 @@ using Backbloom.App.Logging;
 using Backbloom.App.Updates;
 using Backbloom.Devices;
 using Backbloom.Engine;
+using Backbloom.Engine.Diagnostics;
+using Backbloom.Engine.Platform;
 using Backbloom.Server;
 using Backbloom.Server.Logging;
 using Backbloom.Settings;
@@ -110,9 +112,24 @@ public static class BackbloomHost
             sp.GetRequiredService<OtherAppMonitor>(),
             sp.GetRequiredService<ILogger<LightingGate>>()));
 
+        // The layout's profiles: other roles for the strips while a program runs (or one chosen by hand).
+        services.AddSingleton<ProfileMonitor>();
+
         // Registered before the engine so that it stops after it: the tray icon goes once the LEDs are off.
         services.AddDesktop(options, launch);
         services.AddHostedService<EngineHostedService>();
+
+        // Performance samples for looking into problems afterwards (and for a crash report).
+        var product = ProductVersion();
+        services.AddSingleton(sp => new PerformanceRecorder(
+            sp.GetRequiredService<LightingEngine>(),
+            sp.GetRequiredKeyedService<ISystemMetrics>(PlatformRegistration.RecorderMetrics),
+            sp.GetRequiredService<IGpuMetrics>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<PerformanceRecorder>>(),
+            $"{product.Version}+{product.Build}"));
+        services.AddSingleton(sp => new PerformanceFile(Path.Combine(options.DataDirectory, LogDirectoryName), sp.GetRequiredService<TimeProvider>()));
+        services.AddHostedService<PerformanceRecording>();
 
         services.AddBackbloomServer();
 

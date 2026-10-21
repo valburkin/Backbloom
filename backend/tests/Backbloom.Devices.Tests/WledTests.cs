@@ -1,4 +1,7 @@
+using System.Net;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Backbloom.Devices.Drivers.Wled;
 
 namespace Backbloom.Devices.Tests;
@@ -92,12 +95,152 @@ public sealed class WledTests
         Assert.Equal(
         [
             (HttpMethod.Get, "http://wled-test.local/json", null),
+            (HttpMethod.Get, "http://wled-test.local/json/cfg", null),
             (HttpMethod.Put, "http://wled-test.local/json/state", """{"on":true,"live":true,"bri":255}"""),
             (HttpMethod.Put, "http://wled-test.local/json/state", """{"on":false,"live":false}"""),
         ], http.Requests);
         Assert.Equal("192.0.2.10:21325", udp.Remote!.ToString());
         Assert.Equal(new byte[] { 2, 255, 10, 20, 30, 40, 50, 60, 70, 80, 90 }, Assert.Single(udp.Packets));
         Assert.False(driver.Write(new byte[3]));
+    }
+
+    [Fact]
+    public async Task Driver_ReadsTheControllersTelemetry_WhileConnected_AndNoticesARestart()
+    {
+        var polls = new Queue<string>(
+        [
+            // 10 s later: same boot, brightness changed in the WLED app, a Fahrenheit sensor
+            """
+            { "state": { "on": true, "bri": 200, "lor": 0 },
+              "info": { "ver": "0.15.0", "leds": { "count": 3, "pwr": 1400, "fps": 41, "maxpwr": 0 }, "live": true, "lm": "UDP", "lip": "192.0.2.1",
+                        "ws": 1, "arch": "esp32", "wifi": { "signal": 70, "rssi": -68, "channel": 6 }, "freeheap": 160000, "uptime": 3610,
+                        "sensor": { "temperature": [104, "°F"] } } }
+            """,
+
+            // 10 s later: restarted (up for 5 s), the limiter not in use yet (WLED then reports 0 mA)
+            """
+            { "state": { "on": true, "bri": 128 }, "info": { "leds": { "pwr": 0, "maxpwr": 0 }, "wifi": { "signal": 70 }, "uptime": 5 } }
+            """,
+        ]);
+        // a controller that just booted may not answer the first request
+        var failNextPut = false;
+        HttpResponseMessage FailOnce()
+        {
+            failNextPut = false;
+            return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        }
+
+        var http = new FakeHttpHandler((request, _) => (request.Method.Method, request.RequestUri!.AbsolutePath) switch
+        {
+            // on connect: limits per output (the global one is 0), a failed sensor next to the chip's own temperature
+            ("GET", "/json") => FakeHttpHandler.Json("""
+                { "state": { "on": true, "bri": 128 },
+                  "info": { "ver": "0.15.0", "udpport": 21325, "leds": { "count": 3, "pwr": 1500, "fps": 42, "maxpwr": 0 },
+                            "wifi": { "signal": 90, "rssi": -55, "channel": 6 }, "freeheap": 150000, "uptime": 3600,
+                            "u": { "Temperature": [0, " Sensor Error!"], "Internal temperature": [51.62, "°C"] } } }
+                """),
+            ("GET", "/json/cfg") => FakeHttpHandler.Json("""
+                { "hw": { "led": { "maxpwr": 0, "ins": [ { "len": 2, "ledma": 55, "maxpwr": 1000 }, { "len": 1, "ledma": 255, "maxpwr": 500 } ] } },
+                  "if": { "live": { "maxbri": true } } }
+                """),
+            ("GET", "/json/si") => FakeHttpHandler.Json(polls.Count > 1 ? polls.Dequeue() : polls.Peek()),
+            _ when failNextPut => FailOnce(),
+            _ => FakeHttpHandler.Json("""{"success":true}"""),
+        });
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero));
+        var context = new DriverContext(NullLoggerFactory.Instance, new HttpClient(http), () => new RecordingChannel(), (_, _) => ValueTask.FromResult(IPAddress.Parse("192.0.2.10"))) { Time = time };
+        using var driver = new WledDriver(new WledOptions("wled-test.local"), context);
+        Assert.Null(driver.Telemetry);
+
+        await driver.OpenAsync(3, TestContext.Current.CancellationToken);
+        var first = driver.Telemetry!;
+        Assert.Equal(
+            new ControllerTelemetry(time.GetUtcNow())
+            {
+                PowerMilliamps = 1500, PowerLimitMilliamps = 1500, MilliampsPerLed = 40.7, Brightness = 128, ForceMaxBrightness = true, On = true,
+                FramesPerSecond = 42, LedCount = 3, SignalPercent = 90, Rssi = -55, WifiChannel = 6, FreeMemoryBytes = 150000, UptimeSeconds = 3600,
+                TemperatureCelsius = 51.6, TemperatureSource = "Internal temperature", TemperatureIsChip = true, Firmware = "0.15.0",
+            },
+            first);
+
+        time.Advance(WledDriver.TelemetryInterval);
+        Wait.Until(() => driver.Telemetry != first);
+        var second = driver.Telemetry!;
+        Assert.Equal((200, 0, 1400, 0), (second.Brightness, second.Restarts, second.PowerMilliamps, second.RealtimeOverride));
+        Assert.Equal((true, "UDP", "192.0.2.1", 1, "esp32"), (second.Live, second.LiveMode, second.LiveSource, second.Clients, second.Chip));
+        Assert.Equal((40.0, "temperature", false), (second.TemperatureCelsius, second.TemperatureSource, second.TemperatureIsChip));
+        Assert.Equal("70%", driver.Status);
+
+        // a restart: counted, and the realtime state is set again, until that succeeds
+        var puts = http.Requests.Count(r => r.Method == HttpMethod.Put);
+        failNextPut = true;
+        time.Advance(WledDriver.TelemetryInterval);
+        Wait.Until(() => driver.Telemetry!.Restarts == 1 && http.Requests.Count(r => r.Method == HttpMethod.Put) == puts + 1);
+        time.Advance(WledDriver.TelemetryInterval);
+        Wait.Until(() => http.Requests.Count(r => r.Method == HttpMethod.Put) == puts + 2);
+        Assert.Equal(1, driver.Telemetry!.Restarts);
+        Assert.Equal((null, 5L), (driver.Telemetry!.PowerMilliamps, driver.Telemetry.UptimeSeconds));
+        Assert.Equal("""{"on":true,"live":true,"bri":255}""", http.Requests.Last(r => r.Method == HttpMethod.Put).Body);
+
+        // closed: no readings, no more requests
+        await driver.CloseAsync(TestContext.Current.CancellationToken);
+        Assert.Null(driver.Telemetry);
+        var requests = http.Requests.Count;
+        time.Advance(WledDriver.TelemetryInterval * 3);
+        Thread.Sleep(100);
+        Assert.Equal(requests, http.Requests.Count);
+        Assert.Equal(
+            ["/json", "/json/cfg", "/json/si", "/json/si", "/json/si"],
+            http.Requests.Where(r => r.Method == HttpMethod.Get).Select(r => new Uri(r.Uri).AbsolutePath));
+    }
+
+    [Theory]
+    [InlineData("""{ "hw": { "led": { "maxpwr": 0, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 0 } ] } } }""", false, null)]
+    [InlineData("""{ "hw": { "led": { "maxpwr": 2000, "ins": [ { "len": 10, "ledma": 0, "maxpwr": 0 } ] } } }""", false, null)]
+    [InlineData("""{ "hw": { "led": { "maxpwr": 2000, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 0 } ] } } }""", true, 2000)]
+    [InlineData("""{ "hw": { "led": { "maxpwr": 0, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 900 }, { "len": 5, "ledma": 0, "maxpwr": 700 } ] } } }""", true, 900)]
+    [InlineData("""{ "hw": "not an object" }""", false, null)]
+    [InlineData("""{ "hw": { "led": { "maxpwr": 850, "ledma": 55, "ins": [ { "len": 10 } ] } } }""", true, 850)]
+    [InlineData("""{ "hw": { "led": { "maxpwr": 100, "ledma": 55, "ins": [ { "len": 10 } ] } } }""", false, null)]
+    public void Config_TheLimiterIsInUse_AsWledDecidesIt(string cfg, bool inUse, int? limit)
+    {
+        var config = WledConfig.Read(JsonNode.Parse(cfg)!.AsObject());
+        Assert.Equal((inUse, limit), (config.LimiterInUse, config.PowerLimitMilliamps));
+    }
+
+    [Fact]
+    public void Temperature_PrefersASensorOverTheChip_AndSkipsErrors()
+    {
+        static WledTemperature? Read(string info) => WledTemperature.Read(JsonNode.Parse(info)!.AsObject());
+
+        Assert.Equal(
+            new WledTemperature(35.5, "Temperature", false),
+            Read("""{ "sensor": { "Internal Temperature": [61, " °C"] }, "u": { "Temperature": [35.5, "°C"] } }"""));
+        Assert.Equal(new WledTemperature(61, "Internal Temperature", true), Read("""{ "u": { "Temperature": [0, " Sensor Error!"], "Internal Temperature": [61, " °C"] } }"""));
+        Assert.Null(Read("""{ "u": { "Internal Temperature": [-1, " °C"], "Temperature": [-127, "°C"] } }"""));
+    }
+
+    [Fact]
+    public async Task Driver_ARestartWhileSwitchedOff_IsNoWarningAndNotCounted_AndPowerWithoutTheLimiterIsUnknown()
+    {
+        var uptime = 3600;
+        var http = new FakeHttpHandler((request, _) => request.Method == HttpMethod.Get
+            ? FakeHttpHandler.Json($$"""{ "state": { "bri": 128 }, "info": { "leds": { "count": 3, "pwr": 120, "maxpwr": 0 }, "uptime": {{uptime}} } }""")
+            : FakeHttpHandler.Json("""{"success":true}"""));
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero));
+        var context = new DriverContext(NullLoggerFactory.Instance, new HttpClient(http), () => new RecordingChannel(), (_, _) => ValueTask.FromResult(IPAddress.Parse("192.0.2.10"))) { Time = time };
+        using var driver = new WledDriver(new WledOptions("wled-test.local"), context);
+
+        await driver.OpenAsync(3, TestContext.Current.CancellationToken);
+        Assert.Equal((null, null), (driver.Telemetry!.PowerMilliamps, driver.Telemetry.PowerLimitMilliamps));
+        await driver.CloseAsync(TestContext.Current.CancellationToken);
+
+        // an hour later the controller has been up for 10 minutes: it restarted while switched off
+        time.Advance(TimeSpan.FromHours(1));
+        uptime = 600;
+        await driver.OpenAsync(3, TestContext.Current.CancellationToken);
+        Assert.Equal(0, driver.Telemetry!.Restarts);
+        await driver.CloseAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]

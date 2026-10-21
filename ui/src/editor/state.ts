@@ -1,14 +1,17 @@
-import type { Controller, LayoutSpec, Segment, Strip } from '../layout';
-import { newEdgeSegment } from './segments';
+import { defaultRoom, shapePath, type Controller, type LayoutSpec, type Profile, type Room, type ShapeId, type Strip } from '../layout';
+import { carryWithScreen, clampPath, fitMatchedPoints, fitRoom, reverseSections, reverseStrip } from './strips';
 
 /**
  * Layout editor state. Every spec change goes through `commit`, which pushes the previous spec onto the
- * undo stack. Rapid edits sharing a `coalesce` key (slider drags, typing) within COALESCE_MS collapse into a
- * single undo step. Selection and view settings are not part of history.
+ * undo stack. Rapid edits sharing a `coalesce` key (handle drags, slider drags, typing) within COALESCE_MS collapse
+ * into a single undo step. Selection and view settings are not part of history.
  */
 export interface Selection {
   stripId: string | null;
-  segmentIndex: number | null;
+  /** The selected bend point of the selected strip. */
+  pointIndex: number | null;
+  /** The selected section of the selected strip (from bend point `sectionIndex` to the next). */
+  sectionIndex: number | null;
 }
 
 export interface EditorState {
@@ -26,7 +29,7 @@ export interface EditorState {
 export const HISTORY_LIMIT = 100;
 export const COALESCE_MS = 1000;
 
-export const EMPTY_SPEC: LayoutSpec = { version: 1, controllers: [], strips: [] };
+export const EMPTY_SPEC: LayoutSpec = { version: 1, room: defaultRoom(), controllers: [], strips: [] };
 
 export function initialEditorState(spec: LayoutSpec = EMPTY_SPEC, saved: LayoutSpec | null = null): EditorState {
   return {
@@ -34,7 +37,7 @@ export function initialEditorState(spec: LayoutSpec = EMPTY_SPEC, saved: LayoutS
     saved,
     past: [],
     future: [],
-    selection: { stripId: spec.strips[0]?.id ?? null, segmentIndex: null },
+    selection: { stripId: spec.strips[0]?.id ?? null, pointIndex: null, sectionIndex: null },
     lastKey: null,
     lastAt: 0,
   };
@@ -47,22 +50,25 @@ interface EditMeta {
   now?: number;
 }
 
+export type StripPatch = Partial<Omit<Strip, 'id'>>;
+
 export type EditorAction =
   | { type: 'load'; spec: LayoutSpec }
   | { type: 'markSaved'; spec: LayoutSpec }
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'selectStrip'; stripId: string | null }
-  | { type: 'selectSegment'; index: number | null }
-  | ({ type: 'addStrip'; controllerId?: string; output?: number; name?: string } & EditMeta)
+  | { type: 'selectPoint'; index: number | null }
+  | { type: 'selectSection'; index: number | null }
+  | ({ type: 'addStrip'; controllerId?: string; output?: number; name?: string; shape?: ShapeId; path?: Strip['path'] } & EditMeta)
   | ({ type: 'removeStrip'; stripId: string } & EditMeta)
-  | ({ type: 'updateStrip'; stripId: string; patch: Partial<Pick<Strip, 'name' | 'controllerId' | 'output' | 'brightness'>> } & EditMeta)
+  | ({ type: 'updateStrip'; stripId: string; patch: StripPatch } & EditMeta)
   | ({ type: 'moveStrip'; stripId: string; to: number } & EditMeta)
-  | ({ type: 'setSegments'; stripId: string; segments: Segment[] } & EditMeta)
-  | ({ type: 'addSegment'; stripId: string; segment?: Segment; index?: number } & EditMeta)
-  | ({ type: 'removeSegment'; stripId: string; index: number } & EditMeta)
-  | ({ type: 'moveSegment'; stripId: string; from: number; to: number } & EditMeta)
-  | ({ type: 'updateSegment'; stripId: string; index: number; segment: Segment } & EditMeta)
+  | ({ type: 'reverseStrip'; stripId: string } & EditMeta)
+  | ({ type: 'updateRoom'; patch: Partial<Room> } & EditMeta)
+  | ({ type: 'addProfile'; profile: Profile } & EditMeta)
+  | ({ type: 'updateProfile'; profileId: string; patch: Partial<Omit<Profile, 'id'>> } & EditMeta)
+  | ({ type: 'removeProfile'; profileId: string } & EditMeta)
   | ({ type: 'addController'; controller: Controller } & EditMeta)
   | ({ type: 'updateController'; controllerId: string; patch: Partial<Omit<Controller, 'id'>> } & EditMeta)
   | ({ type: 'removeController'; controllerId: string } & EditMeta);
@@ -76,6 +82,21 @@ export function isDirty(state: EditorState): boolean {
 
 export const canUndo = (s: EditorState) => s.past.length > 0;
 export const canRedo = (s: EditorState) => s.future.length > 0;
+
+/** True when the last undo step added strip `stripId` and nothing changed since (undo then takes back just that). */
+export function lastStepAddedStrip(state: EditorState, stripId: string): boolean {
+  const prev = state.past[state.past.length - 1];
+  const { spec } = state;
+  return (
+    !!prev &&
+    spec.strips.length === prev.strips.length + 1 &&
+    spec.strips[spec.strips.length - 1].id === stripId &&
+    prev.strips.every((s, i) => s === spec.strips[i]) &&
+    prev.room === spec.room &&
+    prev.controllers === spec.controllers &&
+    prev.profiles === spec.profiles
+  );
+}
 
 export function selectedStrip(state: EditorState): Strip | undefined {
   return state.spec.strips.find((s) => s.id === state.selection.stripId);
@@ -108,12 +129,27 @@ function mapStrip(spec: LayoutSpec, stripId: string, fn: (s: Strip) => Strip): L
   return { ...spec, strips: spec.strips.map((s) => (s.id === stripId ? fn(s) : s)) };
 }
 
+/**
+ * The spec with only `strips` left; the profiles forget the strips that are gone (a strip added later may get the same
+ * id and must not inherit their sections).
+ */
+function withoutStrips(spec: LayoutSpec, strips: Strip[]): LayoutSpec {
+  const kept = new Set(strips.map((s) => s.id));
+  const profiles = spec.profiles?.map((p) => {
+    const gone = Object.keys(p.sections).filter((id) => !kept.has(id));
+    if (gone.length === 0) return p;
+    return { ...p, sections: Object.fromEntries(Object.entries(p.sections).filter(([id]) => kept.has(id))) };
+  });
+  return { ...spec, strips, ...(profiles ? { profiles } : {}) };
+}
+
 /** Clamp a selection to what exists in the spec. */
 function fixSelection(spec: LayoutSpec, sel: Selection): Selection {
   const strip = spec.strips.find((s) => s.id === sel.stripId) ?? null;
-  if (!strip) return { stripId: spec.strips[0]?.id ?? null, segmentIndex: null };
-  const segmentIndex = sel.segmentIndex !== null && sel.segmentIndex < strip.segments.length ? sel.segmentIndex : null;
-  return { stripId: strip.id, segmentIndex };
+  if (!strip) return { stripId: spec.strips[0]?.id ?? null, pointIndex: null, sectionIndex: null };
+  const pointIndex = sel.pointIndex !== null && sel.pointIndex < strip.path.length ? sel.pointIndex : null;
+  const sectionIndex = sel.sectionIndex !== null && sel.sectionIndex < strip.path.length - 1 ? sel.sectionIndex : null;
+  return { stripId: strip.id, pointIndex, sectionIndex };
 }
 
 function commit(state: EditorState, spec: LayoutSpec, meta: EditMeta, selection: Selection = state.selection): EditorState {
@@ -138,6 +174,22 @@ function freeOutput(spec: LayoutSpec, controllerId: string | undefined): { contr
   const used = new Set(spec.strips.filter((s) => s.controllerId === ctrl.id).map((s) => s.output));
   const free = ctrl.outputs.find((o) => !used.has(o.index));
   return { controllerId: ctrl.id, output: (free ?? ctrl.outputs[0])?.index ?? 0 };
+}
+
+/** The id the next added profile gets. */
+export function nextProfileId(spec: LayoutSpec): string {
+  return nextId('profile', (spec.profiles ?? []).map((p) => p.id));
+}
+
+/** The id the next added strip gets. */
+export function nextStripId(spec: LayoutSpec): string {
+  return nextId('strip', spec.strips.map((s) => s.id));
+}
+
+/** Shape for a strip added without one: around the screen first, then the ceiling, then behind the furniture. */
+function defaultShape(spec: LayoutSpec): ShapeId {
+  const order: ShapeId[] = ['around-screen', 'ceiling-front', 'behind-furniture', 'line'];
+  return order[Math.min(spec.strips.length, order.length - 1)];
 }
 
 // ---- reducer ----
@@ -178,20 +230,30 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case 'selectStrip':
-      return { ...state, selection: fixSelection(spec, { stripId: action.stripId, segmentIndex: null }), lastKey: null };
+      return { ...state, selection: fixSelection(spec, { stripId: action.stripId, pointIndex: null, sectionIndex: null }), lastKey: null };
 
-    case 'selectSegment':
-      return { ...state, selection: fixSelection(spec, { ...state.selection, segmentIndex: action.index }), lastKey: null };
+    case 'selectPoint':
+      return { ...state, selection: fixSelection(spec, { ...state.selection, pointIndex: action.index }), lastKey: null };
+
+    case 'selectSection':
+      return { ...state, selection: fixSelection(spec, { ...state.selection, sectionIndex: action.index }), lastKey: null };
 
     case 'addStrip': {
-      const id = nextId('strip', spec.strips.map((s) => s.id));
+      const id = nextStripId(spec);
       const target = action.controllerId !== undefined && action.output !== undefined
         ? { controllerId: action.controllerId, output: action.output }
         : freeOutput(spec, action.controllerId);
-      // a new strip fills its output (one run along the bottom edge), so it starts out without a count warning
+      // a new strip fills its output, so it starts out without a count warning
       const length = spec.controllers.find((c) => c.id === target.controllerId)?.outputs.find((o) => o.index === target.output)?.length;
-      const strip: Strip = { id, name: action.name ?? `Strip ${spec.strips.length + 1}`, ...target, segments: [newEdgeSegment(length && length > 0 ? length : undefined)] };
-      return commit(state, { ...spec, strips: [...spec.strips, strip] }, action, { stripId: id, segmentIndex: 0 });
+      const path = action.path ?? shapePath(spec.room, action.shape ?? defaultShape(spec));
+      const strip: Strip = {
+        id,
+        name: action.name ?? `Strip ${spec.strips.length + 1}`,
+        ...target,
+        ledCount: length && length > 0 ? length : 60,
+        path,
+      };
+      return commit(state, { ...spec, strips: [...spec.strips, strip] }, action, { stripId: id, pointIndex: null, sectionIndex: null });
     }
 
     case 'removeStrip': {
@@ -199,12 +261,49 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (idx < 0) return state;
       const strips = spec.strips.filter((s) => s.id !== action.stripId);
       const nextSel = strips[Math.min(idx, strips.length - 1)]?.id ?? null;
-      return commit(state, { ...spec, strips }, action, { stripId: nextSel, segmentIndex: null });
+      return commit(state, withoutStrips(spec, strips), action, { stripId: nextSel, pointIndex: null, sectionIndex: null });
+    }
+
+    case 'addProfile': {
+      const id = (spec.profiles ?? []).some((p) => p.id === action.profile.id) || !action.profile.id ? nextProfileId(spec) : action.profile.id;
+      return commit(state, { ...spec, profiles: [...(spec.profiles ?? []), { ...action.profile, id }] }, action);
+    }
+
+    case 'updateProfile':
+      if (!spec.profiles?.some((p) => p.id === action.profileId)) return state;
+      return commit(state, { ...spec, profiles: spec.profiles.map((p) => (p.id === action.profileId ? { ...p, ...action.patch } : p)) }, action);
+
+    case 'removeProfile': {
+      if (!spec.profiles?.some((p) => p.id === action.profileId)) return state;
+      const profiles = spec.profiles.filter((p) => p.id !== action.profileId);
+      if (profiles.length) return commit(state, { ...spec, profiles }, action);
+      const { profiles: _none, ...rest } = spec;
+      return commit(state, rest, action);
     }
 
     case 'updateStrip':
       if (!spec.strips.some((s) => s.id === action.stripId)) return state;
-      return commit(state, mapStrip(spec, action.stripId, (s) => withoutUndefined({ ...s, ...action.patch })), action);
+      return commit(
+        state,
+        mapStrip(spec, action.stripId, (s) => {
+          const next = withoutUndefined({ ...s, ...action.patch });
+          return action.patch.ledCount !== undefined ? { ...next, path: fitMatchedPoints(next.path, next.ledCount) } : next;
+        }),
+        action,
+      );
+
+    case 'reverseStrip': {
+      const strip = spec.strips.find((s) => s.id === action.stripId);
+      if (!strip) return state;
+      // the profiles' sections of the strip are turned around with it, or they would land on the wrong parts
+      const sections = strip.path.length - 1;
+      const profiles = spec.profiles?.map((p) => {
+        const own = p.sections[strip.id];
+        return own && own.length === sections ? { ...p, sections: { ...p.sections, [strip.id]: reverseSections(own) } } : p;
+      });
+      const reversed = mapStrip(spec, strip.id, (s) => withoutUndefined({ ...s, ...reverseStrip(s) }));
+      return commit(state, { ...reversed, ...(profiles ? { profiles } : {}) }, action);
+    }
 
     case 'moveStrip': {
       const from = spec.strips.findIndex((s) => s.id === action.stripId);
@@ -212,44 +311,15 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return commit(state, { ...spec, strips: moveItem(spec.strips, from, action.to) }, action);
     }
 
-    case 'setSegments':
-      if (!spec.strips.some((s) => s.id === action.stripId)) return state;
-      return commit(state, mapStrip(spec, action.stripId, (s) => ({ ...s, segments: action.segments })), action, {
-        stripId: action.stripId,
-        segmentIndex: null,
+    case 'updateRoom': {
+      const room = fitRoom({ ...spec.room, ...action.patch });
+      const screenMoved = JSON.stringify(room.screen) !== JSON.stringify(spec.room.screen);
+      const strips = spec.strips.map((s) => {
+        const carried = screenMoved ? carryWithScreen(s.path, spec.room.screen, room.screen) : s.path;
+        const path = clampPath(room, carried);
+        return path === s.path ? s : { ...s, path };
       });
-
-    case 'addSegment': {
-      const strip = spec.strips.find((s) => s.id === action.stripId);
-      if (!strip) return state;
-      const index = Math.max(0, Math.min(strip.segments.length, action.index ?? strip.segments.length));
-      const segments = strip.segments.slice();
-      segments.splice(index, 0, action.segment ?? newEdgeSegment());
-      return commit(state, mapStrip(spec, strip.id, (s) => ({ ...s, segments })), action, { stripId: strip.id, segmentIndex: index });
-    }
-
-    case 'removeSegment': {
-      const strip = spec.strips.find((s) => s.id === action.stripId);
-      if (!strip || action.index < 0 || action.index >= strip.segments.length) return state;
-      const segments = strip.segments.filter((_, i) => i !== action.index);
-      const sel = segments.length ? Math.min(action.index, segments.length - 1) : null;
-      return commit(state, mapStrip(spec, strip.id, (s) => ({ ...s, segments })), action, { stripId: strip.id, segmentIndex: sel });
-    }
-
-    case 'moveSegment': {
-      const strip = spec.strips.find((s) => s.id === action.stripId);
-      if (!strip || action.from === action.to) return state;
-      if (action.from < 0 || action.from >= strip.segments.length || action.to < 0 || action.to >= strip.segments.length) return state;
-      const segments = moveItem(strip.segments, action.from, action.to);
-      const sel = state.selection.segmentIndex === action.from ? action.to : state.selection.segmentIndex;
-      return commit(state, mapStrip(spec, strip.id, (s) => ({ ...s, segments })), action, { stripId: strip.id, segmentIndex: sel });
-    }
-
-    case 'updateSegment': {
-      const strip = spec.strips.find((s) => s.id === action.stripId);
-      if (!strip || action.index < 0 || action.index >= strip.segments.length) return state;
-      const segments = strip.segments.map((s, i) => (i === action.index ? action.segment : s));
-      return commit(state, mapStrip(spec, strip.id, (s) => ({ ...s, segments })), action);
+      return commit(state, { ...spec, room, strips }, action);
     }
 
     case 'addController': {
@@ -268,15 +338,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'removeController': {
       if (!spec.controllers.some((c) => c.id === action.controllerId)) return state;
-      return commit(
-        state,
-        {
-          ...spec,
-          controllers: spec.controllers.filter((c) => c.id !== action.controllerId),
-          strips: spec.strips.filter((s) => s.controllerId !== action.controllerId),
-        },
-        action,
-      );
+      const controllers = spec.controllers.filter((c) => c.id !== action.controllerId);
+      return commit(state, withoutStrips({ ...spec, controllers }, spec.strips.filter((s) => s.controllerId !== action.controllerId)), action);
     }
   }
 }

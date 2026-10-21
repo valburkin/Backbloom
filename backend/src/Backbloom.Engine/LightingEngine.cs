@@ -5,10 +5,12 @@ using Backbloom.Capture;
 using Backbloom.Capture.Hdr;
 using Backbloom.Core.Borders;
 using Backbloom.Core.Color;
+using Backbloom.Core.Effects;
 using Backbloom.Core.Layout;
 using Backbloom.Core.Mapping;
 using Backbloom.Core.Priorities;
 using Backbloom.Core.Smoothing;
+using Backbloom.Devices;
 using Backbloom.Engine.Platform;
 using Backbloom.Settings;
 using Backbloom.Settings.Layout;
@@ -19,7 +21,9 @@ namespace Backbloom.Engine;
 /// Wires the settings to the pipeline and the controllers: builds the color processor and LED map from the
 /// <c>color</c> section and the controllers' LEDs, smoothing from <c>smoothing</c>, black border detection from
 /// <c>blackborderdetector</c>, configures the controllers from <c>layout</c> (or, without one, <c>device</c> +
-/// <c>leds</c>), registers the screen as a source and applies component switches. The API layer talks to this class only; it never reaches into the pipeline thread.
+/// <c>leds</c>), plays the layout's zones (<see cref="ZoneLayer"/>), registers the screen as a source and applies
+/// component switches. A profile of the layout (<see cref="ApplyProfile"/>) switches the compiled setup without saving
+/// anything. The API layer talks to this class only; it never reaches into the pipeline thread.
 /// </summary>
 public sealed partial class LightingEngine : IDisposable
 {
@@ -32,11 +36,16 @@ public sealed partial class LightingEngine : IDisposable
     private readonly OutputStage _output;
     private readonly LightingPipeline _pipeline;
     private readonly ScreenActivity _screen;
+    private readonly IClock _clock;
     private readonly ILogger _logger;
     private readonly Lock _applyLock = new();
+    private readonly HashSet<string> _unknownZoneEffects = new(StringComparer.Ordinal);
     private volatile ControllerSetup _setup;
+    private ZoneLayer _zones = ZoneLayer.Empty;
+    private string? _profileId;
     private int _screenPriority;
     private bool _screenRegistered;
+    private bool _started;
     private bool _disposed;
 
     /// <param name="sound">Music mode's sound capture; null where there is none (music effects stay dark).</param>
@@ -50,6 +59,7 @@ public sealed partial class LightingEngine : IDisposable
         _settings = settings;
         _source = source;
         _devices = devices;
+        _clock = clock;
         _logger = loggerFactory.CreateLogger<LightingEngine>();
 
         var general = settings.GetSection("general") as JsonObject;
@@ -65,7 +75,7 @@ public sealed partial class LightingEngine : IDisposable
         _output.Configure(smoothing);
         _screen = new ScreenActivity(Sources, clock);
         _pipeline = new LightingPipeline(
-            source, Components, () => Sources.Visible, _output, BuildConfig(settings.GetSection("color"), Layout), loggerFactory.CreateLogger<LightingPipeline>(), _screen);
+            source, Components, () => Sources.Visible, _output, BuildConfig(settings.GetSection("color"), Layout), loggerFactory.CreateLogger<LightingPipeline>(), _screen, clock);
         _pipeline.ConfigureBorders(BorderOptions());
         _screenPriority = ScreenPriorityFrom(settings.GetSection("systemControl"));
         Sound = sound;
@@ -119,8 +129,14 @@ public sealed partial class LightingEngine : IDisposable
     /// <summary>The LEDs of every controller, one controller after the other.</summary>
     public LedLayout Layout { get; private set; }
 
-    /// <summary>The controllers and their strips, as the settings describe them.</summary>
+    /// <summary>The controllers and their strips, as the settings describe them (compiled for the active profile).</summary>
     public ControllerSetup Setup => _setup;
+
+    /// <summary>The zones played now (see <see cref="ControllerSetup.Zones"/>).</summary>
+    public ZoneLayer Zones => _pipeline.Zones;
+
+    /// <summary>The profile whose setup runs (<see cref="ApplyProfile"/>), or null: the layout as saved.</summary>
+    public string? ProfileId => _setup.ProfileId;
 
     public LedMappingType MappingType => _pipeline.Config.Mapping.MappingType;
 
@@ -159,12 +175,16 @@ public sealed partial class LightingEngine : IDisposable
 
     public IReadOnlyList<DeviceInfo> Devices => _devices.Devices;
 
+    /// <summary>The highest values of one frame of a controller since the previous call (they are reset: the performance recorder's).</summary>
+    internal FramePeaks? TakePeaks(string controllerId) => _devices.TakePeaks(controllerId);
+
     public IReadOnlyList<PriorityInfo> Priorities => Sources.Priorities;
 
     public void Start()
     {
         lock (_applyLock)
         {
+            _started = true;
             ApplySetup();
             UpdateScreenSource();
             UpdateOutput();
@@ -174,6 +194,31 @@ public sealed partial class LightingEngine : IDisposable
         _pipeline.Start();
         Effects.Start();
         LogStarted(Layout.Count, _setup.Controllers.Count, _source.Name);
+    }
+
+    /// <summary>
+    /// Runs the setup the profile <paramref name="profileId"/> of the layout describes (other roles for the strips'
+    /// sections: rects and zones), or the layout as saved (null, or an id the layout doesn't have). Nothing is saved;
+    /// controllers whose driver settings and LED count stay the same keep running (no reconnect). Later layout changes
+    /// are compiled for the same profile.
+    /// </summary>
+    public void ApplyProfile(string? profileId)
+    {
+        lock (_applyLock)
+        {
+            if (_disposed || profileId == _profileId)
+            {
+                return;
+            }
+
+            _profileId = profileId;
+            if (Recompile())
+            {
+                _pipeline.Configure(BuildConfig(_settings.GetSection("color"), Layout));
+            }
+        }
+
+        LogProfile(profileId ?? "(none)");
     }
 
     /// <summary>Runs an effect (the <c>effect</c> command) for <paramref name="durationMs"/> ms (&lt;= 0: until cleared).</summary>
@@ -205,10 +250,25 @@ public sealed partial class LightingEngine : IDisposable
 
     /// <summary>
     /// Blinks one LED (the UI's "find this LED"): LED <paramref name="ledIndex"/> of controller
-    /// <paramref name="controllerId"/>, or without one the LED at that position among all controllers' LEDs.
+    /// <paramref name="controllerId"/>, or without one the LED at that position among all controllers' LEDs, replacing
+    /// any other blink. <paramref name="hold"/> keeps it on (cycling red, green, blue) until <see cref="StopIdentify"/>,
+    /// the next blink or a 120 s timeout. It also shows while the lights are switched off or nothing is visible (the
+    /// controller opens for it), but never while the output is held (<see cref="ComponentStates.OutputHeld"/>); switching
+    /// the lights off or holding the output ends it.
     /// </summary>
-    /// <returns>The controller and its own LED index, or null when there is no such LED or it isn't running.</returns>
-    public (string ControllerId, int LedIndex)? IdentifyLed(string? controllerId, int ledIndex) => _devices.Identify(controllerId, ledIndex);
+    /// <returns>The controller and its own LED index, or null when there is no such LED, it isn't running or the output is held.</returns>
+    public (string ControllerId, int LedIndex)? IdentifyLed(string? controllerId, int ledIndex, bool hold = false)
+    {
+        // under the lock, so a hold that starts meanwhile (OnHoldChanged) ends this blink
+        lock (_applyLock)
+        {
+            return Components.OutputHeld ? null : _devices.Identify(controllerId, ledIndex, hold);
+        }
+    }
+
+    /// <summary>Ends the blink on controller <paramref name="controllerId"/>, or on every controller.</summary>
+    /// <returns>False when there is no such controller.</returns>
+    public bool StopIdentify(string? controllerId = null) => _devices.StopIdentify(controllerId);
 
     public void Dispose()
     {
@@ -224,6 +284,12 @@ public sealed partial class LightingEngine : IDisposable
         Sources.VisibleChanged -= OnVisibleChanged;
         Sources.PrioritiesChanged -= OnPrioritiesChanged;
         _pipeline.Dispose();
+        lock (_applyLock)
+        {
+            _zones.Dispose();
+            _zones = ZoneLayer.Empty;
+        }
+
         Effects.Dispose();
         _output.Dispose();
         Sources.Dispose();
@@ -238,12 +304,13 @@ public sealed partial class LightingEngine : IDisposable
         return new PipelineConfig(new LedMappingOptions(layout, mappingType, sparse), new ColorProcessor(adjustment));
     }
 
-    private static ControllerSetup SetupFrom(ISettingsStore settings) =>
+    private static ControllerSetup SetupFrom(ISettingsStore settings, string? profileId = null) =>
         ControllerSetup.FromSettings(
             settings.GetSection("layout"),
             settings.GetSection("leds"),
             settings.GetSection("device"),
-            settings.Controllers is [var first, ..] ? first.Name : "LED controller");
+            settings.Controllers is [var first, ..] ? first.Name : "LED controller",
+            profileId);
 
     // Per-LED brightness from the strips' brightness, or null when every LED has full brightness.
     private static float[]? GainsFor(ControllerSetup setup)
@@ -274,6 +341,56 @@ public sealed partial class LightingEngine : IDisposable
     {
         _devices.Configure([.. _setup.Controllers.Select(c => new ControllerDevice(c.Id, c.Name, c.Device, c.LedCount, c.Enabled))]);
         _output.SetLedGains(GainsFor(_setup));
+        if (_started && !_disposed)
+        {
+            ApplyZones();
+        }
+    }
+
+    // The setup's zones replace the ones playing; an effect whose zone stays keeps running.
+    private void ApplyZones()
+    {
+        var zones = ZoneLayer.Create(_setup.Zones, _zones, CreateZoneEffect, OnUnknownZoneEffect, out var retired);
+        _zones = zones;
+        _pipeline.ConfigureZones(zones);
+        foreach (var effect in retired)
+        {
+            effect.Dispose();
+        }
+
+        if (zones.Count > 0)
+        {
+            var roles = string.Join(", ", zones.Roles.Select(r => r.Effect ?? $"[{r.R}, {r.G}, {r.B}]"));
+            LogZones(zones.Count, roles);
+        }
+    }
+
+    private EffectSource CreateZoneEffect(EffectDefinition definition) =>
+        new(definition, priority: -1, durationMs: -1, _clock, MsvcRandom.CreateSeeded(), Sound);
+
+    private void OnUnknownZoneEffect(string name)
+    {
+        if (_unknownZoneEffects.Add(name))
+        {
+            LogUnknownZoneEffect(name);
+        }
+    }
+
+    // Compiles the settings for the current profile and applies the result; true when the LEDs' rects changed.
+    private bool Recompile()
+    {
+        var previous = _setup.AllLeds();
+        _setup = SetupFrom(_settings, _profileId);
+        var allLeds = _setup.AllLeds();
+        var changed = !JsonNode.DeepEquals(previous, allLeds);
+        if (changed)
+        {
+            Layout = LedLayout.FromJson(allLeds);
+        }
+
+        ApplySetup();
+        UpdateOutput();
+        return changed;
     }
 
     // BlackBorderProcessor::handleSettingsUpdate reads "enable" with toBool(true); the schema default is false.
@@ -304,6 +421,12 @@ public sealed partial class LightingEngine : IDisposable
                     break;
             }
 
+            if (!on && component is Component.All or Component.LedDevice)
+            {
+                // the user wants the lights off: that includes a blink
+                _devices.StopIdentify(null);
+            }
+
             UpdateOutput();
         }
 
@@ -316,6 +439,12 @@ public sealed partial class LightingEngine : IDisposable
         {
             if (!_disposed)
             {
+                if (held)
+                {
+                    // another app drives the LEDs (or the first run isn't completed): nothing may be sent, blinks neither
+                    _devices.StopIdentify(null);
+                }
+
                 UpdateOutput();
             }
         }
@@ -361,11 +490,12 @@ public sealed partial class LightingEngine : IDisposable
         }
     }
 
-    // The controllers run while the output is on and something is visible ("no source left": HyperHDR switched the
-    // LED device off; here the LEDDEVICE switch keeps the user's choice).
+    // The controllers run while the output is on and something is visible or zones play ("no source left": HyperHDR
+    // switched the LED device off; here the LEDDEVICE switch keeps the user's choice). With zones and no source, the
+    // other LEDs are black.
     private void UpdateOutput()
     {
-        var on = Components.OutputActive && Sources.Visible.HasSource;
+        var on = Components.OutputActive && (Sources.Visible.HasSource || _setup.Zones.Count > 0);
         _devices.SetEnabled(on);
         if (_output.SetOutputEnabled(on))
         {
@@ -386,16 +516,7 @@ public sealed partial class LightingEngine : IDisposable
             var controllersChanged = false;
             if (change.Contains("layout") || change.Contains("leds") || change.Contains("device"))
             {
-                var previous = _setup.AllLeds();
-                _setup = SetupFrom(_settings);
-                var allLeds = _setup.AllLeds();
-                if (!JsonNode.DeepEquals(previous, allLeds))
-                {
-                    Layout = LedLayout.FromJson(allLeds);
-                }
-
-                ApplySetup();
-                UpdateOutput();
+                Recompile();
                 controllersChanged = true;
             }
 
@@ -466,4 +587,13 @@ public sealed partial class LightingEngine : IDisposable
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Visible source: priority {Priority} ({Component})")]
     private partial void LogVisible(int priority, SourceComponent component);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Zones: {Count} ({Roles})")]
+    private partial void LogZones(int count, string roles);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A zone plays the effect '{Name}', which doesn't exist; it stays dark")]
+    private partial void LogUnknownZoneEffect(string name);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Profile: {Profile}")]
+    private partial void LogProfile(string profile);
 }

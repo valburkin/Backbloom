@@ -42,6 +42,56 @@ internal sealed class FakeHttpHandler(Func<HttpRequestMessage, string?, HttpResp
     public static HttpResponseMessage Json(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 }
 
+/// <summary>A clock that only moves when told to.</summary>
+internal sealed class ManualTime : TimeProvider
+{
+    private long _ticks;
+
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+    public override long GetTimestamp() => Interlocked.Read(ref _ticks);
+
+    public void Advance(TimeSpan by) => Interlocked.Add(ref _ticks, by.Ticks);
+}
+
+/// <summary>Records the device thread's allocated bytes at each of its first <see cref="Samples"/> writes.</summary>
+internal sealed class AllocationProbeDriver : ILedDriver
+{
+    public const int Samples = 40;
+
+    private int _writes;
+
+    public long[] Allocated { get; } = new long[Samples];
+
+    public int Writes => Volatile.Read(ref _writes);
+
+    public string Type => "probe";
+
+    public RetryPolicy RetryPolicy => RetryPolicy.None;
+
+    public string? Status => null;
+
+    public ValueTask OpenAsync(int ledCount, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+    public bool Write(ReadOnlySpan<byte> colors)
+    {
+        var i = _writes;
+        if (i < Samples)
+        {
+            Allocated[i] = GC.GetAllocatedBytesForCurrentThread();
+            Volatile.Write(ref _writes, i + 1);
+        }
+
+        return true;
+    }
+
+    public ValueTask CloseAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+    public void Dispose()
+    {
+    }
+}
+
 /// <summary>A driver whose open can be made to fail, recording what the runner sends.</summary>
 internal sealed class FakeDriver(RetryPolicy retryPolicy, int failOpens = 0) : ILedDriver
 {

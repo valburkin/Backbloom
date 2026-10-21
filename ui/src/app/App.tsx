@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Cpu, House, Loader2, MonitorSmartphone, Palette, Power, ScreenShare, Settings as SettingsIcon, Sparkles, WifiOff } from 'lucide-react';
 import { Button, cx, StatusDot } from '../components/ui';
 import { Logo } from '../components/Logo';
@@ -9,7 +9,6 @@ import { useEditor } from './editor';
 import { hrefFor, useRoute, type Route } from './router';
 import { LoginScreen } from '../pages/LoginScreen';
 import { HomePage } from '../pages/HomePage';
-import { LayoutPage } from '../pages/layout/LayoutPage';
 import { DevicesPage } from '../pages/DevicesPage';
 import { CapturePage } from '../pages/CapturePage';
 import { ColorsPage } from '../pages/ColorsPage';
@@ -18,6 +17,9 @@ import { SettingsPage } from '../pages/settings/SettingsPage';
 import { WelcomeScreen } from '../pages/welcome/WelcomeScreen';
 import { OtherAppNotice } from '../pages/welcome/OtherAppNotice';
 import { useAction } from './useAction';
+
+// The layout editor is the biggest page; it loads when first opened.
+const LayoutPage = lazy(() => import('../pages/layout/LayoutPage').then((m) => ({ default: m.LayoutPage })));
 
 const NAV: Array<{ route: Route; label: string; icon: ReactNode }> = [
   { route: 'home', label: 'Home', icon: <House size={20} /> },
@@ -116,7 +118,11 @@ function Shell() {
         <SetupBanner />
         <div className="min-h-0 flex-1">
           {loc.route === 'home' && <HomePage />}
-          {loc.route === 'layout' && <LayoutPage />}
+          {loc.route === 'layout' && (
+            <Suspense fallback={null}>
+              <LayoutPage />
+            </Suspense>
+          )}
           {loc.route === 'devices' && <DevicesPage />}
           {loc.route === 'capture' && <CapturePage />}
           {loc.route === 'colors' && <ColorsPage />}

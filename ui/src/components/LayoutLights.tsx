@@ -14,8 +14,8 @@ export interface LayoutLightsHandle {
 }
 
 /**
- * The user's LEDs around a screen, drawn as on the Layout page (each strip outside the screen edge it samples, strips
- * on the same edge in their own lanes), each LED as a dot with a soft glow. Painted imperatively, so animations don't
+ * The user's LEDs in their room, drawn as on the Layout page (the walls, ceiling and floor folded out around the
+ * front wall with the screen), each LED as a dot with a soft glow. Painted imperatively, so animations don't
  * re-render React.
  */
 export const LayoutLights = forwardRef<LayoutLightsHandle, { view: LayoutView; label?: string }>(function LayoutLights({ view, label }, ref) {
@@ -77,6 +77,18 @@ export const LayoutLights = forwardRef<LayoutLightsHandle, { view: LayoutView; l
         height={Math.ceil(height * GLOW_SCALE)}
         className="absolute inset-0 h-full w-full opacity-90 blur-[3px] saturate-150"
       />
+      {view.surfaces.map((r, i) => (
+        <div
+          key={i}
+          className="absolute border border-[#1c2130]"
+          style={{
+            left: `${(r.x / width) * 100}%`,
+            top: `${(r.y / height) * 100}%`,
+            width: `${(r.w / width) * 100}%`,
+            height: `${(r.h / height) * 100}%`,
+          }}
+        />
+      ))}
       <div
         className="absolute rounded-[3px] border border-[#343c4f]/70 bg-[#0d1017]"
         style={{

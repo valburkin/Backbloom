@@ -62,17 +62,49 @@ needed only from another device; this computer can set a new one without it, als
 | `effects` `previews` | a few looping seconds of one effect (`name`) or of every effect on the user's LEDs, for the effect cards: `{ fps, ledCount, standard, previews: [{ name, frames }] }`, `frames` the RGB bytes of each frame in base64 in the order of `leds`; `standard`: there are no LEDs yet, so a standard 16:9 frame was used (rendered on simulated time, not on the lights) |
 | `adjustment` | change color adjustment (stored) |
 | `ledcolors` `ledstream-start` / `ledstream-stop` | live LED colors for the preview |
-| `leddevice` `discover` / `getProperties` / `identify` | driver tools |
+| `leddevice` `discover` / `getProperties` / `identify` | driver tools; `identify` with `ledDeviceType: "blink"` finds an LED (see below) |
 | `logging` `start` / `stop` | log history and live log lines |
 | `performance-counters` | CPU, memory, frame and LED rates |
 | `instance` `switchTo` | kept for HyperHDR clients |
 | `setup` `getstate` / `start` / `autostart` / `acknowledge` | first-run welcome: whether the lighting was started once, HyperHDR running, what was imported, autostart, remote access addresses, whether a password is set (`passwordSet`); `start` ends the first-run hold (admin) |
+| `profile` `getstate` / `select` / `programs` | the layout's profiles at runtime (see below) |
+
+### Finding an LED (`leddevice identify`, `ledDeviceType: "blink"`)
+
+Every other LED of the controller goes black while the chosen one shows red, green and blue for 1.5 s each.
+
+| `params` | |
+|---|---|
+| `blinkIndex` | the LED: counted from the first LED of `controller`, or without one over all controllers' LEDs |
+| `controller` | optional: the controller's id (or its position, a number) |
+| `hold` | optional: `true` keeps the LED lit, cycling red, green and blue every 1.5 s, until the next blink request (any LED, any controller), a stop request, or 120 s; without it the blink ends after 4.5 s |
+| `stop` | `true`: ends the blink (on `controller`, or on every controller); `blinkIndex` isn't needed |
+
+A blink replaces the running one (also on another controller) and starts over at red. It also shows while the lights
+are switched off or nothing is visible (the controller opens for it and closes again after it); switching `ALL` or
+`LEDDEVICE` off ends it. Replies `{ controller, blinkIndex, hold }`, for a stop `{ controller, stopped: true }`. Errors:
+an LED or controller that doesn't exist, a controller that isn't running (disabled, no usable driver settings), and
+the output being held (before the first-run welcome is completed, or while HyperHDR runs: nothing is sent then).
+
+### Profiles (`profile`)
+
+A layout's `profiles` give its strips other roles while a program runs; the first profile in the list one of whose
+programs runs is active (checked every 2 s). `serverinfo.profile` is the active one, `{ id, name, manual }`, or null
+(the layout as saved); `manual` is true for a profile chosen with `select`.
+
+| Subcommand | Params | Reply |
+|---|---|---|
+| `getstate` | | `{ profile }` |
+| `select` | `{ id: string \| null }` | runs that profile whatever programs run, to try it out, until `select` with `id` null (or without it) goes back to choosing by the running programs; nothing is saved, and removing the profile from the layout or a restart goes back too. Replies `{ profile }`; an id the layout doesn't have is an error |
+| `programs` | | admins: the programs with a window open, for picking a profile's programs: `{ programs: [{ exe, title }] }`, one per executable (`exe` is what `apps` holds, e.g. `witcher3.exe`), sorted by it |
+
+`profile-update` pushes `{ profile }` whenever the active profile changes.
 
 Events: `components-update`, `priorities-update`, `adjustment-update`, `settings-update`, `leds-update`,
 `imageToLedMapping-update`, `performance-update`, `token-update`, `instance-update`, `sessions-update`,
 `controllers-update`, `capture-update` (screen capture started or stopped, monitor HDR mode and tone mapping),
-`setup-update` (the `setup` state), `sound-update` (`serverinfo.sound` when the sound capture starts, stops, fails or
-recovers), `logging-update`, and the LED color stream.
+`setup-update` (the `setup` state), `profile-update` (the active profile), `sound-update` (`serverinfo.sound` when the
+sound capture starts, stops, fails or recovers), `logging-update`, and the LED color stream.
 
 Differences from HyperHDR (rejected invalid settings, persisted `adjustment`, restore without restart, and others)
 are listed in [backend/README.md](../backend/README.md#json-rpc-protocol).

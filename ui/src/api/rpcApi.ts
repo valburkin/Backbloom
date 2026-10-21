@@ -1,9 +1,11 @@
 import type {
+  ActiveProfile,
   Backend,
   BackendConfig,
   ChannelAdjustment,
   DiscoveredDevice,
   EffectPreviews,
+  RunningProgram,
   ServerInfo,
   SettingsSchema,
   SetupState,
@@ -25,6 +27,7 @@ export const SUBSCRIPTIONS = [
   'performance-update',
   'setup-update',
   'sound-update',
+  'profile-update',
 ] as const;
 
 /** Priority and origin the UI uses for colors and effects it starts (the backend's web-UI slot). */
@@ -217,14 +220,40 @@ export class RpcApi {
     return info<SetupState>(await this.backend.call('setup', 'acknowledge', { topic }));
   }
 
+  // ---- profiles ----
+
+  /**
+   * Runs the layout's profile `id` whatever programs run (to try it out), until called with null: back to choosing by
+   * the running programs. Nothing is saved. Resolves with the profile that runs now (`serverinfo.profile`).
+   */
+  async setProfile(id: string | null): Promise<ActiveProfile | null> {
+    return info<{ profile?: ActiveProfile | null }>(await this.backend.call('profile', 'select', { id })).profile ?? null;
+  }
+
+  /** Programs with a window open (one per executable, sorted), for the profile editor's program picker. */
+  async runningPrograms(): Promise<RunningProgram[]> {
+    const programs = info<{ programs?: unknown }>(await this.backend.call('profile', 'programs')).programs;
+    return Array.isArray(programs)
+      ? programs.filter((p): p is RunningProgram => !!p && typeof (p as RunningProgram).exe === 'string' && typeof (p as RunningProgram).title === 'string')
+      : [];
+  }
   // ---- devices ----
 
   /**
    * Blink one LED red → green → blue (~4.5 s): LED `index` of the controller with that id, or without a controller
-   * the LED at that position among all controllers' LEDs.
+   * the LED at that position among all controllers' LEDs. With `hold` it stays lit (cycling red, green, blue) until
+   * the next blink, `stopBlink` or 120 s. Every blink replaces the one before (on any controller).
    */
-  async blinkLed(index: number, controllerId?: string): Promise<void> {
-    const params = controllerId === undefined ? { blinkIndex: index } : { blinkIndex: index, controller: controllerId };
+  async blinkLed(index: number, controllerId?: string, hold?: boolean): Promise<void> {
+    const params: Record<string, unknown> = { blinkIndex: index };
+    if (controllerId !== undefined) params.controller = controllerId;
+    if (hold) params.hold = true;
+    await this.backend.call('leddevice', 'identify', { ledDeviceType: 'blink', params });
+  }
+
+  /** End a blink (a held one, usually): on the controller with that id, or on every controller. */
+  async stopBlink(controllerId?: string): Promise<void> {
+    const params = controllerId === undefined ? { stop: true } : { stop: true, controller: controllerId };
     await this.backend.call('leddevice', 'identify', { ledDeviceType: 'blink', params });
   }
 

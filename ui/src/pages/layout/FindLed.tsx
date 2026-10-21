@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Crosshair, Lightbulb } from 'lucide-react';
+import { Crosshair, LightbulbOff } from 'lucide-react';
 import type { LayoutSpec } from '../../layout';
 import { Button, Card, Stepper } from '../../components/ui';
 import { Select } from '../../components/form';
 import { useConnection } from '../../app/connection';
-import { describeSegment } from '../../editor/segments';
 import { locateLed } from './model';
 
 export const BLINK_DEBOUNCE_MS = 350;
@@ -39,19 +38,44 @@ export function FindLed({
     onLocate(loc ? { stripId: loc.strip.id, local: loc.local } : null);
   }, [locKey]);
 
-  useEffect(() => () => {
+  // The LED stays lit until another one is picked or the finder is turned off (or left).
+  const activeRef = useRef(false);
+  activeRef.current = active;
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+      if (activeRef.current) api.stopBlink().catch(() => undefined);
+    },
+    [api],
+  );
+
+  // Another controller (picked here, or the selected strip's): the LED lit on the previous one goes off.
+  const controllerKey = controller?.id;
+  const litOn = useRef(controllerKey);
+  useEffect(() => {
+    if (litOn.current === controllerKey) return;
+    litOn.current = controllerKey;
     if (timer.current) clearTimeout(timer.current);
-  }, []);
+    if (activeRef.current) api.stopBlink().catch(() => undefined);
+    setActive(false);
+    setIndex(0);
+  }, [controllerKey, api]);
 
   const blink = (i: number, immediate = false) => {
     if (timer.current) clearTimeout(timer.current);
     const id = controller?.id;
     const run = () => {
       setError(null);
-      api.blinkLed(i, id).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      api.blinkLed(i, id, true).catch((e) => setError(e instanceof Error ? e.message : String(e)));
     };
     if (immediate) run();
     else timer.current = setTimeout(run, BLINK_DEBOUNCE_MS);
+  };
+
+  const stop = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setActive(false);
+    api.stopBlink(controller?.id).catch(() => undefined);
   };
 
   const change = (i: number) => {
@@ -76,11 +100,7 @@ export function FindLed({
             className="min-w-[10rem]"
             value={controller.id}
             options={spec.controllers.map((c) => ({ value: c.id, label: c.name || c.id }))}
-            onChange={(id) => {
-              setPicked(id);
-              setActive(false);
-              setIndex(0);
-            }}
+            onChange={setPicked}
           />
         )}
         <Stepper label="LED number" value={Math.min(index, total - 1)} min={0} max={total - 1} onChange={change} />
@@ -93,8 +113,8 @@ export function FindLed({
           value={Math.min(index, total - 1)}
           onChange={(e) => change(Number(e.target.value))}
         />
-        <Button size="sm" icon={<Lightbulb size={15} />} disabled={status !== 'open'} onClick={() => { setActive(true); blink(index, true); }}>
-          Blink again
+        <Button size="sm" icon={<LightbulbOff size={15} />} disabled={status !== 'open' || !active} onClick={stop}>
+          Turn off
         </Button>
       </div>
       <p className="mt-2 text-[13px] text-ink-muted" aria-live="polite">
@@ -103,14 +123,14 @@ export function FindLed({
         ) : active ? (
           loc ? (
             <>
-              LED <b className="text-ink">#{index}</b>{spec.controllers.length > 1 ? ` of ${controller.name}` : ''} blinks red → green → blue. In your layout it’s LED {loc.local + 1} of “{loc.strip.name}”
-              {loc.segmentIndex !== null ? ` (part ${loc.segmentIndex + 1}: ${describeSegment(loc.strip.segments[loc.segmentIndex])})` : ' — not covered by any part yet'}.
+              LED <b className="text-ink">#{index}</b>{spec.controllers.length > 1 ? ` of ${controller.name}` : ''} stays lit, cycling red → green → blue. In your layout it’s LED {loc.local + 1}
+              {' '}of “{loc.strip.name}”{loc.local >= loc.strip.ledCount ? ', past the end of the strip' : ''}, ringed in the room.
             </>
           ) : (
-            <>LED #{index} blinks red → green → blue. It isn’t part of any strip in your layout.</>
+            <>LED #{index} stays lit, cycling red → green → blue. It isn’t part of any strip in your layout.</>
           )
         ) : (
-          <>Pick an LED number and it blinks on your strip — great for finding the corners.</>
+          <>Pick an LED number and it lights up on your strip until you pick another or turn it off — great for finding the corners.</>
         )}
       </p>
     </Card>

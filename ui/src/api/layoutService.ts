@@ -1,6 +1,8 @@
 import {
   compileLayout,
   controllerFromWledConfig,
+  defaultRoom,
+  shapePath,
   specFromLegacy,
   type Controller,
   type DriverSettings,
@@ -22,7 +24,14 @@ export interface LoadedLayout {
 export function isLayoutSpec(v: unknown): v is LayoutSpec {
   if (!v || typeof v !== 'object') return false;
   const o = v as Partial<LayoutSpec>;
-  return o.version === 1 && Array.isArray(o.controllers) && Array.isArray(o.strips);
+  return (
+    o.version === 1 &&
+    !!o.room &&
+    typeof o.room === 'object' &&
+    Array.isArray(o.controllers) &&
+    Array.isArray(o.strips) &&
+    o.strips.every((s) => s && typeof s === 'object' && Array.isArray(s.path))
+  );
 }
 
 function isRectArray(v: unknown): v is LedRect[] {
@@ -49,17 +58,24 @@ export function fallbackController(host: string, ledCount: number, name?: string
   };
 }
 
-/** A layout with the controller and one empty strip per output (used when legacy import isn't possible). */
+/**
+ * A layout with the controller in a default room and one strip per output, around the screen, then along the
+ * ceiling, then behind the desk (used when legacy import isn't possible).
+ */
 export function emptySpecFor(controller: Controller): LayoutSpec {
+  const room = defaultRoom();
+  const shapes = ['around-screen', 'ceiling-front', 'behind-furniture'] as const;
   return {
     version: 1,
+    room,
     controllers: [controller],
     strips: controller.outputs.map((o, i) => ({
       id: `strip-${i + 1}`,
       name: controller.outputs.length > 1 ? `Strip ${i + 1}` : 'Main strip',
       controllerId: controller.id,
       output: o.index,
-      segments: [],
+      ledCount: Math.max(1, o.length),
+      path: shapePath(room, shapes[Math.min(i, shapes.length - 1)]),
     })),
   };
 }
@@ -92,14 +108,18 @@ async function controllerForDevice(api: RpcApi, device: unknown, ledCount: numbe
   }
 }
 
+/** Shown when strips were laid out from LED positions alone. */
+export const IMPORTED_NOTE =
+  'Your LEDs were placed around the screen from their current positions. Drag each strip to where it really is in your room, then save.';
+
 function fromLegacy(rects: LedRect[], controller: Controller, note?: string): LoadedLayout {
   try {
-    return { spec: specFromLegacy(rects, controller), source: 'legacy', note };
+    return { spec: specFromLegacy(rects, controller), source: 'legacy', note: note ? `${note} ${IMPORTED_NOTE}` : IMPORTED_NOTE };
   } catch (e) {
     return {
       spec: emptySpecFor(controller),
       source: 'empty',
-      note: `Your existing LED positions couldn't be converted (${errorText(e)}). Start from a template instead.`,
+      note: `Your existing LED positions couldn't be converted (${errorText(e)}). Place your strips in the room instead.`,
     };
   }
 }

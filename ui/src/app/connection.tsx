@@ -136,6 +136,10 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
           si && d.priorities ? { ...si, priorities: d.priorities, priorities_autoselect: d.priorities_autoselect ?? si.priorities_autoselect } : si,
         );
       }),
+      backend.onEvent('profile-update', (e) => {
+        const d = e.data as { profile?: ServerInfo['profile'] };
+        setServerInfo((si) => (si && d && 'profile' in d ? { ...si, profile: d.profile ?? null } : si));
+      }),
       backend.onEvent('adjustment-update', (e) => {
         if (Array.isArray(e.data)) setServerInfo((si) => (si ? { ...si, adjustment: e.data as ChannelAdjustment[] } : si));
       }),

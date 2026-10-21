@@ -44,6 +44,12 @@ function PowerCard() {
             <>
               Showing: <span className="text-ink">{describeSource(source)}</span>
               {source && <span className="text-ink-faint"> · priority {source.priority}</span>}
+              {serverInfo?.profile && (
+                <>
+                  {' · '}profile <span className="text-ink">{serverInfo.profile.name}</span>
+                  {serverInfo.profile.manual ? ' (tried from the Layout page)' : ''}
+                </>
+              )}
             </>
           ) : (
             'Backbloom is paused. Turn it on to light things up again.'
@@ -474,7 +480,7 @@ export function HomePage() {
                 <p className="font-semibold">LED layout</p>
                 <p className="text-[13px] text-ink-muted">
                   {state.spec.strips.length
-                    ? `${state.spec.strips.length} strip${state.spec.strips.length === 1 ? '' : 's'} · ${ledTotal} LEDs around your screen`
+                    ? `${state.spec.strips.length} strip${state.spec.strips.length === 1 ? '' : 's'} · ${ledTotal} LEDs in your room`
                     : 'Tell us where your LED strips are.'}
                 </p>
               </div>

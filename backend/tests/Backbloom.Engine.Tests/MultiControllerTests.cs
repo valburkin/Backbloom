@@ -102,6 +102,8 @@ public sealed class MultiControllerTests : IDisposable
     // Controller "tv": the owner's split, 91 + 77 LEDs; "desk": 30 LEDs at half brightness; "shelf": 4 lit + 2 dark LEDs.
     private string Layout() => $$"""
         { "version": 1,
+          "room": { "width": 4, "depth": 4, "height": 2.6, "screen": { "x": 1.7, "y": 1.31, "width": 0.6, "height": 0.34 },
+                    "furniture": "desk" },
           "controllers": [
             { "id": "tv", "name": "TV", "outputs": [{ "index": 0, "start": 0, "length": 91 }, { "index": 1, "start": 91, "length": 77 }],
               "device": { "type": "file", "output": {{File("tv.txt")}}, "printTimeStamp": false } },
@@ -110,19 +112,60 @@ public sealed class MultiControllerTests : IDisposable
             { "id": "shelf", "name": "Shelf", "outputs": [{ "index": 0, "start": 0, "length": 6 }],
               "device": { "type": "file", "output": {{File("shelf.txt")}}, "printTimeStamp": false } } ],
           "strips": [
-            { "id": "monitor", "name": "Monitor", "controllerId": "tv", "output": 0,
-              "segments": [{ "kind": "edge", "count": 91, "edge": "bottom", "from": 1, "to": 0, "depth": 0.2 }] },
-            { "id": "ceiling", "name": "Ceiling", "controllerId": "tv", "output": 1,
-              "segments": [{ "kind": "edge", "count": 77, "edge": "top", "from": 1, "to": 0, "depth": 0.25, "blend": 5 }] },
-            { "id": "desk-strip", "name": "Desk strip", "controllerId": "desk", "output": 0, "brightness": 0.5,
-              "segments": [{ "kind": "edge", "count": 30, "edge": "left", "from": 0, "to": 1, "depth": 0.1 }] },
-            { "id": "shelf-strip", "name": "Shelf strip", "controllerId": "shelf", "output": 0,
-              "segments": [{ "kind": "fixed", "count": 4, "area": { "hmin": 0, "hmax": 1, "vmin": 0, "vmax": 1 } }, { "kind": "off", "count": 2 }] } ] }
+            { "id": "monitor", "name": "Monitor", "controllerId": "tv", "output": 0, "ledCount": 91, "depth": 0.2,
+              "path": [{ "surface": "front", "x": 2.3, "y": 1.65 }, { "surface": "front", "x": 1.7, "y": 1.65 }] },
+            { "id": "ceiling", "name": "Ceiling", "controllerId": "tv", "output": 1, "ledCount": 77, "depth": 0.25, "blend": 5,
+              "path": [{ "surface": "ceiling", "x": 3.8, "y": 3.8 }, { "surface": "ceiling", "x": 0.2, "y": 3.8 }] },
+            { "id": "desk-strip", "name": "Desk strip", "controllerId": "desk", "output": 0, "ledCount": 30, "brightness": 0.5,
+              "path": [{ "surface": "left", "x": 3.5, "y": 1.7 }, { "surface": "left", "x": 0.5, "y": 1.7 }] },
+            { "id": "shelf-strip", "name": "Shelf strip", "controllerId": "shelf", "output": 0, "ledCount": 6,
+              "path": [{ "surface": "right", "x": 1, "y": 1.2, "next": { "kind": "whole" } }, { "surface": "right", "x": 2, "y": 1.2 }],
+              "dark": [{ "start": 4, "count": 2 }] } ] }
         """;
 
     // " [{r,g,b}{r,g,b}...]" -> the LEDs of one line
     private static List<(int R, int G, int B)> Leds(string line) =>
         [.. line.Trim(' ', '[', ']').Split('}', StringSplitOptions.RemoveEmptyEntries).Select(e => e.TrimStart('{').Split(',').Select(int.Parse).ToArray()).Select(v => (v[0], v[1], v[2]))];
+
+    [Fact]
+    public void Blink_ShowsWhileTheLightsAreOff_NeverWhileHeld_AndEndsWhenTheyAreSwitchedOff()
+    {
+        var registry = Registry();
+        var store = Store(registry);
+        Assert.True(store.Update(new JsonObject { ["layout"] = JsonNode.Parse(Layout()) }).Success);
+        using var engine = new LightingEngine(store, new SolidSource(255, 255, 255), Devices(registry), new SystemClock(), NullLoggerFactory.Instance);
+        engine.Start();
+        DeviceInfo Desk() => engine.Devices.Single(d => d.Id == "desk");
+        bool AllOff() => engine.Devices.All(d => d.State == DeviceState.Off);
+        WaitUntil(() => engine.Devices.All(d => d.State == DeviceState.Ready));
+
+        // the lights are switched off: the blink opens its controller (only that one) and it closes again when stopped
+        engine.Components.Set(Component.LedDevice, false);
+        WaitUntil(AllOff);
+        Assert.Equal(("desk", 3), engine.IdentifyLed("desk", 3, hold: true));
+        WaitUntil(() => Desk().State == DeviceState.Ready && Desk().Stats.Written > 3);
+        Assert.All(engine.Devices.Where(d => d.Id != "desk"), d => Assert.Equal(DeviceState.Off, d.State));
+        Assert.True(engine.StopIdentify("desk"));
+        WaitUntil(AllOff);
+        Assert.False(engine.StopIdentify("nowhere"));
+
+        // while another app drives the LEDs nothing is sent, and a hold that starts ends a running blink
+        Assert.NotNull(engine.IdentifyLed("desk", 3, hold: true));
+        WaitUntil(() => Desk().State == DeviceState.Ready);
+        engine.Components.SetHeld(true);
+        WaitUntil(AllOff);
+        Assert.Null(engine.IdentifyLed("desk", 3, hold: true));
+        Thread.Sleep(100);
+        Assert.True(AllOff());
+        engine.Components.SetHeld(false);
+
+        // switching the lights off ends a blink too
+        engine.Components.Set(Component.LedDevice, true);
+        WaitUntil(() => engine.Devices.All(d => d.State == DeviceState.Ready));
+        Assert.NotNull(engine.IdentifyLed("desk", 3, hold: true));
+        engine.Components.Set(Component.LedDevice, false);
+        WaitUntil(AllOff);
+    }
 
     [Fact]
     public void OneLayout_FeedsEachControllerItsOwnSlice_OnOneClock()

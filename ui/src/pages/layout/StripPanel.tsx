@@ -1,9 +1,11 @@
 import type { CSSProperties } from 'react';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
-import { stripLedCount, type LayoutIssue, type LayoutSpec, type Strip } from '../../layout';
-import { Badge, Button, cx, IconButton } from '../../components/ui';
+import { stripLedCount, type LayoutIssue, type LayoutSpec, type Section, type ShapeId, type Strip } from '../../layout';
+import { roleLabel, stripShows } from '../../editor/mapping';
+import { Badge, cx, IconButton } from '../../components/ui';
 import { stripColor } from '../../editor/colors';
 import type { EditorAction } from '../../editor/state';
+import { ShapeMenu } from './ShapeMenu';
 
 function outputOf(spec: LayoutSpec, strip: Strip) {
   return spec.controllers.find((c) => c.id === strip.controllerId)?.outputs.find((o) => o.index === strip.output);
@@ -25,11 +27,20 @@ export function StripPanel({
   selectedId,
   issues,
   dispatch,
+  onAdd,
+  onAddDrawn,
+  rolesOnly,
 }: {
   spec: LayoutSpec;
   selectedId: string | null;
   issues: LayoutIssue[];
   dispatch: (a: EditorAction) => void;
+  /** Add a strip of a ready-made shape. */
+  onAdd(shape: ShapeId): void;
+  /** Add a strip and draw its path. */
+  onAddDrawn(): void;
+  /** A profile is edited: strips can't be added here. */
+  rolesOnly?: boolean;
 }) {
   const multiTarget = spec.controllers.length > 1 || spec.controllers.some((c) => c.outputs.length > 1);
 
@@ -39,13 +50,11 @@ export function StripPanel({
         <h2 id="strips-title" className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
           Strips
         </h2>
-        <Button size="sm" variant="ghost" icon={<Plus size={15} />} disabled={!spec.controllers.length} onClick={() => dispatch({ type: 'addStrip' })}>
-          Add strip
-        </Button>
+        <ShapeMenu room={spec.room} label="Add strip" icon={<Plus size={15} />} disabled={!spec.controllers.length || rolesOnly} onShape={onAdd} onDraw={onAddDrawn} />
       </div>
       {spec.strips.length === 0 && (
         <p className="rounded-xl border border-dashed border-line p-4 text-[13px] text-ink-muted">
-          {spec.controllers.length ? 'No strips yet. Add one, or start from a template.' : 'Add a controller on the Devices page first.'}
+          {spec.controllers.length ? 'No strips yet. Add one: pick where it runs, or draw it in the room.' : 'Add a controller on the Devices page first.'}
         </p>
       )}
       <ul className="space-y-2">
@@ -93,6 +102,11 @@ export function StripPanel({
                         <span className="truncate text-xs text-ink-faint">{spec.controllers.find((c) => c.id === strip.controllerId)?.name}</span>
                       )}
                       {strip.brightness !== undefined && strip.brightness < 1 && <Badge>{Math.round(strip.brightness * 100)} %</Badge>}
+                      {(() => {
+                        const { shows, section } = stripShows(spec.room, strip);
+                        if (shows === 'screen') return null;
+                        return <Badge tone="accent">{shows === 'custom' ? 'Mixed' : roleLabel(section ?? ({ kind: shows } as Section))}</Badge>;
+                      })()}
                       {errors > 0 && <Badge tone="bad">{errors} problem{errors === 1 ? '' : 's'}</Badge>}
                     </div>
                   </div>

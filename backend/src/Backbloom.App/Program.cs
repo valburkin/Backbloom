@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Backbloom.App;
 using Backbloom.App.Logging;
 using Backbloom.App.Updates;
+using Backbloom.Engine.Diagnostics;
 using Backbloom.Platform.Windows.Desktop;
 using Backbloom.Server;
 using Backbloom.Shell;
@@ -64,10 +65,16 @@ static async Task<int> RunAsync(string[] args)
         OpenWindow: !commandLine.NoWindow,
         ConsoleLogging: hasConsole);
 
-    // Errors that would otherwise end the process without a word go to the log, the console and a message box.
+    WebApplication? app = null;
+
+    // taken once the app runs, so a crash never resolves services (its samples stay readable after it is disposed)
+    PerformanceRecorder? recorder = null;
+
+    // Errors that would otherwise end the process without a word go to the log, the console and a message box, with
+    // the performance of the last minutes.
     int Fail(string summary, Exception exception)
     {
-        var log = CrashReport.Write(options.DataDirectory, summary, exception);
+        var log = CrashReport.Write(options.DataDirectory, summary, exception, RecentPerformance());
         if (hasConsole)
         {
             Console.Error.WriteLine($"{summary}: {exception}");
@@ -82,6 +89,19 @@ static async Task<int> RunAsync(string[] args)
         return 1;
     }
 
+    IReadOnlyList<string>? RecentPerformance()
+    {
+        try
+        {
+            return recorder?.Recent();
+        }
+        catch (Exception)
+        {
+            // out of memory, most likely: the entry matters more
+            return null;
+        }
+    }
+
     AppDomain.CurrentDomain.UnhandledException += (_, e) =>
     {
         if (e.ExceptionObject is Exception exception)
@@ -90,7 +110,6 @@ static async Task<int> RunAsync(string[] args)
         }
     };
 
-    WebApplication? app = null;
     try
     {
         app = BackbloomHost.Build([.. commandLine.ConfigurationArgs], null, launch);
@@ -100,6 +119,7 @@ static async Task<int> RunAsync(string[] args)
         }
 
         await app.StartAsync();
+        recorder = app.Services.GetRequiredService<PerformanceRecorder>();
     }
     catch (Exception ex) when (ex is not OutOfMemoryException)
     {

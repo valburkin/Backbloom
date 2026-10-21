@@ -17,14 +17,15 @@ public sealed class EventSubscriptions(
     AuthService auth,
     Payloads payloads,
     PerformanceMonitor performance,
-    SetupService setup)
+    SetupService setup,
+    ProfileMonitor profiles)
 {
     /// <summary>Every name the protocol knows; unknown names are ignored like in HyperHDR.</summary>
     public static readonly IReadOnlyList<string> Available =
     [
         "components-update", "performance-update", "sessions-update", "priorities-update", "imageToLedMapping-update",
         "adjustment-update", "leds-colors", "live-video", "settings-update", "leds-update", "instance-update", "token-update",
-        "controllers-update", "capture-update", "setup-update", "sound-update",
+        "controllers-update", "capture-update", "setup-update", "sound-update", "profile-update",
     ];
 
     private static readonly TimeSpan s_performanceInterval = TimeSpan.FromSeconds(4);
@@ -156,6 +157,13 @@ public sealed class EventSubscriptions(
                     return new Subscription(() => sound.Changed -= Handler);
                 }
 
+            case "profile-update":
+                {
+                    // serverinfo.profile again when another profile runs (a program started or quit, profile select)
+                    void Handler(ActiveProfile? profile) => session.Send(RpcReplies.Event(name, new JsonObject { ["profile"] = Payloads.Profile(profile) }));
+                    profiles.Changed += Handler;
+                    return new Subscription(() => profiles.Changed -= Handler);
+                }
             case "setup-update":
                 {
                     // the setup command's state: first run, HyperHDR running, autostart, remote access

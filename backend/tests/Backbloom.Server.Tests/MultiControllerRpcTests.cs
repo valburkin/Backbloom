@@ -16,6 +16,8 @@ public sealed class MultiControllerRpcTests
     // "tv" drives the owner's 91 + 77 LEDs, "desk" 10 more; both write to the null device.
     private static JsonObject Layout() => Obj("""
         { "version": 1,
+          "room": { "width": 4, "depth": 4, "height": 2.6, "screen": { "x": 1.7, "y": 1.31, "width": 0.6, "height": 0.34 },
+                    "furniture": "desk" },
           "controllers": [
             { "id": "tv", "name": "TV", "kind": "wled", "host": "tv.local",
               "outputs": [{ "index": 0, "start": 0, "length": 91 }, { "index": 1, "start": 91, "length": 77 }],
@@ -23,9 +25,12 @@ public sealed class MultiControllerRpcTests
             { "id": "desk", "name": "Desk", "outputs": [{ "index": 0, "start": 0, "length": 10 }],
               "device": { "type": "file", "output": "\\\\.\\NUL", "printTimeStamp": false } } ],
           "strips": [
-            { "id": "monitor", "name": "Monitor", "controllerId": "tv", "output": 0, "segments": [{ "kind": "edge", "count": 91, "edge": "bottom", "from": 1, "to": 0, "depth": 0.2 }] },
-            { "id": "ceiling", "name": "Ceiling", "controllerId": "tv", "output": 1, "segments": [{ "kind": "edge", "count": 77, "edge": "top", "from": 1, "to": 0, "depth": 0.25 }] },
-            { "id": "desk-strip", "name": "Desk strip", "controllerId": "desk", "output": 0, "brightness": 0.5, "segments": [{ "kind": "edge", "count": 10, "edge": "left", "from": 0, "to": 1, "depth": 0.1 }] } ] }
+            { "id": "monitor", "name": "Monitor", "controllerId": "tv", "output": 0, "ledCount": 91, "depth": 0.2,
+              "path": [{ "surface": "front", "x": 2.3, "y": 1.65 }, { "surface": "front", "x": 1.7, "y": 1.65 }] },
+            { "id": "ceiling", "name": "Ceiling", "controllerId": "tv", "output": 1, "ledCount": 77, "depth": 0.25,
+              "path": [{ "surface": "ceiling", "x": 3.8, "y": 3.8 }, { "surface": "ceiling", "x": 0.2, "y": 3.8 }] },
+            { "id": "desk-strip", "name": "Desk strip", "controllerId": "desk", "output": 0, "ledCount": 10, "brightness": 0.5,
+              "path": [{ "surface": "left", "x": 3.5, "y": 1.7 }, { "surface": "left", "x": 0.5, "y": 1.7 }] } ] }
         """);
 
     [Fact]
@@ -85,6 +90,17 @@ public sealed class MultiControllerRpcTests
         var outside = await client.CallAsync("leddevice", "identify", Obj("""{ "ledDeviceType": "blink", "params": { "blinkIndex": 10, "controller": "desk" } }"""));
         Assert.False(Success(outside));
         Assert.Contains("has no LED 10", Error(outside), StringComparison.Ordinal);
+
+        // held until stopped (one controller, or all)
+        var held = await client.CallAsync("leddevice", "identify", Obj("""{ "ledDeviceType": "blink", "params": { "blinkIndex": 5, "controller": "tv", "hold": true } }"""));
+        Assert.True(Success(held), Error(held));
+        Assert.Equal(("tv", 5, true), (held["info"]!["controller"]!.GetValue<string>(), held["info"]!["blinkIndex"]!.GetValue<int>(), held["info"]!["hold"]!.GetValue<bool>()));
+        var stopped = await client.CallAsync("leddevice", "identify", Obj("""{ "ledDeviceType": "blink", "params": { "stop": true, "controller": "tv" } }"""));
+        Assert.True(Success(stopped), Error(stopped));
+        Assert.True(stopped["info"]!["stopped"]!.GetValue<bool>());
+        Assert.True(Success(await client.CallAsync("leddevice", "identify", Obj("""{ "ledDeviceType": "blink", "params": { "stop": true } }"""))));
+        Assert.Contains("no controller", Error(await client.CallAsync("leddevice", "identify", Obj("""{ "ledDeviceType": "blink", "params": { "stop": true, "controller": "garage" } }"""))), StringComparison.Ordinal);
+        Assert.False(Success(await client.CallAsync("leddevice", "identify", Obj("""{ "ledDeviceType": "blink", "params": { "blinkIndex": 1, "hold": "yes" } }"""))));
     }
 
     [Fact]

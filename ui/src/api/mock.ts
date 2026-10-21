@@ -4,6 +4,7 @@ import { UI_PRIORITY } from './rpcApi';
 import {
   ConnectionError,
   RpcError,
+  type ActiveProfile,
   type Backend,
   type BackendConfig,
   type CallOptions,
@@ -15,6 +16,7 @@ import {
   type PriorityInfo,
   type RpcEvent,
   type RpcReply,
+  type RunningProgram,
   type ServerInfo,
   type SetupState,
   type SystemGrabbers,
@@ -35,6 +37,8 @@ export interface MockOptions {
   otherApp?: boolean;
   /** The app can start with Windows (default true). */
   autostart?: boolean;
+  /** Start with the owner's layout saved (placed in the room) instead of only the imported LED positions. */
+  demoLayout?: boolean;
 }
 
 /** Where the demo pretends to be reachable once remote access is on. */
@@ -44,7 +48,11 @@ export const MOCK_PASSWORD = 'password';
 /** The backend's reply to turning remote access on before a password is set (ConfigCommand.PasswordNeeded). */
 export const REMOTE_ACCESS_NEEDS_PASSWORD = 'Set a password before turning on remote access: other devices need it to sign in';
 export const MOCK_WLED_HOST = 'wled-mock.local';
-const MOCK_TOKEN = 'mock-user-token-0123456789abcdef0123456789abcdef';
+/** What `profile programs` lists in the mock (the programs with a window). */
+export const MOCK_PROGRAMS: RunningProgram[] = [
+  { exe: 'vlc.exe', title: 'VLC media player' },
+  { exe: 'witcher3.exe', title: 'The Witcher 3' },
+];const MOCK_TOKEN = 'mock-user-token-0123456789abcdef0123456789abcdef';
 const COMPONENTS = ['ALL', 'SMOOTHING', 'BLACKBORDER', 'SYSTEMGRABBER', 'LEDDEVICE'];
 
 type Rgb = [number, number, number];
@@ -94,6 +102,7 @@ export class MockBackend implements Backend {
   private readonly latencyMs: number;
   private readonly requireAuth: boolean;
   private readonly seed: BackendConfig;
+  private readonly demoLayout: boolean;
   private fx: MockFixtures | null = null;
   private admin = false;
   private password: string | null;
@@ -106,15 +115,22 @@ export class MockBackend implements Backend {
   ];
   private timers = new Map<string, ReturnType<typeof setInterval>>();
   private setup: SetupState;
+  /** The profile chosen by hand (profile select); no program ever runs in the mock, so none runs otherwise. */
+  private manualProfile: string | null = null;
   private logSeq = 0;
-  /** Log of LEDs blinked (controller id, or none for an index over all LEDs), for tests / debugging. */
-  readonly blinks: Array<{ index: number; controller?: string }> = [];
+  /** Log of LEDs blinked (controller id, or none for an index over all LEDs; `hold` when held), for tests / debugging. */
+  readonly blinks: Array<{ index: number; controller?: string; hold?: boolean }> = [];
+  /** Log of stop requests (controller id, or none for every controller). */
+  readonly blinkStops: Array<{ controller?: string }> = [];
+  /** The LED held lit (the mock has no timeout), or null. */
+  heldBlink: { controller: string; blinkIndex: number } | null = null;
 
   constructor(options: MockOptions = {}) {
     this.latencyMs = options.latencyMs ?? 60;
     this.requireAuth = options.requireAuth ?? false;
     this.password = this.requireAuth ? MOCK_PASSWORD : null;
     this.seed = clone(options.config ?? {});
+    this.demoLayout = options.demoLayout ?? false;
     this.setup = {
       firstRunCompleted: !options.firstRun,
       outputHeld: !!options.firstRun || !!options.otherApp,
@@ -139,10 +155,14 @@ export class MockBackend implements Backend {
   connect(): void {
     if (this._status === 'open' || this._status === 'connecting') return;
     this.setStatus('connecting');
-    void import('./mockData').then(({ MOCK_FIXTURES }) => {
+    void import('./mockData').then(({ MOCK_FIXTURES, demoLayout }) => {
       if (!this.fx) {
         this.fx = MOCK_FIXTURES;
         this.config = { ...clone(MOCK_FIXTURES.config), leds: clone(MOCK_FIXTURES.leds), ...clone(this.seed) };
+        if (this.demoLayout && !this.config.layout) {
+          const layout = demoLayout(MOCK_WLED_HOST);
+          this.config = { ...this.config, layout, leds: compileLayout(layout).flatMap((c) => c.leds) };
+        }
       }
       setTimeout(() => {
         this.admin = !this.requireAuth;
@@ -272,8 +292,9 @@ export class MockBackend implements Backend {
         return ok();
       case 'leddevice':
         return ok(this.ledDevice(subcommand, params, fail));
-      case 'setup':
-        // only this computer and devices that signed in (which are admins here)
+      case 'profile':
+        return ok(this.profileCommand(subcommand, params, fail, needAdmin));
+      case 'setup':        // only this computer and devices that signed in (which are admins here)
         needAdmin();
         return ok(this.setupCommand(subcommand, params, fail));
       case 'save-db':
@@ -357,6 +378,39 @@ export class MockBackend implements Backend {
     }
   }
 
+  /** `profile`: select (by hand, or null = by the running programs: none run here), programs (a fixed list), getstate. */
+  private profileCommand(subcommand: string | undefined, params: Record<string, unknown>, fail: (e: string) => never, needAdmin: () => void): unknown {
+    switch (subcommand) {
+      case 'getstate':
+        return { profile: this.activeProfile() };
+      case 'select': {
+        const id = params.id ?? null;
+        if (id !== null && typeof id !== 'string') return fail('id must be a profile\'s id or null (choose by the running programs)');
+        if (id !== null && !this.profiles().some((p) => p.id === id)) return fail(`The layout has no profile '${id}'`);
+        const before = JSON.stringify(this.activeProfile());
+        this.manualProfile = id;
+        if (JSON.stringify(this.activeProfile()) !== before) this.emit('profile-update', { profile: this.activeProfile() });
+        return { profile: this.activeProfile() };
+      }
+      case 'programs':
+        needAdmin();
+        return { programs: clone(MOCK_PROGRAMS) };
+      default:
+        return fail('unknown or missing subcommand');
+    }
+  }
+
+  private profiles(): Array<{ id: string; name: string }> {
+    const profiles = (this.config.layout as { profiles?: unknown } | undefined)?.profiles;
+    return Array.isArray(profiles) ? (profiles as Array<{ id: string; name: string }>) : [];
+  }
+
+  /** `serverinfo.profile`: the profile chosen by hand, or null. */
+  private activeProfile(): ActiveProfile | null {
+    const p = this.manualProfile === null ? undefined : this.profiles().find((x) => x.id === this.manualProfile);
+    return p ? { id: p.id, name: p.name, manual: true } : null;
+  }
+
   private setupCommand(subcommand: string | undefined, params: Record<string, unknown>, fail: (e: string) => never): SetupState {
     switch (subcommand) {
       case 'getstate':
@@ -390,14 +444,26 @@ export class MockBackend implements Backend {
     switch (subcommand) {
       case 'identify':
         if (type === 'blink') {
-          const p = (params.params ?? {}) as { blinkIndex?: number; controller?: string };
+          const p = (params.params ?? {}) as { blinkIndex?: number; controller?: string; hold?: boolean; stop?: boolean };
+          if (p.stop) {
+            if (p.controller !== undefined && !this.controllers().some((c) => c.id === p.controller)) return fail(`There is no controller "${p.controller}"`);
+            if (p.controller === undefined || this.heldBlink?.controller === p.controller) this.heldBlink = null;
+            this.blinkStops.push(p.controller === undefined ? {} : { controller: p.controller });
+            return { controller: p.controller ?? null, stopped: true };
+          }
+          if (this.setup.outputHeld) {
+            return fail('Nothing is sent to the LEDs right now: the first-run welcome isn’t completed, or another lighting app (HyperHDR) is running');
+          }
           const index = Number(p.blinkIndex);
           const controller = this.controllers().find((c) => (p.controller === undefined ? index >= c.start && index < c.start + c.ledCount : c.id === p.controller));
           const local = p.controller === undefined && controller ? index - controller.start : index;
           if (!controller || local < 0 || local >= controller.ledCount) return fail(`There is no LED ${index}${p.controller ? ` on controller "${p.controller}"` : ''}`);
-          this.blinks.push(p.controller === undefined ? { index } : { index, controller: p.controller });
-          console.info(`[mock] blink LED ${local} of ${controller.name}`);
-          return { controller: controller.id, blinkIndex: local };
+          const hold = p.hold === true;
+          this.blinks.push({ index, ...(p.controller === undefined ? {} : { controller: p.controller }), ...(hold ? { hold } : {}) });
+          // every blink replaces the one before; a held one stays until the next blink or a stop
+          this.heldBlink = hold ? { controller: controller.id, blinkIndex: local } : null;
+          console.info(`[mock] blink LED ${local} of ${controller.name}${hold ? ' (held)' : ''}`);
+          return { controller: controller.id, blinkIndex: local, hold };
         }
         return undefined;
       case 'discover': {
@@ -459,7 +525,11 @@ export class MockBackend implements Backend {
       if (section === 'leds') this.emit('leds-update', { leds: value });
       if (section === 'color') this.emit('adjustment-update', (value as { channelAdjustment: unknown }).channelAdjustment);
       if (section === 'systemGrabber') this.emit('capture-update', this.systemGrabbers());
-      if (section === 'soundEffect') {
+      if (section === 'layout' && this.manualProfile !== null && !this.profiles().some((p) => p.id === this.manualProfile)) {
+        // the chosen profile is gone: back to choosing by the programs
+        this.manualProfile = null;
+        this.emit('profile-update', { profile: null });
+      }      if (section === 'soundEffect') {
         this.emit('sound-update', this.sound());
         if (!this.sound()?.available && this.source?.kind === 'effect' && this.source.name.startsWith('Music: ')) {
           this.source = null;
@@ -509,6 +579,7 @@ export class MockBackend implements Backend {
       controllers: this.controllers(),
       systemGrabbers: this.systemGrabbers(),
       sound: this.sound(),
+      profile: this.activeProfile(),
     };
   }
 

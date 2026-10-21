@@ -26,6 +26,11 @@ public sealed class SetupRpcTests
         Assert.False(state["passwordSet"]!.GetValue<bool>());
         Assert.Empty(state["acknowledged"]!.AsArray());
 
+        // nothing goes to the LEDs before the welcome, a blink neither (it used to be accepted and never shown)
+        var blink = await client.CallAsync("leddevice", "identify", Obj("""{ "ledDeviceType": "blink", "params": { "blinkIndex": 0 } }"""));
+        Assert.False(blink["success"]!.GetValue<bool>());
+        Assert.StartsWith("Nothing is sent to the LEDs right now", blink["error"]!.GetValue<string>(), StringComparison.Ordinal);
+
         var started = await client.CallAsync("setup", "start");
         Assert.Equal("setup-start", started["command"]!.GetValue<string>());
         Assert.True(started["info"]!["firstRunCompleted"]!.GetValue<bool>());

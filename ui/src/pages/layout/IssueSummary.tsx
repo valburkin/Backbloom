@@ -39,12 +39,12 @@ export function IssueSummary({
         <ul className="space-y-1">
           {sorted.map((issue, i) => {
             const Icon = issue.severity === 'error' ? CircleAlert : TriangleAlert;
-            const where = [stripName(issue.stripId), issue.segmentIndex !== undefined ? `part ${issue.segmentIndex + 1}` : null].filter(Boolean).join(', ');
+            const where = issue.room ? 'Room' : stripName(issue.stripId) ?? '';
             return (
               <li key={i}>
                 <button
                   type="button"
-                  disabled={!issue.stripId}
+                  disabled={!issue.stripId && !issue.room}
                   onClick={() => onPick(issue)}
                   className="flex w-full gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-surface-2 disabled:hover:bg-transparent"
                 >

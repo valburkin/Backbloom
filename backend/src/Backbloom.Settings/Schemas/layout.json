@@ -1,7 +1,7 @@
 {
   "type": "object",
   "required": true,
-  "comment": "LED layout (the UI's LayoutSpec): controllers with outputs and driver settings, strips wired to outputs. The envelope is checked here; Layout/LayoutSpecification validates the rest.",
+  "comment": "LED layout (the UI's LayoutSpec): the room with the screen, controllers with outputs and driver settings, strips wired to outputs and placed in the room. The envelope is checked here; Layout/LayoutSpecification validates the rest.",
   "properties": {
     "version": {
       "type": "integer",

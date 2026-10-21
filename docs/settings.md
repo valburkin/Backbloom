@@ -9,7 +9,7 @@ The data directory holds everything that belongs to one user's setup:
 | `settings.db` | SQLite: settings sections, controllers, credentials (hashes), instance id |
 | `backups/` | settings saved before an import or a restore |
 | `imported/` | copies of imported databases (only the copy is opened) |
-| `logs/` | `backbloom-yyyyMMdd.log`, a new file per day and per 10 MB, the newest 10 kept; a failed start or a crash is recorded there as a `FATAL` entry (and shown in a message box) |
+| `logs/` | `backbloom-yyyyMMdd.log`, a new file per day and per 10 MB, the newest 10 kept; a failed start or a crash is recorded there as a `FATAL` entry (and shown in a message box). `performance-yyyyMMdd.jsonl`: a start line per app start and a performance sample every 10 s, the newest 14 files (days the app ran) kept; `crash-yyyyMMdd-HHmmss.jsonl`: the start line and the last 30 minutes of samples before a crash, the newest 10 kept (format: [backend/README.md](../backend/README.md#performance-recording)) |
 | `window.json`, `webview/` | window placement, the window's browser profile |
 | `lut_lin_tables.3d` | HDR tone mapping table, created on first use |
 
@@ -32,6 +32,42 @@ the program in `%LOCALAPPDATA%\BackbloomApp`, separate from the data, so uninsta
   invalid values reset to their default), and every repair is logged.
 - Every change is one SQLite transaction; `PRAGMA user_version` is the schema version and forward migrations run once
   each. A database from a newer version is refused, never rewritten.
+
+### The layout
+
+`layout` describes where the lights are, as a schematic room (sizes in meters):
+
+- `room`: `width`, `depth`, `height`; the `screen` on the front wall (top-left corner and size, in front-wall
+  coordinates); `furniture` (`desk`, `tv` or `none`, drawn only).
+- `controllers`: each with its outputs (`index`, `start`, `length`) and its LED driver settings (`device`).
+- `strips`: each wired to one output of a controller, with its `ledCount` and a `path` of two or more points on the
+  walls, the ceiling or the floor (from its first LED to its last; a point matched to the real lights carries its LED
+  position `at`). Optional: `dark` LED ranges, `depth`, `blend` and `brightness`.
+- The points split a strip into sections; a point's `next` says what the section to the following point does:
+  `{ kind: "edge", from, to }` repeats a stretch of the screen's outline (positions 0..4 clockwise from the top-left
+  corner, one per edge), `whole` shows the whole picture, `{ kind: "area", area }` one area of it, `none` nothing, and
+  `gap` means the strip has no LEDs there (a cut corner, a cable). Without `next` a section repeats the stretch of the
+  outline it faces when the room is seen straight on against the front wall.
+- `{ kind: "effect", effect }` (an effect by its name, music effects included) and `{ kind: "color", color: [r, g, b] }`
+  make a section play something of its own, whatever the rest of the lights show: its LEDs leave the screen mapping
+  and form a zone with every other section of the same role, across strips and controllers. A zone's effect runs as
+  if the zone were the screen (each LED where `auto` would put it), so it flows across strips; it goes through the
+  color settings like any effect, a color zone doesn't (like a static color). Zones keep the lights on when nothing
+  else shows (the other LEDs are black then), and pause while the lights are off or held. An effect that doesn't exist
+  leaves its zone dark.
+- `profiles` (optional): other roles for the sections while a program runs, e.g.
+  `{ id: "witcher", name: "Witcher 3", apps: ["witcher3.exe"], sections: { "ceiling": [{ kind: "color", color: [0, 40, 80] }, null] } }`:
+  per strip id, one entry per section (`null` = auto); strips not listed keep the layout's sections, gaps can't be
+  changed, and a list made for another number of sections is ignored. While one of a profile's programs runs (checked
+  every 2 seconds, names compared without regard to case), its roles apply; the first profile in the list wins when
+  programs of several run. Switching saves nothing and doesn't reconnect the controllers. The UI can also turn one on
+  by hand to try it (`profile select`).
+
+The LEDs are spread evenly over the sections that have LEDs (gaps count no length), so strips anywhere in the room get
+sensible colors. The backend compiles the layout into the `leds` sampling areas (one per LED, all controllers one after
+the other) whenever it is saved; `leds` sent along with it is replaced. An invalid layout is rejected with the path of
+the problem (e.g. `layout.strips.1.path.0: is outside the room (the ceiling is 4.2 x 3.6 m)`). Details:
+[backend/README.md](../backend/README.md#led-controllers-and-the-layout-port-step-6b).
 
 ## Importing HyperHDR
 

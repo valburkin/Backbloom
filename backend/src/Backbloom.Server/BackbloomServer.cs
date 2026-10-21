@@ -46,6 +46,7 @@ public static class BackbloomServer
         services.AddSingleton<IRpcCommand, PerformanceCountersCommand>();
         services.AddSingleton<IRpcCommand, InstanceCommand>();
         services.AddSingleton<IRpcCommand, SetupCommand>();
+        services.AddSingleton<IRpcCommand, ProfileCommand>();
         return services;
     }
 

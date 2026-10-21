@@ -9,6 +9,45 @@ release note. See [docs/development.md](docs/development.md#branches-and-release
 
 ## Unreleased
 
+### Added
+
+- **Room layout**: place your LED strips where they really are, on a drawing of your room unfolded around the screen
+  (walls, ceiling and floor, with your desk and monitor or TV). Pick a ready-made shape or draw a strip yourself, drag
+  its bends, and mark gaps where a strip is cut or runs around something. Bends snap to the screen and the furniture.
+- **See and change what each LED repeats**: the selected strip is colored like a rainbow, and so is the part of the
+  screen each LED shows; drag the dots on the screen's edge to change it.
+- **Roles for strips and parts of them**: besides the screen next to it, a strip or any part of it can show the whole
+  screen, play an effect or react to music on its own, glow in one color, or stay off.
+- **Profiles**: other roles for your strips while a game or app runs, switched on by itself when the program starts;
+  pick the program from the ones that are open and try a profile without starting it.
+- **Match with your lights**: light one LED at a time and show where each corner is, so the LEDs land where they really
+  are even if the drawing isn't to scale.
+- **Performance recording**: Backbloom notes its CPU and memory use, the frame rate and how each controller keeps up
+  every 10 seconds, in the `logs` folder next to its log, so a stutter or slowdown during a game can be looked into
+  afterwards. If Backbloom crashes, the last 30 minutes are saved with the crash. The log also says when a controller
+  can't keep up.
+- **LED power and controller health**: the recording also shows how bright each strip runs and the current that
+  means, and for WLED controllers what they report themselves: their power use and limit, their own brightness,
+  Wi-Fi, temperature (with a temperature sensor) and restarts. The log warns when a controller restarts, runs hot or
+  is held at its power limit, and says when its brightness was changed in the WLED app. After a restart, Backbloom
+  sets the controller up for streaming again.
+- **GPU use**: the recording shows how much of the graphics card Backbloom and the whole computer use, and the video
+  memory.
+
+### Changed
+
+- **Find an LED** keeps the LED lit (cycling red, green and blue) until you pick another one or turn it off, and works
+  while the lights are off.
+- Effect previews and the live preview show your LEDs where they are in the room.
+- Layouts saved by earlier test builds are rebuilt around the screen from your LED positions the first time you open
+  the Layout page; drag the strips to where they are and save.
+- The log no longer calls WLED's power limiter an error: it protects the LEDs and the power supply from drawing too
+  much.
+
+### Fixed
+
+- Finding an LED did nothing while the lights were off or nothing was shown.
+
 ## 0.1.0 – 2026-10-20
 
 First release.

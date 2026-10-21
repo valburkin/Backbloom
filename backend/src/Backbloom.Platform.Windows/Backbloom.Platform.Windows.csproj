@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Backbloom.Engine.Tests" />
     <InternalsVisibleTo Include="Backbloom.Shell.Tests" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,81 @@
-import { compileSegment } from './compile';
-import type { Area, Controller, Edge, EdgeSegment, LayoutSpec, LedRect, Segment, Strip } from './types';
+import { DEFAULT_BLEND, DEFAULT_DEPTH, DISABLED_RECT } from './compile';
+import { defaultRoom } from './room';
+import type { Area, Controller, LayoutSpec, LedRange, LedRect, PathPoint, Room, Strip } from './types';
+
+// Import of per-LED rects (HyperHDR's `leds` setting, or a running configuration without a saved layout): runs of
+// rects are fitted as HyperHDR-style segments along the screen edges, then laid out as paths along the screen's
+// border on the front wall of a default room.
+
+/** Screen edge. Positions along an edge run left→right (top/bottom) or top→bottom (left/right). */
+export type Edge = 'top' | 'bottom' | 'left' | 'right';
+
+/** A run of LEDs that mirrors part of a screen edge (from/to: 0..1 along the edge, from > to = backwards). */
+export interface LegacyEdge {
+  kind: 'edge';
+  count: number;
+  edge: Edge;
+  from: number;
+  to: number;
+  /** How far into the screen each LED samples (0..1], a fraction of the screen side across the edge. */
+  depth: number;
+  /** Along-edge sampling width as a multiple of LED spacing. */
+  blend?: number;
+}
+
+/** LEDs that all show one area. */
+export interface LegacyFixed {
+  kind: 'fixed';
+  count: number;
+  area: Area;
+}
+
+/** Dark LEDs. */
+export interface LegacyOff {
+  kind: 'off';
+  count: number;
+}
+
+export type LegacySegment = LegacyEdge | LegacyFixed | LegacyOff;
+
+function legacyCoord(x: number): number {
+  if (!Number.isFinite(x)) return 0;
+  return Math.round(Math.min(1, Math.max(0, x)) * 1e4) / 1e4;
+}
+
+function legacyRect(hmin: number, hmax: number, vmin: number, vmax: number): LedRect {
+  return { hmin: legacyCoord(hmin), hmax: legacyCoord(hmax), vmin: legacyCoord(vmin), vmax: legacyCoord(vmax), group: 0 };
+}
+
+/** The rects a HyperHDR-style segment stands for (used to check a fit). */
+export function compileLegacySegment(seg: LegacySegment): LedRect[] {
+  const n = Number.isFinite(seg.count) ? Math.max(0, Math.floor(seg.count)) : 0;
+  if (seg.kind === 'off') return Array.from({ length: n }, () => ({ ...DISABLED_RECT }));
+  if (seg.kind === 'fixed') return Array.from({ length: n }, () => legacyRect(seg.area.hmin, seg.area.hmax, seg.area.vmin, seg.area.vmax));
+  const step = (seg.to - seg.from) / n;
+  const half = ((seg.blend ?? DEFAULT_BLEND) * Math.abs(step)) / 2;
+  const d = seg.depth;
+  const out: LedRect[] = [];
+  for (let k = 0; k < n; k++) {
+    const c = seg.from + (k + 0.5) * step;
+    const a0 = c - half;
+    const a1 = c + half;
+    switch (seg.edge) {
+      case 'top':
+        out.push(legacyRect(a0, a1, 0, d));
+        break;
+      case 'bottom':
+        out.push(legacyRect(a0, a1, 1 - d, 1));
+        break;
+      case 'left':
+        out.push(legacyRect(0, d, a0, a1));
+        break;
+      case 'right':
+        out.push(legacyRect(1 - d, 1, a0, a1));
+        break;
+    }
+  }
+  return out;
+}
 
 /** Rects closer than this on every coordinate count as identical (legacy configs use 4 decimals). */
 const SAME_TOL = 5e-5;
@@ -23,8 +99,8 @@ function sameRect(a: LedRect, b: LedRect): boolean {
 }
 
 /** Largest coordinate error between a segment's compiled rects and rects[start...]. */
-function maxError(seg: Segment, rects: LedRect[], start: number): number {
-  const compiled = compileSegment(seg);
+function maxError(seg: LegacySegment, rects: LedRect[], start: number): number {
+  const compiled = compileLegacySegment(seg);
   let err = 0;
   for (let k = 0; k < compiled.length; k++) {
     const want = rects[start + k];
@@ -64,7 +140,7 @@ function isHorizontal(edge: Edge): boolean {
  * slope s and the two intercepts. Bounds that are clamped on every LED only constrain the
  * intercept, so the narrowest consistent value is used. Returns null when underdetermined.
  */
-function fitEdge(rects: LedRect[], start: number, n: number, band: Band): EdgeSegment | null {
+function fitEdge(rects: LedRect[], start: number, n: number, band: Band): LegacyEdge | null {
   const lo: [number, number][] = [];
   const hi: [number, number][] = [];
   const loClamped: [number, number][] = [];
@@ -126,7 +202,7 @@ function roundTo(x: number, decimals: number): number {
 }
 
 /** Round each parameter to the fewest decimals that don't make the fit worse. */
-function polish(seg: EdgeSegment, rects: LedRect[], start: number): EdgeSegment {
+function polish(seg: LegacyEdge, rects: LedRect[], start: number): LegacyEdge {
   const limit = Math.max(maxError(seg, rects, start), 1e-4) + 1e-9;
   let best = seg;
   for (const key of ['depth', 'blend', 'from', 'to'] as const) {
@@ -142,12 +218,12 @@ function polish(seg: EdgeSegment, rects: LedRect[], start: number): EdgeSegment 
 }
 
 /** Longest edge segment starting at rects[i], over every edge that rect hugs. */
-function longestEdgeRun(rects: LedRect[], i: number): EdgeSegment | null {
-  let best: EdgeSegment | null = null;
+function longestEdgeRun(rects: LedRect[], i: number): LegacyEdge | null {
+  let best: LegacyEdge | null = null;
   for (const band of bandsOf(rects[i])) {
     let end = i + 1;
     while (end < rects.length && inBand(rects[end], band)) end++;
-    let fit: EdgeSegment | null = null;
+    let fit: LegacyEdge | null = null;
     let misses = 0;
     for (let n = 2; i + n <= end; n++) {
       // Leave the first LED of a following run of identical rects to a fixed segment.
@@ -172,8 +248,8 @@ function longestEdgeRun(rects: LedRect[], i: number): EdgeSegment | null {
  * become `fixed`, evenly spaced runs along one edge become `edge`; any LED that fits none of these
  * becomes a single-LED `fixed` segment. LED groups are not preserved.
  */
-export function inferSegments(rects: LedRect[]): Segment[] {
-  const out: Segment[] = [];
+export function inferSegments(rects: LedRect[]): LegacySegment[] {
+  const out: LegacySegment[] = [];
   let i = 0;
   while (i < rects.length) {
     const r = rects[i];
@@ -197,12 +273,114 @@ export function inferSegments(rects: LedRect[]): Segment[] {
   return out;
 }
 
+
+/** Aspect HyperHDR layouts are assumed to be made for (their depths on the sides are fractions of the width). */
+const LEGACY_ASPECT = 16 / 9;
+/** Spacing of the LEDs of a fixed-area run along the edge it's drawn on, in meters (60 LEDs/m). */
+const FIXED_SPACING = 1 / 60;
+
+/** Edge closest to an area's middle, and the middle's position along that edge. */
+function nearestEdge(area: Area): { edge: Edge; t: number } {
+  const cx = (area.hmin + area.hmax) / 2;
+  const cy = (area.vmin + area.vmax) / 2;
+  const d: Array<[Edge, number, number]> = [
+    ['top', cy, cx],
+    ['bottom', 1 - cy, cx],
+    ['left', cx, cy],
+    ['right', 1 - cx, cy],
+  ];
+  d.sort((a, b) => a[1] - b[1]);
+  return { edge: d[0][0], t: d[0][2] };
+}
+
+/** A point on the screen's border (on the front wall), `t` along the edge. */
+function borderPoint(room: Room, edge: Edge, t: number): PathPoint {
+  const s = room.screen;
+  const clampX = (x: number) => Math.min(room.width, Math.max(0, x));
+  const clampY = (y: number) => Math.min(room.height, Math.max(0, y));
+  switch (edge) {
+    case 'top':
+      return { surface: 'front', x: clampX(s.x + t * s.width), y: clampY(s.y) };
+    case 'bottom':
+      return { surface: 'front', x: clampX(s.x + t * s.width), y: clampY(s.y + s.height) };
+    case 'left':
+      return { surface: 'front', x: clampX(s.x), y: clampY(s.y + t * s.height) };
+    case 'right':
+      return { surface: 'front', x: clampX(s.x + s.width), y: clampY(s.y + t * s.height) };
+  }
+}
+
+function round(x: number, decimals: number): number {
+  const f = 10 ** decimals;
+  return Math.round(x * f) / f || 0;
+}
+
 /**
- * Legacy import: turn a controller-wide rect list into a spec with one strip per controller
- * output ("Strip 1", "Strip 2"...). Outputs with no rects in range get no strip. A controller
- * without outputs is given a single output covering every rect.
+ * A strip running along the screen's border the way `segments` describe: each edge run from its start to its end,
+ * fixed-area runs as a short run on the edge nearest their area, dark runs kept dark between their neighbors.
+ * LEDs are spread evenly by length (nothing is pinned, so reshaping the strip keeps them even); depth and blend
+ * are the LED-weighted averages (depth in screen heights).
  */
-export function specFromLegacy(rects: LedRect[], controller: Controller): LayoutSpec {
+export function stripFromSegments(
+  segments: LegacySegment[],
+  room: Room,
+  base: Pick<Strip, 'id' | 'name' | 'controllerId' | 'output'>,
+): Strip {
+  const path: PathPoint[] = [];
+  const dark: LedRange[] = [];
+  let at = 0;
+  let depthSum = 0;
+  let blendSum = 0;
+  let weight = 0;
+  const add = (p: PathPoint) => {
+    const last = path[path.length - 1];
+    const point: PathPoint = { ...p, x: round(p.x, 4), y: round(p.y, 4) };
+    if (!(last && last.surface === point.surface && Math.abs(last.x - point.x) < 1e-4 && Math.abs(last.y - point.y) < 1e-4)) path.push(point);
+  };
+  for (const seg of segments) {
+    const n = Number.isFinite(seg.count) ? Math.max(0, Math.floor(seg.count)) : 0;
+    if (n === 0) continue;
+    if (seg.kind === 'off') {
+      dark.push({ start: at, count: n });
+    } else if (seg.kind === 'edge') {
+      add(borderPoint(room, seg.edge, seg.from));
+      add(borderPoint(room, seg.edge, seg.to));
+      const horizontal = seg.edge === 'top' || seg.edge === 'bottom';
+      depthSum += n * (horizontal ? seg.depth : seg.depth * LEGACY_ASPECT);
+      blendSum += n * (seg.blend ?? DEFAULT_BLEND);
+      weight += n;
+    } else {
+      const { edge, t } = nearestEdge(seg.area);
+      const length = edge === 'top' || edge === 'bottom' ? room.screen.width : room.screen.height;
+      const half = (n * FIXED_SPACING) / 2 / length;
+      add(borderPoint(room, edge, t + half));
+      add(borderPoint(room, edge, t - half));
+    }
+    at += n;
+  }
+  if (path.length === 0) {
+    // Nothing to place: a dark strip along the bottom edge.
+    path.push(borderPoint(room, 'bottom', 1), borderPoint(room, 'bottom', 0));
+  } else if (path.length === 1) {
+    path.push({ ...path[0], x: Math.min(room.width, path[0].x + 0.01) });
+  }
+  const strip: Strip = { ...base, ledCount: at, path };
+  if (dark.length) strip.dark = dark;
+  if (weight > 0) {
+    const depth = Math.min(1, round(depthSum / weight, 3));
+    const blend = round(blendSum / weight, 2);
+    if (depth !== DEFAULT_DEPTH) strip.depth = depth;
+    if (blend !== DEFAULT_BLEND) strip.blend = blend;
+  }
+  return strip;
+}
+
+/**
+ * Legacy import: turn a controller-wide rect list into a spec with one strip per controller output ("Strip 1",
+ * "Strip 2"...) in a default room. Outputs with no rects in range get no strip. A controller without outputs is
+ * given a single output covering every rect.
+ */
+export function specFromLegacy(rects: LedRect[], controller: Controller, room: Room = defaultRoom()): LayoutSpec {
   const outputs = controller.outputs.length
     ? controller.outputs
     : [{ index: 0, start: 0, length: rects.length }];
@@ -211,13 +389,7 @@ export function specFromLegacy(rects: LedRect[], controller: Controller): Layout
     const slice = rects.slice(o.start, o.start + o.length);
     if (slice.length === 0) continue;
     const n = strips.length + 1;
-    strips.push({
-      id: `strip-${n}`,
-      name: `Strip ${n}`,
-      controllerId: controller.id,
-      output: o.index,
-      segments: inferSegments(slice),
-    });
+    strips.push(stripFromSegments(inferSegments(slice), room, { id: `strip-${n}`, name: `Strip ${n}`, controllerId: controller.id, output: o.index }));
   }
-  return { version: 1, controllers: [{ ...controller, outputs }], strips };
+  return { version: 1, room, controllers: [{ ...controller, outputs }], strips };
 }

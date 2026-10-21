@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { compileLayout, compileStrip } from './compile';
-import { inferSegments, specFromLegacy } from './infer';
+import { compileLayout } from './compile';
+import { compileLegacySegment, inferSegments, specFromLegacy, type LegacySegment } from './infer';
 import { validateLayout } from './validate';
 import { controllerFromWledConfig } from './wled';
-import type { LayoutSpec, LedRect, Segment } from './types';
+import type { LedRect } from './types';
 import legacy from './__fixtures__/my-layout.json';
 import cfg from './__fixtures__/wled-two-outputs.json';
-import specJson from './__fixtures__/my-layout.spec.json';
+import segmentsJson from './__fixtures__/my-layout.segments.json';
 
 const rects = legacy as LedRect[];
-const handSpec = specJson as LayoutSpec;
+/** The owner's layout as HyperHDR-style segments, made by hand. */
+const handSegments = segmentsJson as { monitor: LegacySegment[]; ceiling: LegacySegment[] };
 const KEYS = ['hmin', 'hmax', 'vmin', 'vmax'] as const;
 
-function roundTripError(input: LedRect[], segments: Segment[]): number {
-  const out = compileStrip({ id: 's', name: 's', controllerId: 'c', output: 0, segments });
+function roundTripError(input: LedRect[], segments: LegacySegment[]): number {
+  const out = segments.flatMap(compileLegacySegment);
   expect(out).toHaveLength(input.length);
   let err = 0;
   out.forEach((r, i) => {
@@ -24,7 +25,7 @@ function roundTripError(input: LedRect[], segments: Segment[]): number {
 }
 
 /** Same segment kinds/edges/counts as the reference, and parameters within `tol`. */
-function expectClose(actual: Segment[], expected: Segment[], tol = 2e-4) {
+function expectClose(actual: LegacySegment[], expected: LegacySegment[], tol = 2e-4) {
   expect(actual.map((s) => [s.kind, s.count, s.kind === 'edge' ? s.edge : ''])).toEqual(
     expected.map((s) => [s.kind, s.count, s.kind === 'edge' ? s.edge : '']),
   );
@@ -37,13 +38,20 @@ function expectClose(actual: Segment[], expected: Segment[], tol = 2e-4) {
   });
 }
 
+describe('hand-made segments (ground truth)', () => {
+  it("compile to the owner's rects within 0.0006", () => {
+    expect(roundTripError(rects.slice(0, 91), handSegments.monitor)).toBeLessThan(0.0006);
+    expect(roundTripError(rects.slice(91), handSegments.ceiling)).toBeLessThan(0.0006);
+  });
+});
+
 describe('inferSegments', () => {
   const monitor = rects.slice(0, 91);
   const ceiling = rects.slice(91);
 
   it('recovers the compact monitor layout (9 segments) and round-trips', () => {
     const segs = inferSegments(monitor);
-    expectClose(segs, handSpec.strips[0].segments);
+    expectClose(segs, handSegments.monitor);
     expect(roundTripError(monitor, segs)).toBeLessThan(0.001);
   });
 
@@ -94,24 +102,35 @@ describe('inferSegments', () => {
 });
 
 describe('specFromLegacy', () => {
-  it('builds one strip per output that compiles back to the legacy layout', () => {
-    const controller = controllerFromWledConfig('wled-monitor.local', cfg);
-    const spec = specFromLegacy(rects, controller);
-    expect(spec.strips.map((s) => [s.id, s.name, s.output, s.segments.length])).toEqual([
-      ['strip-1', 'Strip 1', 0, 9],
-      ['strip-2', 'Strip 2', 1, 1],
+  const controller = controllerFromWledConfig('wled-monitor.local', cfg);
+  const spec = specFromLegacy(rects, controller);
+
+  it('builds one valid strip per output, around the screen of a default room', () => {
+    expect(spec.strips.map((s) => [s.id, s.name, s.output, s.ledCount])).toEqual([
+      ['strip-1', 'Strip 1', 0, 91],
+      ['strip-2', 'Strip 2', 1, 77],
     ]);
     expect(validateLayout(spec)).toEqual([]);
+    expect(spec.strips.every((s) => s.path.every((p) => p.surface === 'front'))).toBe(true);
+    expect(spec.strips[1]).toMatchObject({ depth: 0.25, blend: 5 });
+  });
+
+  it('pins nothing, so LEDs spread evenly, and keeps every LED on the edge its rect was on', () => {
+    expect(spec.strips.every((s) => s.path.every((p) => p.at === undefined))).toBe(true);
     const [compiled] = compileLayout(spec);
     expect(compiled.leds).toHaveLength(rects.length);
-    compiled.leds.forEach((led, i) => {
-      for (const k of KEYS) expect(Math.abs(led[k] - rects[i][k])).toBeLessThan(0.001);
-    });
+    const bands = (r: LedRect) => [r.vmin === 0, r.vmax === 1 && r.vmin > 0, r.hmin === 0 && r.hmax < 0.5, r.hmax === 1 && r.hmin > 0.5];
+    const ceiling = compiled.leds.slice(91);
+    expect(ceiling.every((r) => r.vmin === 0)).toBe(true);
+    // The monitor strip's LEDs keep their order around the screen (a top LED stays on top, a side LED on that side).
+    const monitor = compiled.leds.slice(0, 91);
+    const same = monitor.filter((r, i) => bands(r).some((on, k) => on && bands(rects[i])[k])).length;
+    expect(same).toBeGreaterThan(80);
   });
 
   it('synthesizes an output for a controller without outputs', () => {
-    const spec = specFromLegacy(rects.slice(0, 18), { id: 'c', name: 'c', kind: 'wled', host: 'c', outputs: [] });
-    expect(spec.controllers[0].outputs).toEqual([{ index: 0, start: 0, length: 18 }]);
-    expect(spec.strips).toHaveLength(1);
+    const one = specFromLegacy(rects.slice(0, 18), { id: 'c', name: 'c', kind: 'wled', host: 'c', outputs: [] });
+    expect(one.controllers[0].outputs).toEqual([{ index: 0, start: 0, length: 18 }]);
+    expect(one.strips).toHaveLength(1);
   });
 });

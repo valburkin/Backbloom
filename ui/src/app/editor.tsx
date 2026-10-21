@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import { validateLayout, type LayoutIssue } from '../layout';
 import { loadLayout, saveBlockers, saveLayout, type LayoutSource, type SaveBlocker } from '../api/layoutService';
 import { editorReducer, initialEditorState, isDirty, type EditorAction, type EditorState } from '../editor/state';
-import type { AspectId } from '../editor/geometry';
 import { useConnection } from './connection';
 import { useToast } from './toast';
 
@@ -26,12 +25,9 @@ export interface EditorContextValue {
   blockers: SaveBlocker[];
   saving: boolean;
   save(): Promise<void>;
-  aspect: AspectId;
-  setAspect(a: AspectId): void;
 }
 
 const Ctx = createContext<EditorContextValue | null>(null);
-const ASPECT_KEY = 'backbloom.aspect';
 
 function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -43,21 +39,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(editorReducer, undefined, () => initialEditorState());
   const [load, setLoad] = useState<LoadInfo>({ status: 'idle' });
   const [saving, setSaving] = useState(false);
-  const [aspect, setAspectState] = useState<AspectId>(() => {
-    try {
-      return (localStorage.getItem(ASPECT_KEY) as AspectId) || '16:9';
-    } catch {
-      return '16:9';
-    }
-  });
-  const setAspect = useCallback((a: AspectId) => {
-    setAspectState(a);
-    try {
-      localStorage.setItem(ASPECT_KEY, a);
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   const dirty = isDirty(state);
   const dirtyRef = useRef(dirty);
@@ -118,7 +99,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'markSaved', spec });
       setLoad((l) => ({ ...l, source: 'saved', note: undefined }));
       if (res.layoutPersisted)
-        toast('ok', 'Layout saved', `${res.ledCount} LEDs${res.controllers > 1 ? ` on ${res.controllers} controllers` : ''} are now mapped to your screen.`);
+        toast('ok', 'Layout saved', `${res.ledCount} LEDs${res.controllers > 1 ? ` on ${res.controllers} controllers` : ''} are now placed in your room.`);
       else
         toast(
           'info',
@@ -153,8 +134,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     blockers,
     saving,
     save,
-    aspect,
-    setAspect,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

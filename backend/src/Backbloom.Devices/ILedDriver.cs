@@ -38,6 +38,16 @@ public interface ILedDriver : IDisposable
 }
 
 /// <summary>
+/// A driver whose controller reports about itself (power, brightness, temperature, ...). The driver reads it on its own
+/// schedule, never in <see cref="ILedDriver.Write"/>, only while the device is open.
+/// </summary>
+public interface ITelemetryDriver : ILedDriver
+{
+    /// <summary>The latest report (null before the first); may be read from any thread.</summary>
+    ControllerTelemetry? Telemetry { get; }
+}
+
+/// <summary>
 /// A driver that can take the processed colors before they are rounded to 8 bits ("deep color": RGBW dithering by
 /// the Infinite Color Engine, Hue Entertainment, LIFX). Port of <c>LedDevice::writeInfiniteColors</c>.
 /// </summary>

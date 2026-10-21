@@ -10,7 +10,7 @@ using Backbloom.Settings;
 namespace Backbloom.Server.Rpc;
 
 /// <summary>Builds the <c>serverinfo</c> and <c>sysinfo</c> payloads and the event bodies that repeat their parts.</summary>
-public sealed class Payloads(LightingEngine engine, ISettingsStore settings, DriverRegistry drivers, ServerOptions options)
+public sealed class Payloads(LightingEngine engine, ISettingsStore settings, DriverRegistry drivers, ServerOptions options, ProfileMonitor profiles)
 {
     public JsonObject ServerInfo()
     {
@@ -28,6 +28,7 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
         info["components"] = Components();
         info["leds"] = settings.GetSection("leds") ?? new JsonArray();
         info["controllers"] = Controllers();
+        info["profile"] = Profile();
         info["imageToLedMappingType"] = engine.MappingType.ToSettingString();
 
         var available = new JsonArray();
@@ -46,6 +47,16 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
         return info;
     }
 
+    /// <summary>
+    /// <c>profile</c> (an addition, also the <c>profile-update</c> event): the layout's profile whose roles the strips
+    /// have now, <c>{ id, name, manual }</c> (<c>manual</c>: chosen with <c>profile select</c> rather than by a running
+    /// program), or null.
+    /// </summary>
+    public JsonNode? Profile() => Profile(profiles.Current);
+
+    public static JsonNode? Profile(ActiveProfile? profile) => profile is null
+        ? null
+        : new JsonObject { ["id"] = profile.Id, ["name"] = profile.Name, ["manual"] = profile.Manual };
     /// <summary>
     /// <c>systemGrabbers</c> (also the <c>capture-update</c> event): <c>{ device, modes }</c> as in HyperHDR plus, for
     /// screen capture, <c>hdr: { mode, capturing, monitorHdr, toneMapping }</c>: the <c>hdrToneMapping</c> setting,
