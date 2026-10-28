@@ -47,6 +47,12 @@ release note. See [docs/development.md](docs/development.md#branches-and-release
 ### Fixed
 
 - Finding an LED did nothing while the lights were off or nothing was shown.
+- **WLED lights stayed off after a display change** (a game starting, a resolution or HDR change): Backbloom no longer switches the
+  controllers off when the picture is gone for a moment (they go dark for up to 10 seconds first), finds a WLED
+  controller by its `.local` name itself when Windows can't, falls back to its last address, and keeps trying to
+  reconnect every 30 seconds instead of giving up after a few minutes.
+- **The lights stayed dark after a graphics driver update**: Windows gives the monitor a new number then, and the
+  screen capture kept looking for the old one. It now finds the same monitor again, or uses the only connected one.
 
 ## 0.1.0 – 2026-10-20
 

@@ -266,4 +266,25 @@ public sealed class MultiControllerTests : IDisposable
         Assert.Equal((false, "Disabled"), (list[2].Running, list[2].Status));
         Assert.Equal(19, devices.LedCount);
     }
+
+    [Fact]
+    public void Reconfiguring_WhileSwitchedOffWithADelay_KeepsTheKeptControllersConnected()
+    {
+        // a game that starts: its display change stops the capture, and its profile reconfigures during the delay
+        var registry = Registry();
+        using var devices = Devices(registry);
+        var a = new ControllerDevice("a", "A", JsonNode.Parse("""{ "type": "file", "output": "/dev/null", "printTimeStamp": false }""")!.AsObject(), 10);
+        var b = new ControllerDevice("b", "B", JsonNode.Parse("""{ "type": "file", "output": "/dev/null", "printTimeStamp": false }""")!.AsObject(), 5);
+        devices.Configure([a]);
+        devices.SetEnabled(true);
+        WaitUntil(() => devices.Devices.All(d => d.State == DeviceState.Ready));
+
+        devices.SetEnabled(false, TimeSpan.FromMinutes(5));
+        devices.Configure([a, b]);
+        Thread.Sleep(100);
+
+        Assert.Equal([DeviceState.Ready, DeviceState.Off], devices.Devices.Select(d => d.State));
+        devices.SetEnabled(false);
+        WaitUntil(() => devices.Devices.All(d => d.State == DeviceState.Off));
+    }
 }

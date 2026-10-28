@@ -88,7 +88,7 @@ public sealed partial class YeelightDriver : ILedDriver
         _time = context.Time;
         _logger = context.LoggerFactory.CreateLogger<YeelightDriver>();
         _localAddress = localAddress ?? LocalAddress;
-        RetryPolicy = new RetryPolicy(Math.Max(0, options.MaxRetry), TimeSpan.FromSeconds(3));
+        RetryPolicy = new RetryPolicy(Math.Max(0, options.MaxRetry), TimeSpan.FromSeconds(3), RetryPolicy.KeepTrying);
     }
 
     public static DriverDescriptor Descriptor { get; } = new(

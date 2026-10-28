@@ -92,16 +92,42 @@ public sealed class WledTests
         Assert.True(driver.Write(new byte[] { 10, 20, 30, 40, 50, 60, 70, 80, 90 }));
         await driver.CloseAsync(TestContext.Current.CancellationToken);
 
+        // the name is resolved once per connection, by the shared resolver: HttpClient never resolves it itself
         Assert.Equal(
         [
-            (HttpMethod.Get, "http://wled-test.local/json", null),
-            (HttpMethod.Get, "http://wled-test.local/json/cfg", null),
-            (HttpMethod.Put, "http://wled-test.local/json/state", """{"on":true,"live":true,"bri":255}"""),
-            (HttpMethod.Put, "http://wled-test.local/json/state", """{"on":false,"live":false}"""),
+            (HttpMethod.Get, "http://192.0.2.10/json", null),
+            (HttpMethod.Get, "http://192.0.2.10/json/cfg", null),
+            (HttpMethod.Put, "http://192.0.2.10/json/state", """{"on":true,"live":true,"bri":255}"""),
+            (HttpMethod.Put, "http://192.0.2.10/json/state", """{"on":false,"live":false}"""),
         ], http.Requests);
         Assert.Equal("192.0.2.10:21325", udp.Remote!.ToString());
         Assert.Equal(new byte[] { 2, 255, 10, 20, 30, 40, 50, 60, 70, 80, 90 }, Assert.Single(udp.Packets));
         Assert.False(driver.Write(new byte[3]));
+    }
+
+    [Fact]
+    public async Task Driver_KeepsTheScopeOfALinkLocalAddress_InEveryRequest()
+    {
+        var hosts = new List<string>();
+        var http = new FakeHttpHandler((request, _) =>
+        {
+            lock (hosts)
+            {
+                hosts.Add(request.RequestUri!.IdnHost);
+            }
+
+            return request.Method == HttpMethod.Get
+                ? FakeHttpHandler.Json("""{ "state": { "on": true }, "info": { "ver": "0.15.0", "leds": { "count": 3 } } }""")
+                : FakeHttpHandler.Json("""{"success":true}""");
+        });
+        var context = new DriverContext(NullLoggerFactory.Instance, new HttpClient(http), () => new RecordingChannel(), (_, _) => ValueTask.FromResult(IPAddress.Parse("fe80::1%12")));
+        using var driver = new WledDriver(new WledOptions("wled-test.local"), context);
+
+        await driver.OpenAsync(3, TestContext.Current.CancellationToken);
+        await driver.CloseAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(hosts.Count >= 3);
+        Assert.All(hosts, h => Assert.Equal("fe80::1%12", h));
     }
 
     [Fact]
@@ -264,7 +290,7 @@ public sealed class WledTests
         using var driver = new WledDriver(new WledOptions("wled-test.local"), Contexts.With(http, new RecordingChannel()));
 
         await Assert.ThrowsAsync<HttpRequestException>(async () => await driver.OpenAsync(3, TestContext.Current.CancellationToken));
-        Assert.Equal(new RetryPolicy(60, TimeSpan.FromMilliseconds(1500)), driver.RetryPolicy);
+        Assert.Equal(new RetryPolicy(60, TimeSpan.FromMilliseconds(1500), RetryPolicy.KeepTrying), driver.RetryPolicy);
     }
 
     [Fact]

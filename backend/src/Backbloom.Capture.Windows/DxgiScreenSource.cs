@@ -40,6 +40,10 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
     private volatile string _device = "none";
     private volatile CaptureHdrStatus _hdrStatus;
     private CaptureSettings? _active;
+
+    // The device setting and the device path of the one monitor it captured last (see MonitorEnumerator.SelectFor).
+    private (string? Device, string? Path) _captured;
+    private string? _loggedFallback;
     private GpuDevice? _gpu;
     private int[] _offsets = [];
     private FramePacer _pacer;
@@ -282,16 +286,31 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
             InputDesktop.MakeThreadDpiAware();
             var outputs = MonitorEnumerator.Enumerate();
             _monitors = [.. outputs.Select(o => o.Info)];
-            var selected = MonitorEnumerator.Select(outputs, settings.Device);
+            var lastPath = string.Equals(_captured.Device, settings.Device, StringComparison.Ordinal) ? _captured.Path : null;
+            var selected = MonitorEnumerator.SelectFor(outputs, settings.Device, lastPath, out var match);
             if (selected.Count == 0)
             {
                 var available = string.Join(", ", outputs.Select(o => o.Info.Id).Concat(MonitorEnumerator.MultiMonitorIds(outputs)));
                 return Retry(TimeSpan.FromSeconds(5), $"monitor '{settings.Device}' is not available (found: {(available.Length == 0 ? "none" : available)})");
             }
 
+            if (MonitorEnumerator.PathToRemember(selected, match) is { } path)
+            {
+                _captured = (settings.Device, path);
+            }
+
             _desktop.AttachCurrentThread();
             Open(settings, selected);
             LogStarted(_device, _frameSize.Width, _frameSize.Height, settings.FramesPerSecond);
+
+            // once per fallback, not on every restart of the duplication (each display change, each lock screen retry)
+            var fallback = match == MonitorMatch.Setting ? null : $"{settings.Device}\n{selected[0].Info.Id}\n{match}";
+            if (fallback is not null && fallback != _loggedFallback)
+            {
+                LogFallback(settings.Device, selected[0].Info.Id, match == MonitorMatch.Renamed ? "the same monitor under a new name" : "the only connected monitor");
+            }
+
+            _loggedFallback = fallback;
             foreach (var d in _displays)
             {
                 var pipeline = d.UsesGpu ? "GPU" : "CPU";
@@ -440,6 +459,9 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Monitor {Id} ({Name}, {Path}): Windows HDR {Hdr}, duplicated as {Format} (HDR conversion: {WideGamut}, tone mapping table: {Lut}, mode {Mode}), {Pipeline} path; area {Width}x{Height} scaled down by {Divide}")]
     private partial void LogDisplay(string id, string name, string path, bool hdr, string format, bool wideGamut, bool lut, ToneMappingMode mode, string pipeline, int width, int height, int divide);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Monitor '{Device}' isn't connected under that name; capturing {Id}, {Reason}")]
+    private partial void LogFallback(string device, string id, string reason);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Monitor {Id} is rotated ({Rotation}); it is captured in its unrotated (scanout) orientation")]
     private partial void LogRotated(string id, string rotation);

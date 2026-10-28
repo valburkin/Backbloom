@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -329,6 +330,49 @@ public sealed class EffectEngineTests : IDisposable
         background["enable"] = false;
         Assert.True(store.Update(new JsonObject { ["backgroundEffect"] = background.DeepClone() }).Success);
         WaitUntil(() => engine.Priorities is [{ ComponentId: "SYSTEMGRABBER" }] && engine.Effects.Active.Count == 0);
+    }
+
+    [Fact]
+    public void AScreenThatStopsDeliveringForAMoment_KeepsTheControllersConnected()
+    {
+        var screen = new SwitchableSource();
+        var engine = Engine(screen);
+        engine.Start();
+        WaitUntil(() => engine.Devices.All(d => d.State == DeviceState.Ready) && engine.Priorities is [{ ComponentId: "SYSTEMGRABBER", Visible: true }]);
+        var states = new ConcurrentBag<DeviceState>();
+        void Sample()
+        {
+            foreach (var device in engine.Devices)
+            {
+                states.Add(device.State);
+            }
+        }
+
+        // a display change: the screen is inactive and nothing else shows, but the controllers stay connected (black)
+        screen.Delivering = false;
+        WaitUntil(() =>
+        {
+            Sample();
+            return engine.Priorities is [{ ComponentId: "SYSTEMGRABBER", Active: false }];
+        });
+        for (var i = 0; i < 20; i++)
+        {
+            Sample();
+            Thread.Sleep(10);
+        }
+
+        screen.Delivering = true;
+        WaitUntil(() =>
+        {
+            Sample();
+            return engine.Priorities is [{ ComponentId: "SYSTEMGRABBER", Visible: true }];
+        });
+        Assert.All(states, s => Assert.Equal(DeviceState.Ready, s));
+        Assert.True(LightingEngine.NoSourceOffDelay >= TimeSpan.FromSeconds(5));
+
+        // switching capture off is the user's choice: off at once
+        engine.Components.Set(Component.SystemGrabber, false);
+        WaitUntil(() => engine.Devices.All(d => d.State == DeviceState.Off));
     }
 
     [Fact]

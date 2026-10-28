@@ -150,6 +150,17 @@ internal sealed class FakeMdns(params MdnsServiceInstance[] instances) : IMdnsBr
         Browsed.Add(serviceType);
         return Task.FromResult<IReadOnlyList<MdnsServiceInstance>>([.. instances.Where(i => i.ServiceType == serviceType)]);
     }
+
+    /// <summary>Host names asked for, and the address each one answers with (none: no answer).</summary>
+    public List<string> Resolved { get; } = [];
+
+    public Dictionary<string, IPAddress> Hosts { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Task<IPAddress?> ResolveAsync(string hostName, TimeSpan wait, CancellationToken cancellationToken)
+    {
+        Resolved.Add(hostName);
+        return Task.FromResult(Hosts.GetValueOrDefault(hostName));
+    }
 }
 
 internal sealed class FakeSsdp(params SsdpResponse[] responses) : ISsdpSearcher

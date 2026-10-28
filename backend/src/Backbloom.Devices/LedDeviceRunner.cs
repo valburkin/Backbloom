@@ -56,6 +56,8 @@ public sealed partial class LedDeviceRunner : IDisposable
     private long _retryAt;
     private long _lastWrite;
     private int _failedAttempts;
+    private long _offAt;
+    private bool _dark;
     private TimeSpan? _refresh;
     private bool _started;
 
@@ -118,6 +120,9 @@ public sealed partial class LedDeviceRunner : IDisposable
     // The device is wanted: switched on, or showing a blink.
     private bool Active => _enabled || Blinking;
 
+    // Switched off with a delay that isn't over: the device stays open and shows black.
+    private bool Lingering => !_enabled && Stopwatch.GetTimestamp() < Volatile.Read(ref _offAt);
+
     // A blink was set and not yet taken off the LEDs (ApplyBlink clears it once it is over).
     private bool BlinkPending => Volatile.Read(ref _blinkIndex) >= 0;
 
@@ -132,12 +137,24 @@ public sealed partial class LedDeviceRunner : IDisposable
         }
     }
 
-    /// <summary>Switches the device on (open, then stream) or off (black frame, then close).</summary>
-    public void SetEnabled(bool enabled)
+    /// <summary>
+    /// Switches the device on (open, then stream) or off (black frame, then close). With an <paramref name="offDelay"/>
+    /// an open device first stays open and shows black for that long, so a short gap in the picture (a capture that
+    /// restarts) doesn't switch the controller off and reconnect it; switching on meanwhile goes on streaming. A later
+    /// switch-off without a delay closes at once.
+    /// </summary>
+    public void SetEnabled(bool enabled, TimeSpan offDelay = default)
     {
         if (enabled && !_enabled)
         {
             _retryRequested = true;
+        }
+
+        // switching on leaves the deadline alone (lingering needs the device off, and switching off from on sets it
+        // anew), so the device thread can't see it cleared before it sees the device on and close it in between
+        if (!enabled && (_enabled || offDelay <= TimeSpan.Zero))
+        {
+            Volatile.Write(ref _offAt, offDelay > TimeSpan.Zero ? Stopwatch.GetTimestamp() + (long)(offDelay.TotalSeconds * Stopwatch.Frequency) : 0);
         }
 
         _enabled = enabled;
@@ -324,9 +341,13 @@ public sealed partial class LedDeviceRunner : IDisposable
                     break;
 
                 case DeviceState.Ready:
-                    if (!Active || _disposing)
+                    if (_disposing || (!Active && !Lingering))
                     {
                         Close();
+                    }
+                    else if (!Active)
+                    {
+                        Linger();
                     }
                     else
                     {
@@ -367,15 +388,60 @@ public sealed partial class LedDeviceRunner : IDisposable
             }
             else
             {
-                LogOpenFailed(_options.Name, _failedAttempts, delay.Value.TotalSeconds, ex.Message);
+                LogRetry(_failedAttempts, delay.Value, ex.Message);
                 Volatile.Write(ref _retryAt, Stopwatch.GetTimestamp() + (long)(delay.Value.TotalSeconds * Stopwatch.Frequency));
                 MoveTo(DeviceState.WaitingToRetry);
             }
         }
     }
 
+    // Every attempt is logged until the retries slow down; that is said once, the slow attempts only at debug level.
+    private void LogRetry(int failedAttempts, TimeSpan delay, string reason)
+    {
+        var policy = _driver.RetryPolicy;
+        if (failedAttempts <= policy.MaxRetries)
+        {
+            LogOpenFailed(_options.Name, failedAttempts, delay.TotalSeconds, reason);
+        }
+        else if (policy.SlowsDownAfter(failedAttempts))
+        {
+            LogSlowingDown(_options.Name, failedAttempts, delay.TotalSeconds, reason);
+        }
+        else
+        {
+            LogStillFailing(_options.Name, failedAttempts, delay.TotalSeconds, reason);
+        }
+    }
+
+    // Switched off with a delay: black (sent again when a refresh is due) until the delay is over or it's switched on.
+    private void Linger()
+    {
+        var refreshDue = _refresh is { } refresh && Stopwatch.GetElapsedTime(_lastWrite) >= refresh;
+        if (!_dark || refreshDue)
+        {
+            _dark = true;
+            _output.AsSpan().Clear();
+            try
+            {
+                Send(_output);
+            }
+            catch (DeviceLostException ex)
+            {
+                Lost(ex);
+                return;
+            }
+        }
+
+        var left = Stopwatch.GetElapsedTime(Stopwatch.GetTimestamp(), Volatile.Read(ref _offAt));
+        if (left > TimeSpan.Zero)
+        {
+            _signal.WaitOne(_refresh is { } r && r < left ? r : left);
+        }
+    }
+
     private void Stream()
     {
+        _dark = false;
         var blinked = BlinkPending;
         var timeout = blinked ? s_blinkTick : _refresh ?? Timeout.InfiniteTimeSpan;
         _signal.WaitOne(timeout);
@@ -546,6 +612,12 @@ public sealed partial class LedDeviceRunner : IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Name}: lost the device, reopening in {Seconds:0.#} s: {Reason}")]
     private partial void LogLost(string name, double seconds, string reason);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Name}: couldn't open the device {Attempts} times, trying every {Seconds:0.#} s from now on: {Reason}")]
+    private partial void LogSlowingDown(string name, int attempts, double seconds, string reason);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{Name}: couldn't open the device (attempt {Attempt}), retrying in {Seconds:0.#} s: {Reason}")]
+    private partial void LogStillFailing(string name, int attempt, double seconds, string reason);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "{Name}: device switched off")]
     private partial void LogClosed(string name);

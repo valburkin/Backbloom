@@ -69,7 +69,7 @@ export const SCHEMA_TEXT: Record<string, readonly [label: string, help?: string]
   "edt_dev_general_hardwareLedCount_title": ["Hardware LED count"],
   "edt_dev_general_heading_title": ["General Settings"],
   "edt_dev_general_rewriteTime_title": ["Resend interval", "Resends the current colors this often even when nothing changes, for controllers that fall back to their own effects. 0 = only send changes."],
-  "edt_dev_max_retry": ["Reconnect attempts", "How many times Backbloom tries to reconnect when the controller goes away."],
+  "edt_dev_max_retry": ["Reconnect attempts", "How many times Backbloom tries to reconnect right away when the controller goes away. Network controllers are tried every 30 seconds after that."],
   "edt_dev_spec_LBap102Mode_title": ["LightBerry APA102 Mode"],
   "edt_dev_spec_awa_mode_title": ["HyperSerial protocol", "Fast serial protocol with error checking. Use it with HyperSerial / HyperSPI firmware."],
   "edt_dev_spec_baudrate_title": ["Speed (baud rate)", "Must match the speed set in the controller's firmware."],

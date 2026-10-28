@@ -93,6 +93,28 @@ public sealed class DiscoveryTests
     }
 
     [Fact]
+    public async Task Resolve_AsksForTheHostAndReturnsTheAnswer_OrNullWhenNoneComes()
+    {
+        var transport = new FakeTransport();
+        using var mdns = new MdnsService(() => transport, () => transport, NullLogger<MdnsService>.Instance, isOwnAddress: _ => false);
+        var answer = new DnsMessage { IsResponse = true, Answers = [new DnsRecord("wled-desk.local.", DnsType.A, 120, s_wled, CacheFlush: true)] }.Encode();
+
+        // the answer arrives a little later than the query
+        transport.OnSend = query => _ = Task.Delay(30).ContinueWith(_ => transport.Deliver(answer, new IPEndPoint(s_wled, 5353)), TaskScheduler.Default);
+        var found = await mdns.ResolveAsync("wled-desk.local", TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        Assert.Equal(s_wled, found);
+        Assert.Equal(new DnsQuestion("wled-desk.local.", DnsType.A, UnicastResponse: true), Assert.Single(DnsMessage.Decode(transport.Multicast.First()).Questions));
+
+        transport.OnSend = null;
+        var started = TimeProvider.System.GetTimestamp();
+        Assert.Null(await mdns.ResolveAsync("wled-other.local", TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken));
+        Assert.InRange(TimeProvider.System.GetElapsedTime(started), TimeSpan.FromMilliseconds(150), TimeSpan.FromSeconds(5));
+        // one query for the name that answered, two (the second halfway) for the one that didn't
+        Assert.Equal(3, transport.Multicast.Count);
+    }
+
+    [Fact]
     public async Task Browse_SkipsOwnAddresses()
     {
         var transport = new FakeTransport();

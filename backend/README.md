@@ -217,7 +217,7 @@ failures and rebuilds the duplication when it is lost.
 
 | | |
 |---|---|
-| Monitors | `MonitorEnumerator`: DXGI outputs plus the display configuration API. Setting values: `auto` (primary monitor; HyperHDR took the first sorted entry, which could be a multi-monitor one), `\\.\DISPLAY5\|NVIDIA GeForce RTX 5080` (HyperHDR's id, kept so imported settings work and the UI can show it), the stable monitor device path (or `edid:manufacturer:product:connector` when the driver reports none), or `MULTI-MONITOR\|adapter` (all monitors of an adapter side by side, ordered by `reorder_displays` as `std::next_permutation` did). |
+| Monitors | `MonitorEnumerator`: DXGI outputs plus the display configuration API. Setting values: `auto` (primary monitor; HyperHDR took the first sorted entry, which could be a multi-monitor one), `\\.\DISPLAY5\|NVIDIA GeForce RTX 5080` (HyperHDR's id, kept so imported settings work and the UI can show it), the stable monitor device path (or `edid:manufacturer:product:connector` when the driver reports none), or `MULTI-MONITOR\|adapter` (all monitors of an adapter side by side, ordered by `reorder_displays` as `std::next_permutation` did). Windows renumbers the GDI names after a driver update or a reconnect (`DISPLAY5` came back as `DISPLAY9`), so a single-monitor setting (`MonitorEnumerator.SelectFor`, a fallback logged once as a warning) captures the monitor with the device path it matched last in this run (also when another monitor took the old name); one that matched nothing yet in this run captures the only connected monitor, if there is just one (not remembered, so a monitor that is away, like a TV switched off, is waited for and not replaced by the remaining screen). Still open (roadmap): after a restart with several monitors a stale id matches nothing (or, if another monitor took the old name, that one), and the UI only offers Auto and the captured monitor. |
 | Duplication | `IDXGIOutput6::DuplicateOutput1` (the capture thread is made per-monitor DPI aware, otherwise it fails with `DXGI_ERROR_UNSUPPORTED`). HDR is detected per monitor (`DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020`); with hardware on and `monitor_nits` > 0 the desktop is duplicated as FP16 scRGB (10-bit PQ as a fallback), else as 8-bit BGRA, which Windows converts to SDR. |
 | GPU path (`hardware`) | `GpuScaler`: the acquired texture is copied into an own texture (the frame is released at once), `Shaders/Downscale.hlsl` averages each `divide` x `divide` block of the cropped area (bilinear taps between texels, up to 8 x 8 per pixel) into a small BGRA target, then one staging readback of that size. Modes: scRGB scaled by 80 / `monitor_nits` + BT.709 OETF (the C++ HDR shader, reconstructed from its bytecode), PQ/BT.2020 -> BT.709, the LUT as a 256^3 RGBA8 3D texture read with exact texel loads (8-bit captures that tone mapping applies to, see below), or plain SDR. The shader only runs when the image or the mode changed. |
 | CPU path | `CpuScaler` + `BgraDownscaler` (port of `decodeBGRA`): full-size 8-bit readback, every `divide`-th pixel, LUT on the CPU. Used when `hardware` is off or the shaders can't be created. |
@@ -291,7 +291,11 @@ on the frame loop while visible) and register with `Sources.Register` and `AddSm
 
 **Screen activity** (`ScreenActivity`, HyperHDR's `SystemControl` rule): the screen registers inactive, becomes active
 with its first frame and inactive after 800 ms without one (lock screen, monitor off, capture errors), so the source
-below it shows: the background effect, or nothing (controllers off). The frame loop only captures for a visible
+below it shows: the background effect, or nothing. With nothing left the controllers are switched off, but while capture
+is on only after `LightingEngine.NoSourceOffDelay` (10 s; HyperHDR: at once): until then they stay connected and show
+black, so a display change that stops the capture for a second doesn't switch them off and reconnect them (WLED once
+failed to reconnect for minutes after that). Switching capture or the LEDs off still switches them off at once. The
+frame loop only captures for a visible
 screen, so while the screen is inactive it probes the frame source every 500 ms (20 ms budget while an effect shows, so
 the effect keeps its pace; up to 250 ms while idle); the first frame makes it active again. A static desktop still
 delivers frames (DXGI repeats the last image), so it never counts as inactive. While a source above the screen shows
@@ -570,7 +574,20 @@ runner passes them in RGB order with the refresh interval. `ILedDriver.Effective
 the resend rate (Hue Entertainment 20 ms, Hue REST 100 ms per light, none for Yeelight / Nanoleaf). A driver that loses
 its controller while streaming (serial port unplugged, too many write timeouts, all Yeelights in error, HTTP errors)
 throws `DeviceLostException`; the runner goes to `WaitingToRetry` and reopens it with the driver's retry policy (C++
-`setInError` + `setupRetry`). JSON/REST drivers write their JSON with sorted keys, as `QJsonDocument` did.
+`setInError` + `setupRetry`). Network drivers (WLED, Hue, Home Assistant, Yeelight, and those with
+`RetryPolicy.Default`, which also covers the SyncLight HID strip) don't give up after their `maxRetry` quick retries
+as the C++ code did: they go on every 30 s (`RetryPolicy.ThenEvery`; logged once, then at debug level), so a
+controller that was away for a while (or a USB strip plugged in again) is used again by itself. Serial and file
+devices still give up. JSON/REST drivers write their JSON with sorted keys, as `QJsonDocument` did.
+
+**Host names** (`HostResolver`, the default `DriverContext.ResolveHost`): the system resolver (3 s at most), for a
+`.local` name it can't resolve an mDNS A query of our own (`MdnsService.ResolveAsync`, 1.5 s), and when both fail the
+last address the name had. Not in the C++ code: Windows' resolver once kept failing for a WLED controller's `.local`
+name in the running process ("No such host is known", HyperHDR showed the same) while a browser and a restarted
+process resolved it at once. The WLED driver resolves its host once per connection and sends both its HTTP requests
+and its stream to that address, so `HttpClient` never resolves the name itself (requests carry the address as their
+`Host`, which WLED ignores). The last address is only a fallback: after a DHCP change it may belong to another device,
+and requests reach that one until the name resolves again.
 
 **RGBW.** `RgbwConverter` (classic 8-bit algorithms, HyperSerial calibration tables) and `InfiniteRgbwEncoder`
 (stateful, dithered) reproduce the C++ float operations in the same order and match the exported fixtures exactly.

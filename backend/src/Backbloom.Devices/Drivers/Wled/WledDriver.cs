@@ -88,7 +88,7 @@ public sealed partial class WledDriver : ITelemetryDriver
         _resolve = context.ResolveHost;
         _logger = context.LoggerFactory.CreateLogger<WledDriver>();
         _time = context.Time;
-        RetryPolicy = new RetryPolicy(Math.Max(0, options.MaxRetry), s_retryDelay);
+        RetryPolicy = new RetryPolicy(Math.Max(0, options.MaxRetry), s_retryDelay, RetryPolicy.KeepTrying);
     }
 
     public string Type => TypeName;
@@ -122,10 +122,15 @@ public sealed partial class WledDriver : ITelemetryDriver
         return list;
     }
 
-    private Uri BaseUri => new($"http://{FormatHost(_options.Host)}:{_options.ApiPort}/json");
+    // The JSON API at the address the host had when connecting (set by OpenAsync before the first request).
+    private Uri BaseUri { get; set; } = null!;
 
     public async ValueTask OpenAsync(int ledCount, CancellationToken cancellationToken)
     {
+        // the name is resolved once per connection (by the shared resolver, which falls back to mDNS and the last
+        // address) and the API and the stream both use the address, so HttpClient never resolves it itself
+        var address = await _resolve(_options.Host, cancellationToken);
+        BaseUri = new Uri($"http://{FormatHost(address)}:{_options.ApiPort}/json");
         var info = await GetJsonAsync(BaseUri, cancellationToken);
         var udpPort = WledProtocol.DefaultUdpPort;
         ControllerTelemetry? telemetry = null;
@@ -149,7 +154,6 @@ public sealed partial class WledDriver : ITelemetryDriver
 
         await PutStateAsync(WledProtocol.OnOffRequest(true, _options.OverrideBrightness, _options.BrightnessLevel, _savedState), cancellationToken);
 
-        var address = await _resolve(_options.Host, cancellationToken);
         _udp.Connect(new IPEndPoint(address, udpPort));
         _connected = true;
 
@@ -223,7 +227,7 @@ public sealed partial class WledDriver : ITelemetryDriver
                 await Task.Delay(TelemetryInterval, _time, token);
                 try
                 {
-                    if (await GetJsonAsync(new Uri(BaseUri + "/si"), token) is not { } json)
+                    if (await GetJsonAsync(new Uri(BaseUri, "json/si"), token) is not { } json)
                     {
                         continue;
                     }
@@ -274,7 +278,7 @@ public sealed partial class WledDriver : ITelemetryDriver
         WledConfig config = default;
         try
         {
-            if (await GetJsonAsync(new Uri(BaseUri + "/cfg"), cancellationToken) is { } cfg)
+            if (await GetJsonAsync(new Uri(BaseUri, "json/cfg"), cancellationToken) is { } cfg)
             {
                 config = WledConfig.Read(cfg);
             }
@@ -367,7 +371,11 @@ public sealed partial class WledDriver : ITelemetryDriver
 
     private static string? ReadString(JsonNode? node) => node is JsonValue v && v.TryGetValue(out string? s) ? s : null;
 
-    private static string FormatHost(string host) => IPAddress.TryParse(host, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? $"[{host}]" : host;
+    // an IPv6 scope stays as "%12": .NET doesn't decode RFC 6874's "%25", and Uri.ToString() drops the scope, so the
+    // request URIs are made relative to BaseUri rather than from its string
+    private static string FormatHost(IPAddress address) => address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+        ? $"[{address}]"
+        : address.ToString();
 
     private int ReadInfo(JsonObject json, int ledCount)
     {
@@ -421,7 +429,7 @@ public sealed partial class WledDriver : ITelemetryDriver
         timeout.CancelAfter(s_requestTimeout);
         using var content = new StringContent(body, Encoding.UTF8);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-        using var response = await _http.PutAsync(new Uri(BaseUri + "/state"), content, timeout.Token);
+        using var response = await _http.PutAsync(new Uri(BaseUri, "json/state"), content, timeout.Token);
         response.EnsureSuccessStatusCode();
     }
 

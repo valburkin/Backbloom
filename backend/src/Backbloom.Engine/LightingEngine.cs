@@ -30,6 +30,13 @@ public sealed partial class LightingEngine : IDisposable
     /// <summary>Priority of the screen source unless <c>systemControl.systemInstancePriority</c> says otherwise.</summary>
     public const int DefaultScreenPriority = 245;
 
+    /// <summary>
+    /// How long the controllers stay connected (black) when nothing is left to show while the output is on. Not in the
+    /// C++ code, which switched them off at once: a display change stops the capture for a second, and reconnecting a
+    /// network controller then can fail for minutes.
+    /// </summary>
+    public static readonly TimeSpan NoSourceOffDelay = TimeSpan.FromSeconds(10);
+
     private readonly ISettingsStore _settings;
     private readonly IFrameSource _source;
     private readonly DeviceManager _devices;
@@ -492,11 +499,12 @@ public sealed partial class LightingEngine : IDisposable
 
     // The controllers run while the output is on and something is visible or zones play ("no source left": HyperHDR
     // switched the LED device off; here the LEDDEVICE switch keeps the user's choice). With zones and no source, the
-    // other LEDs are black.
+    // other LEDs are black. While capture is on, the screen may only have stopped delivering for a moment (a display
+    // change, a restarting capture): the controllers then stay connected for NoSourceOffDelay, showing black.
     private void UpdateOutput()
     {
         var on = Components.OutputActive && (Sources.Visible.HasSource || _setup.Zones.Count > 0);
-        _devices.SetEnabled(on);
+        _devices.SetEnabled(on, Components.OutputActive && _screenRegistered ? NoSourceOffDelay : TimeSpan.Zero);
         if (_output.SetOutputEnabled(on))
         {
             _pipeline.Refresh();

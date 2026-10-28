@@ -102,6 +102,86 @@ public sealed class LedDeviceRunnerTests
     }
 
     [Fact]
+    public void RetryPolicy_KeepsTryingSlowlyAfterTheQuickRetries()
+    {
+        var policy = new RetryPolicy(2, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(30));
+
+        Assert.Equal(TimeSpan.FromSeconds(1), policy.NextDelay(2));
+        Assert.Equal(TimeSpan.FromSeconds(30), policy.NextDelay(3));
+        Assert.Equal(TimeSpan.FromSeconds(30), policy.NextDelay(1000));
+        Assert.True(policy.SlowsDownAfter(3));
+        Assert.False(policy.SlowsDownAfter(4));
+        Assert.Equal(RetryPolicy.KeepTrying, RetryPolicy.Default.NextDelay(61));
+    }
+
+    [Fact]
+    public void Runner_KeepsTryingAfterTheQuickRetries()
+    {
+        var driver = new FakeDriver(new RetryPolicy(1, TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(5)), failOpens: 4);
+        var (runner, states) = Create(driver);
+        using (runner)
+        {
+            runner.SetEnabled(true);
+            Wait.Until(() => runner.State == DeviceState.Ready);
+        }
+
+        Assert.Equal(5, driver.Opens);
+        Assert.DoesNotContain(DeviceState.Failed, states);
+    }
+
+    [Fact]
+    public void Runner_SwitchedOffWithADelay_StaysConnectedShowingBlack_AndStreamsAgainWhenSwitchedOn()
+    {
+        var driver = new FakeDriver(s_fastRetry);
+        var (runner, _) = Create(driver);
+        using (runner)
+        {
+            runner.SetEnabled(true);
+            Wait.Until(() => runner.State == DeviceState.Ready);
+            runner.Submit([new Vector3(1, 0, 0), new Vector3(1, 0, 0)]);
+            Wait.Until(() => !driver.Frames.IsEmpty);
+
+            runner.SetEnabled(false, TimeSpan.FromSeconds(30));
+            Wait.Until(() => driver.Frames.Count == 2);
+            Assert.Equal(new byte[6], driver.Frames.Last());
+
+            runner.SetEnabled(true);
+            runner.Submit([new Vector3(0, 1, 0), new Vector3(0, 1, 0)]);
+            Wait.Until(() => driver.Frames.Count == 3);
+            Assert.Equal(new byte[] { 0, 255, 0, 0, 255, 0 }, driver.Frames.Last());
+            Assert.Equal(DeviceState.Ready, runner.State);
+            Assert.Equal((1, 0), (driver.Opens, driver.Closes));
+
+            // without a delay it closes at once, also while waiting for one
+            runner.SetEnabled(false, TimeSpan.FromSeconds(30));
+            runner.SetEnabled(false);
+            Wait.Until(() => runner.State == DeviceState.Off);
+            Assert.Equal(1, driver.Closes);
+        }
+    }
+
+    [Fact]
+    public void Runner_SwitchedOffWithADelay_ClosesOnceTheDelayIsOver()
+    {
+        var driver = new FakeDriver(s_fastRetry);
+        var (runner, states) = Create(driver);
+        using (runner)
+        {
+            runner.SetEnabled(true);
+            Wait.Until(() => runner.State == DeviceState.Ready);
+            runner.SetEnabled(false, TimeSpan.FromMilliseconds(100));
+            Assert.Equal(DeviceState.Ready, runner.State);
+
+            // a second switch-off with a delay doesn't move the end of the first one
+            runner.SetEnabled(false, TimeSpan.FromMinutes(5));
+            Wait.Until(() => runner.State == DeviceState.Off);
+        }
+
+        Assert.Equal(1, driver.Closes);
+        Assert.Equal([DeviceState.Opening, DeviceState.Ready, DeviceState.Closing, DeviceState.Off], states);
+    }
+
+    [Fact]
     public void Runner_SendsFramesInTheControllerOrderAndBlackBeforeClosing()
     {
         var driver = new FakeDriver(s_fastRetry);

@@ -91,6 +91,7 @@ public sealed partial class DeviceManager : IDisposable
             var old = _slots;
             var reusable = old.Where(s => s.Runner is not null).ToList();
             var slots = new Slot[controllers.Count];
+            var created = new List<LedDeviceRunner>();
             var start = 0;
             for (var i = 0; i < controllers.Count; i++)
             {
@@ -99,12 +100,17 @@ public sealed partial class DeviceManager : IDisposable
                 var kept = reusable.FindIndex(s => s.Key == key);
                 if (kept >= 0)
                 {
+                    // already switched as the others are: switching it again would end a delayed switch-off at once
                     slots[i] = reusable[kept].MovedTo(start);
                     reusable.RemoveAt(kept);
                 }
                 else
                 {
                     slots[i] = Create(controller, key, start);
+                    if (slots[i].Runner is { } runner)
+                    {
+                        created.Add(runner);
+                    }
                 }
 
                 start += Math.Max(0, controller.LedCount);
@@ -116,22 +122,22 @@ public sealed partial class DeviceManager : IDisposable
                 slot.Runner!.Dispose();
             }
 
-            foreach (var slot in slots)
+            foreach (var runner in created)
             {
-                slot.Runner?.SetEnabled(_enabled);
+                runner.SetEnabled(_enabled);
             }
         }
     }
 
-    /// <summary>Switches every controller on or off.</summary>
-    public void SetEnabled(bool enabled)
+    /// <summary>Switches every controller on or off (after <paramref name="offDelay"/>, see <see cref="LedDeviceRunner.SetEnabled"/>).</summary>
+    public void SetEnabled(bool enabled, TimeSpan offDelay = default)
     {
         lock (_lock)
         {
             _enabled = enabled;
             foreach (var slot in _slots)
             {
-                slot.Runner?.SetEnabled(enabled);
+                slot.Runner?.SetEnabled(enabled, offDelay);
             }
         }
     }

@@ -79,7 +79,7 @@ public sealed partial class HomeAssistantDriver : ILedDriver
         _logger = context.LoggerFactory.CreateLogger<HomeAssistantDriver>();
         _currentBrightness = [.. options.Lamps.Select(_ => options.ConstantBrightness)];
         _saved = new SavedState?[options.Lamps.Count];
-        RetryPolicy = new RetryPolicy(Math.Max(0, options.MaxRetry), TimeSpan.FromSeconds(5));
+        RetryPolicy = new RetryPolicy(Math.Max(0, options.MaxRetry), TimeSpan.FromSeconds(5), RetryPolicy.KeepTrying);
     }
 
     public static DriverDescriptor Descriptor { get; } = new(

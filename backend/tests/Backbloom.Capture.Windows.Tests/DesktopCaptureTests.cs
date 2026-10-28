@@ -163,7 +163,8 @@ public sealed class DesktopCaptureTests : IDisposable
     [Fact]
     public void UnknownMonitor_IsRetriedWithoutFrames()
     {
-        using var source = CreateSource(new CaptureSettings { Device = @"\\.\DISPLAY999|nothing" });
+        // an unknown adapter: an unknown single monitor would be the only connected one here (MonitorSelectionTests)
+        using var source = CreateSource(new CaptureSettings { Device = "MULTI-MONITOR|nothing" });
         // Start timing before the cancellation timer so a slow start can't shorten the measured wait.
         var watch = Stopwatch.StartNew();
         using var cancel = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));

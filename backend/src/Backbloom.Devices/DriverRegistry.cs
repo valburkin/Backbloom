@@ -20,6 +20,7 @@ public sealed class DriverContext(
     Func<string, CancellationToken, ValueTask<IPAddress>>? resolveHost = null)
 {
     private DiscoveryServices? _discovery;
+    private Func<string, CancellationToken, ValueTask<IPAddress>>? _resolveHost = resolveHost;
 
     public ILoggerFactory LoggerFactory { get; } = loggerFactory;
 
@@ -34,7 +35,9 @@ public sealed class DriverContext(
 
     public Func<IDatagramChannel> CreateDatagramChannel { get; } = createDatagramChannel ?? (() => new UdpDatagramChannel());
 
-    public Func<string, CancellationToken, ValueTask<IPAddress>> ResolveHost { get; } = resolveHost ?? ResolveWithDns;
+    /// <summary>Finds a host's address (by default a <see cref="HostResolver"/>: the system, then mDNS, then the last address).</summary>
+    public Func<string, CancellationToken, ValueTask<IPAddress>> ResolveHost =>
+        LazyInitializer.EnsureInitialized(ref _resolveHost, () => new HostResolver(() => Discovery.Mdns, LoggerFactory.CreateLogger<HostResolver>()).ResolveAsync);
 
     public ISerialPortFactory SerialPorts { get; init; } = new SystemSerialPortFactory();
 
@@ -55,19 +58,6 @@ public sealed class DriverContext(
             new HidEnumerator(),
             new UdpProbe());
         init => _discovery = value;
-    }
-
-    private static async ValueTask<IPAddress> ResolveWithDns(string host, CancellationToken cancellationToken)
-    {
-        if (IPAddress.TryParse(host, out var address))
-        {
-            return address;
-        }
-
-        var addresses = await Dns.GetHostAddressesAsync(host, cancellationToken);
-        return addresses.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork) ??
-            addresses.FirstOrDefault() ??
-            throw new SocketException((int)SocketError.HostNotFound);
     }
 }
 

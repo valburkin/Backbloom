@@ -27,6 +27,12 @@ public interface IMdnsBrowser
     /// <paramref name="wait"/>, every instance known with its host and address. Passive: it only queries and listens.
     /// </summary>
     Task<IReadOnlyList<MdnsServiceInstance>> BrowseAsync(string serviceType, TimeSpan wait, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Asks the network for the IPv4 address of <paramref name="hostName"/> (an A query, e.g. "wled-desk.local") and
+    /// returns it as soon as it is known, or null when nothing answered within <paramref name="wait"/>.
+    /// </summary>
+    Task<IPAddress?> ResolveAsync(string hostName, TimeSpan wait, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -47,6 +53,8 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
 
     private const uint HostTtl = 120;
     private const uint ServiceTtl = 4500;
+
+    private static readonly TimeSpan s_resolvePoll = TimeSpan.FromMilliseconds(50);
 
     private readonly Func<IMdnsTransport> _responderFactory;
     private readonly Func<IMdnsTransport> _queryFactory;
@@ -116,6 +124,40 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
         }
 
         return found;
+    }
+
+    public async Task<IPAddress?> ResolveAsync(string hostName, TimeSpan wait, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(hostName);
+        var name = Fqdn(hostName);
+        using var transport = _queryFactory();
+        transport.Start(Handle);
+        var query = DnsMessage.Query(new DnsQuestion(name, DnsType.A, UnicastResponse: true)).Encode();
+        var started = _time.GetTimestamp();
+        var resent = false;
+        transport.SendMulticast(query);
+        while (true)
+        {
+            if (KnownHost(name) is { } address)
+            {
+                return address;
+            }
+
+            var elapsed = _time.GetElapsedTime(started);
+            if (elapsed >= wait)
+            {
+                return null;
+            }
+
+            if (!resent && elapsed >= wait / 2)
+            {
+                // as for browsing: an answer can get lost, ask once more halfway
+                resent = true;
+                transport.SendMulticast(query);
+            }
+
+            await Task.Delay(s_resolvePoll < wait - elapsed ? s_resolvePoll : wait - elapsed, _time, cancellationToken);
+        }
     }
 
     /// <summary>True while a service is advertised (the responder listens on port 5353).</summary>
@@ -218,6 +260,15 @@ public sealed partial class MdnsService : IMdnsBrowser, IDisposable
     }
 
     private static string Fqdn(string name) => name.EndsWith('.') ? name : name + ".";
+
+    private IPAddress? KnownHost(string name)
+    {
+        var now = _time.GetUtcNow();
+        lock (_lock)
+        {
+            return _hosts.TryGetValue(name, out var host) && host.Expires > now && !_isOwnAddress(host.Address) ? host.Address : null;
+        }
+    }
 
     private static bool IsOwnAddress(IPAddress address) =>
         IPAddress.IsLoopback(address) || LocalNetwork.Addresses().Any(a => a.Address.Equals(address));

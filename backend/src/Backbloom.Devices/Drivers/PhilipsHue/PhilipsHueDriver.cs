@@ -107,7 +107,7 @@ public sealed partial class PhilipsHueDriver : IFloatColorDriver
         _time = context.Time;
         _logger = context.LoggerFactory.CreateLogger<PhilipsHueDriver>();
         _entertainment = WantsEntertainment(options);
-        RetryPolicy = new RetryPolicy(Math.Max(0, options.MaxRetry), TimeSpan.FromSeconds(2));
+        RetryPolicy = new RetryPolicy(Math.Max(0, options.MaxRetry), TimeSpan.FromSeconds(2), RetryPolicy.KeepTrying);
     }
 
     public static DriverDescriptor Descriptor { get; } = new(

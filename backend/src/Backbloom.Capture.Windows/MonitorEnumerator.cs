@@ -10,6 +10,19 @@ namespace Backbloom.Capture.Windows;
 /// <summary>A monitor and where DXGI finds it (adapter and output index at enumeration time).</summary>
 internal readonly record struct OutputLocation(uint Adapter, uint Output, MonitorInfo Info, bool Primary);
 
+/// <summary>How <see cref="MonitorEnumerator.SelectFor"/> found the monitors.</summary>
+internal enum MonitorMatch
+{
+    /// <summary>As the setting says (or nothing found).</summary>
+    Setting,
+
+    /// <summary>The monitor the setting captured before, under a new GDI name.</summary>
+    Renamed,
+
+    /// <summary>The setting names no connected monitor; the only connected one is used.</summary>
+    OnlyMonitor,
+}
+
 /// <summary>
 /// Lists the monitors attached to the desktop (port of DxGrabber::enumerateDevices), with the EDID name and the
 /// stable device path from the display configuration API.
@@ -105,6 +118,49 @@ internal static unsafe class MonitorEnumerator
 
         return [.. outputs.Where(o => o.Info.Matches(device)).Take(1)];
     }
+
+    /// <summary>
+    /// <see cref="Select"/>, except that a setting naming one monitor still finds it when Windows gave it another GDI
+    /// name (it renumbers them after a driver update or a reconnect, and HyperHDR's ids hold that name): first by
+    /// <paramref name="lastPath"/>, the device path of the monitor this setting captured before (also when another
+    /// monitor took over the old name). When nothing matches and only one monitor is connected, that one, but only
+    /// while the setting's monitor isn't known yet: a known one that is away (a TV switched off) is waited for rather
+    /// than replaced by the remaining screen.
+    /// </summary>
+    public static List<OutputLocation> SelectFor(IReadOnlyList<OutputLocation> outputs, string device, string? lastPath, out MonitorMatch match)
+    {
+        match = MonitorMatch.Setting;
+        var single = !string.Equals(device, CaptureSettings.AutoDevice, StringComparison.OrdinalIgnoreCase) &&
+            !device.StartsWith(MultiMonitorPrefix, StringComparison.OrdinalIgnoreCase);
+        var known = single && !string.IsNullOrEmpty(lastPath);
+        if (known)
+        {
+            foreach (var o in outputs)
+            {
+                if (string.Equals(o.Info.DevicePath, lastPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    match = o.Info.Matches(device) ? MonitorMatch.Setting : MonitorMatch.Renamed;
+                    return [o];
+                }
+            }
+        }
+
+        var selected = Select(outputs, device);
+        if (selected.Count == 0 && single && !known && outputs.Count == 1)
+        {
+            match = MonitorMatch.OnlyMonitor;
+            return [outputs[0]];
+        }
+
+        return selected;
+    }
+
+    /// <summary>
+    /// The device path <see cref="SelectFor"/> is to get as <c>lastPath</c> next time: the one monitor the setting
+    /// selected itself or under a new name, not one only taken because it was the only one (null otherwise).
+    /// </summary>
+    public static string? PathToRemember(List<OutputLocation> selected, MonitorMatch match) =>
+        match != MonitorMatch.OnlyMonitor && selected is [var one] && one.Info.DevicePath.Length > 0 ? one.Info.DevicePath : null;
 
     /// <summary>Multi-monitor ids for adapters with more than one monitor.</summary>
     public static IEnumerable<string> MultiMonitorIds(IReadOnlyList<OutputLocation> outputs) =>
