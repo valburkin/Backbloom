@@ -14,12 +14,13 @@
       "title": "edt_dev_spec_printTimeStamp_title",
       "default": true,
       "required": true,
+      "access": "advanced",
       "propertyOrder": 2
     },
     "infiniteColorEngine": {
       "type": "boolean",
       "format": "checkbox",
-      "title": "edt_conf_color_channelAdjustment_header_title",
+      "title": "edt_dev_spec_highPrecision_title",
       "default": false,
       "required": true,
       "options": {
@@ -27,6 +28,7 @@
           "enable_ice_rgbw": false
         }
       },
+      "access": "advanced",
       "propertyOrder": 3
     },
     "enable_ice_rgbw": {
@@ -35,6 +37,7 @@
       "title": "edt_enable_ice_rgbw",
       "required": true,
       "default": false,
+      "access": "advanced",
       "propertyOrder": 4
     },
     "ice_white_mixer_threshold": {
@@ -51,6 +54,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 5
     },
     "ice_white_led_intensity": {
@@ -67,6 +71,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 6
     },
     "ice_white_temperatur_red": {
@@ -83,6 +88,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 7
     },
     "ice_white_temperatur_green": {
@@ -99,6 +105,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 8
     },
     "ice_white_temperatur_blue": {
@@ -115,6 +122,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 9
     }
   },

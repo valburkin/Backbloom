@@ -23,7 +23,7 @@ public sealed record CaptureSettings
     /// <summary>Maximum width of the delivered frame (<c>videoMode</c>); the screen is scaled down by a whole factor.</summary>
     public int MaxWidth { get; init; } = 512;
 
-    public int FramesPerSecond { get; init; } = 20;
+    public int FramesPerSecond { get; init; } = 30;
 
     /// <summary>When the HDR to SDR lookup table is applied to 8-bit captures (see <see cref="Hdr.ToneMapping.AppliesLut"/>).</summary>
     public ToneMappingMode ToneMapping { get; init; }
@@ -32,8 +32,15 @@ public sealed record CaptureSettings
     public bool Hardware { get; init; } = true;
 
     /// <summary>
-    /// SDR white level of an HDR desktop (Windows' "SDR content brightness"); 0 disables the HDR capture path so the
-    /// desktop is captured as 8-bit SDR, converted by Windows.
+    /// Take the SDR white level of an HDR desktop from Windows ("SDR content brightness" of the monitor, read when the
+    /// capture starts and watched while it runs) instead of <see cref="MonitorNits"/> (<c>monitor_nits_auto</c>, a
+    /// Backbloom addition). Where Windows doesn't report one, <see cref="MonitorNits"/> applies.
+    /// </summary>
+    public bool MonitorNitsAuto { get; init; } = true;
+
+    /// <summary>
+    /// SDR white level of an HDR desktop set by hand (Windows' "SDR content brightness" in nits); 0 disables the HDR
+    /// capture path so the desktop is captured as 8-bit SDR, converted by Windows.
     /// </summary>
     public int MonitorNits { get; init; } = 200;
 
@@ -41,6 +48,12 @@ public sealed record CaptureSettings
     public int ReorderDisplays { get; init; }
 
     public CropMargins Crop { get; init; }
+
+    /// <summary>
+    /// The SDR white level an HDR desktop is converted with: Windows' level (<paramref name="windowsNits"/>, 0 when
+    /// unknown) with <see cref="MonitorNitsAuto"/>, else <see cref="MonitorNits"/>. 0 means no HDR capture.
+    /// </summary>
+    public int SdrWhiteNits(int windowsNits) => MonitorNitsAuto && windowsNits > 0 ? windowsNits : MonitorNits;
 
     /// <summary>Reads the section; missing or mistyped values keep their defaults (the store validates them).</summary>
     public static CaptureSettings FromJson(JsonNode? section)
@@ -54,6 +67,7 @@ public sealed record CaptureSettings
             FramesPerSecond = Math.Clamp(GetInt(o, "fps", defaults.FramesPerSecond), 1, 240),
             ToneMapping = Hdr.ToneMapping.Parse(GetString(o, "hdrToneMapping")),
             Hardware = GetBool(o, "hardware", defaults.Hardware),
+            MonitorNitsAuto = GetBool(o, "monitor_nits_auto", defaults.MonitorNitsAuto),
             MonitorNits = Math.Max(0, GetInt(o, "monitor_nits", defaults.MonitorNits)),
             ReorderDisplays = Math.Max(0, GetInt(o, "reorder_displays", 0)),
             Crop = new CropMargins(

@@ -36,6 +36,7 @@
         ]
       },
       "required": true,
+      "access": "advanced",
       "propertyOrder": 2
     },
     "refreshTime": {
@@ -46,8 +47,8 @@
       "default": 0,
       "append": "edt_append_ms",
       "minimum": 0,
-      "access": "expert",
       "required": true,
+      "access": "expert",
       "propertyOrder": 3
     }
   },

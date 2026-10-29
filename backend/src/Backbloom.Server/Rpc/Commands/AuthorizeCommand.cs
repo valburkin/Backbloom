@@ -176,7 +176,7 @@ public sealed class AuthorizeCommand(AuthService auth) : IRpcCommand
                 context.Reply(new JsonObject { ["token"] = auth.UserToken });
                 break;
             case LoginResult.Blocked:
-                context.Fail("Too many login attempts detected. Please wait a minute and try again.");
+                context.Fail("Too many attempts. Wait a minute and try again.");
                 break;
             default:
                 context.Fail("No Authorization");

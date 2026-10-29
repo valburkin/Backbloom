@@ -25,7 +25,7 @@
       "type": "integer",
       "format": "stepper",
       "title": "edt_conf_stream_framerate_title",
-      "default": 20,
+      "default": 30,
       "minimum": 5,
       "maximum": 120,
       "append": "fps",
@@ -58,6 +58,19 @@
       "default": true,
       "required": true,
       "propertyOrder": 24
+    },
+    "monitor_nits_auto": {
+      "type": "boolean",
+      "format": "checkbox",
+      "title": "edt_conf_monitor_nits_auto_title",
+      "default": true,
+      "required": true,
+      "options": {
+        "dependencies": {
+          "hardware": true
+        }
+      },
+      "propertyOrder": 25
     },
     "monitor_nits": {
       "type": "integer",

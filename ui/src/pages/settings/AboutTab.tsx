@@ -68,7 +68,7 @@ export function AboutTab() {
           <Row label="Version">{o?.version ?? '—'}</Row>
           <Row label="Build">{o?.build?.trim() || '—'}</Row>
           <Row label="Built on">{o?.time ?? '—'}</Row>
-          <Row label="Computer">{s?.hostName ?? '—'}</Row>
+          <Row label="PC">{s?.hostName ?? '—'}</Row>
           <Row label="System">{[s?.prettyName, s?.architecture].filter(Boolean).join(' · ') || '—'}</Row>
           <Row label="Kernel">{[s?.kernelType, s?.kernelVersion].filter(Boolean).join(' ') || '—'}</Row>
           <Row label="Runtime">{s?.runtimeVersion ?? '—'}</Row>

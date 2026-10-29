@@ -4,11 +4,11 @@
   "properties": {
     "hardwareLedCount": {
       "type": "integer",
-      "title": "edt_dev_general_hardwareLedCount_title",
+      "title": "edt_dev_spec_panelCount_title",
       "minimum": 1,
       "default": 1,
-      "access": "expert",
       "required": true,
+      "access": "expert",
       "propertyOrder": 1
     },
     "host": {

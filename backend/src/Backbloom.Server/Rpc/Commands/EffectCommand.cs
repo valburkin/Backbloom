@@ -46,7 +46,7 @@ public sealed class EffectCommand(LightingEngine engine) : IRpcCommand
                     context.Reply();
                     break;
                 case EffectStart.NoSound:
-                    context.Fail("Turn on sound capture to use music effects");
+                    context.Fail("Music needs sound input, which is off.");
                     break;
                 default:
                     context.Fail($"Effect '{name}' not found");

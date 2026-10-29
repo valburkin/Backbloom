@@ -115,11 +115,11 @@ public sealed class ImporterTests : IDisposable
         using (var services = OpenServices(legacy))
         {
             Assert.Equal(168, services.Store.GetSection("leds")!.AsArray().Count);
-            Assert.True(services.Store.Update(TestSchema.Parse("""{ "logger": { "level": "warn" } }""")).Success);
+            Assert.True(services.Store.Update(TestSchema.Parse("""{ "logger": { "level": "silent" } }""")).Success);
         }
 
         using var reopened = OpenServices(legacy);
-        Assert.Equal("warn", reopened.Store.GetSection("logger")!["level"]!.GetValue<string>());
+        Assert.Equal("silent", reopened.Store.GetSection("logger")!["level"]!.GetValue<string>());
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public sealed class ImporterTests : IDisposable
         Assert.Equal("file", controllers[1].Device["type"]!.GetValue<string>());
         Assert.Equal("shelf.txt", controllers[2].Device["output"]!.GetValue<string>());
         Assert.Equal(2, services.Store.GetSection("leds")!.AsArray().Count);
-        Assert.Equal(150, services.Store.GetSection("smoothing")!["time_ms"]!.GetValue<int>());
+        Assert.Equal(350, services.Store.GetSection("smoothing")!["time_ms"]!.GetValue<int>());
         Assert.Contains(outcome.Result.Changes, c => c.StartsWith("Instance 'Desk' became LED controller 1; its own leds, smoothing settings were not imported", StringComparison.Ordinal));
         Assert.Contains(outcome.Result.Changes, c => c.StartsWith("Instance 'Desk': The LED device type 'philipshue'", StringComparison.Ordinal));
     }
@@ -215,7 +215,7 @@ public sealed class ImporterTests : IDisposable
 
         Assert.True(outcome.Stored.Success);
         Assert.Equal(5000, services.Store.GetSection("smoothing")!["time_ms"]!.GetValue<int>());
-        Assert.Equal("debug", services.Store.GetSection("logger")!["level"]!.GetValue<string>());
+        Assert.Equal("warn", services.Store.GetSection("logger")!["level"]!.GetValue<string>());
         Assert.Contains("Fixed smoothing.time_ms: was above 5000; set to 5000", outcome.Result.Changes);
         Assert.Contains("The 'color' settings couldn't be read (not valid JSON); defaults are used", outcome.Result.Changes);
         Assert.Contains("Removed the 'grabberV4L2' settings: the feature is not part of this version", outcome.Result.Changes);

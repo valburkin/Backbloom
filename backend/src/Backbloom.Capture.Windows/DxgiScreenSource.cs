@@ -29,6 +29,7 @@ public readonly record struct CaptureStatistics(long Frames, long NewImages, Tim
 public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
 {
     private static readonly long s_statisticsInterval = Stopwatch.Frequency * 10;
+    private static readonly long s_sdrWhiteCheckInterval = Stopwatch.Frequency * 2;
 
     private readonly LutProvider _lutProvider;
     private readonly ILogger _logger;
@@ -50,6 +51,7 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
     private (int Width, int Height) _frameSize = (1, 1);
     private Frame? _clearedFrame;
     private long _retryAt;
+    private long _sdrWhiteCheckAt;
     private bool _needsLut;
     private string? _lastProblem;
     private bool _disposed;
@@ -128,6 +130,12 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
             {
                 return false;
             }
+        }
+        else if (SdrWhiteLevelChanged(settings))
+        {
+            // Windows' "SDR content brightness" moved: reopen, so the HDR conversion uses the new level.
+            Teardown();
+            return false;
         }
 
         if (!_pacer.WaitNext(cancellationToken))
@@ -315,7 +323,7 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
             {
                 var pipeline = d.UsesGpu ? "GPU" : "CPU";
                 var format = d.Format.ToString();
-                LogDisplay(d.Monitor.Id, d.Monitor.FriendlyName, d.Monitor.DevicePath, d.Monitor.Hdr, format, d.WideGamut, d.AppliesLut, settings.ToneMapping, pipeline, d.Region.Width, d.Region.Height, d.Region.Divide);
+                LogDisplay(d.Monitor.Id, d.Monitor.FriendlyName, d.Monitor.DevicePath, d.Monitor.Hdr, d.WindowsSdrWhiteNits, format, d.WideGamut, d.SdrWhiteNits, d.AppliesLut, settings.ToneMapping, pipeline, d.Region.Width, d.Region.Height, d.Region.Divide);
                 if (d.IsRotated)
                 {
                     LogRotated(d.Monitor.Id, d.Rotation.ToString());
@@ -334,6 +342,37 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
                 ? Retry(TimeSpan.FromSeconds(1), "the desktop is not accessible (lock screen or UAC prompt)")
                 : Retry(TimeSpan.FromSeconds(5), ex.Message);
         }
+    }
+
+    /// <summary>
+    /// With the automatic SDR white level, whether Windows' level of a monitor captured in HDR differs from the one its
+    /// capture was opened with. Asks Windows at most every two seconds (it doesn't end the duplication when only the
+    /// brightness changes); doesn't allocate.
+    /// </summary>
+    private bool SdrWhiteLevelChanged(CaptureSettings settings)
+    {
+        if (!settings.MonitorNitsAuto)
+        {
+            return false;
+        }
+
+        var now = Stopwatch.GetTimestamp();
+        if (now < _sdrWhiteCheckAt)
+        {
+            return false;
+        }
+
+        _sdrWhiteCheckAt = now + s_sdrWhiteCheckInterval;
+        foreach (var d in _displays)
+        {
+            if (d.WideGamut && d.Target is { } target && MonitorEnumerator.ReadSdrWhiteNits(target) is var nits and > 0 && nits != d.WindowsSdrWhiteNits)
+            {
+                LogSdrWhiteChanged(d.Monitor.Id, d.WindowsSdrWhiteNits, nits);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool Retry(TimeSpan delay, string problem)
@@ -394,11 +433,13 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
         _frameSize = (width, height);
         _needsLut = _displays.Exists(d => d.AppliesLut);
         _device = selected.Count > 1 ? MonitorEnumerator.MultiMonitorPrefix + selected[0].Info.Adapter : selected[0].Info.Id;
+        _sdrWhiteCheckAt = Stopwatch.GetTimestamp() + s_sdrWhiteCheckInterval;
         SetHdrStatus(new CaptureHdrStatus(
             settings.ToneMapping,
             Capturing: true,
             MonitorHdr: _displays.Exists(d => d.Monitor.Hdr),
-            ToneMapped: _displays.Exists(d => d.WideGamut || d.AppliesLut)));
+            ToneMapped: _displays.Exists(d => d.WideGamut || d.AppliesLut),
+            SdrWhiteNits: _displays.Count == 0 ? 0 : _displays.Max(d => d.SdrWhiteNits)));
     }
 
     private void SetHdrStatus(CaptureHdrStatus status)
@@ -428,7 +469,7 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
                 throw new CaptureException("Opening " + location.Info.Id, DXGI.DXGI_ERROR_NOT_FOUND);
             }
 
-            return DisplayCapture.Open(_gpu!, output6, location.Info, settings);
+            return DisplayCapture.Open(_gpu!, output6, location, settings);
         }
         finally
         {
@@ -457,8 +498,8 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
     [LoggerMessage(Level = LogLevel.Information, Message = "Screen capture started: {Device}, {Width}x{Height} frames at up to {Fps} fps")]
     private partial void LogStarted(string device, int width, int height, int fps);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Monitor {Id} ({Name}, {Path}): Windows HDR {Hdr}, duplicated as {Format} (HDR conversion: {WideGamut}, tone mapping table: {Lut}, mode {Mode}), {Pipeline} path; area {Width}x{Height} scaled down by {Divide}")]
-    private partial void LogDisplay(string id, string name, string path, bool hdr, string format, bool wideGamut, bool lut, ToneMappingMode mode, string pipeline, int width, int height, int divide);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Monitor {Id} ({Name}, {Path}): Windows HDR {Hdr} (SDR content brightness {WindowsNits} nits), duplicated as {Format} (HDR conversion: {WideGamut} with SDR white {Nits} nits, tone mapping table: {Lut}, mode {Mode}), {Pipeline} path; area {Width}x{Height} scaled down by {Divide}")]
+    private partial void LogDisplay(string id, string name, string path, bool hdr, int windowsNits, string format, bool wideGamut, int nits, bool lut, ToneMappingMode mode, string pipeline, int width, int height, int divide);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Monitor '{Device}' isn't connected under that name; capturing {Id}, {Reason}")]
     private partial void LogFallback(string device, string id, string reason);
@@ -471,6 +512,9 @@ public sealed unsafe partial class DxgiScreenSource : IScreenCaptureSource
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Screen capture of {Id} was interrupted (display mode, HDR or desktop change; device status 0x{Reason:X8}); restarting")]
     private partial void LogLost(string id, int reason);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Windows' SDR content brightness of {Id} changed from {Old} to {New} nits; restarting the capture")]
+    private partial void LogSdrWhiteChanged(string id, int old, int @new);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Screen capture failed")]
     private partial void LogCaptureFailed(Exception exception);

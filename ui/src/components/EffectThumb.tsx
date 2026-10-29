@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { RpcApi } from '../api/rpcApi';
 import type { EffectPreviews } from '../api/types';
-import { buildLayoutView, standardFrameSpec, type LayoutView } from '../live/layoutView';
-import { LayoutLights, type LayoutLightsHandle } from './LayoutLights';
+import type { LayoutLightsHandle } from './LayoutLights';
 
 const cache = new Map<string, Promise<EffectPreviews | null>>();
 let cacheOwner: RpcApi | null = null;
@@ -43,21 +42,59 @@ function reducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-let standardView: LayoutView | null = null;
-function standardFrame(): LayoutView {
-  return (standardView ??= buildLayoutView(standardFrameSpec()));
-}
+/**
+ * The LEDs in their order as one strip of light: each LED one pixel of a small canvas that the browser stretches into
+ * a smooth band, over a blurred copy for the glow. Compact enough for a dense grid, and the same for every layout.
+ */
+const StripLights = forwardRef<LayoutLightsHandle>(function StripLights(_, ref) {
+  const strip = useRef<HTMLCanvasElement>(null);
+  const glow = useRef<HTMLCanvasElement>(null);
+  const image = useRef<ImageData | null>(null);
+  useImperativeHandle(
+    ref,
+    () => ({
+      paint(colors, offset = 0, count = 0) {
+        const canvas = strip.current;
+        const ctx = canvas?.getContext('2d');
+        if (!canvas || !ctx || !colors || count <= 0) return;
+        if (canvas.width !== count) canvas.width = count;
+        if (glow.current && glow.current.width !== count) glow.current.width = count;
+        if (!image.current || image.current.width !== count) image.current = ctx.createImageData(count, 1);
+        const px = image.current.data;
+        for (let i = 0; i < count; i++) {
+          const s = offset + i * 3;
+          px[i * 4] = colors[s] ?? 0;
+          px[i * 4 + 1] = colors[s + 1] ?? 0;
+          px[i * 4 + 2] = colors[s + 2] ?? 0;
+          px[i * 4 + 3] = 255;
+        }
+        ctx.putImageData(image.current, 0, 0);
+        const g = glow.current?.getContext('2d');
+        if (g) {
+          g.clearRect(0, 0, count, 1);
+          g.drawImage(canvas, 0, 0);
+        }
+      },
+    }),
+    [],
+  );
+  return (
+    <div className="relative h-12 w-full overflow-hidden rounded-lg bg-[#07080c]" aria-hidden>
+      <canvas ref={glow} width={1} height={1} className="absolute inset-x-1 inset-y-2 h-[calc(100%-1rem)] w-[calc(100%-0.5rem)] opacity-80 blur-md saturate-150" />
+      <canvas ref={strip} width={1} height={1} className="absolute inset-x-3 top-1/2 h-1.5 w-[calc(100%-1.5rem)] -translate-y-1/2 rounded-full" />
+    </div>
+  );
+});
 
 /**
- * The effect's preview looping on the user's LEDs (see LayoutLights). The preview is fetched when the thumbnail comes
+ * The effect's preview looping as a strip of light (see StripLights). The preview is fetched when the thumbnail comes
  * into view; it animates only while visible, and with reduced motion it shows one still frame.
  */
-export function EffectThumb({ api, name, view, layoutKey }: { api: RpcApi; name: string; view: LayoutView | null; layoutKey: string }) {
+export function EffectThumb({ api, name, layoutKey }: { api: RpcApi; name: string; layoutKey: string }) {
   const box = useRef<HTMLDivElement>(null);
   const lights = useRef<LayoutLightsHandle>(null);
   const [visible, setVisible] = useState(false);
   const [preview, setPreview] = useState<EffectPreviews | null | undefined>(undefined);
-  const shown = preview?.standard ? standardFrame() : view;
   const frames = preview?.frames.get(name);
 
   useEffect(() => {
@@ -83,7 +120,7 @@ export function EffectThumb({ api, name, view, layoutKey }: { api: RpcApi; name:
   }, [api, layoutKey, name, visible]);
 
   useEffect(() => {
-    if (!preview || !frames || !shown) return;
+    if (!preview || !frames) return;
     const size = preview.ledCount * 3;
     const count = size ? Math.floor(frames.length / size) : 0;
     if (!count) return;
@@ -103,15 +140,15 @@ export function EffectThumb({ api, name, view, layoutKey }: { api: RpcApi; name:
     };
     step(performance.now());
     return visible ? animate(step) : undefined;
-  }, [preview, frames, shown, visible]);
+  }, [preview, frames, visible]);
 
   return (
     <div ref={box}>
-      {shown && frames ? (
-        <LayoutLights ref={lights} view={shown} />
+      {frames ? (
+        <StripLights ref={lights} />
       ) : (
-        <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-[#07080c]" aria-hidden>
-          <div className={`absolute inset-[18%] rounded-[3px] bg-[#0d1017] ${preview === undefined ? 'animate-pulse' : ''}`} />
+        <div className="relative h-12 w-full overflow-hidden rounded-lg bg-[#07080c]" aria-hidden>
+          <div className={`absolute inset-x-3 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-[#1c2130] ${preview === undefined ? 'motion-safe:animate-pulse' : ''}`} />
         </div>
       )}
     </div>

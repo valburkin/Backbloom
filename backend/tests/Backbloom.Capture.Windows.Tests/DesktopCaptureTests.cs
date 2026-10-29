@@ -40,6 +40,9 @@ public sealed class DesktopCaptureTests : IDisposable
             Assert.NotEmpty(o.Info.FriendlyName);
             Assert.True(o.Info.Width > 0 && o.Info.Height > 0);
         });
+        // Windows reports an SDR white level for monitors in HDR mode (80 nits and up; SDR monitors may report one too).
+        Assert.All(outputs.Where(o => o.Info.Hdr), o => Assert.InRange(o.SdrWhiteNits, 80, 10000));
+        Assert.All(outputs, o => Assert.Equal(o.SdrWhiteNits, o.Target is { } t ? MonitorEnumerator.ReadSdrWhiteNits(t) : 0));
         Assert.Single(MonitorEnumerator.Select(outputs, CaptureSettings.AutoDevice));
         Assert.Equal(outputs[0].Info, MonitorEnumerator.Select(outputs, outputs[0].Info.Id.ToUpperInvariant()).Single().Info);
         if (outputs[0].Info.DevicePath.Length > 0)
@@ -57,12 +60,13 @@ public sealed class DesktopCaptureTests : IDisposable
     /// creates it lazily on its first wait (56 bytes, 280 when it is the first wait handle after a collection).
     /// </summary>
     [Theory]
+    [InlineData(true, 200, false, true)]
     [InlineData(true, 200, false)]
     [InlineData(true, 0, false)]
     [InlineData(true, 0, true)]
     [InlineData(false, 200, false)]
     [InlineData(false, 200, true)]
-    public void Captures_ScaledFrames_WithoutAllocatingPerFrame(bool hardware, int monitorNits, bool toneMapping)
+    public void Captures_ScaledFrames_WithoutAllocatingPerFrame(bool hardware, int monitorNits, bool toneMapping, bool autoSdrWhite = false)
     {
         RequireFrames();
         var lut = new LutProvider(new LutLocations([_dataDir], _dataDir), NullLogger<LutProvider>.Instance);
@@ -71,7 +75,7 @@ public sealed class DesktopCaptureTests : IDisposable
             Assert.NotNull(lut.Get());
         }
 
-        var settings = new CaptureSettings { Device = s_device, Hardware = hardware, MonitorNits = monitorNits, ToneMapping = toneMapping ? ToneMappingMode.On : ToneMappingMode.Off, FramesPerSecond = 120, MaxWidth = 512 };
+        var settings = new CaptureSettings { Device = s_device, Hardware = hardware, MonitorNitsAuto = autoSdrWhite, MonitorNits = monitorNits, ToneMapping = toneMapping ? ToneMappingMode.On : ToneMappingMode.Off, FramesPerSecond = 120, MaxWidth = 512 };
         using var source = new DxgiScreenSource(settings, lut, _log);
         var frame = new Frame(1, 1);
         using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -136,10 +140,12 @@ public sealed class DesktopCaptureTests : IDisposable
 
         Assert.True(CaptureFrames(source, new Frame(1, 1), 3) > 0, _log.ToString());
 
-        var hdr = MonitorEnumerator.Select(MonitorEnumerator.Enumerate(), s_device).Single().Info.Hdr;
-        // An HDR monitor is captured in HDR (hardware on, 200 nits) and converted by the shader in every mode;
-        // an SDR monitor gets the table only when it is forced on.
-        var expected = new CaptureHdrStatus(mode, Capturing: true, MonitorHdr: hdr, ToneMapped: hdr || mode == ToneMappingMode.On);
+        var monitor = MonitorEnumerator.Select(MonitorEnumerator.Enumerate(), s_device).Single();
+        var hdr = monitor.Info.Hdr;
+        // An HDR monitor is captured in HDR (hardware on, Windows' SDR white level or 200 nits) and converted by the
+        // shader in every mode; an SDR monitor gets the table only when it is forced on.
+        var sdrWhite = hdr ? (monitor.SdrWhiteNits > 0 ? monitor.SdrWhiteNits : 200) : 0;
+        var expected = new CaptureHdrStatus(mode, Capturing: true, MonitorHdr: hdr, ToneMapped: hdr || mode == ToneMappingMode.On, sdrWhite);
         Assert.Equal(expected, source.HdrStatus);
         Assert.Equal([expected], changes);
         Assert.Equal(mode == ToneMappingMode.On && !hdr, source.DescribeDisplays().Single().Contains("+ LUT", StringComparison.Ordinal));
@@ -187,10 +193,10 @@ public sealed class DesktopCaptureTests : IDisposable
         Directory.CreateDirectory(dir!);
         var variants = new (string Name, CaptureSettings Settings)[]
         {
-            ("gpu-hdr-200nits", new CaptureSettings { Device = s_device, MonitorNits = 200 }),
-            ("gpu-hdr-100nits", new CaptureSettings { Device = s_device, MonitorNits = 100 }),
-            ("gpu-sdr-windows", new CaptureSettings { Device = s_device, MonitorNits = 0 }),
-            ("gpu-sdr-lut", new CaptureSettings { Device = s_device, MonitorNits = 0, ToneMapping = ToneMappingMode.On }),
+            ("gpu-hdr-200nits", new CaptureSettings { Device = s_device, MonitorNitsAuto = false, MonitorNits = 200 }),
+            ("gpu-hdr-100nits", new CaptureSettings { Device = s_device, MonitorNitsAuto = false, MonitorNits = 100 }),
+            ("gpu-sdr-windows", new CaptureSettings { Device = s_device, MonitorNitsAuto = false, MonitorNits = 0 }),
+            ("gpu-sdr-lut", new CaptureSettings { Device = s_device, MonitorNitsAuto = false, MonitorNits = 0, ToneMapping = ToneMappingMode.On }),
             ("cpu-sdr-windows", new CaptureSettings { Device = s_device, Hardware = false }),
         };
         var lut = new LutProvider(new LutLocations([_dataDir], _dataDir), NullLogger<LutProvider>.Instance);

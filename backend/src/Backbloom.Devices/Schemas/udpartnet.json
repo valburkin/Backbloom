@@ -13,6 +13,7 @@
       "default": 6454,
       "minimum": 0,
       "maximum": 65535,
+      "access": "advanced",
       "propertyOrder": 2
     },
     "universe": {
@@ -25,6 +26,7 @@
       "type": "integer",
       "title": "edt_dev_spec_chanperfixture_title",
       "default": 3,
+      "access": "advanced",
       "propertyOrder": 4
     },
     "disableSplitting": {
@@ -32,6 +34,7 @@
       "format": "checkbox",
       "title": "edt_prevent_pixel_data_splitting_across_universes",
       "default": false,
+      "access": "advanced",
       "propertyOrder": 5
     },
     "enable_ice_rgbw": {
@@ -40,6 +43,7 @@
       "title": "edt_enable_ice_rgbw",
       "required": true,
       "default": false,
+      "access": "advanced",
       "propertyOrder": 6
     },
     "ice_white_mixer_threshold": {
@@ -56,6 +60,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 7
     },
     "ice_white_led_intensity": {
@@ -72,6 +77,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 8
     },
     "ice_white_temperatur_red": {
@@ -88,6 +94,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 9
     },
     "ice_white_temperatur_green": {
@@ -104,6 +111,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 10
     },
     "ice_white_temperatur_blue": {
@@ -120,6 +128,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 11
     }
   },

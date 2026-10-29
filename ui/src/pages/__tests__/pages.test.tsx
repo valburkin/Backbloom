@@ -30,10 +30,10 @@ describe('pages render without data', () => {
   const cases: Array<[string, ReactNode]> = [
     ['Home', <HomePage />],
     ['Devices', <DevicesPage />],
-    ['Screen capture', <CapturePage />],
+    ['Screen sync', <CapturePage />],
     ['Colors', <ColorsPage />],
     ['Effects & Music', <EffectsPage />],
-    ...['general', 'security', 'network', 'mqtt', 'logs', 'about'].map((t): [string, ReactNode] => [`Settings/${t}`, <SettingsPage tab={t} onTab={() => {}} />]),
+    ...['general', 'remote-access', 'integrations', 'support', 'about'].map((t): [string, ReactNode] => [`Settings/${t}`, <SettingsPage tab={t} onTab={() => {}} />]),
   ];
   it.each(cases)('%s', (name, page) => {
     const html = render(page);

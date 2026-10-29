@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { JsonSchema } from '../api/types';
 import { isRgb, type Rgb } from '../color/color';
-import { dependenciesMet, enumOptions, fieldHelp, fieldLabel, fieldsOf, fieldUnit, isObject, withDefaults, type FieldDef, type Issue } from '../schema/schema';
+import { useExpertTools } from '../app/expert';
+import { dependenciesMet, differsFromDefault, enumOptions, fieldHelp, fieldLabel, fieldsOf, fieldUnit, isObject, withDefaults, type FieldDef, type Issue } from '../schema/schema';
 import { ColorPicker } from './ColorPicker';
 import { Advanced, Input, NumberField, Select, Toggle } from './form';
 import { Button, IconButton } from './ui';
@@ -28,7 +29,7 @@ export interface SchemaFormProps {
   omit?: readonly string[];
   overrides?: Record<string, FieldOverride>;
   disabled?: boolean;
-  /** Put expert/advanced fields in a collapsed "Advanced" group (default true). */
+  /** Put advanced fields in a collapsed "More options" group and hide expert ones unless expert tools are on (default true). */
   collapseAdvanced?: boolean;
 }
 
@@ -39,10 +40,18 @@ function issuesBelow(issues: Issue[] | undefined, key: string): Issue[] {
 /**
  * Renders an object schema from the backend as a form: switches, selects, number fields with units, text,
  * color pickers, lists of values and lists of objects. Fields whose `options.dependencies` aren't met are
- * hidden; expert/advanced fields go into a collapsed group.
+ * hidden. Tiers (docs/ui-guidelines.md): advanced fields go into a collapsed "More options" group, expert fields are
+ * only shown with expert tools on (or while they have a problem or a non-default value, so nothing is hidden that matters).
  */
 export function SchemaForm({ schema, value, onChange, issues, omit = [], overrides = {}, disabled, collapseAdvanced = true }: SchemaFormProps) {
-  const fields = fieldsOf(schema).filter((f) => !omit.includes(f.key) && dependenciesMet(f.schema, value));
+  const expertTools = useExpertTools();
+  const errorAt = (key: string) => issues?.some((i) => i.path === key || i.path.startsWith(`${key}.`)) ?? false;
+  const fields = fieldsOf(schema).filter(
+    (f) =>
+      !omit.includes(f.key) &&
+      dependenciesMet(f.schema, value) &&
+      (!collapseAdvanced || f.tier !== 'expert' || expertTools || errorAt(f.key) || differsFromDefault(f.schema, value[f.key])),
+  );
   const set = (key: string, v: unknown) => onChange({ ...value, [key]: v });
   const render = (f: FieldDef) => (
     <SchemaField
@@ -56,13 +65,22 @@ export function SchemaForm({ schema, value, onChange, issues, omit = [], overrid
       disabled={disabled}
     />
   );
-  const basic = collapseAdvanced ? fields.filter((f) => !f.advanced) : fields;
-  const advanced = collapseAdvanced ? fields.filter((f) => f.advanced) : [];
+  const basic = collapseAdvanced ? fields.filter((f) => f.tier === 'basic') : fields;
+  const advanced = collapseAdvanced ? fields.filter((f) => f.tier !== 'basic') : [];
+  const changed = advanced.filter((f) => differsFromDefault(f.schema, value[f.key]));
   if (!fields.length) return <p className="text-[13px] text-ink-faint">Nothing to set up here.</p>;
   return (
     <div className="space-y-5">
       {basic.map(render)}
-      {advanced.length > 0 && <Advanced>{advanced.map(render)}</Advanced>}
+      {advanced.length > 0 && (
+        <Advanced
+          changed={changed.length}
+          invalid={advanced.some((f) => errorAt(f.key))}
+          onReset={disabled ? undefined : () => onChange({ ...value, ...Object.fromEntries(changed.map((f) => [f.key, withDefaults(f.schema, undefined)])) })}
+        >
+          {advanced.map(render)}
+        </Advanced>
+      )}
     </div>
   );
 }

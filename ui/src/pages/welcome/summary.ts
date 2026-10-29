@@ -1,6 +1,6 @@
 import type { BackendConfig, ServerInfo } from '../../api/types';
-import type { LayoutSpec } from '../../layout';
-import { driverName } from '../devices/drivers';
+import type { Controller, LayoutSpec } from '../../layout';
+import { addressOf, driverName, isTestDevice } from '../devices/drivers';
 
 /** One line of the welcome's "what Backbloom will drive" summary. */
 export interface SummaryRow {
@@ -48,8 +48,28 @@ function effectText(section: unknown, withDuration: boolean): string {
   return withDuration && ms > 0 ? `${name} (${Math.round(ms / 100) / 10} s)` : name;
 }
 
+/** A device in one line for people: "Desk (WLED at wled-desk.local)", or "WLED at wled-desk.local" when unnamed. */
+export function deviceLine(c: Controller): string {
+  const type = String(c.device?.type ?? c.kind);
+  const kind = driverName(type);
+  const address = addressOf(c);
+  const what = address ? `${kind} at ${address}` : kind;
+  return c.name && c.name !== kind && c.name !== 'LED controller' ? `${c.name} (${what})` : what;
+}
+
+/** What came over from HyperHDR, in a few plain lines for the setup's first step. */
+export function importedItems(controllers: readonly Controller[], ledCount: number): string[] {
+  const real = controllers.filter((c) => !isTestDevice(c));
+  const items: string[] = [];
+  if (real.length === 1) items.push(`Your device: ${deviceLine(real[0])}`);
+  else if (real.length > 1) items.push(`Your ${real.length} devices: ${real.map((c) => c.name).join(', ')}`);
+  if (ledCount > 0) items.push(`${ledCount} LED${ledCount === 1 ? '' : 's'} and where they are`);
+  items.push('Your screen sync, color and effect settings');
+  return items;
+}
+
 /**
- * What the lighting will do once started, from the imported (or default) settings: LEDs, controllers with their
+ * Technical details for expert tools: what the lighting will do once started, from the imported (or default) settings: LEDs, controllers with their
  * driver and address, the captured monitor and the startup / background effects.
  */
 export function welcomeSummary(config: BackendConfig | null, serverInfo: ServerInfo | null): SummaryRow[] {

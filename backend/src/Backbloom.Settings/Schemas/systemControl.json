@@ -3,14 +3,6 @@
   "required": true,
   "title": "edt_conf_instC_heading_title",
   "properties": {
-    "systemInstanceEnable": {
-      "type": "boolean",
-      "format": "checkbox",
-      "required": true,
-      "title": "edt_conf_instC_systemEnable_title",
-      "default": false,
-      "propertyOrder": 1
-    },
     "systemInstancePriority": {
       "type": "integer",
       "format": "stepper",
@@ -19,7 +11,8 @@
       "minimum": 100,
       "maximum": 253,
       "default": 245,
-      "propertyOrder": 2
+      "access": "expert",
+      "propertyOrder": 1
     }
   },
   "additionalProperties": false

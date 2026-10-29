@@ -13,6 +13,7 @@
       "default": 5568,
       "minimum": 0,
       "maximum": 65535,
+      "access": "advanced",
       "propertyOrder": 2
     },
     "universe": {
@@ -26,11 +27,13 @@
       "format": "checkbox",
       "title": "edt_prevent_pixel_data_splitting_across_universes",
       "default": false,
+      "access": "advanced",
       "propertyOrder": 4
     },
     "cid": {
       "type": "string",
       "title": "edt_dev_spec_cid_title",
+      "access": "expert",
       "propertyOrder": 5
     }
   },

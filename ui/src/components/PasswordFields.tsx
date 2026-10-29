@@ -9,7 +9,7 @@ const BARS: Record<PasswordStrength, { filled: number; tone: string }> = {
   strong: { filled: 3, tone: 'bg-ok' },
 };
 
-/** New password + confirmation with a strength hint (the remote access dialog and Settings → Security). */
+/** New password + confirmation with a strength hint (the remote access dialog and Settings → Remote access). */
 export function NewPasswordFields({
   password,
   confirm,

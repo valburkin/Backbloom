@@ -89,10 +89,12 @@ public static class LegacyMigrations
         ("Music: pulse waves for LED strip (", "Music: pulse waves for LED strip (MULTI COLOR)"),
     ];
 
-    // Options of removed features: CEC and the signal detection of the system grabber (meant for capture cards).
+    // Options of removed features: CEC, the screen capture switch of the system instance (it never did anything here:
+    // Home's Screen sync switches the capture) and the signal detection of the system grabber (meant for capture cards).
     private static readonly (string Type, string Feature, string[] Fields)[] s_obsoleteFields =
     [
         ("systemControl", "CEC", ["cecControl"]),
+        ("systemControl", "screen capture switch", ["systemInstanceEnable"]),
         ("systemGrabber", "signal detection", ["signalDetection", "redSignalThreshold", "greenSignalThreshold", "blueSignalThreshold",
             "noSignalCounterThreshold", "sDVOffsetMin", "sDVOffsetMax", "sDHOffsetMin", "sDHOffsetMax"]),
     ];

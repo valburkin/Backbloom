@@ -108,7 +108,7 @@ export class WsClient implements Backend {
     const label = subcommand ? `${command}-${subcommand}` : command;
     const socket = this.socket;
     if (!socket || this._status !== 'open' || socket.readyState !== WS_OPEN) {
-      return Promise.reject(new ConnectionError('Not connected to the lighting service', label));
+      return Promise.reject(new ConnectionError('Not connected to Backbloom', label));
     }
     const tan = this.nextTan++;
     if (this.nextTan > 0x7fffffff) this.nextTan = 1;

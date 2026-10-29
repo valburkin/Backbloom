@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import type { LayoutView } from '../live/layoutView';
 
 // The glow is drawn at this fraction of the view's size and scaled up by the browser, which softens it like light on
@@ -103,11 +103,70 @@ export const LayoutLights = forwardRef<LayoutLightsHandle, { view: LayoutView; l
   );
 });
 
-/** The live LED colors on the user's layout (the Preview cards). */
-export function LiveLayoutLights({ view, frame, label = 'Live LED preview' }: { view: LayoutView; frame: number[] | null; label?: string }) {
+/** The live LED colors on the user's layout (the Preview cards); `compact` squeezes out the empty wall between strips. */
+export function LiveLayoutLights({ view, frame, label = 'Live LED preview', compact }: { view: LayoutView; frame: number[] | null; label?: string; compact?: boolean }) {
   const lights = useRef<LayoutLightsHandle>(null);
+  const shown = useMemo(() => (compact ? compactLayoutView(view) : view), [compact, view]);
   useEffect(() => {
     lights.current?.paint(frame);
-  }, [frame, view]);
-  return <LayoutLights ref={lights} view={view} label={label} />;
+  }, [frame, shown]);
+  return <LayoutLights ref={lights} view={shown} label={label} />;
+}
+
+/**
+ * Maps one axis so that only the bands with something in them keep their size: each interval (an LED or the screen,
+ * with a margin) is kept, the empty stretches between them shrink to at most `gap`, the margins outside are cut.
+ */
+function squeezeAxis(bands: Array<[number, number]>, gap: number): { map: (v: number) => number; size: number } {
+  const merged: Array<[number, number]> = [];
+  for (const [a, b] of [...bands].sort((x, y) => x[0] - y[0])) {
+    const last = merged[merged.length - 1];
+    if (last && a <= last[1] + gap) last[1] = Math.max(last[1], b);
+    else merged.push([a, b]);
+  }
+  // start of each kept band in the squeezed axis
+  const starts: number[] = [];
+  let pos = 0;
+  merged.forEach(([a, b], i) => {
+    if (i > 0) pos += gap;
+    starts.push(pos);
+    pos += b - a;
+  });
+  const map = (v: number) => {
+    if (!merged.length) return v;
+    if (v <= merged[0][0]) return 0;
+    for (let i = 0; i < merged.length; i++) {
+      const [a, b] = merged[i];
+      if (v <= b) return starts[i] + Math.max(0, v - a);
+      const next = merged[i + 1];
+      if (next && v < next[0]) return starts[i] + (b - a) + ((v - b) / (next[0] - b)) * gap;
+    }
+    return pos;
+  };
+  return { map, size: Math.max(pos, 1) };
+}
+
+/**
+ * The view without the empty wall between distant strips (a ceiling strip high above the screen, say): rows and
+ * columns with no LED and no screen in them shrink to a small gap, so the strips fill the preview. The faint wall
+ * outlines are left out, since they no longer line up.
+ */
+export function compactLayoutView(view: LayoutView): LayoutView {
+  if (!view.leds.length) return view;
+  const pad = Math.max(view.spacing * 1.5, 12);
+  const gap = pad * 1.5;
+  const s = view.screen;
+  const xs = squeezeAxis([...view.leds.map((l): [number, number] => [l.x - pad, l.x + pad]), [s.x - pad, s.x + s.w + pad]], gap);
+  const ys = squeezeAxis([...view.leds.map((l): [number, number] => [l.y - pad, l.y + pad]), [s.y - pad, s.y + s.h + pad]], gap);
+  if (ys.size >= view.height * 0.9 && xs.size >= view.width * 0.9) return view;
+  const x0 = xs.map(s.x);
+  const y0 = ys.map(s.y);
+  return {
+    width: Math.ceil(xs.size),
+    height: Math.ceil(ys.size),
+    screen: { x: x0, y: y0, w: xs.map(s.x + s.w) - x0, h: ys.map(s.y + s.h) - y0 },
+    surfaces: [],
+    leds: view.leds.map((l) => ({ led: l.led, x: xs.map(l.x), y: ys.map(l.y) })),
+    spacing: view.spacing,
+  };
 }

@@ -13,6 +13,7 @@
       "default": 4048,
       "minimum": 0,
       "maximum": 65535,
+      "access": "advanced",
       "propertyOrder": 2
     },
     "enable_ice_rgbw": {
@@ -21,6 +22,7 @@
       "title": "edt_enable_ice_rgbw",
       "required": true,
       "default": false,
+      "access": "advanced",
       "propertyOrder": 3
     },
     "ice_white_mixer_threshold": {
@@ -37,6 +39,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 4
     },
     "ice_white_led_intensity": {
@@ -53,6 +56,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 5
     },
     "ice_white_temperatur_red": {
@@ -69,6 +73,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 6
     },
     "ice_white_temperatur_green": {
@@ -85,6 +90,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 7
     },
     "ice_white_temperatur_blue": {
@@ -101,6 +107,7 @@
           "enable_ice_rgbw": true
         }
       },
+      "access": "expert",
       "propertyOrder": 8
     },
     "rgbw": {
@@ -113,6 +120,7 @@
           "enable_ice_rgbw": false
         }
       },
+      "access": "advanced",
       "propertyOrder": 9
     },
     "white_algorithm": {
@@ -139,7 +147,7 @@
           "edt_dev_enum_sub_min_warm_adjust",
           "edt_dev_enum_hyperserial_cold_white",
           "edt_dev_enum_hyperserial_neutral_white",
-          "edt_rgbw_calibration_enable",
+          "edt_dev_enum_hyperserial_custom",
           "edt_dev_enum_wled_auto",
           "edt_dev_enum_wled_auto_max",
           "edt_dev_enum_wled_auto_accurate",
@@ -149,6 +157,7 @@
           "rgbw": true
         }
       },
+      "access": "advanced",
       "propertyOrder": 10
     },
     "white_channel_limit": {
@@ -166,6 +175,7 @@
           "white_algorithm": "hyperserial_custom"
         }
       },
+      "access": "expert",
       "propertyOrder": 11
     },
     "white_channel_red": {
@@ -182,6 +192,7 @@
           "white_algorithm": "hyperserial_custom"
         }
       },
+      "access": "expert",
       "propertyOrder": 12
     },
     "white_channel_green": {
@@ -198,6 +209,7 @@
           "white_algorithm": "hyperserial_custom"
         }
       },
+      "access": "expert",
       "propertyOrder": 13
     },
     "white_channel_blue": {
@@ -214,6 +226,7 @@
           "white_algorithm": "hyperserial_custom"
         }
       },
+      "access": "expert",
       "propertyOrder": 14
     }
   },

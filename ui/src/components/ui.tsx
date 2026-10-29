@@ -18,7 +18,7 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    'bg-accent text-accent-ink hover:bg-accent-strong shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset,0_6px_20px_-8px_rgba(139,124,246,0.7)]',
+    'bg-accent text-accent-ink hover:bg-accent-strong shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset,0_6px_20px_-8px_rgba(139,124,246,0.7)] disabled:bg-surface-3 disabled:text-ink-muted disabled:hover:bg-surface-3',
   secondary: 'bg-surface-3 text-ink hover:bg-line-strong border border-line-strong',
   ghost: 'text-ink-muted hover:text-ink hover:bg-surface-3',
   danger: 'text-bad hover:bg-bad/10 border border-bad/30',
@@ -94,17 +94,64 @@ export function Badge({ tone = 'neutral', children, className }: { tone?: 'neutr
   );
 }
 
-export function StatusDot({ tone }: { tone: 'ok' | 'warn' | 'bad' | 'neutral' }) {
+/** Colored status dot; `live` pulses it (only for something that is happening right now, e.g. a running effect). */
+export function StatusDot({ tone, live }: { tone: 'ok' | 'warn' | 'bad' | 'neutral'; live?: boolean }) {
   const c = { ok: 'bg-ok', warn: 'bg-warn', bad: 'bg-bad', neutral: 'bg-ink-faint' }[tone];
   return (
     <span className="relative inline-flex h-2.5 w-2.5" aria-hidden>
-      {tone === 'ok' && <span className={cx('absolute inline-flex h-full w-full rounded-full opacity-40 animate-ping', c)} />}
+      {tone === 'ok' && live && <span className={cx('absolute inline-flex h-full w-full rounded-full opacity-40 motion-safe:animate-ping', c)} />}
       <span className={cx('relative inline-flex h-2.5 w-2.5 rounded-full', c)} />
     </span>
   );
 }
 
 // ---- Form controls ----
+
+/** The one look of a chosen option, shared by Segmented and ChoiceCard. */
+export const CHOICE_ACTIVE = 'bg-accent/15 text-ink ring-1 ring-inset ring-accent/60';
+
+/**
+ * Larger "pick one" option with a title and an optional line of explanation (modes, presets). Use inside an element
+ * with role="radiogroup"; for short labels use Segmented instead.
+ */
+export function ChoiceCard({
+  active,
+  title,
+  description,
+  icon,
+  onClick,
+  disabled,
+  className,
+}: {
+  active: boolean;
+  title: ReactNode;
+  description?: ReactNode;
+  icon?: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={cx(
+        'flex min-h-11 items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        active ? cx(CHOICE_ACTIVE, 'border-transparent') : 'border-line-input text-ink-muted hover:border-line-strong hover:text-ink',
+        className,
+      )}
+    >
+      {icon && <span className={cx('mt-0.5 shrink-0', active && 'text-accent-strong')}>{icon}</span>}
+      <span className="min-w-0">
+        <span className="block text-sm font-medium">{title}</span>
+        {description && <span className="mt-0.5 block text-xs text-ink-faint">{description}</span>}
+      </span>
+    </button>
+  );
+}
 
 export function Segmented<T extends string>({
   label,
@@ -120,7 +167,7 @@ export function Segmented<T extends string>({
   size?: 'sm' | 'md';
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg bg-bg/60 p-0.5 border border-line">
+    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap rounded-lg border border-line-input bg-bg/60 p-0.5">
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -145,7 +192,7 @@ export function Segmented<T extends string>({
             className={cx(
               'rounded-md font-medium transition-colors',
               size === 'sm' ? 'px-2.5 h-7 text-xs' : 'px-3 h-8 text-[13px]',
-              active ? 'bg-surface-3 text-ink shadow-sm' : 'text-ink-muted hover:text-ink',
+              active ? CHOICE_ACTIVE : 'text-ink-muted hover:text-ink',
             )}
           >
             {o.label}
@@ -191,22 +238,23 @@ export function SliderField({
   const decimals = Math.max(0, -Math.floor(Math.log10(step * scale) + 1e-9));
   const shown = Number((value * scale).toFixed(decimals));
   const [draft, setDraft] = useState<string | null>(null);
+  // Only a typed value is committed: leaving the box untouched must not write the shown value back.
   const commitDraft = (s: string) => {
     const n = Number(s);
-    if (s.trim() !== '' && Number.isFinite(n)) onChange(Math.min(max, Math.max(min, n / scale)));
+    if (draft !== null && s.trim() !== '' && Number.isFinite(n)) onChange(Math.min(max, Math.max(min, n / scale)));
     setDraft(null);
   };
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
-        <label htmlFor={id} className="text-[13px] font-medium text-ink">
+        <label htmlFor={id} className="text-sm font-medium text-ink">
           {label}
         </label>
         <div className="flex items-center gap-1">
           <input
             type="number"
             aria-label={`${label} value`}
-            className="h-7 w-[4.5rem] rounded-md border border-line bg-bg px-2 text-right text-[13px] tabular-nums text-ink focus:border-accent"
+            className="no-spin h-7 w-16 rounded-md border border-line-input bg-bg px-2 text-right text-[13px] tabular-nums text-ink focus:border-accent"
             value={draft ?? String(shown)}
             min={min * scale}
             max={max * scale}
@@ -267,10 +315,10 @@ export function Stepper({
   const clamp = (n: number) => Math.min(max, Math.max(min, Math.round(n)));
   return (
     <div className={cx('flex items-center justify-between gap-3', className)}>
-      <label htmlFor={id} className="text-[13px] font-medium text-ink">
+      <label htmlFor={id} className="text-sm font-medium text-ink">
         {label}
       </label>
-      <div className="inline-flex items-center rounded-lg border border-line bg-bg">
+      <div className="inline-flex items-center rounded-lg border border-line-input bg-bg">
         <button
           type="button"
           aria-label={`Decrease ${label}`}
@@ -335,7 +383,7 @@ export function TextField({
   const id = useId();
   return (
     <div className={cx('space-y-1.5', className)}>
-      <label htmlFor={id} className={cx('block text-[13px] font-medium text-ink', hideLabel && 'sr-only')}>
+      <label htmlFor={id} className={cx('block text-sm font-medium text-ink', hideLabel && 'sr-only')}>
         {label}
       </label>
       <input
@@ -345,7 +393,7 @@ export function TextField({
         autoFocus={autoFocus}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10 w-full rounded-lg border border-line bg-bg px-3 text-sm text-ink placeholder:text-ink-faint focus:border-accent"
+        className="h-10 w-full rounded-lg border border-line-input bg-bg px-3 text-sm text-ink placeholder:text-ink-faint focus:border-accent"
       />
     </div>
   );

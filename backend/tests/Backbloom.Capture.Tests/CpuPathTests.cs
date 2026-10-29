@@ -108,6 +108,15 @@ public sealed class CpuPathTests
         Assert.Equal(expected, DisplayOrder.Permute(count, permutation));
     }
 
+    [Theory]
+    [InlineData(true, 240, 200, 240)]
+    [InlineData(true, 0, 200, 200)]
+    [InlineData(true, 0, 0, 0)]
+    [InlineData(false, 240, 200, 200)]
+    [InlineData(false, 240, 0, 0)]
+    public void SdrWhite_TakesWindowsLevelInAutoAndTheManualOneOtherwise(bool auto, int windows, int manual, int expected) =>
+        Assert.Equal(expected, new CaptureSettings { MonitorNitsAuto = auto, MonitorNits = manual }.SdrWhiteNits(windows));
+
     [Fact]
     public void Settings_ReadHyperHdrNames_WithDefaultsForMissingValues()
     {
@@ -120,7 +129,10 @@ public sealed class CpuPathTests
         Assert.Equal((512, 30, ToneMappingMode.Auto, true, 200), (settings.MaxWidth, settings.FramesPerSecond, settings.ToneMapping, settings.Hardware, settings.MonitorNits));
         Assert.Equal(new CropMargins(2, 0, 0, 4), settings.Crop);
 
+        Assert.True(settings.MonitorNitsAuto);
         Assert.Equal(new CaptureSettings(), CaptureSettings.FromJson(null));
+        Assert.Equal(30, new CaptureSettings().FramesPerSecond);
+        Assert.False(CaptureSettings.FromJson(JsonNode.Parse("""{"monitor_nits_auto":false}""")).MonitorNitsAuto);
         Assert.Equal("systemGrabber", CaptureSettings.SectionName);
         Assert.Equal(ToneMappingMode.On, CaptureSettings.FromJson(JsonNode.Parse("""{"hdrToneMapping":"on"}""")).ToneMapping);
         Assert.Equal(ToneMappingMode.Off, CaptureSettings.FromJson(JsonNode.Parse("""{"hdrToneMapping":"off"}""")).ToneMapping);

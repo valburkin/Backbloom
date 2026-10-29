@@ -101,6 +101,23 @@ public sealed class JsonRpcTests
     }
 
     [Fact]
+    public async Task OtherDevices_WaitAfterTooManyWrongPasswords()
+    {
+        await using var server = await TestServer.StartAsync(password: TestServer.Password);
+        await using var client = await server.ConnectFromNetworkAsync();
+
+        var errors = new List<string?>();
+        for (var i = 0; i < 10; i++)
+        {
+            errors.Add(Error(await client.CallAsync("authorize", "login", Obj("""{ "password": "wrong-password" }"""))));
+        }
+
+        Assert.Equal("No Authorization", errors[0]);
+        Assert.Equal("Too many attempts. Wait a minute and try again.", errors[^1]);
+        Assert.Equal("Too many attempts. Wait a minute and try again.", Error(await client.CallAsync("authorize", "login", new JsonObject { ["password"] = TestServer.Password })));
+    }
+
+    [Fact]
     public async Task LoopbackPeers_AreThisComputer()
     {
         await using var server = await TestServer.StartAsync();
@@ -317,7 +334,7 @@ public sealed class JsonRpcTests
         await using var server = await TestServer.StartAsync();
         await using var client = await server.ConnectAsync();
         await client.CallAsync("serverinfo", parameters: Obj("""{ "subscribe": ["settings-update", "leds-update"] }"""));
-        Assert.True(Success(await client.CallAsync("config", "setconfig", Obj("""{ "config": { "logger": { "level": "warn" } } }"""))));
+        Assert.True(Success(await client.CallAsync("config", "setconfig", Obj("""{ "config": { "logger": { "level": "silent" } } }"""))));
         client.NextEvent("settings-update");
 
         var backup = (await client.CallAsync("save-db"))["info"]!.AsObject();
@@ -331,7 +348,7 @@ public sealed class JsonRpcTests
         Assert.True(Success(restored), Error(restored));
         Assert.Single(client.NextEvent("leds-update")["data"]!["leds"]!.AsArray());
         var config = (await client.CallAsync("config", "getconfig"))["info"]!;
-        Assert.Equal("warn", config["logger"]!["level"]!.GetValue<string>());
+        Assert.Equal("silent", config["logger"]!["level"]!.GetValue<string>());
         Assert.Single(config["leds"]!.AsArray());
         Assert.True(Success(await client.CallAsync("serverinfo")));
         Assert.Single(Directory.GetFiles(Path.Combine(server.DataDirectory, "backups")));
@@ -428,7 +445,7 @@ public sealed class JsonRpcTests
         Assert.Equal("isn't a setting this version supports", (await client.CallAsync("config", "setconfig", Obj("""{ "config": { "flatbufServer": {} } }""")))["errors"]![0]!["message"]!.GetValue<string>());
         var smoothing = await client.CallAsync("config", "setconfig", Obj("""{ "config": { "smoothing": { "time_ms": 99999 } } }"""));
         Assert.Equal("smoothing.time_ms", smoothing["errors"]![0]!["path"]!.GetValue<string>());
-        Assert.Equal(150, (await client.CallAsync("config", "getconfig"))["info"]!["smoothing"]!["time_ms"]!.GetValue<int>());
+        Assert.Equal(350, (await client.CallAsync("config", "getconfig"))["info"]!["smoothing"]!["time_ms"]!.GetValue<int>());
 
         var schema = (await client.CallAsync("config", "getschema"))["info"]!;
         Assert.NotNull(schema["properties"]!["alldevices"]!["wled"]);
@@ -443,7 +460,7 @@ public sealed class JsonRpcTests
 
         Assert.True(Success(await client.CallAsync("componentstate", parameters: Obj("""{ "componentstate": { "component": "ALL", "state": false } }"""))));
 
-        Assert.True(Success(await client.CallAsync("config", "setconfig", Obj("""{ "config": { "logger": { "level": "warn" } } }"""))));
+        Assert.True(Success(await client.CallAsync("config", "setconfig", Obj("""{ "config": { "logger": { "level": "silent" } } }"""))));
         Assert.True(Success(await client.CallAsync("componentstate", parameters: Obj("""{ "componentstate": { "component": "LEDDEVICE", "state": false } }"""))));
         var config = (await client.CallAsync("config", "getconfig"))["info"]!.AsObject();
         var smoothing = config["smoothing"]!.AsObject();
@@ -694,7 +711,7 @@ public sealed class JsonRpcTests
     [Fact]
     public async Task Logging_RepliesFirstThenStreamsHistory()
     {
-        await using var server = await TestServer.StartAsync();
+        await using var server = await TestServer.StartAsync("""{ "logger": { "level": "verbose" } }""");
         await using var client = await server.ConnectAsync();
 
         var reply = await client.CallAsync("logging", "start");

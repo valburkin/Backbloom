@@ -96,18 +96,18 @@ public sealed class MigrationTests
     }
 
     [Fact]
-    public void RemoveUnsupportedFeatures_RemovesCecAndSignalDetectionOptions()
+    public void RemoveUnsupportedFeatures_RemovesCecScreenSwitchAndSignalDetectionOptions()
     {
         var config = Parse("""
-            { "systemControl": { "cecControl": true, "systemInstanceEnable": true },
+            { "systemControl": { "cecControl": true, "systemInstanceEnable": true, "systemInstancePriority": 245 },
               "systemGrabber": { "fps": 30, "signalDetection": true, "redSignalThreshold": 5, "sDHOffsetMax": 0.75 } }
             """);
 
         var changes = Run(LegacyMigrations.RemoveUnsupportedFeatures, config);
 
-        Assert.Equal("""{"systemInstanceEnable":true}""", config["systemControl"]!.ToJsonString());
+        Assert.Equal("""{"systemInstancePriority":245}""", config["systemControl"]!.ToJsonString());
         Assert.Equal("""{"fps":30}""", config["systemGrabber"]!.ToJsonString());
-        Assert.Equal(2, changes.Count);
+        Assert.Equal(3, changes.Count);
     }
 
     [Theory]

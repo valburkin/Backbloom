@@ -7,8 +7,14 @@ using static TerraFX.Interop.Windows.Windows;
 
 namespace Backbloom.Capture.Windows;
 
-/// <summary>A monitor and where DXGI finds it (adapter and output index at enumeration time).</summary>
-internal readonly record struct OutputLocation(uint Adapter, uint Output, MonitorInfo Info, bool Primary);
+/// <summary>
+/// A monitor and where DXGI finds it (adapter and output index at enumeration time), with its display configuration
+/// target (to read its SDR white level again) and Windows' SDR white level for it in nits (0 when not reported).
+/// </summary>
+internal readonly record struct OutputLocation(uint Adapter, uint Output, MonitorInfo Info, bool Primary, DisplayTarget? Target = null, int SdrWhiteNits = 0);
+
+/// <summary>A target (monitor connection) of the display configuration API.</summary>
+internal readonly record struct DisplayTarget(LUID Adapter, uint Id);
 
 /// <summary>How <see cref="MonitorEnumerator.SelectFor"/> found the monitors.</summary>
 internal enum MonitorMatch
@@ -72,7 +78,8 @@ internal static unsafe class MonitorEnumerator
                         {
                             if (Describe(output, adapterName, names) is { } info)
                             {
-                                result.Add(new OutputLocation(a, o, info.Monitor, info.Primary));
+                                var target = info.Names?.Target;
+                                result.Add(new OutputLocation(a, o, info.Monitor, info.Primary, target, info.Names?.SdrWhiteNits ?? 0));
                             }
                         }
                         finally
@@ -166,7 +173,7 @@ internal static unsafe class MonitorEnumerator
     public static IEnumerable<string> MultiMonitorIds(IReadOnlyList<OutputLocation> outputs) =>
         outputs.GroupBy(o => o.Info.Adapter, StringComparer.Ordinal).Where(g => g.Count() > 1).Select(g => MultiMonitorPrefix + g.Key);
 
-    private static (MonitorInfo Monitor, bool Primary)? Describe(IDXGIOutput* output, string adapterName, Dictionary<string, (string Friendly, string Path)> names)
+    private static (MonitorInfo Monitor, bool Primary, DisplayNames? Names)? Describe(IDXGIOutput* output, string adapterName, Dictionary<string, DisplayNames> names)
     {
         IDXGIOutput6* output6 = null;
         if (output->QueryInterface(__uuidof<IDXGIOutput6>(), (void**)&output6).FAILED)
@@ -184,11 +191,12 @@ internal static unsafe class MonitorEnumerator
             }
 
             var gdiName = new string(&desc.DeviceName.e0);
-            var (friendly, path) = names.TryGetValue(gdiName, out var n) ? n : (gdiName, string.Empty);
+            DisplayNames? known = names.TryGetValue(gdiName, out var n) ? n : null;
+            var (friendly, path) = known is { } k ? (k.Friendly, k.Path) : (gdiName, string.Empty);
             var r = desc.DesktopCoordinates;
             var hdr = desc.ColorSpace == DXGI_COLOR_SPACE_TYPE.DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020;
             var monitor = new MonitorInfo($"{gdiName}|{adapterName}", path, friendly, adapterName, r.right - r.left, r.bottom - r.top, hdr);
-            return (monitor, r.left == 0 && r.top == 0);
+            return (monitor, r.left == 0 && r.top == 0, known);
         }
         finally
         {
@@ -196,10 +204,10 @@ internal static unsafe class MonitorEnumerator
         }
     }
 
-    /// <summary>GDI device name (\\.\DISPLAY1) to the monitor's EDID name and device path.</summary>
-    private static Dictionary<string, (string Friendly, string Path)> ReadDisplayConfigNames()
+    /// <summary>GDI device name (\\.\DISPLAY1) to the monitor's EDID name, device path, target and SDR white level.</summary>
+    private static Dictionary<string, DisplayNames> ReadDisplayConfigNames()
     {
-        var result = new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, DisplayNames>(StringComparer.OrdinalIgnoreCase);
         uint pathCount, modeCount;
         if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &pathCount, &modeCount) != Success)
         {
@@ -241,10 +249,30 @@ internal static unsafe class MonitorEnumerator
                     devicePath = $"edid:{target.edidManufactureId:X4}:{target.edidProductCodeId:X4}:{target.connectorInstance}";
                 }
 
-                result[gdi] = (friendly.Length > 0 ? friendly : gdi, devicePath);
+                var displayTarget = new DisplayTarget(path.targetInfo.adapterId, path.targetInfo.id);
+                result[gdi] = new DisplayNames(friendly.Length > 0 ? friendly : gdi, devicePath, displayTarget, ReadSdrWhiteNits(displayTarget));
             }
         }
 
         return result;
     }
+
+    /// <summary>
+    /// Windows' SDR white level of a target in nits: the "SDR content brightness" of a monitor in HDR mode (Settings →
+    /// Display → HDR). 0 when Windows doesn't report it. Doesn't allocate, so the capture loop can watch it.
+    /// </summary>
+    public static int ReadSdrWhiteNits(DisplayTarget target)
+    {
+        var level = new DISPLAYCONFIG_SDR_WHITE_LEVEL();
+        level.header.type = DISPLAYCONFIG_DEVICE_INFO_TYPE.DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL;
+        level.header.size = (uint)sizeof(DISPLAYCONFIG_SDR_WHITE_LEVEL);
+        level.header.adapterId = target.Adapter;
+        level.header.id = target.Id;
+        return DisplayConfigGetDeviceInfo(&level.header) == Success ? SdrWhiteLevelToNits(level.SDRWhiteLevel) : 0;
+    }
+
+    /// <summary>Converts <c>SDRWhiteLevel</c> (in thousandths of the 80-nit scRGB reference white) to nits.</summary>
+    public static int SdrWhiteLevelToNits(uint sdrWhiteLevel) => (int)Math.Round(sdrWhiteLevel * 80.0 / 1000.0);
+
+    private readonly record struct DisplayNames(string Friendly, string Path, DisplayTarget Target, int SdrWhiteNits);
 }

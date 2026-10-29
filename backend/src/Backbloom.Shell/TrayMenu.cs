@@ -95,8 +95,8 @@ public sealed partial class TrayMenu : IDisposable
         var music = EffectEngine.Available.Where(e => e.IsMusic).Select(EffectItem).ToList();
         if (!musicAvailable)
         {
-            // music effects need the sound capture (settings in the window, Effects & Music)
-            music.Insert(0, new TrayMenuItem("Sound capture is off", Enabled: false));
+            // music effects need sound input (set up in the window, Effects & Music)
+            music.Insert(0, new TrayMenuItem("Sound input is off", Enabled: false));
             music.Insert(1, TrayMenuItem.Separator);
         }
 

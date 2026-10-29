@@ -9,8 +9,11 @@ import { RpcApi } from '../../../api/rpcApi';
 import { qrPath } from '../../../components/QrCode';
 import { DiscoveryDialog } from '../../devices/DriverForm';
 import { RemoteAccessAddresses, RemoteAccessDialog } from '../../settings/RemoteAccess';
-import { driverTarget, monitorName, welcomeSummary } from '../summary';
-import { WelcomeView, type WelcomeViewProps } from '../WelcomeScreen';
+import { deviceLine, driverTarget, importedItems, monitorName, welcomeSummary } from '../summary';
+import { nextPage, WelcomeView, type WelcomeViewProps } from '../WelcomeScreen';
+import type { Controller } from '../../../layout';
+import { addedAddresses } from '../../devices/drivers';
+import { FoundDevices } from '../../devices/DriverForm';
 
 const setup: SetupState = {
   firstRunCompleted: false,
@@ -23,6 +26,16 @@ const setup: SetupState = {
   acknowledged: [],
 };
 
+const wled: Controller = {
+  id: 'desk',
+  name: 'Desk',
+  kind: 'wled',
+  host: 'wled-desk.local',
+  outputs: [{ index: 0, start: 0, length: 91 }, { index: 1, start: 91, length: 77 }],
+  device: { type: 'wled', host: 'wled-desk.local' },
+};
+const testDevice: Controller = { id: 'controller-1', name: 'LED controller', kind: 'file', host: '', outputs: [{ index: 0, start: 0, length: 1 }], device: { type: 'file', output: '/dev/null' } };
+
 const noop = () => {};
 function view(overrides: Partial<WelcomeViewProps> = {}): string {
   return renderToStaticMarkup(
@@ -30,6 +43,12 @@ function view(overrides: Partial<WelcomeViewProps> = {}): string {
       setup={setup}
       config={config as BackendConfig}
       serverInfo={serverInfo as ServerInfo}
+      step={0}
+      onStep={noop}
+      devices={[wled]}
+      onAddDevice={noop}
+      next="layout"
+      expert={false}
       starting={false}
       error={null}
       autostart={false}
@@ -80,32 +99,102 @@ describe('welcome summary', () => {
   });
 });
 
-describe('welcome screen', () => {
-  it('offers Start lighting, with autostart off by default', () => {
+describe('setup', () => {
+  it('welcomes and says what came over from HyperHDR, without technical details', () => {
     const html = view();
     expect(html).toContain('Welcome to Backbloom');
-    expect(html).toContain('Your HyperHDR settings were imported');
-    expect(html).toContain('Start lighting');
-    expect(html).toContain('Start Backbloom when I sign in to Windows');
-    expect(html).not.toMatch(/type="checkbox"[^>]*checked/);
-    expect(html).toContain('Nothing is sent to your LEDs until you start the lighting.');
+    expect(html).toContain('Step 1 of 3');
+    expect(html).toContain('Copied from HyperHDR');
+    expect(html).toContain('Your device: Desk (WLED at wled-desk.local)');
+    expect(html).toContain('168 LEDs and where they are');
+    expect(html).toContain('Look around first');
+    expect(html).not.toContain('hyperhdr.db');
+    expect(html).not.toContain('Screen capture');
+  });
+
+  it('shows the technical details with expert tools on', () => {
+    const html = view({ expert: true });
+    expect(html).toContain('Technical details');
     expect(html).toContain('hyperhdr.db');
   });
 
-  it('waits while HyperHDR runs and tells how to quit it', () => {
-    const html = view({ setup: { ...setup, otherApp: { name: 'HyperHDR', executable: 'hyperhdr.exe' } } });
-    expect(html).toContain('HyperHDR is controlling your lights right now. Quit HyperHDR (tray icon → Quit) to let Backbloom take over.');
-    expect(html).toContain('Don’t start HyperHDR with Windows');
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>.*Waiting for HyperHDR to quit…/);
-    expect(html).not.toContain('>Start lighting<');
+  it('says nothing about an import on a new install', () => {
+    expect(view({ setup: { ...setup, importedFrom: null } })).not.toContain('HyperHDR');
   });
 
-  it('says when HyperHDR has quit', () => {
+  it('explains briefly that it waits while HyperHDR runs, and when it has quit', () => {
+    const html = view({ setup: { ...setup, otherApp: { name: 'HyperHDR', executable: 'hyperhdr.exe' } } });
+    expect(html).toContain('HyperHDR is controlling your lights right now.');
+    expect(html).toContain('Backbloom waits and takes over by itself when you quit HyperHDR');
     expect(view({ otherAppQuit: true })).toContain('HyperHDR has quit.');
   });
 
-  it('hides autostart where the app can’t start with the system', () => {
-    expect(view({ setup: { ...setup, autostart: { available: false, enabled: false } } })).not.toContain('sign in to Windows');
+  it('confirms the device, or asks to add one instead of the test device', () => {
+    const found = view({ step: 1 });
+    expect(found).toContain('Your lights');
+    expect(found).toContain('Desk (WLED at wled-desk.local)');
+    expect(found).toContain('168 LEDs on 2 outputs');
+    expect(found).toContain('Add another device');
+    expect(found).toMatch(/>Next/);
+
+    const none = view({ step: 1, devices: [testDevice] });
+    expect(none).toContain('No device yet');
+    expect(none).toContain('>Add device<');
+    expect(none).toContain('Skip for now');
+    expect(none).not.toContain('/dev/null');
+    expect(view({ step: 1, devices: null })).toContain('Looking at your setup');
+  });
+
+  it('turns the lights on, with Start with Windows off by default', () => {
+    const html = view({ step: 2 });
+    expect(html).toContain('Turn on your lights');
+    expect(html).toContain('Your lights stay as they are until you turn them on here.');
+    expect(html).toContain('Then show Backbloom where your strips are');
+    expect(html).toContain('>Turn on lights<');
+    expect(html).toContain('Start with Windows');
+    expect(html).toContain('Off unless you check it. You can change it later in Settings or from the tray icon.');
+    expect(html).not.toMatch(/type="checkbox"[^>]*checked/);
+    expect(view({ step: 2, setup: { ...setup, autostart: { available: false, enabled: false } } })).not.toContain('Start with Windows');
+  });
+
+  it('can turn on while HyperHDR runs: Backbloom takes over when it quits', () => {
+    const html = view({ step: 2, setup: { ...setup, otherApp: { name: 'HyperHDR', executable: 'hyperhdr.exe' } } });
+    expect(html).toContain('HyperHDR still runs');
+    expect(html).not.toMatch(/<button[^>]* disabled=""[^>]*>(<[^>]*>)*Turn on lights/);
+  });
+
+  it('goes on where setup isn’t finished', () => {
+    expect(nextPage([testDevice], false, false)).toBe('devices');
+    expect(nextPage([], true, false)).toBe('devices');
+    expect(nextPage([wled], false, false)).toBe('layout');
+    expect(nextPage([wled], true, true)).toBe('layout');
+    expect(nextPage([wled, testDevice], true, false)).toBe('home');
+  });
+
+  it('lists what was imported in plain words', () => {
+    expect(importedItems([wled], 168)).toEqual(['Your device: Desk (WLED at wled-desk.local)', '168 LEDs and where they are', 'Your screen sync, color and effect settings']);
+    expect(importedItems([testDevice], 0)).toEqual(['Your screen sync, color and effect settings']);
+    expect(deviceLine({ ...wled, name: 'LED controller' })).toBe('WLED at wled-desk.local');
+  });
+});
+
+describe('device search results', () => {
+  it('marks devices that are already added and keeps them from being picked', () => {
+    const added = addedAddresses({ version: 1, room: undefined as never, controllers: [wled, testDevice], strips: [] });
+    expect([...added]).toEqual(['wled-desk.local']);
+    const html = renderToStaticMarkup(
+      <FoundDevices
+        found={[
+          { value: 'wled-desk.local', name: '192.168.1.40 (wled-desk.local)' },
+          { value: 'wled-shelf.local', name: '192.168.1.57 (wled-shelf.local)' },
+        ]}
+        usb={false}
+        added={added}
+        onPick={noop}
+      />,
+    );
+    expect(html.match(/Already added/g)).toHaveLength(1);
+    expect(html.match(/<button[^>]* disabled=""/g)).toHaveLength(1);
   });
 });
 
@@ -140,10 +229,11 @@ describe('network explanations', () => {
     expect(renderToStaticMarkup(<RemoteAccessAddresses status={{ ...setup.remoteAccess, enabled: true }} />)).toContain('no network address');
   });
 
-  it('explains the network search before the first Find', () => {
+  it('explains the network search before the first search', () => {
     const html = renderToStaticMarkup(<DiscoveryDialog open onCancel={noop} onConfirm={noop} />);
-    expect(html).toContain('Search your network for LED controllers?');
-    expect(html).toContain('doesn’t open a port');
+    expect(html).toContain('Search your network for lights?');
+    expect(html).toContain('Nothing is changed on them.');
+    expect(html).toContain('Private networks');
   });
 });
 
@@ -170,12 +260,14 @@ describe('mock backend setup flow (like the .NET app)', () => {
     expect([state.firstRunCompleted, state.outputHeld, state.otherApp?.name]).toEqual([false, true, 'HyperHDR']);
     expect(state.autostart).toEqual({ available: true, enabled: false });
 
+    expect((await api.serverInfo()).controllers?.[0].state).toBe('off');
     const started = await api.startLighting(true);
     expect([started.firstRunCompleted, started.outputHeld, started.autostart.enabled]).toEqual([true, true, true]);
 
     backend.quitOtherApp();
     await new Promise((r) => setTimeout(r, 0));
     expect(events.at(-1)?.outputHeld).toBe(false);
+    expect((await api.serverInfo()).controllers?.[0].state).toBe('ready');
     expect((await api.acknowledge('discovery')).acknowledged).toEqual(['discovery']);
   });
 
@@ -203,5 +295,21 @@ describe('mock backend setup flow (like the .NET app)', () => {
     await expect(api.startLighting()).rejects.toThrow('No Authorization');
     await api.login(MOCK_PASSWORD);
     await expect(api.startLighting()).resolves.toMatchObject({ firstRunCompleted: true, outputHeld: false });
+  });
+});
+
+describe('demo modes', () => {
+  it('starts a new install with only the test device and nothing imported', async () => {
+    const { api } = await connected({ firstRun: true, fresh: true });
+    const state = await api.setupState();
+    expect([state.firstRunCompleted, state.importedFrom]).toEqual([false, null]);
+    const cfg = await api.getConfig();
+    expect((cfg.device as { type: string }).type).toBe('file');
+    expect(cfg.leds).toHaveLength(1);
+  });
+
+  it('has a device that can’t be reached (?mock=offline)', async () => {
+    const { api } = await connected({ offline: true, demoLayout: true });
+    expect((await api.serverInfo()).controllers?.[0].state).toBe('waitingToRetry');
   });
 });

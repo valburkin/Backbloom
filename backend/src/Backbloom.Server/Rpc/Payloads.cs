@@ -59,8 +59,9 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
         : new JsonObject { ["id"] = profile.Id, ["name"] = profile.Name, ["manual"] = profile.Manual };
     /// <summary>
     /// <c>systemGrabbers</c> (also the <c>capture-update</c> event): <c>{ device, modes }</c> as in HyperHDR plus, for
-    /// screen capture, <c>hdr: { mode, capturing, monitorHdr, toneMapping }</c>: the <c>hdrToneMapping</c> setting,
-    /// whether a monitor is captured, whether Windows drives it in HDR mode and whether its colors are tone mapped.
+    /// screen capture, <c>hdr: { mode, capturing, monitorHdr, toneMapping, sdrWhiteNits }</c>: the <c>hdrToneMapping</c>
+    /// setting, whether a monitor is captured, whether Windows drives it in HDR mode, whether its colors are tone mapped
+    /// and the SDR white level an HDR capture is converted with (0 without one).
     /// </summary>
     public JsonObject SystemGrabbers()
     {
@@ -73,6 +74,7 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
                 ["capturing"] = hdr.Capturing,
                 ["monitorHdr"] = hdr.MonitorHdr,
                 ["toneMapping"] = hdr.ToneMapped,
+                ["sdrWhiteNits"] = hdr.SdrWhiteNits,
             };
         }
 

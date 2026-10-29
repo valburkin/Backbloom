@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Lightbulb, Loader2, ScanSearch } from 'lucide-react';
 import { Badge, Button, Dialog } from '../../components/ui';
 import { Callout, Select } from '../../components/form';
@@ -6,18 +6,19 @@ import { SchemaForm } from '../../components/SchemaForm';
 import { useConnection } from '../../app/connection';
 import { useConfig } from '../../app/config';
 import { useAction } from '../../app/useAction';
+import { useExpertTools } from '../../app/expert';
 import type { DiscoveredDevice, JsonSchema } from '../../api/types';
 import type { DriverSettings } from '../../layout';
 import { hrefFor } from '../../app/router';
 import { validate, withDefaults } from '../../schema/schema';
-import { discoveryTarget, driverName, driverOptions, switchDriver } from './drivers';
+import { discoversOnNetwork, discoveryTarget, driverName, driverOptions, switchDriver, type DriverOption } from './drivers';
 
-/** Shown once before the first search on the network: what Find sends and that it opens nothing. */
+/** Shown once before the first search on the network: what the search sends and that it opens nothing. */
 export function DiscoveryDialog({ open, onCancel, onConfirm }: { open: boolean; onCancel(): void; onConfirm(): void }) {
   return (
     <Dialog
       open={open}
-      title="Search your network for LED controllers?"
+      title="Search your network for lights?"
       onClose={onCancel}
       footer={
         <>
@@ -30,17 +31,74 @@ export function DiscoveryDialog({ open, onCancel, onConfirm }: { open: boolean; 
         </>
       }
     >
-      <div className="space-y-3 text-[13px] text-ink-muted">
-        <p>
-          Backbloom asks the devices on your local network once whether they are LED controllers (the same kind of question your phone asks to find a
-          printer) and lists the ones that answer within a few seconds. Nothing found is changed or contacted otherwise.
-        </p>
-        <p>
-          It doesn’t open a port or wait for connections, so Windows normally doesn’t ask about network access. If Windows Security does ask, allow{' '}
-          <span className="font-medium text-ink">Private networks</span> only.
-        </p>
-      </div>
+      <p className="text-sm text-ink-muted">
+        Backbloom asks the devices on your home network once whether they’re lights it can use (just like your phone looking for a printer). Nothing
+        is changed on them. Windows usually won’t ask for permission. If it does, allow <span className="font-medium text-ink">Private networks</span> only.
+      </p>
     </Dialog>
+  );
+}
+
+/**
+ * Searching for devices of a type: on the network (explained once first, see DiscoveryDialog) or on this PC's USB
+ * ports. Render `dialog` once; `search(type, done)` calls `done` with what answered.
+ */
+export function useDeviceSearch() {
+  const { api, setup, applySetup, auth } = useConnection();
+  const { run, busy } = useAction();
+  const [pending, setPending] = useState<{ type: string; done: (found: DiscoveredDevice[]) => void } | null>(null);
+  const go = (type: string, done: (found: DiscoveredDevice[]) => void) =>
+    void run(`discover-${type}`, 'Couldn’t search for devices', async () => done(await api.discover(type)));
+  const search = (type: string, done: (found: DiscoveredDevice[]) => void) => {
+    if (discoversOnNetwork(type) && setup && !setup.acknowledged.includes('discovery')) setPending({ type, done });
+    else go(type, done);
+  };
+  const dialog = (
+    <DiscoveryDialog
+      open={pending !== null}
+      onCancel={() => setPending(null)}
+      onConfirm={() => {
+        const p = pending;
+        setPending(null);
+        if (auth === 'admin') void api.acknowledge('discovery').then(applySetup, () => undefined);
+        if (p) go(p.type, p.done);
+      }}
+    />
+  );
+  return { search, searching: (type: string) => busy === `discover-${type}`, dialog };
+}
+
+/** Devices a search found, to pick one from (fills in the address or port); those in `added` can't be picked again. */
+export function FoundDevices({ found, usb, added, onPick }: { found: DiscoveredDevice[]; usb: boolean; added?: ReadonlySet<string>; onPick(d: DiscoveredDevice): void }) {
+  if (!found.length)
+    return (
+      <p className="text-[13px] text-ink-muted">
+        Nothing found. Check that the device is on{usb ? ' and plugged in' : ' and connected to the same network as this PC'}, or enter the{' '}
+        {usb ? 'port' : 'address'} yourself.
+      </p>
+    );
+  return (
+    <ul className="space-y-1.5">
+      {found.map((d) => {
+        const already = added?.has(d.value.toLowerCase()) ?? false;
+        return (
+          <li key={d.value}>
+            <button
+              type="button"
+              disabled={already}
+              className="flex w-full items-center gap-3 rounded-lg border border-line-input px-3 py-2.5 text-left text-[13px] hover:border-accent disabled:cursor-not-allowed disabled:text-ink-muted disabled:hover:border-line-input"
+              onClick={() => onPick(d)}
+            >
+              <span className="min-w-0 flex-1">
+                {d.name}
+                {d.name !== d.value && <span className="block font-mono text-xs text-ink-faint">{d.value}</span>}
+              </span>
+              {already && <Badge>Already added</Badge>}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -53,15 +111,40 @@ export function useDriverSchemas(): { general?: JsonSchema; drivers?: Record<str
   };
 }
 
-/** Driver settings for a new controller of `type`: the driver's defaults plus `extra` (e.g. the host). */
+/** Driver settings for a new device of `type`: the driver's defaults plus `extra` (e.g. the host). */
 export function newDriverSettings(type: string, schemas: { general?: JsonSchema; drivers?: Record<string, JsonSchema> }, extra: Record<string, unknown> = {}): DriverSettings {
   const general = withDefaults(schemas.general, {}) as Record<string, unknown>;
   return { ...switchDriver({ ...general, type }, type, { general: schemas.general, driver: schemas.drivers?.[type] }), ...extra, type };
 }
 
 /**
- * LED driver of one controller: type, connection settings from the driver's schema, discovery and a test blink.
- * Edits go into the layout (saved with it); `saved` is the controller's driver settings as last saved.
+ * One form for a device's connection settings: the device type's own settings, then the shared ones (color order,
+ * resend interval) at the end. WLED and DDP put the colors in order themselves, so color order is an expert setting
+ * there.
+ */
+export function connectionSchema(type: string, driver: JsonSchema | undefined, general: JsonSchema | undefined): JsonSchema | undefined {
+  const shared = Object.fromEntries(
+    Object.entries(general?.properties ?? {})
+      .filter(([k]) => k !== 'type')
+      .map(([k, s]): [string, JsonSchema] => [
+        k,
+        { ...s, propertyOrder: 100 + (s.propertyOrder ?? 0), ...(k === 'colorOrder' && (type === 'wled' || type === 'ddp') ? { access: 'expert' } : {}) },
+      ]),
+  );
+  if (!driver && !general) return undefined;
+  return { ...(driver ?? { type: 'object' }), properties: { ...(driver?.properties ?? {}), ...shared } };
+}
+
+/** Device type picker options: the test device only with expert tools on (or while it is the chosen one). */
+export function useDeviceTypes(current?: string): DriverOption[] {
+  const { serverInfo } = useConnection();
+  const expert = useExpertTools();
+  return driverOptions(serverInfo?.ledDevices?.available).filter((o) => o.value !== 'file' || expert || o.value === current);
+}
+
+/**
+ * Connection settings of one device: device type, its settings from the driver's schema, search and a test blink.
+ * Edits go into the layout (saved with it); `saved` is the device's settings as last saved.
  */
 export function DriverForm({
   controllerId,
@@ -77,95 +160,64 @@ export function DriverForm({
   dirty: boolean;
   onChange: (device: DriverSettings) => void;
 }) {
-  const { serverInfo, api, setup, applySetup, auth } = useConnection();
-  const [explaining, setExplaining] = useState(false);
+  const { api } = useConnection();
   const { config } = useConfig();
   const { run, busy } = useAction();
+  const devices = useDeviceSearch();
   const [found, setFound] = useState<DiscoveredDevice[] | null>(null);
   const { general, drivers } = useDriverSchemas();
   const type = String(device.type ?? '');
   const driverSchema = drivers?.[type];
-  const shown = withDefaults(driverSchema, withDefaults(general, device)) as DriverSettings;
-  const options = driverOptions(serverInfo?.ledDevices?.available);
+  const schema = connectionSchema(type, driverSchema, general);
+  const shown = withDefaults(schema, device) as DriverSettings;
+  const options = useDeviceTypes(type);
   const group = options.find((o) => o.value === type)?.group;
   const target = discoveryTarget(type, group);
   const smoothing = (config?.smoothing ?? {}) as { enable?: boolean; updateFrequency?: number };
-  const issues = driverSchema ? validate(driverSchema, shown) : [];
+  const issues = schema ? validate(schema, shown) : [];
   const key = (k: string) => `${controllerId}-${k}`;
+  const searching = devices.searching(type);
 
-  const search = () =>
-    void run(key('discover'), 'Couldn’t search for devices', async () => {
-      setFound(await api.discover(type));
-    });
-  // a search on the network is explained once first (serial and USB enumeration stays on this computer)
-  const discover = () => (group === 'Network' && setup && !setup.acknowledged.includes('discovery') ? setExplaining(true) : search());
-  const confirmDiscovery = () => {
-    setExplaining(false);
-    if (auth === 'admin') void api.acknowledge('discovery').then(applySetup, () => undefined);
-    search();
-  };
+  const overrides: Record<string, { label?: string; hint?: ReactNode; trailing?: ReactNode }> = {};
+  if (type === 'file') overrides.output = { label: 'File path', hint: String.raw`Where the colors are written. \\.\NUL discards them.` };
+  else if (target)
+    overrides[target] = {
+      trailing: (
+        <Button
+          icon={searching ? <Loader2 size={15} className="animate-spin" /> : <ScanSearch size={15} />}
+          disabled={searching}
+          onClick={() => devices.search(type, setFound)}
+        >
+          {group === 'USB' ? 'Find' : 'Search'}
+        </Button>
+      ),
+    };
+  if (smoothing.enable === true)
+    overrides.refreshTime = {
+      hint: (
+        <>
+          While transitions are on, colors are sent {String(smoothing.updateFrequency ?? 50)} times a second (set on the{' '}
+          <a className="text-accent-strong hover:underline" href={hrefFor('colors')}>
+            Colors
+          </a>{' '}
+          page), so this value has no effect.
+        </>
+      ),
+    };
 
   const known = options.some((o) => o.value === type);
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <Select
-        label="Driver"
+        label="Device type"
         value={type}
         options={known ? options : [{ value: type, label: `${driverName(type)} (not available in this version)`, group: 'Other' }, ...options]}
         onChange={(t) => onChange(switchDriver(shown, t, { general, driver: drivers?.[t] }, saved) as DriverSettings)}
         hint={group === 'USB' ? 'Connected with a USB cable.' : group === 'Network' ? 'Connected over Wi-Fi or Ethernet.' : undefined}
       />
-      {driverSchema ? (
-        <SchemaForm
-          schema={driverSchema}
-          value={shown}
-          issues={issues}
-          onChange={(v) => onChange(v as DriverSettings)}
-          overrides={
-            type === 'file'
-              ? { output: { label: 'File path', hint: String.raw`Where the colors are written. \\.\NUL discards them.` } }
-              : target
-                ? {
-                    [target]: {
-                      trailing: (
-                        <Button icon={busy === key('discover') ? <Loader2 size={15} className="animate-spin" /> : <ScanSearch size={15} />} disabled={busy === key('discover')} onClick={discover}>
-                          Find
-                        </Button>
-                      ),
-                    },
-                  }
-                : {}
-          }
-        />
-      ) : (
-        <Callout tone="warn">This driver has no settings description in this version of the service.</Callout>
-      )}
-      {general && (
-        <SchemaForm
-          schema={general}
-          value={shown}
-          omit={['type']}
-          onChange={(v) => onChange(v as DriverSettings)}
-          overrides={
-            smoothing.enable === true
-              ? {
-                  refreshTime: {
-                    hint: (
-                      <>
-                        While smoothing is on, colors are sent {String(smoothing.updateFrequency ?? 50)} times a second (set under{' '}
-                        <a className="text-accent-strong hover:underline" href={hrefFor('colors')}>
-                          Colors → Smoothness
-                        </a>
-                        ), so this value has no effect.
-                      </>
-                    ),
-                  },
-                }
-              : {}
-          }
-        />
-      )}
-      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
+      {!driverSchema && <Callout tone="warn">This device type can’t be set up in this version of Backbloom.</Callout>}
+      {schema && <SchemaForm schema={schema} value={shown} issues={issues} omit={['type']} onChange={(v) => onChange(v as DriverSettings)} overrides={overrides} />}
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
           icon={<Lightbulb size={15} />}
@@ -177,31 +229,16 @@ export function DriverForm({
         </Button>
         {dirty && <Badge tone="warn">Save to apply</Badge>}
       </div>
-      <DiscoveryDialog open={explaining} onCancel={() => setExplaining(false)} onConfirm={confirmDiscovery} />
-      <Dialog open={found !== null} title={`Devices found for ${driverName(type)}`} onClose={() => setFound(null)}>
-        {found?.length ? (
-          <ul className="space-y-1.5">
-            {found.map((d) => (
-              <li key={d.value}>
-                <button
-                  type="button"
-                  className="w-full rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-left text-[13px] hover:border-accent"
-                  onClick={() => {
-                    if (target) onChange({ ...shown, [target]: d.value });
-                    setFound(null);
-                  }}
-                >
-                  {d.name}
-                  <span className="block font-mono text-xs text-ink-faint">{d.value}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-[13px] text-ink-muted">
-            Nothing found. Check that the controller is powered on{group === 'USB' ? ' and plugged in' : ' and on the same network'}, or enter the {group === 'USB' ? 'port' : 'address'} yourself.
-          </p>
-        )}
+      {devices.dialog}
+      <Dialog open={found !== null} title={`${driverName(type)} devices found`} onClose={() => setFound(null)}>
+        <FoundDevices
+          found={found ?? []}
+          usb={group === 'USB'}
+          onPick={(d) => {
+            if (target) onChange({ ...shown, [target]: d.value });
+            setFound(null);
+          }}
+        />
       </Dialog>
     </div>
   );

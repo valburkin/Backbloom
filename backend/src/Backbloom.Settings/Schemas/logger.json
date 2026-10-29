@@ -21,7 +21,7 @@
           "edt_conf_enum_logdebug"
         ]
       },
-      "default": "debug"
+      "default": "warn"
     }
   },
   "additionalProperties": false

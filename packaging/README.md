@@ -45,13 +45,13 @@ first window is the installer's "finish page".
    rule). The package id is `BackbloomApp` rather than `Backbloom` because Velopack deletes its whole folder on
    uninstall, and `%LOCALAPPDATA%\Backbloom` is the data directory, which must survive.
 2. **First start.** HyperHDR's settings are imported (from `%LOCALAPPDATA%\HyperHDR`, only copied) and the window opens
-   in front with the **welcome**: what was imported (LEDs, controllers with driver and address, captured monitor,
-   effects), an unticked "Start Backbloom when I sign in to Windows" box and **Start lighting**. Nothing is sent to the
-   LEDs and the startup effect doesn't run before that. While HyperHDR runs, the welcome says so (quit it from its
-   tray icon; turn off its autostart under Windows Settings > Apps > Startup) and Start lighting waits until it has
-   quit. The welcome comes back on every start until the lighting was started once (the window opens even when
-   started with `--no-window`); the flag is kept in the data directory, so the installer doesn't need a first-run
-   hook.
+   in front with a three-step **setup**: what was imported from HyperHDR, the device the strips are plugged into (or
+   Add device), then an unchecked "Start with Windows" box and **Turn on lights**. Nothing is sent to the LEDs and the
+   startup effect doesn't run before that. While HyperHDR runs, the setup says that Backbloom waits and takes over
+   when HyperHDR quits (from its tray icon; it also suggests turning off HyperHDR's autostart under Windows Settings >
+   Apps > Startup). The setup comes back on every start until the lights were turned on once (the window opens even
+   when started with `--no-window`); the flag is kept in the data directory, so the installer doesn't need a
+   first-run hook.
 3. **Network.** The app listens on 127.0.0.1 only, so Windows doesn't ask about network access. Only when the user
    turns on Settings > Network > "Control from your phone / other devices" (after an explanation that Windows asks
    next and that Private networks are enough, and after choosing the password other devices sign in with) does it
@@ -60,7 +60,7 @@ first window is the installer's "finish page".
 4. **Reinstall.** Running `Setup.exe` again on a computer where Backbloom is installed: Velopack reports that it is
    already installed and offers to repair (reinstall) it. Either way only the program folder is replaced; settings,
    logs, the first-run flag and the window position in `%LOCALAPPDATA%\Backbloom` are kept, so a reinstall neither
-   imports HyperHDR again nor shows the welcome again. To start over completely, uninstall, delete
+   imports HyperHDR again nor shows the setup again. To start over completely, uninstall, delete
    `%LOCALAPPDATA%\Backbloom` and install again.
 5. **Update.** A newer release is applied at the next start (see below); settings and the first-run flag are kept,
    so the lights start as before unless HyperHDR runs.

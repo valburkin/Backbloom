@@ -89,4 +89,12 @@ public sealed class MonitorSelectionTests
         Assert.Equal(MonitorMatch.Setting, match);
         Assert.Empty(MonitorEnumerator.SelectFor([Output(9, LgPath)], "MULTI-MONITOR|another adapter", null, out _));
     }
+
+    [Theory]
+    [InlineData(0u, 0)]
+    [InlineData(1000u, 80)]
+    [InlineData(2500u, 200)]
+    [InlineData(3010u, 241)]
+    public void SdrWhiteLevel_IsInThousandthsOf80Nits(uint level, int nits) =>
+        Assert.Equal(nits, MonitorEnumerator.SdrWhiteLevelToNits(level));
 }

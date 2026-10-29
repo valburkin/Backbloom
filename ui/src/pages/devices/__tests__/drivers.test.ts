@@ -5,15 +5,16 @@ import schemaFixture from '../../../api/__fixtures__/schema.json';
 import serverInfo from '../../../api/__fixtures__/serverinfo.json';
 import type { SettingsSchema } from '../../../api/types';
 import { SchemaForm } from '../../../components/SchemaForm';
-import { withDefaults } from '../../../schema/schema';
-import { discoveryTarget, driverOptions, switchDriver } from '../drivers';
+import { fieldsOf, withDefaults } from '../../../schema/schema';
+import { connectionSchema } from '../DriverForm';
+import { discoveryTarget, driverOptions, isLampDevice, lampCount, ledCountLabel, switchDriver } from '../drivers';
 
 const schema = schemaFixture as unknown as SettingsSchema;
 
 describe('drivers', () => {
-  it('groups the reported drivers as Network, USB, Debug', () => {
+  it('groups the reported device types as Network, USB, Testing', () => {
     const opts = driverOptions(serverInfo.ledDevices.available);
-    expect([...new Set(opts.map((o) => o.group))]).toEqual(['Network', 'USB', 'Debug']);
+    expect([...new Set(opts.map((o) => o.group))]).toEqual(['Network', 'USB', 'Testing']);
     expect(opts.find((o) => o.value === 'synclight')?.group).toBe('USB');
     expect(opts[0].group).toBe('Network');
     expect(discoveryTarget('wled', 'Network')).toBe('host');
@@ -37,5 +38,28 @@ describe('drivers', () => {
       const html = renderToStaticMarkup(createElement(SchemaForm, { schema: s, value: withDefaults(s, {}) as Record<string, unknown>, onChange: () => {} }));
       expect(html.length, name).toBeGreaterThan(50);
     }
+  });
+});
+
+describe('lamp devices', () => {
+  it('count one LED per lamp instead of asking for a number', () => {
+    expect(lampCount({ type: 'wiz', lamps: [{}, {}, {}] })).toBe(3);
+    expect(lampCount({ type: 'yeelight', lights: [{}] })).toBe(1);
+    expect(lampCount({ type: 'home_assistant' })).toBe(1);
+    expect(lampCount({ type: 'wled' })).toBeNull();
+    expect(isLampDevice('philipshue')).toBe(false);
+    expect(ledCountLabel('nanoleaf')).toBe('Number of panels');
+    expect(ledCountLabel('ddp')).toBe('Number of LEDs');
+  });
+});
+
+describe('connection settings', () => {
+  it('put color order out of the way where WLED orders the colors itself', () => {
+    const general = schema.properties.device;
+    const wled = connectionSchema('wled', schema.properties.alldevices!.wled, general)!;
+    expect(wled.properties!.colorOrder.access).toBe('expert');
+    expect(connectionSchema('adalight', schema.properties.alldevices!.adalight, general)!.properties!.colorOrder.access).toBe('advanced');
+    // the shared settings come after the device type's own
+    expect(fieldsOf(wled).map((f) => f.key).slice(-2)).toEqual(['colorOrder', 'refreshTime']);
   });
 });

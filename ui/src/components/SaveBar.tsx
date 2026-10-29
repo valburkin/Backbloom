@@ -45,7 +45,7 @@ export function SaveBar() {
         <Redo2 size={17} />
       </IconButton>
       <IconButton
-        label="Discard changes and reload from the lighting service"
+        label="Discard changes"
         disabled={load.status === 'loading'}
         onClick={() => {
           if (!dirty || window.confirm('Discard your unsaved changes and reload the layout?')) reload();
@@ -65,7 +65,7 @@ export function SaveBar() {
         )}
       </span>
       <Button
-        variant="primary"
+        variant={dirty || !signedIn ? 'primary' : 'secondary'}
         size="sm"
         className="ml-1"
         disabled={saving || (signedIn && (blocked || !dirty))}

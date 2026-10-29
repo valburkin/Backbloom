@@ -59,12 +59,16 @@ interface Props {
   /** The drawn path (two or more points), or null when drawing was canceled. */
   onDrawn(path: PathPoint[] | null): void;
   found: FoundLed | null;
-  /** The bend point being matched with the real lights. */
+  /** The bend being matched with the real lights. */
   matching?: { stripId: string; pointIndex: number } | null;
   /** Effect names the backend runs (for parts that play one). */
   effects: readonly string[];
-  /** Only what strips show can change (a profile is edited): no moving strips, bends or the screen. */
+  /** Only what strips show can change (Customize, or a profile is edited): no moving strips, bends or the screen. */
   rolesOnly?: boolean;
+  /** Show the dots on the screen's edge that adjust what the selected strip's parts follow (default: shown). */
+  showMapping?: boolean;
+  /** A part can be made a gap (not while a profile is edited: gaps belong to the strip). Default: unless rolesOnly. */
+  allowGaps?: boolean;
   /** What a strip's sections do changed (`path` carries them); the page saves it to the layout or the profile. */
   onRoles(stripId: string, path: PathPoint[], coalesce?: string): void;
 }
@@ -321,7 +325,8 @@ function ledFill(role: Section | undefined, screen: string): string {
 
 // ---- the canvas ----
 
-export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found, matching, effects, rolesOnly = false, onRoles }: Props) {
+export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found, matching, effects, rolesOnly = false, showMapping = true, allowGaps, onRoles }: Props) {
+  const gaps = allowGaps ?? !rolesOnly;
   const { room } = spec;
   const box = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
@@ -713,7 +718,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
         )}
 
         {/* Dots on the screen's edge where the strip's parts start and end: drag them to change what the parts repeat. */}
-        {selected && !drawing &&
+        {selected && !drawing && showMapping &&
           mappingJoints(room, selected).map((j, k) => {
             const p = outlinePath(room, j.pos, j.pos, 12 * u)[0];
             return (
@@ -725,7 +730,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
               >
                 <circle r={11 * u} fill="transparent" />
                 <circle r={6.5 * u} fill={stationColor(j.station, stripLedCount(selected))} stroke="#ffffff" strokeWidth={2 * u} />
-                <title>Drag along the screen's edge to change which part of the screen these LEDs repeat</title>
+                <title>Drag along the screen’s edge to change which part of the screen these LEDs follow</title>
               </g>
             );
           })}
@@ -745,7 +750,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
                   transform={`translate(${mx} ${my})`}
                   className="cursor-copy"
                   onPointerDown={(e) => {
-                    // Insert a bend point here and drag it.
+                    // Insert a bend here and drag it.
                     const a = selected.path[i];
                     const pos = toRoom(e.clientX, e.clientY);
                     const point = tidy(snapAt(room, pos.x, pos.y, 0, { fallback: a.surface }).point);
@@ -777,7 +782,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
                   }}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    // A pinned point is unpinned first; an unpinned one is removed.
+                    // A matched bend forgets its match first; one without a match is removed.
                     if (selected.path[i].at !== undefined) dispatch({ type: 'updateStrip', stripId: selected.id, patch: { path: unpinPoint(selected.path, i) } });
                     else removePoint(selected, i);
                   }}
@@ -790,7 +795,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
                     strokeWidth={2 * u}
                   />
                   {at !== undefined && (
-                    // A pin mark: this point is pinned to an LED.
+                    // A pin mark: this bend is matched to an LED.
                     <path
                       d={`M ${4 * u} ${-11 * u} l ${4 * u} ${4 * u} l ${-2 * u} ${2 * u} l ${-3 * u} ${-1 * u} l ${-3 * u} ${3 * u} l ${-1 * u} ${-1 * u} l ${3 * u} ${-3 * u} l ${-1 * u} ${-3 * u} Z`}
                       fill="#34d399"
@@ -805,7 +810,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
                   <title>
                     {i === 0 ? 'Start of the strip' : i === selected.path.length - 1 ? 'End of the strip' : `Bend ${i}`}
                     {at !== undefined
-                      ? ` · pinned to LED ${Math.floor(at) + 1}. Drag to move; right-click to unpin.`
+                      ? ` · matched to LED ${Math.floor(at) + 1}. Drag to move; right-click to forget the match.`
                       : ` · about LED ${Math.max(1, Math.round(selGeo.stations[i] ?? 0))}. Drag to move; right-click or Delete to remove.`}
                   </title>
                 </g>
@@ -846,7 +851,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
       {drawing && (
         <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-line-strong bg-surface/95 p-1.5 pl-3 text-[13px] shadow-xl backdrop-blur">
           <span className="text-ink-muted">
-            {draft.length === 0 ? 'Click where the strip starts' : `${draft.length} point${draft.length === 1 ? '' : 's'}`}
+            {draft.length === 0 ? 'Click where the strip starts' : 'Click at each bend'}
           </span>
           <button
             type="button"
@@ -854,7 +859,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
             onClick={() => setDraft((d) => d.slice(0, -1))}
             className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-ink-muted hover:bg-surface-3 hover:text-ink disabled:opacity-40"
           >
-            <Undo2 size={14} /> Undo point
+            <Undo2 size={14} /> Undo
           </button>
           <button
             type="button"
@@ -868,8 +873,8 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
       )}
 
       {/* What the clicked part of the strip does: the exceptions to "the screen next to it". */}
-      {/* (not on a gap while a profile is edited: gaps belong to the strip) */}
-      {selected && selGeo && selection.sectionIndex !== null && !drawing && selGeo.pieces[selection.sectionIndex] && !(rolesOnly && selGeo.pieces[selection.sectionIndex].gap) && (() => {
+      {/* (not on a gap while gaps can't be changed: they belong to the strip) */}
+      {selected && selGeo && selection.sectionIndex !== null && !drawing && selGeo.pieces[selection.sectionIndex] && !(!gaps && selGeo.pieces[selection.sectionIndex].gap) && (() => {
         const i = selection.sectionIndex;
         const piece = selGeo.pieces[i];
         const left = ((piece.a.x + piece.b.x) / 2 - vb.x) / u;
@@ -884,7 +889,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
             <RoleChooser
               value={own?.kind === 'edge' ? undefined : own}
               effects={effects}
-              withGap={!rolesOnly}
+              withGap={gaps}
               compact
               onChange={(section) => onRoles(selected.id, setSection(selected.path, i, section))}
             />

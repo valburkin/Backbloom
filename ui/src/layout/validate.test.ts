@@ -56,26 +56,26 @@ describe('validateLayout', () => {
   });
 
   it('reports unknown controllers and outputs', () => {
-    expect(messages(spec([strip({ controllerId: 'x' })]))[0]).toMatch(/^error: .*controller that doesn't exist/);
+    expect(messages(spec([strip({ controllerId: 'x' })]))[0]).toMatch(/^error: .*device that doesn’t exist/);
     expect(messages(spec([strip({ output: 4 })]))[0]).toMatch(/^error: .*output 5 .*output 1 \(pin 16\), output 2/);
   });
 
   it('reports two strips on one output', () => {
     const m = messages(spec([strip(), strip({ id: 'b', name: 'Other' })]));
-    expect(m).toEqual([expect.stringMatching(/^error: Strip "Monitor" and strip "Other" are both wired to output 1/)]);
+    expect(m).toEqual([expect.stringMatching(/^error: Strip “Monitor” and strip “Other” are both plugged into output 1/)]);
   });
 
   it('reports overlapping outputs and gaps between them', () => {
     const overlap = controller({ outputs: [{ index: 0, start: 0, length: 10 }, { index: 1, start: 8, length: 5 }] });
-    expect(messages(spec([], [overlap]))).toEqual([expect.stringMatching(/^error: .*overlap \(LEDs 8–9/)]);
+    expect(messages(spec([], [overlap]))).toEqual([expect.stringMatching(/^error: .*overlap \(LEDs 9–10/)]);
     const gap = controller({ outputs: [{ index: 0, start: 0, length: 10 }, { index: 1, start: 12, length: 5 }] });
-    expect(messages(spec([], [gap]))).toEqual([expect.stringMatching(/^error: Output 2 of "Desk WLED" starts at LED 12, leaving LEDs 10–11 without an output/)]);
+    expect(messages(spec([], [gap]))).toEqual([expect.stringMatching(/^error: Output 2 of “Desk WLED” starts at LED 13, leaving LEDs 11–12 without an output/)]);
   });
 
   it('reports duplicate ids', () => {
     const m = messages(spec([strip(), strip({ output: 1, ledCount: 5 })], [controller(), controller()]));
-    expect(m.some((x) => x.includes('Two controllers share the id "c"'))).toBe(true);
-    expect(m.some((x) => x.includes('Two strips share the id "monitor"'))).toBe(true);
+    expect(m.some((x) => x.includes('Two devices share the id “c”'))).toBe(true);
+    expect(m.some((x) => x.includes('Two strips share the id “monitor”'))).toBe(true);
   });
 
   it('reports bad strip settings', () => {
@@ -84,19 +84,19 @@ describe('validateLayout', () => {
     expect(bad({ path: [strip().path[0]] })[0]).toMatch(/needs a path/);
     expect(bad({ path: [strip().path[0], strip().path[0]] })[0]).toMatch(/same spot/);
     expect(bad({ depth: 0 })[0]).toMatch(/looks 0 into the picture/);
-    expect(bad({ blend: 0 })[0]).toMatch(/blend of 0/);
+    expect(bad({ blend: 0 })[0]).toMatch(/softness of 0/);
     expect(bad({ brightness: 1.5 })[0]).toMatch(/brightness of 1.5/);
-    expect(bad({ dark: [{ start: 8, count: 5 }] })[0]).toMatch(/LEDs 9–13 dark/);
+    expect(bad({ dark: [{ start: 8, count: 5 }] })[0]).toMatch(/turns off LEDs 9–13/);
   });
 
-  it('reports bad sections with the point index, and strips that are all gaps', () => {
+  it('reports bad parts with the bend index, and strips that are all gaps', () => {
     const [a, b] = strip().path;
     const withSection = (next: unknown) => strip({ path: [{ ...a, next: next as never }, b] });
     const first = (next: unknown) => validateLayout(spec([withSection(next)])).find((i) => i.severity === 'error');
-    expect(first({ kind: 'area' })).toMatchObject({ pointIndex: 0, message: expect.stringMatching(/Section 1 .* needs an area/) });
+    expect(first({ kind: 'area' })).toMatchObject({ pointIndex: 0, message: expect.stringMatching(/Part 1 .* needs an area/) });
     expect(first({ kind: 'area', area: { hmin: 0.6, hmax: 0.4, vmin: 0, vmax: 1 } })?.message).toMatch(/inside out/);
-    expect(first({ kind: 'edge', from: 0 })?.message).toMatch(/start and an end on the screen's outline/);
-    expect(first({ kind: 'sparkle' })?.message).toMatch(/isn't known/);
+    expect(first({ kind: 'edge', from: 0 })?.message).toMatch(/start and an end on the screen’s outline/);
+    expect(first({ kind: 'sparkle' })?.message).toMatch(/isn’t known/);
     expect(first({ kind: 'effect', effect: ' ' })?.message).toMatch(/name of the effect/);
     expect(first({ kind: 'color', color: [255, 0] })?.message).toMatch(/needs a color/);
     expect(first({ kind: 'color', color: [255, 0, 256] })?.message).toMatch(/needs a color/);
@@ -106,10 +106,10 @@ describe('validateLayout', () => {
     expect(validateLayout(spec([withSection({ kind: 'edge', from: 3.5, to: 4.5 })]))).toEqual([]);
   });
 
-  it('reports points outside the room or matched out of order, with the point index', () => {
+  it('reports bends outside the room or matched out of order, with the bend index', () => {
     const outside = validateLayout(spec([strip({ path: [strip().path[0], { surface: 'front', x: 9, y: 1 }] })]));
     expect(outside[0]).toMatchObject({ severity: 'error', pointIndex: 1 });
-    expect(outside[0].message).toMatch(/Point 2 .* outside the room/);
+    expect(outside[0].message).toMatch(/Bend 2 .* outside the room/);
 
     const backwards = strip({
       path: [
@@ -119,7 +119,7 @@ describe('validateLayout', () => {
       ],
     });
     expect(validateLayout(spec([backwards]))[0]).toMatchObject({ severity: 'error', pointIndex: 1 });
-    expect(messages(spec([strip({ path: [{ surface: 'front', x: 1, y: 1, at: 11 }, strip().path[1]] })]))[0]).toMatch(/outside the strip/);
+    expect(messages(spec([strip({ path: [{ surface: 'front', x: 1, y: 1, at: 11 }, strip().path[1]] })]))[0]).toMatch(/matched to LED 11, past the end of the strip/);
   });
 
   it('reports a bad room', () => {
@@ -129,7 +129,7 @@ describe('validateLayout', () => {
     expect(messages(spec([], [controller()], { ...room, screen: { ...room.screen, x: 3.8 } }))[0]).toMatch(/screen reaches past the front wall/);
   });
 
-  it('warns about controllers without outputs', () => {
+  it('warns about devices without outputs', () => {
     expect(messages(spec([], [controller({ outputs: [] })]))).toEqual([expect.stringMatching(/^warning: .*no LED outputs/)]);
   });
 });

@@ -46,11 +46,11 @@ function isDriverSettings(v: unknown): v is DriverSettings {
   return !!v && typeof v === 'object' && !Array.isArray(v) && typeof (v as DriverSettings).type === 'string';
 }
 
-/** A controller with one output covering all LEDs, for when the hardware can't be queried. */
+/** A device with one output covering all LEDs, for when the hardware can’t be queried. */
 export function fallbackController(host: string, ledCount: number, name?: string, device?: DriverSettings): Controller {
   return {
     id: 'controller-1',
-    name: name || host || 'LED controller',
+    name: name || host || 'LED device',
     kind: device?.type ?? 'wled',
     host,
     outputs: [{ index: 0, start: 0, length: Math.max(0, ledCount) }],
@@ -103,14 +103,14 @@ async function controllerForDevice(api: RpcApi, device: unknown, ledCount: numbe
   } catch (e) {
     return {
       controller: fallbackController(host, ledCount, undefined, settings),
-      note: `Couldn't read the outputs of ${host} (${errorText(e)}), so all ${ledCount} LEDs are shown as one output.`,
+      note: `Couldn’t read the outputs of ${host} (${errorText(e)}), so all ${ledCount} LEDs are shown as one output.`,
     };
   }
 }
 
-/** Shown when strips were laid out from LED positions alone. */
+/** Shown when strips were laid out from LED positions alone (a HyperHDR import): the page leads into placing them. */
 export const IMPORTED_NOTE =
-  'Your LEDs were placed around the screen from their current positions. Drag each strip to where it really is in your room, then save.';
+  'Your imported settings only had LED positions, so your strips were put around the screen for now. Place each one where it really is.';
 
 function fromLegacy(rects: LedRect[], controller: Controller, note?: string): LoadedLayout {
   try {
@@ -119,7 +119,7 @@ function fromLegacy(rects: LedRect[], controller: Controller, note?: string): Lo
     return {
       spec: emptySpecFor(controller),
       source: 'empty',
-      note: `Your existing LED positions couldn't be converted (${errorText(e)}). Place your strips in the room instead.`,
+      note: `Your existing LED positions couldn’t be converted (${errorText(e)}). Place your strips in the room instead.`,
     };
   }
 }
@@ -139,8 +139,8 @@ export async function loadLayout(api: RpcApi, opts: { admin: boolean; serverInfo
     return fromLegacy(rects, controller, note);
   }
   const rects = isRectArray(opts.serverInfo?.leds) ? (opts.serverInfo!.leds as LedRect[]) : [];
-  return fromLegacy(rects, fallbackController('', rects.length, 'LED controller'),
-    'Sign in to see your controller details. LED positions were read from the running configuration.');
+  return fromLegacy(rects, fallbackController('', rects.length, 'LED device'),
+    'Sign in to see your device details. LED positions come from the current settings.');
 }
 
 // ---- saving ----
@@ -154,9 +154,9 @@ export interface SaveBlocker {
 export function saveBlockers(spec: LayoutSpec, errorCount: number): SaveBlocker[] {
   const out: SaveBlocker[] = [];
   if (spec.controllers.length === 0)
-    out.push({ reason: 'noController', message: 'Add a controller on the Devices page before saving.' });
+    out.push({ reason: 'noController', message: 'Add a device first, then save.' });
   if (errorCount > 0)
-    out.push({ reason: 'errors', message: `Fix ${errorCount === 1 ? 'the problem' : `the ${errorCount} problems`} listed below first.` });
+    out.push({ reason: 'errors', message: `Fix ${errorCount === 1 ? 'the problem' : `the ${errorCount} problems`} under the room first.` });
   return out;
 }
 

@@ -17,16 +17,21 @@ function leds(n: number): string {
 }
 
 function stripLabel(s: Strip): string {
-  return `strip "${s.name || s.id}"`;
+  return `strip “${s.name || s.id}”`;
 }
 
 function controllerLabel(c: Controller): string {
-  return `"${c.name || c.id}"`;
+  return `“${c.name || c.id}”`;
 }
 
 /** Outputs are shown 1-based, matching WLED's own UI. */
 function outputLabel(o: ControllerOutput): string {
   return o.pin === undefined ? `output ${o.index + 1}` : `output ${o.index + 1} (pin ${o.pin})`;
+}
+
+/** The LED a matched position (PathPoint.at, in LEDs from the start) falls on, numbered from 1. */
+function matchedLed(at: number): string {
+  return Number.isFinite(at) ? `LED ${Math.max(1, Math.ceil(at))}` : `LED ${String(at)}`;
 }
 
 function capitalize(s: string): string {
@@ -55,7 +60,7 @@ function validateRoom(room: Room | undefined, push: (msg: string) => void) {
   for (const [k, label] of dims) {
     const v = room[k];
     if (!finite(v) || v < ROOM_MIN || v > ROOM_MAX) {
-      push(`The room's ${label} must be from ${ROOM_MIN} to ${ROOM_MAX} m (it is ${String(v)}).`);
+      push(`The room’s ${label} must be from ${ROOM_MIN} to ${ROOM_MAX} m (it is ${String(v)}).`);
       sized = false;
     }
   }
@@ -65,7 +70,7 @@ function validateRoom(room: Room | undefined, push: (msg: string) => void) {
   } else if (sized && (s.x < -SURFACE_TOL || s.y < -SURFACE_TOL || s.x + s.width > room.width + SURFACE_TOL || s.y + s.height > room.height + SURFACE_TOL)) {
     push('The screen reaches past the front wall. Make it smaller or the room bigger.');
   }
-  if (!['desk', 'tv', 'none'].includes(room.furniture)) push(`Unknown furniture "${String(room.furniture)}".`);
+  if (!['desk', 'tv', 'none'].includes(room.furniture)) push(`Unknown furniture “${String(room.furniture)}”.`);
 }
 
 function validArea(a: Area | undefined): a is Area {
@@ -76,11 +81,11 @@ const SECTION_KINDS = new Set(['edge', 'whole', 'area', 'none', 'effect', 'color
 
 function validateSection(section: Section, where: string, add: (sev: LayoutIssue['severity'], msg: string) => void) {
   if (!section || typeof section !== 'object' || !SECTION_KINDS.has(section.kind)) {
-    add('error', `${where} does "${String((section as { kind?: unknown } | undefined)?.kind)}", which isn't known.`);
+    add('error', `${where} does “${String((section as { kind?: unknown } | undefined)?.kind)}”, which isn’t known.`);
     return;
   }
   if (section.kind === 'edge' && !finite(section.from, section.to)) {
-    add('error', `${where} needs a start and an end on the screen's outline.`);
+    add('error', `${where} needs a start and an end on the screen’s outline.`);
   }
   if (section.kind === 'effect' && (typeof section.effect !== 'string' || section.effect.trim() === '')) {
     add('error', `${where} needs the name of the effect it plays.`);
@@ -114,23 +119,24 @@ function validateStripShape(s: Strip, room: Room | undefined, add: (sev: LayoutI
     let pointsOk = true;
     s.path.forEach((p, i) => {
       if (!SURFACE_SET.has(p.surface) || !finite(p.x, p.y)) {
-        add('error', `Point ${i + 1} of ${stripLabel(s)} isn't on a wall, the ceiling or the floor.`, i);
+        add('error', `Bend ${i + 1} of ${stripLabel(s)} isn’t on a wall, the ceiling or the floor.`, i);
         pointsOk = false;
         return;
       }
       if (room) {
         const { w, h } = surfaceSize(room, p.surface);
         if (p.x < -SURFACE_TOL || p.y < -SURFACE_TOL || p.x > w + SURFACE_TOL || p.y > h + SURFACE_TOL) {
-          add('error', `Point ${i + 1} of ${stripLabel(s)} is outside the room.`, i);
+          add('error', `Bend ${i + 1} of ${stripLabel(s)} is outside the room.`, i);
           pointsOk = false;
         }
       }
       if (p.at !== undefined && (!finite(p.at) || p.at < 0 || (isInt(count) && p.at > count))) {
-        add('error', `Point ${i + 1} of ${stripLabel(s)} is matched to LED position ${String(p.at)}, outside the strip.`, i);
+        const where = finite(p.at) && p.at < 0 ? 'before the start of the strip' : 'past the end of the strip';
+        add('error', `Bend ${i + 1} of ${stripLabel(s)} is matched to ${matchedLed(p.at)}, ${where}.`, i);
         pointsOk = false;
       }
       if (p.next !== undefined && i < s.path.length - 1) {
-        validateSection(p.next, `Section ${i + 1} of ${stripLabel(s)}`, (sev, msg) => add(sev, msg, i));
+        validateSection(p.next, `Part ${i + 1} of ${stripLabel(s)}`, (sev, msg) => add(sev, msg, i));
       }
     });
     if (pointsOk && room && isInt(count) && count >= 1) {
@@ -140,13 +146,13 @@ function validateStripShape(s: Strip, room: Room | undefined, add: (sev: LayoutI
         const stations = pathStations(room, s.path, count);
         for (let i = 1; i < stations.length; i++) {
           if (stations[i] < stations[i - 1]) {
-            add('error', `The LEDs matched to the points of ${stripLabel(s)} go backwards at point ${i + 1}. Match them again in order.`, i);
+            add('error', `The LEDs matched to the bends of ${stripLabel(s)} go backwards at bend ${i + 1}. Match them again in order.`, i);
             break;
           }
         }
         s.path.forEach((p, i) => {
           if (p.next?.kind === 'gap' && i + 1 < stations.length && stations[i + 1] - stations[i] >= 1) {
-            add('warning', `Section ${i + 1} of ${stripLabel(s)} is a gap, but the LEDs matched at its ends put LEDs in it; they stay dark.`, i);
+            add('warning', `Part ${i + 1} of ${stripLabel(s)} is a gap, but the LEDs matched at its ends put LEDs in it; they stay dark.`, i);
           }
         });
       }
@@ -155,17 +161,17 @@ function validateStripShape(s: Strip, room: Room | undefined, add: (sev: LayoutI
 
   for (const r of s.dark ?? []) {
     if (!isInt(r.start) || !isInt(r.count) || r.start < 0 || r.count < 1 || (isInt(count) && r.start + r.count > count)) {
-      add('error', `${label} keeps LEDs ${String(r.start + 1)}–${String(r.start + r.count)} dark, but it doesn't have them.`);
+      add('error', `${label} turns off LEDs ${String(r.start + 1)}–${String(r.start + r.count)}, but it doesn’t have them.`);
     }
   }
   if (s.depth !== undefined && (!finite(s.depth) || s.depth <= 0 || s.depth > 1)) {
     add('error', `${label} looks ${String(s.depth)} into the picture; it must be above 0 and at most 1 (the whole picture).`);
   }
   if (s.blend !== undefined && (!finite(s.blend) || s.blend <= 0)) {
-    add('error', `${label} has a blend of ${String(s.blend)}; it must be greater than 0 (1 = LEDs just touch).`);
+    add('error', `${label} has a softness of ${String(s.blend)}; it must be greater than 0 (1 = LEDs just touch).`);
   }
   if (s.brightness !== undefined && !(finite(s.brightness) && s.brightness >= 0 && s.brightness <= 1)) {
-    add('error', `${label} has a brightness of ${String(s.brightness)}; it must be between 0 and 100 %.`);
+    add('error', `${label} has a brightness of ${String(s.brightness)}; it must be between 0 and 100%.`);
   }
 }
 
@@ -177,43 +183,43 @@ function validateProfiles(spec: LayoutSpec, push: (severity: LayoutIssue['severi
   }
   const ids = new Set<string>();
   for (const p of spec.profiles) {
-    const label = `Profile "${p?.name || p?.id}"`;
+    const label = `Profile “${p?.name || p?.id}”`;
     if (!p || typeof p.id !== 'string' || !p.id.trim()) {
       push('error', 'A profile needs an id.');
       continue;
     }
-    if (ids.has(p.id)) push('error', `Two profiles share the id "${p.id}".`);
+    if (ids.has(p.id)) push('error', `Two profiles share the id “${p.id}”.`);
     ids.add(p.id);
-    if (typeof p.name !== 'string' || !p.name.trim()) push('error', `Profile "${p.id}" needs a name.`);
+    if (typeof p.name !== 'string' || !p.name.trim()) push('error', `Profile “${p.id}” needs a name.`);
     if (!Array.isArray(p.apps) || p.apps.some((a) => typeof a !== 'string' || !a.trim())) {
       push('error', `${label} needs its programs as a list of program names.`);
     } else if (p.apps.length === 0) {
       push('warning', `${label} has no programs, so it never turns on by itself.`);
     }
     if (!p.sections || typeof p.sections !== 'object' || Array.isArray(p.sections)) {
-      push('error', `${label} needs its sections per strip.`);
+      push('error', `${label} needs what each strip’s parts show.`);
       continue;
     }
     for (const [stripId, sections] of Object.entries(p.sections)) {
       const strip = spec.strips.find((s) => s.id === stripId);
       if (!Array.isArray(sections)) {
-        push('error', `${label}: the sections of strip "${stripId}" must be a list.`);
+        push('error', `${label}: the parts of strip “${stripId}” must be a list.`);
         continue;
       }
       sections.forEach((section, i) => {
         if (section === null) return;
-        if (section?.kind === 'gap') push('error', `${label} can't turn a part into a gap; gaps belong to the strip.`);
-        else validateSection(section, `${label}, part ${i + 1} of strip "${strip?.name ?? stripId}"`, push);
+        if (section?.kind === 'gap') push('error', `${label} can’t turn a part into a gap; gaps belong to the strip.`);
+        else validateSection(section, `${label}, part ${i + 1} of strip “${strip?.name ?? stripId}”`, push);
       });
-      if (!strip) push('warning', `${label} changes a strip that isn't in the layout any more ("${stripId}").`);
+      if (!strip) push('warning', `${label} changes a strip that isn’t in the layout anymore (“${stripId}”).`);
       else if (sections.length !== strip.path.length - 1) {
-        push('warning', `${label} was made for another shape of strip "${strip.name}"; set what its parts do again.`);
+        push('warning', `${label} was made for another shape of strip “${strip.name}”; set what its parts show again.`);
       }
     }
   }
 }
 
-/** Human-readable problems with a layout (room, LED count mismatches, unknown outputs, bad paths and sections...). */
+/** Human-readable problems with a layout (room, LED count mismatches, unknown outputs, bad paths and parts...). */
 export function validateLayout(spec: LayoutSpec): LayoutIssue[] {
   const issues: LayoutIssue[] = [];
   validateProfiles(spec, (severity, message) => issues.push({ severity, message }));
@@ -225,14 +231,14 @@ export function validateLayout(spec: LayoutSpec): LayoutIssue[] {
   const seenControllers = new Set<string>();
   for (const c of spec.controllers) {
     if (seenControllers.has(c.id)) {
-      issues.push({ severity: 'error', controllerId: c.id, message: `Two controllers share the id "${c.id}". Each controller needs its own id.` });
+      issues.push({ severity: 'error', controllerId: c.id, message: `Two devices share the id “${c.id}”. Each device needs its own id.` });
     }
     seenControllers.add(c.id);
   }
   const seenStrips = new Set<string>();
   for (const s of spec.strips) {
     if (seenStrips.has(s.id)) {
-      issues.push({ severity: 'error', stripId: s.id, message: `Two strips share the id "${s.id}". Each strip needs its own id.` });
+      issues.push({ severity: 'error', stripId: s.id, message: `Two strips share the id “${s.id}”. Each strip needs its own id.` });
     }
     seenStrips.add(s.id);
   }
@@ -242,18 +248,18 @@ export function validateLayout(spec: LayoutSpec): LayoutIssue[] {
     const add = (severity: LayoutIssue['severity'], message: string) =>
       issues.push({ severity, message, controllerId: c.id });
     if (c.outputs.length === 0) {
-      add('warning', `Controller ${controllerLabel(c)} has no LED outputs.`);
+      add('warning', `Device ${controllerLabel(c)} has no LED outputs.`);
       continue;
     }
     const seenIdx = new Set<number>();
     for (const o of c.outputs) {
-      if (seenIdx.has(o.index)) add('error', `Controller ${controllerLabel(c)} lists ${outputLabel(o)} twice.`);
+      if (seenIdx.has(o.index)) add('error', `Device ${controllerLabel(c)} lists ${outputLabel(o)} twice.`);
       seenIdx.add(o.index);
       if (!isInt(o.length) || o.length < 1) {
         add('error', `${capitalize(outputLabel(o))} of ${controllerLabel(c)} must drive at least 1 LED (it has ${String(o.length)}).`);
       }
       if (!isInt(o.start) || o.start < 0) {
-        add('error', `${capitalize(outputLabel(o))} of ${controllerLabel(c)} has an invalid start index (${String(o.start)}).`);
+        add('error', `${capitalize(outputLabel(o))} of ${controllerLabel(c)} has an invalid start (${String(o.start)}).`);
       }
     }
     const sorted = [...c.outputs].sort((a, b) => a.start - b.start);
@@ -263,8 +269,8 @@ export function validateLayout(spec: LayoutSpec): LayoutIssue[] {
       if (isInt(o.start) && o.start > end) {
         add(
           'error',
-          `${capitalize(outputLabel(o))} of ${controllerLabel(c)} starts at LED ${o.start}, leaving LEDs ${end}–${o.start - 1} ` +
-            'without an output. Outputs must follow each other from LED 0.',
+          `${capitalize(outputLabel(o))} of ${controllerLabel(c)} starts at LED ${o.start + 1}, leaving LEDs ${end + 1}–${o.start} ` +
+            'without an output. Outputs must follow each other from LED 1.',
         );
       }
       end = Math.max(end, o.start + o.length);
@@ -278,7 +284,7 @@ export function validateLayout(spec: LayoutSpec): LayoutIssue[] {
         add(
           'error',
           `${capitalize(outputLabel(prev))} and ${outputLabel(cur)} of ${controllerLabel(c)} overlap ` +
-            `(LEDs ${cur.start}–${last} are claimed by both). Check each output's start and length on the controller.`,
+            `(LEDs ${cur.start + 1}–${last + 1} are claimed by both). Check each output’s start and length on the device.`,
         );
       }
     }
@@ -296,7 +302,7 @@ export function validateLayout(spec: LayoutSpec): LayoutIssue[] {
 
     const c = controllers.get(s.controllerId);
     if (!c) {
-      add('error', `${label} is wired to a controller that doesn't exist (id "${s.controllerId}").`);
+      add('error', `${label} is plugged into a device that doesn’t exist (id “${s.controllerId}”).`);
       continue;
     }
     const o = c.outputs.find((x) => x.index === s.output);
@@ -304,7 +310,7 @@ export function validateLayout(spec: LayoutSpec): LayoutIssue[] {
       const avail = c.outputs.length
         ? `it has ${c.outputs.map(outputLabel).join(', ')}`
         : 'it has no outputs';
-      add('error', `${label} is wired to output ${s.output + 1} of ${controllerLabel(c)}, but ${avail}.`);
+      add('error', `${label} is plugged into output ${s.output + 1} of ${controllerLabel(c)}, but ${avail}.`);
       continue;
     }
 
@@ -313,7 +319,7 @@ export function validateLayout(spec: LayoutSpec): LayoutIssue[] {
     if (owner) {
       add(
         'error',
-        `${capitalize(stripLabel(owner))} and ${stripLabel(s)} are both wired to ${outputLabel(o)} of ${controllerLabel(c)}. ` +
+        `${capitalize(stripLabel(owner))} and ${stripLabel(s)} are both plugged into ${outputLabel(o)} of ${controllerLabel(c)}. ` +
           'Each output drives one strip.',
       );
       continue;
@@ -332,7 +338,7 @@ export function validateLayout(spec: LayoutSpec): LayoutIssue[] {
       add(
         'warning',
         `${label} has ${leds(n)}, but ${outputLabel(o)} of ${controllerLabel(c)} drives ${o.length}. ` +
-          `The last ${missing === 1 ? 'LED' : `${missing} LEDs`} on that output will stay dark.`,
+          `The last ${missing === 1 ? 'LED' : `${missing} LEDs`} on that output stay unused.`,
       );
     }
   }

@@ -24,6 +24,7 @@
       "default": 1883,
       "minimum": 1024,
       "maximum": 65535,
+      "access": "advanced",
       "propertyOrder": 3
     },
     "username": {
@@ -60,6 +61,7 @@
           "is_ssl": true
         }
       },
+      "access": "advanced",
       "propertyOrder": 7
     },
     "custom_topic": {
@@ -67,6 +69,7 @@
       "title": "edt_conf_mqtt_custom_topic_title",
       "required": true,
       "default": "",
+      "access": "advanced",
       "propertyOrder": 8
     },
     "disableApiAccess": {
@@ -75,17 +78,19 @@
       "title": "edt_conf_mqtt_disableApiAccess_title",
       "default": false,
       "required": true,
+      "access": "advanced",
       "propertyOrder": 9
     },
     "maxRetry": {
       "type": "integer",
       "format": "stepper",
       "step": 1,
-      "title": "edt_dev_max_retry",
+      "title": "edt_conf_mqtt_maxRetry_title",
       "minimum": 0,
       "maximum": 120,
       "default": 0,
       "required": true,
+      "access": "advanced",
       "propertyOrder": 10
     },
     "homeAssistantDiscovery": {
@@ -94,6 +99,7 @@
       "title": "Add the lights to Home Assistant (MQTT discovery)",
       "default": true,
       "required": true,
+      "access": "advanced",
       "propertyOrder": 11
     }
   },

@@ -1,8 +1,9 @@
-import { CheckCircle2, CircleAlert, Info, TriangleAlert } from 'lucide-react';
+import { CircleAlert, Info, TriangleAlert } from 'lucide-react';
 import type { LayoutIssue, LayoutSpec } from '../../layout';
 import type { SaveBlocker } from '../../api/layoutService';
 import { Card, cx } from '../../components/ui';
 
+/** "Problems": what keeps the layout from being saved or working well; nothing when all is fine. */
 export function IssueSummary({
   spec,
   issues,
@@ -19,24 +20,21 @@ export function IssueSummary({
   const nonError = blockers.filter((b) => b.reason !== 'errors');
   const sorted = [...issues].sort((a, b) => Number(b.severity === 'error') - Number(a.severity === 'error'));
   const stripName = (id?: string) => spec.strips.find((s) => s.id === id)?.name;
+  if (!validatorError && sorted.length === 0 && nonError.length === 0) return null;
 
   return (
     <Card className="p-4">
-      <h2 className="mb-2 text-sm font-semibold">Layout check</h2>
+      <h2 className="mb-2 text-base font-semibold">Problems</h2>
       {nonError.map((b) => (
-        <p key={b.reason} className="mb-2 flex gap-2 rounded-lg border border-warn/30 bg-warn/10 p-2.5 text-[13px] text-warn">
+        <p key={b.reason} className="mb-2 flex gap-2 text-[13px] text-warn">
           <Info size={15} className="mt-px shrink-0" />
           {b.message}
         </p>
       ))}
       {validatorError ? (
-        <p className="text-[13px] text-ink-faint">The layout check isn’t available right now ({validatorError}).</p>
-      ) : sorted.length === 0 ? (
-        <p className="flex items-center gap-2 text-[13px] text-ok">
-          <CheckCircle2 size={15} /> Everything looks good.
-        </p>
+        <p className="text-[13px] text-ink-faint">Couldn’t check the layout ({validatorError}).</p>
       ) : (
-        <ul className="space-y-1">
+        <ul className="-mx-2 space-y-0.5">
           {sorted.map((issue, i) => {
             const Icon = issue.severity === 'error' ? CircleAlert : TriangleAlert;
             const where = issue.room ? 'Room' : stripName(issue.stripId) ?? '';

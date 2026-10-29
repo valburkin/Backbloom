@@ -158,15 +158,24 @@ public sealed class EffectEngineTests : IDisposable
                 Assert.True(source.TryRender(mapping, colors, CancellationToken.None));
             }
 
-            var start = clock.NowMilliseconds;
-            var before = GC.GetAllocatedBytesForCurrentThread();
-            for (var i = 0; i < 300; i++)
+            // Steady state: a round of 300 steps without an allocation. Under load (a full parallel test run) the runtime
+            // may still be tiering up the effect's code during the first round, which allocates on this thread once.
+            var allocated = -1L;
+            var stepMs = 0.0;
+            for (var round = 0; round < 4 && allocated != 0; round++)
             {
-                Assert.True(source.TryRender(mapping, colors, CancellationToken.None));
+                var start = clock.NowMilliseconds;
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                for (var i = 0; i < 300; i++)
+                {
+                    Assert.True(source.TryRender(mapping, colors, CancellationToken.None));
+                }
+
+                allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+                stepMs = (clock.NowMilliseconds - start) / 300.0;
             }
 
-            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
-            var stepMs = (clock.NowMilliseconds - start) / 300.0;
+            Assert.Equal(0, allocated);
             switch (name)
             {
                 case "Rainbow swirl fast":

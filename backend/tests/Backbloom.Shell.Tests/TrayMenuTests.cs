@@ -73,7 +73,7 @@ public sealed class TrayMenuTests : IDisposable
         Assert.True(host.Settings.Update(new JsonObject { ["soundEffect"] = new JsonObject { ["enable"] = false, ["device"] = "default", ["enable_smoothing"] = true } }).Success);
         Assert.Empty(host.Engine.Effects.Active);
         var off = Item(tray.Build(), "Music").Children!;
-        Assert.Equal("Sound capture is off", off[0].Text);
+        Assert.Equal("Sound input is off", off[0].Text);
         Assert.All(off.Where(c => !c.IsSeparator), c => Assert.False(c.Enabled));
         Assert.True(host.Settings.Update(new JsonObject { ["soundEffect"] = new JsonObject { ["enable"] = true, ["device"] = "default", ["enable_smoothing"] = true } }).Success);
         Assert.All(Item(tray.Build(), "Music").Children!, c => Assert.True(c.Enabled));

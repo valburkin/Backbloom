@@ -7,9 +7,12 @@
   --color-surface-3: #1e2330;
   --color-line: #252b39;
   --color-line-strong: #343c4f;
+  /* Borders of inputs and choice controls: 3:1 against the background (WCAG 1.4.11). */
+  --color-line-input: #5a6480;
   --color-ink: #e8eaf0;
   --color-ink-muted: #9ba3b5;
-  --color-ink-faint: #6a7285;
+  /* Hints and secondary text: at least 4.5:1 on every surface (WCAG AA). */
+  --color-ink-faint: #828a9e;
   --color-accent: #8b7cf6;
   --color-accent-strong: #a89cff;
   --color-accent-ink: #0d0b1a;
@@ -53,6 +56,17 @@ input[type="range"] {
 
 input[type="number"]::-webkit-inner-spin-button {
   opacity: 0.4;
+}
+
+/* Small number boxes next to sliders: the slider is the stepper. */
+input[type="number"].no-spin {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"].no-spin::-webkit-inner-spin-button,
+input[type="number"].no-spin::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .scroll-thin {

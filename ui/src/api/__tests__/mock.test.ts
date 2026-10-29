@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { RpcApi, SUBSCRIPTIONS } from '../rpcApi';
 import { MockBackend } from '../mock';
 import { RpcError } from '../types';
-import { saveErrorText } from '../../app/config';
+import { issueLabel, saveErrorText } from '../../app/config';
 import { toneMappingStatus } from '../../pages/CapturePage';
 import specJson from '../../../../backend/tests/fixtures/layouts/ui-multi-controller.spec.json';
 
@@ -24,6 +24,11 @@ describe('MockBackend like the .NET app', () => {
     expect(err).toBeInstanceOf(RpcError);
     expect((err as RpcError).reply?.errors).toEqual([{ path: 'smoothing.time_ms', message: 'The maximum is 5000.' }]);
     expect(saveErrorText(err, { 'smoothing.time_ms': 'Transition time' })).toBe('Transition time: The maximum is 5000.');
+    // without a label of the page, the field's own label, never the raw path
+    const schema = await api.getSchema();
+    expect(saveErrorText(err, {}, schema)).not.toContain('smoothing.time_ms');
+    expect(issueLabel('mqtt.port', {}, schema)).toBe('Port');
+    expect(issueLabel('somewhere.unknown', {}, schema)).toBe('A setting');
     expect(((await api.getConfig()).smoothing as Record<string, unknown>).time_ms).toBe(smoothing.time_ms);
   });
 
@@ -32,7 +37,7 @@ describe('MockBackend like the .NET app', () => {
     const sound = { ...((await api.getConfig()).soundEffect as Record<string, unknown>) };
     await api.setConfig({ soundEffect: { ...sound, enable: false } });
     expect((await api.serverInfo()).sound?.available).toBe(false);
-    await expect(api.runEffect('Music: spectrum')).rejects.toThrow('Turn on sound capture to use music effects');
+    await expect(api.runEffect('Music: spectrum')).rejects.toThrow('Music needs sound input, which is off.');
     await expect(api.runEffect('Candle')).resolves.toBeUndefined();
 
     await api.setConfig({ soundEffect: { ...sound, enable: true } });
@@ -94,7 +99,7 @@ describe('MockBackend like the .NET app', () => {
   it('reports the HDR state of the capture and has no layout until one is saved', async () => {
     const { api } = await connected();
     const info = await api.serverInfo(SUBSCRIPTIONS);
-    expect(info.systemGrabbers?.hdr).toEqual({ mode: 'auto', capturing: true, monitorHdr: false, toneMapping: false });
+    expect(info.systemGrabbers?.hdr).toEqual({ mode: 'auto', capturing: true, monitorHdr: false, toneMapping: false, sdrWhiteNits: 0 });
     expect(Object.keys(info).length).toBeGreaterThan(5);
     expect('layout' in (await api.getConfig())).toBe(false);
   });
@@ -105,10 +110,10 @@ describe('toneMappingStatus', () => {
 
   it('says in one line what happens to the colors', () => {
     expect(toneMappingStatus(undefined)).toBeNull();
-    expect(toneMappingStatus(hdr(false, false, false))?.text).toBe('Waiting for the screen capture to start.');
-    expect(toneMappingStatus(hdr(false, false))?.text).toBe('Your monitor is in SDR mode — colors are used as-is.');
-    expect(toneMappingStatus(hdr(true, true))?.text).toBe('HDR detected — tone mapping applied.');
-    expect(toneMappingStatus(hdr(false, true))?.tone).toBe('warn');
-    expect(toneMappingStatus(hdr(true, false))?.tone).toBe('warn');
+    expect(toneMappingStatus(hdr(false, false, false))?.text).toBe('Waiting for screen sync to start.');
+    expect(toneMappingStatus(hdr(false, false))?.text).toBe('HDR is off — colors are used as they are.');
+    expect(toneMappingStatus(hdr(true, true))?.text).toBe('HDR is on — colors are corrected.');
+    expect(toneMappingStatus(hdr(false, true))).toEqual({ text: 'HDR is off — colors are corrected anyway (Always).', tone: 'warn' });
+    expect(toneMappingStatus(hdr(true, false))).toEqual({ text: 'HDR is on — colors are not corrected.', tone: 'warn' });
   });
 });

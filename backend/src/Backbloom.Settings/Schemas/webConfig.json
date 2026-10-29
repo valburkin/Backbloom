@@ -5,9 +5,9 @@
     "document_root": {
       "type": "string",
       "title": "edt_conf_webc_docroot_title",
-      "access": "expert",
       "default": "",
       "required": true,
+      "access": "expert",
       "propertyOrder": 2
     },
     "port": {
@@ -17,6 +17,7 @@
       "maximum": 65535,
       "default": 8090,
       "required": true,
+      "access": "advanced",
       "propertyOrder": 3
     },
     "sslPort": {
@@ -26,6 +27,7 @@
       "minimum": 80,
       "maximum": 65535,
       "default": 8092,
+      "access": "advanced",
       "propertyOrder": 4
     },
     "crtPath": {
@@ -33,6 +35,7 @@
       "title": "edt_conf_webc_crtPath_title",
       "required": true,
       "default": "",
+      "access": "expert",
       "propertyOrder": 5
     },
     "keyPath": {
@@ -40,6 +43,7 @@
       "title": "edt_conf_webc_keyPath_title",
       "required": true,
       "default": "",
+      "access": "expert",
       "propertyOrder": 6
     },
     "keyPassPhrase": {
@@ -47,6 +51,7 @@
       "title": "edt_conf_webc_keyPassPhrase_title",
       "required": true,
       "default": "",
+      "access": "expert",
       "propertyOrder": 7
     }
   },

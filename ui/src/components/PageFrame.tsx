@@ -52,7 +52,7 @@ export function PageFrame({
         }
       />
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-        <div className={cx('mx-auto space-y-6 p-4 sm:p-6', wide ? 'max-w-6xl' : 'max-w-4xl', bar && 'pb-28')}>
+        <div className={cx('mx-auto space-y-6 p-4 sm:p-6', wide ? 'max-w-6xl' : 'max-w-3xl', bar && 'pb-28')}>
           {toolbar}
           {settings && gate ? <SettingsGate settings={settings}>{children}</SettingsGate> : children}
         </div>

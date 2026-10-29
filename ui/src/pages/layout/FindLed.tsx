@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Crosshair, LightbulbOff } from 'lucide-react';
+import { Crosshair, X } from 'lucide-react';
 import type { LayoutSpec } from '../../layout';
-import { Button, Card, Stepper } from '../../components/ui';
+import { IconButton, Stepper } from '../../components/ui';
 import { Select } from '../../components/form';
 import { useConnection } from '../../app/connection';
 import { locateLed } from './model';
@@ -9,24 +9,28 @@ import { locateLed } from './model';
 export const BLINK_DEBOUNCE_MS = 350;
 
 /**
- * "Find LED": pick a controller and an LED number on it, and that LED blinks red → green → blue, so users can match
- * physical positions ("LED 17 is the bottom-right corner"). Blink commands are debounced while dragging.
+ * "Find an LED" (an expert tool): pick a device and an LED number on it (from 1), and that LED blinks red → green →
+ * blue, so users can match physical positions ("LED 17 is the bottom-right corner"). Blink commands are debounced
+ * while dragging; the LED goes off when the panel closes.
  */
 export function FindLed({
   spec,
   controllerId,
   onLocate,
+  onClose,
 }: {
   spec: LayoutSpec;
   controllerId: string | null;
   onLocate: (loc: { stripId: string; local: number } | null) => void;
+  onClose(): void;
 }) {
-  const { api, status } = useConnection();
-  // Follows the selected strip's controller until the user picks one here.
+  const { api } = useConnection();
+  // Follows the selected strip's device until the user picks one here.
   const [picked, setPicked] = useState<string | null>(null);
   const controller =
     spec.controllers.find((c) => c.id === picked) ?? spec.controllers.find((c) => c.id === controllerId) ?? spec.controllers[0];
   const total = controller ? controller.outputs.reduce((m, o) => Math.max(m, o.start + o.length), 0) : 0;
+  /** The LED, counted from 0 as the device does. */
   const [index, setIndex] = useState(0);
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,18 +42,19 @@ export function FindLed({
     onLocate(loc ? { stripId: loc.strip.id, local: loc.local } : null);
   }, [locKey]);
 
-  // The LED stays lit until another one is picked or the finder is turned off (or left).
+  // The LED stays lit until another one is picked or the panel closes.
   const activeRef = useRef(false);
   activeRef.current = active;
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
       if (activeRef.current) api.stopBlink().catch(() => undefined);
+      onLocate(null);
     },
     [api],
   );
 
-  // Another controller (picked here, or the selected strip's): the LED lit on the previous one goes off.
+  // Another device (picked here, or the selected strip's): the LED lit on the previous one goes off.
   const controllerKey = controller?.id;
   const litOn = useRef(controllerKey);
   useEffect(() => {
@@ -61,21 +66,13 @@ export function FindLed({
     setIndex(0);
   }, [controllerKey, api]);
 
-  const blink = (i: number, immediate = false) => {
+  const blink = (i: number) => {
     if (timer.current) clearTimeout(timer.current);
     const id = controller?.id;
-    const run = () => {
+    timer.current = setTimeout(() => {
       setError(null);
       api.blinkLed(i, id, true).catch((e) => setError(e instanceof Error ? e.message : String(e)));
-    };
-    if (immediate) run();
-    else timer.current = setTimeout(run, BLINK_DEBOUNCE_MS);
-  };
-
-  const stop = () => {
-    if (timer.current) clearTimeout(timer.current);
-    setActive(false);
-    api.stopBlink(controller?.id).catch(() => undefined);
+    }, BLINK_DEBOUNCE_MS);
   };
 
   const change = (i: number) => {
@@ -85,54 +82,57 @@ export function FindLed({
     blink(clamped);
   };
 
-  if (!controller || total === 0) return null;
+  const shown = Math.min(index, Math.max(0, total - 1));
   return (
-    <Card className="p-4">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <div className="flex items-center gap-2">
-          <Crosshair size={17} className="text-accent-strong" />
-          <h2 className="text-sm font-semibold">Find an LED</h2>
-        </div>
-        {spec.controllers.length > 1 && (
-          <Select
-            label="Controller"
-            hideLabel
-            className="min-w-[10rem]"
-            value={controller.id}
-            options={spec.controllers.map((c) => ({ value: c.id, label: c.name || c.id }))}
-            onChange={setPicked}
-          />
-        )}
-        <Stepper label="LED number" value={Math.min(index, total - 1)} min={0} max={total - 1} onChange={change} />
-        <input
-          type="range"
-          aria-label="LED number slider"
-          className="min-w-[10rem] flex-1"
-          min={0}
-          max={total - 1}
-          value={Math.min(index, total - 1)}
-          onChange={(e) => change(Number(e.target.value))}
-        />
-        <Button size="sm" icon={<LightbulbOff size={15} />} disabled={status !== 'open' || !active} onClick={stop}>
-          Turn off
-        </Button>
+    <section aria-label="Find an LED" className="space-y-3 rounded-2xl border border-line-strong bg-surface-2 p-4">
+      <div className="flex items-center gap-2">
+        <Crosshair size={17} className="shrink-0 text-ink-faint" aria-hidden />
+        <h2 className="flex-1 text-sm font-semibold">Find an LED</h2>
+        <IconButton label="Close Find an LED" onClick={onClose}>
+          <X size={16} />
+        </IconButton>
       </div>
-      <p className="mt-2 text-[13px] text-ink-muted" aria-live="polite">
-        {error ? (
-          <span className="text-bad">Couldn’t blink: {error}</span>
-        ) : active ? (
-          loc ? (
-            <>
-              LED <b className="text-ink">#{index}</b>{spec.controllers.length > 1 ? ` of ${controller.name}` : ''} stays lit, cycling red → green → blue. In your layout it’s LED {loc.local + 1}
-              {' '}of “{loc.strip.name}”{loc.local >= loc.strip.ledCount ? ', past the end of the strip' : ''}, ringed in the room.
-            </>
-          ) : (
-            <>LED #{index} stays lit, cycling red → green → blue. It isn’t part of any strip in your layout.</>
-          )
-        ) : (
-          <>Pick an LED number and it lights up on your strip until you pick another or turn it off — great for finding the corners.</>
-        )}
-      </p>
-    </Card>
+      {!controller || total === 0 ? (
+        <p className="text-[13px] text-ink-muted">There are no LEDs to light up yet.</p>
+      ) : (
+        <>
+          {spec.controllers.length > 1 && (
+            <Select
+              label="Device"
+              value={controller.id}
+              options={spec.controllers.map((c) => ({ value: c.id, label: c.name || c.id }))}
+              onChange={setPicked}
+            />
+          )}
+          <Stepper label="LED number" value={shown + 1} min={1} max={total} onChange={(n) => change(n - 1)} />
+          <input
+            type="range"
+            aria-label="LED number slider"
+            className="w-full"
+            min={1}
+            max={total}
+            value={shown + 1}
+            onChange={(e) => change(Number(e.target.value) - 1)}
+          />
+          <p className="text-xs text-ink-faint" aria-live="polite">
+            {error ? (
+              <span className="text-bad">Couldn’t light the LED: {error}</span>
+            ) : active ? (
+              loc ? (
+                <>
+                  LED {shown + 1}
+                  {spec.controllers.length > 1 ? ` of ${controller.name}` : ''} is lit (red → green → blue). It’s LED {loc.local + 1} of “{loc.strip.name}”
+                  {loc.local >= loc.strip.ledCount ? ', past the end of the strip' : ', circled in the room'}.
+                </>
+              ) : (
+                <>LED {shown + 1} is lit (red → green → blue). It isn’t part of any strip.</>
+              )
+            ) : (
+              <>Pick a number to light up that LED, handy for finding corners.</>
+            )}
+          </p>
+        </>
+      )}
+    </section>
   );
 }

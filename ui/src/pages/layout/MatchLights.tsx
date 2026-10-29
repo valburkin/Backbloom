@@ -15,9 +15,9 @@ function pointName(strip: Strip, i: number): string {
 }
 
 /**
- * Matching a strip with the real lights: for each bend point, one LED lights up on the strip; the user moves the
- * light until it sits at that spot in the room and confirms. The point then remembers that LED (PathPoint.at), so
- * LEDs land where they really are even when the drawing isn't to scale.
+ * Matching a strip with the real lights: for each bend (the start and the end included), one LED lights up on the
+ * strip; the user moves the light until it sits at that spot in the room and confirms. The bend then remembers that
+ * LED (PathPoint.at), so LEDs land where they really are even when the drawing isn’t to scale.
  */
 export function MatchLights({
   spec,
@@ -53,7 +53,7 @@ export function MatchLights({
     if (timer.current) clearTimeout(timer.current);
     const index = controllerIndex(spec, strip, local);
     if (index === null) {
-      setError('This strip isn’t wired to an output yet, so its LEDs can’t be lit.');
+      setError('This strip isn’t plugged into an output yet, so its LEDs can’t be lit.');
       return;
     }
     timer.current = setTimeout(() => {
@@ -64,7 +64,7 @@ export function MatchLights({
 
   useEffect(() => {
     if (done) {
-      // every point is matched: the last LED goes off (it would stay lit until the panel closes)
+      // every bend is matched: the last LED goes off (it would stay lit until the panel closes)
       if (timer.current) clearTimeout(timer.current);
       api.stopBlink(strip.controllerId).catch(() => undefined);
       onPoint(null);
@@ -118,13 +118,13 @@ export function MatchLights({
   };
 
   return (
-    <section aria-label={`Match ${strip.name} with the lights`} className="space-y-4 rounded-2xl border border-warn/40 bg-warn/5 p-4">
+    <section aria-label={`Match ${strip.name} with the lights`} className="space-y-4 rounded-2xl border border-line-strong bg-surface-2 p-4">
       <div className="flex items-start gap-2">
-        <Lightbulb size={18} className="mt-0.5 shrink-0 text-warn" />
+        <Lightbulb size={18} className="mt-0.5 shrink-0 text-ink-faint" />
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold">Match {strip.name} with your lights</h2>
           <p className="mt-0.5 text-xs text-ink-muted">
-            {done ? 'All points are matched.' : `Point ${step + 1} of ${strip.path.length}`}
+            {done ? 'All bends are matched.' : `Bend ${step + 1} of ${strip.path.length}`}
           </p>
         </div>
         <IconButton label="Close matching" onClick={onClose}>
@@ -140,14 +140,14 @@ export function MatchLights({
               Done
             </Button>
             <Button size="sm" variant="ghost" onClick={() => goTo(0)}>
-              Go through again
+              Start over
             </Button>
           </div>
         </>
       ) : (
         <>
           <p className="text-[13px]">
-            One LED of the strip lights up in your room. Move it until it sits at <span className="font-semibold text-warn">{pointName(strip, step)}</span>{' '}
+            One LED of the strip lights up in your room. Move it until it sits at <span className="font-semibold text-ink">{pointName(strip, step)}</span>{' '}
             (the blinking handle in the room), then confirm.
           </p>
           <div className="flex items-center justify-between gap-1 rounded-xl border border-line bg-bg/60 p-1.5">
@@ -168,14 +168,14 @@ export function MatchLights({
             </IconButton>
           </div>
           <p className="text-xs text-ink-faint">Arrow keys move it too (with Shift: 10 at a time).</p>
-          {led < previousAt && <p className="text-xs text-warn">This LED comes before the one matched at an earlier point; the strip would run backwards.</p>}
+          {led < previousAt && <p className="text-xs text-warn">This LED comes before the one you matched earlier, so the strip would run backwards.</p>}
           {error && <p className="text-xs text-bad">{error}</p>}
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="primary" icon={<Check size={14} />} onClick={confirm}>
               It’s there
             </Button>
             <Button size="sm" variant="ghost" onClick={() => goTo(step + 1)}>
-              Skip this point
+              Skip this bend
             </Button>
             {step > 0 && (
               <Button size="sm" variant="ghost" onClick={() => goTo(step - 1)}>
@@ -187,7 +187,7 @@ export function MatchLights({
       )}
       {strip.path.some((p) => p.at !== undefined) && (
         <button type="button" onClick={clearAll} className="text-xs text-ink-faint hover:text-ink hover:underline">
-          Forget all matched points
+          Forget matched points
         </button>
       )}
     </section>

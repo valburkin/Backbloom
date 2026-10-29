@@ -1,14 +1,16 @@
-// Intensity presets: one choice on the Home page that sets how calm or punchy the lights feel. Each preset maps to
-// concrete settings — smoothing (on + transition time) and the saturation / luminance gains of the color section.
-// Anything else stays as the user configured it; a config that matches no preset shows as "Custom".
+// Intensity presets: one choice (on Home and the Colors page) that sets how calm or punchy the lights feel. Each preset
+// maps to concrete settings — transitions (smoothing on, transition time and the matching spring) and the saturation /
+// color brightness (luminance) gains of the color section. Anything else stays as the user configured it; a config that
+// matches no preset shows as "Custom".
 
 import type { BackendConfig } from '../api/types';
+import { springFor } from './smoothing';
 
 export interface IntensityPreset {
-  id: 'subtle' | 'moderate' | 'high' | 'intense';
+  id: 'calm' | 'balanced' | 'lively' | 'intense';
   label: string;
   description: string;
-  /** smoothing.time_ms */
+  /** smoothing.time_ms; the spring (smoothing.stiffness, smoothing.damping) follows from it (springFor) */
   smoothingMs: number;
   /** color.channelAdjustment[0].saturationGain */
   saturation: number;
@@ -17,10 +19,10 @@ export interface IntensityPreset {
 }
 
 export const INTENSITY_PRESETS: readonly IntensityPreset[] = [
-  { id: 'subtle', label: 'Subtle', description: 'Soft colors that drift slowly. Easy on the eyes for movies and long sessions.', smoothingMs: 400, saturation: 0.9, luminance: 0.9 },
-  { id: 'moderate', label: 'Moderate', description: 'True-to-screen colors with gentle transitions. A good default.', smoothingMs: 250, saturation: 1, luminance: 1 },
-  { id: 'high', label: 'High', description: 'Richer colors that follow the action quickly.', smoothingMs: 150, saturation: 1.25, luminance: 1.1 },
-  { id: 'intense', label: 'Intense', description: 'Vivid colors with near-instant reactions. Made for fast games.', smoothingMs: 80, saturation: 1.5, luminance: 1.2 },
+  { id: 'calm', label: 'Calm', description: 'Soft colors that drift slowly. Easy on the eyes for movies and long sessions.', smoothingMs: 550, saturation: 0.9, luminance: 0.9 },
+  { id: 'balanced', label: 'Balanced', description: 'True-to-screen colors with gentle transitions. A good default.', smoothingMs: 350, saturation: 1, luminance: 1 },
+  { id: 'lively', label: 'Lively', description: 'Richer colors that follow the action quickly.', smoothingMs: 250, saturation: 1.25, luminance: 1.1 },
+  { id: 'intense', label: 'Intense', description: 'Vivid colors with quick reactions. Made for fast games.', smoothingMs: 150, saturation: 1.5, luminance: 1.2 },
 ];
 
 export type IntensityId = IntensityPreset['id'] | 'custom';
@@ -39,9 +41,17 @@ export function detectIntensity(config: BackendConfig | null): IntensityId | nul
   if (!config) return null;
   const smoothing = (config.smoothing ?? {}) as Obj;
   const adj = adjustmentOf(config);
-  const match = INTENSITY_PRESETS.find(
-    (p) => smoothing.enable === true && smoothing.time_ms === p.smoothingMs && close(adj.saturationGain, p.saturation) && close(adj.luminanceGain, p.luminance),
-  );
+  const match = INTENSITY_PRESETS.find((p) => {
+    const spring = springFor(p.smoothingMs);
+    return (
+      smoothing.enable === true &&
+      smoothing.time_ms === p.smoothingMs &&
+      smoothing.stiffness === spring.stiffness &&
+      smoothing.damping === spring.damping &&
+      close(adj.saturationGain, p.saturation) &&
+      close(adj.luminanceGain, p.luminance)
+    );
+  });
   return match?.id ?? 'custom';
 }
 
@@ -52,7 +62,7 @@ export function applyIntensity(config: BackendConfig, id: IntensityPreset['id'])
   const color = (config.color ?? {}) as Obj;
   const list = Array.isArray(color.channelAdjustment) ? (color.channelAdjustment as Obj[]) : [{}];
   return {
-    smoothing: { ...((config.smoothing ?? {}) as Obj), enable: true, time_ms: p.smoothingMs },
+    smoothing: { ...((config.smoothing ?? {}) as Obj), enable: true, time_ms: p.smoothingMs, ...springFor(p.smoothingMs) },
     color: {
       ...color,
       channelAdjustment: [{ ...list[0], saturationGain: p.saturation, luminanceGain: p.luminance }, ...list.slice(1)],
@@ -60,11 +70,16 @@ export function applyIntensity(config: BackendConfig, id: IntensityPreset['id'])
   };
 }
 
+/** A duration in seconds as the UI shows it: 350 → "0.35 s". */
+export function formatSeconds(ms: number): string {
+  return `${Number((ms / 1000).toFixed(2))} s`;
+}
+
 /** "What it changes" rows for a preset. */
 export function describeIntensity(p: IntensityPreset): Array<[string, string]> {
   return [
-    ['Smoothing', `${p.smoothingMs} ms transitions`],
+    ['Transitions', formatSeconds(p.smoothingMs)],
     ['Saturation', `${Math.round(p.saturation * 100)}%`],
-    ['Luminance', `${Math.round(p.luminance * 100)}%`],
+    ['Color brightness', `${Math.round(p.luminance * 100)}%`],
   ];
 }

@@ -10,6 +10,7 @@
       "minimum": 0,
       "maximum": 3000,
       "required": true,
+      "access": "advanced",
       "propertyOrder": 3
     },
     "constantBrightness": {
@@ -19,6 +20,7 @@
       "minimum": 0,
       "maximum": 255,
       "required": true,
+      "access": "advanced",
       "propertyOrder": 4
     },
     "lamps": {
@@ -41,7 +43,7 @@
           },
           "colorModel": {
             "type": "integer",
-            "title": "edt_conf_bb_mode_title",
+            "title": "edt_dev_spec_lampColorModel_title",
             "enum": [
               0,
               1

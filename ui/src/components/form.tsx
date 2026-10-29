@@ -1,5 +1,6 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { useExpertTools } from '../app/expert';
 import { cx } from './ui';
 
 /** Label + control + hint/error, with ids wired for screen readers. */
@@ -34,7 +35,7 @@ export function Field({
   return (
     <div className={cx(inline ? 'flex items-start justify-between gap-4' : 'space-y-1.5', className)}>
       <div className={cx(inline && 'min-w-0 flex-1')}>
-        <label htmlFor={id} className={cx('block text-[13px] font-medium text-ink', hideLabel && 'sr-only')}>
+        <label htmlFor={id} className={cx('block text-sm font-medium text-ink', hideLabel && 'sr-only')}>
           {label}
           {required && (
             <span className="ml-0.5 text-ink-faint" aria-hidden>
@@ -52,6 +53,9 @@ export function Field({
 
 export const INPUT_CLASS =
   'h-10 w-full rounded-lg border bg-bg px-3 text-sm text-ink placeholder:text-ink-faint focus:border-accent disabled:opacity-50';
+
+/** Border of an input that has no error. */
+export const INPUT_BORDER = 'border-line-input';
 
 export function Input({
   label,
@@ -96,7 +100,7 @@ export function Input({
             aria-describedby={describedBy}
             aria-invalid={error ? true : undefined}
             onChange={(e) => onChange(e.target.value)}
-            className={cx(INPUT_CLASS, error ? 'border-bad/60' : 'border-line')}
+            className={cx(INPUT_CLASS, error ? 'border-bad/60' : INPUT_BORDER)}
           />
           {trailing}
         </div>
@@ -165,7 +169,7 @@ export function NumberField({
               if (n !== null) onChange(n);
               setDraft(null);
             }}
-            className={cx(INPUT_CLASS, 'max-w-[11rem] tabular-nums', error ? 'border-bad/60' : 'border-line')}
+            className={cx(INPUT_CLASS, 'max-w-[11rem] tabular-nums', error ? 'border-bad/60' : INPUT_BORDER)}
           />
           {unit && <span className="text-xs text-ink-faint">{unit}</span>}
         </div>
@@ -223,7 +227,7 @@ export function Select<T extends string | number = string>({
             const o = options.find((x) => String(x.value) === e.target.value);
             if (o) onChange(o.value);
           }}
-          className={cx(INPUT_CLASS, 'pr-8', error ? 'border-bad/60' : 'border-line')}
+          className={cx(INPUT_CLASS, 'pr-8', error ? 'border-bad/60' : INPUT_BORDER)}
         >
           {!known && (
             <option value={value === undefined ? '' : String(value)} disabled>
@@ -334,12 +338,12 @@ export function Section({
     <section aria-labelledby={id} className={cx('rounded-2xl border border-line bg-surface p-5', className)}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          {icon && <div className="mt-0.5 text-accent-strong">{icon}</div>}
+          {icon && <div className="mt-0.5 text-ink-faint">{icon}</div>}
           <div className="min-w-0">
-            <h2 id={id} className="text-[15px] font-semibold">
+            <h2 id={id} className="text-base font-semibold">
               {title}
             </h2>
-            {description && <p className="mt-0.5 text-[13px] text-ink-muted">{description}</p>}
+            {description && <p className="mt-0.5 text-sm text-ink-muted">{description}</p>}
           </div>
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -349,17 +353,55 @@ export function Section({
   );
 }
 
-/** Collapsed group for options most people never need. */
-export function Advanced({ children, label = 'Advanced', defaultOpen }: { children: ReactNode; label?: string; defaultOpen?: boolean }) {
+/**
+ * "More options": the collapsed end of a section, for settings most people never need (the "advanced" tier in
+ * docs/ui-guidelines.md). Says how many values inside differ from their defaults, opens by itself while one of them
+ * has a problem, and can put them all back.
+ */
+export function Advanced({
+  children,
+  label = 'More options',
+  defaultOpen,
+  changed = 0,
+  invalid,
+  onReset,
+}: {
+  children: ReactNode;
+  label?: string;
+  defaultOpen?: boolean;
+  /** Number of values inside that differ from their defaults. */
+  changed?: number;
+  /** A value inside has a problem: open, so it can be seen. */
+  invalid?: boolean;
+  /** Puts the values inside back to their defaults (offered while `changed` > 0). */
+  onReset?: () => void;
+}) {
+  const [open, setOpen] = useState(!!defaultOpen || !!invalid);
+  useEffect(() => {
+    if (invalid) setOpen(true);
+  }, [invalid]);
   return (
-    <details className="group rounded-xl border border-line bg-bg/40" open={defaultOpen}>
-      <summary className="flex cursor-pointer select-none items-center gap-1.5 rounded-xl px-4 py-2.5 text-[13px] font-medium text-ink-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+    <details className="group border-t border-line pt-1" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="-mx-2 flex cursor-pointer select-none items-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium text-ink-muted hover:text-ink [&::-webkit-details-marker]:hidden">
         <ChevronRight size={15} aria-hidden className="transition-transform group-open:rotate-90" />
         {label}
+        {changed > 0 && <span className="ml-1 text-xs font-normal text-ink-faint">({changed} changed)</span>}
       </summary>
-      <div className="space-y-5 px-4 pb-4 pt-1">{children}</div>
+      <div className="space-y-5 pb-1 pt-3">
+        {children}
+        {onReset && changed > 0 && (
+          <button type="button" className="text-[13px] text-accent-strong hover:underline" onClick={onReset}>
+            Reset these to defaults
+          </button>
+        )}
+      </div>
     </details>
   );
+}
+
+/** Content shown only while "Show expert and diagnostic tools" is on (Settings → General). */
+export function Expert({ children, always }: { children: ReactNode; always?: boolean }) {
+  return useExpertTools() || always ? <>{children}</> : null;
 }
 
 export function Callout({

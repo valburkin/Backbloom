@@ -43,6 +43,35 @@ release note. See [docs/development.md](docs/development.md#branches-and-release
   the Layout page; drag the strips to where they are and save.
 - The log no longer calls WLED's power limiter an error: it protects the LEDs and the power supply from drawing too
   much.
+- **Intensity changes how fast the lights follow the picture**: Calm, Balanced, Lively and Intense (before: Subtle,
+  Moderate, High, Intense) now also set the speed of the default smoothing style, as does Transitions on the Colors
+  page (before, they only changed the colors). Balanced is the default. The other smoothing styles moved under More
+  options.
+- **A simpler app**: everyday settings are in view and the rest is tucked away.
+  - Five sections instead of seven: Home, Setup (Layout and Devices), Picture (Screen sync and Colors), Effects &
+    Music, and Settings. Their names show in the sidebar at the default window size.
+  - Fine-tuning sits under **More options** at the end of each section; it says how many values you changed and can
+    put them back. Diagnostics and technical settings (performance numbers, logs, protocol details, Find an LED)
+    appear only with **Settings → General → Show expert and diagnostic tools**.
+  - Clearer words throughout: devices instead of controllers and drivers, Screen sync, transitions in seconds, LEDs
+    numbered from 1 everywhere.
+  - Easier to read: larger text, more contrast for hints and input borders, fewer nested boxes.
+- **Setup when Backbloom starts for the first time**: three short steps (welcome, your lights, turn on) instead of a
+  table of settings. Add your device right there, then Backbloom leads you to placing your strips.
+- **Adding a device**: search your network for WLED from the Add device dialog instead of typing its address; devices
+  you already added are marked. Afterwards Backbloom points you to placing your strips.
+- **Layout has two modes**: Place (where your strips are, with four guided steps when there's no layout yet) and
+  Customize (what each part shows, brightness, profiles). Trying a profile is now called Preview, and Home can stop it.
+- **Home** shows what matters: on/off, what's shown, brightness and intensity, a warning when a device can't be
+  reached, and **Lights look wrong?**, which names the usual causes and takes you to the right setting. Brightness is
+  set only here now (above 100% is an expert setting on Colors).
+- **Music effects turn on sound input by themselves.**
+- **Settings** has four tabs: General (now with Start with Windows), Remote access (password and network access
+  together), Integrations (MQTT) and About; the log is under Support with expert tools on.
+- **HDR**: Backbloom reads Windows' SDR content brightness for each monitor itself (it used to ask for a number of
+  nits), and follows it when you change it.
+- Calmer defaults: the startup effect is a short fade, screen capture runs at 30 frames per second, and the log keeps
+  only warnings and errors.
 
 ### Fixed
 
@@ -53,6 +82,12 @@ release note. See [docs/development.md](docs/development.md#branches-and-release
   reconnect every 30 seconds instead of giving up after a few minutes.
 - **The lights stayed dark after a graphics driver update**: Windows gives the monitor a new number then, and the
   screen capture kept looking for the old one. It now finds the same monitor again, or uses the only connected one.
+- Smoothing could flicker with a low update frequency or a very stiff spring set under Advanced.
+- Clicking into a slider's number box and leaving it without typing no longer saves the value again.
+- The Screen capture page had a switch that did nothing and could say capture was off while it was running; it's gone
+  (turn the screen on or off from Home).
+- Music could look selected on Home while the lights still showed the screen.
+- Hint text and input borders were too faint to read comfortably.
 
 ## 0.1.0 – 2026-10-20
 

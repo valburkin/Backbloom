@@ -1,19 +1,19 @@
 import type { ReactNode } from 'react';
-import { Info, Network, Radio, ScrollText, Shield, SlidersHorizontal } from 'lucide-react';
+import { Info, LifeBuoy, Plug, SlidersHorizontal, Smartphone } from 'lucide-react';
 import { cx } from '../../components/ui';
 import { PageFrame } from '../../components/PageFrame';
 import { usePageSettings } from '../../app/config';
+import { useExpertTools } from '../../app/expert';
 import { GeneralTab } from './GeneralTab';
-import { SecurityTab } from './SecurityTab';
-import { NetworkTab } from './NetworkTab';
-import { MqttTab } from './MqttTab';
+import { RemoteAccessTab } from './RemoteAccess';
+import { IntegrationsTab } from './IntegrationsTab';
 import { LogsTab } from './LogsTab';
 import { AboutTab } from './AboutTab';
 
 export const SETTINGS_LABELS: Record<string, string> = {
   'general.name': 'Name',
-  'webConfig.port': 'Web port',
-  'webConfig.sslPort': 'Secure web port',
+  'webConfig.port': 'Port (http)',
+  'webConfig.sslPort': 'Secure port (https)',
   'mqtt.host': 'Broker address',
   'mqtt.port': 'Broker port',
   'logger.level': 'Log detail',
@@ -22,26 +22,41 @@ export const SETTINGS_LABELS: Record<string, string> = {
 /** Stored as soon as they change; network and MQTT settings wait for Save (a half-typed port or address would apply). */
 const AUTO_SAVED = ['general', 'logger'];
 
-const TABS: Array<{ id: string; label: string; icon: ReactNode; config: boolean }> = [
+interface Tab {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  /** Shows the page's settings bar (Save / Discard). */
+  config: boolean;
+  /** Only with expert tools on (Settings → General). */
+  expert?: boolean;
+}
+
+const TABS: Tab[] = [
   { id: 'general', label: 'General', icon: <SlidersHorizontal size={16} />, config: true },
-  { id: 'security', label: 'Security', icon: <Shield size={16} />, config: false },
-  { id: 'network', label: 'Network', icon: <Network size={16} />, config: true },
-  { id: 'mqtt', label: 'MQTT', icon: <Radio size={16} />, config: true },
-  { id: 'logs', label: 'Logs', icon: <ScrollText size={16} />, config: true },
+  { id: 'remote-access', label: 'Remote access', icon: <Smartphone size={16} />, config: true },
+  { id: 'integrations', label: 'Integrations', icon: <Plug size={16} />, config: true },
   { id: 'about', label: 'About', icon: <Info size={16} />, config: false },
+  { id: 'support', label: 'Support', icon: <LifeBuoy size={16} />, config: true, expert: true },
 ];
+
+/** Tabs of earlier builds, so their links (bookmarks, docs) still land on the same settings. */
+const RENAMED: Record<string, string> = { security: 'remote-access', network: 'remote-access', mqtt: 'integrations', logs: 'support' };
 
 export function SettingsPage({ tab, onTab }: { tab: string | null; onTab: (t: string) => void }) {
   const ps = usePageSettings('settings', SETTINGS_LABELS, AUTO_SAVED);
-  const active = TABS.find((t) => t.id === tab) ?? TABS[0];
+  const expert = useExpertTools();
+  const tabs = TABS.filter((t) => !t.expert || expert);
+  const id = tab && tab in RENAMED ? RENAMED[tab] : tab;
+  const active = tabs.find((t) => t.id === id) ?? tabs[0];
   return (
     <PageFrame
       title="Settings"
-      subtitle="Security, network, integrations and information about Backbloom."
+      subtitle="Everything about the app itself: startup, backups, remote access and integrations."
       settings={active.config || ps.dirty ? ps : undefined}
       toolbar={
         <div role="tablist" aria-label="Settings sections" className="scroll-thin -mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
-          {TABS.map((t) => {
+          {tabs.map((t) => {
             const selected = t.id === active.id;
             return (
               <button
@@ -54,8 +69,8 @@ export function SettingsPage({ tab, onTab }: { tab: string | null; onTab: (t: st
                 tabIndex={selected ? 0 : -1}
                 onClick={() => onTab(t.id)}
                 onKeyDown={(e) => {
-                  const i = TABS.indexOf(active);
-                  const next = e.key === 'ArrowRight' ? TABS[(i + 1) % TABS.length] : e.key === 'ArrowLeft' ? TABS[(i - 1 + TABS.length) % TABS.length] : null;
+                  const i = tabs.indexOf(active);
+                  const next = e.key === 'ArrowRight' ? tabs[(i + 1) % tabs.length] : e.key === 'ArrowLeft' ? tabs[(i - 1 + tabs.length) % tabs.length] : null;
                   if (next) {
                     e.preventDefault();
                     onTab(next.id);
@@ -77,11 +92,10 @@ export function SettingsPage({ tab, onTab }: { tab: string | null; onTab: (t: st
     >
       <div role="tabpanel" id={`panel-${active.id}`} aria-labelledby={`tab-${active.id}`} className="space-y-6">
         {active.id === 'general' && <GeneralTab ps={ps} />}
-        {active.id === 'security' && <SecurityTab />}
-        {active.id === 'network' && <NetworkTab ps={ps} />}
-        {active.id === 'mqtt' && <MqttTab ps={ps} />}
-        {active.id === 'logs' && <LogsTab ps={ps} />}
+        {active.id === 'remote-access' && <RemoteAccessTab ps={ps} />}
+        {active.id === 'integrations' && <IntegrationsTab ps={ps} />}
         {active.id === 'about' && <AboutTab />}
+        {active.id === 'support' && <LogsTab ps={ps} />}
       </div>
     </PageFrame>
   );

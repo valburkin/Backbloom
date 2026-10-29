@@ -1,17 +1,20 @@
 // Helpers for the backend's settings schemas (JSON schema draft-03 style plus json-editor `options`).
 // Only the features the backend's schemas actually use are handled: types, enums (+ enum_titles), minimum /
 // maximum / step, min/maxLength, min/maxItems, pattern, defaults, `required` (boolean or list),
-// `options.hidden`, `options.dependencies` and `access` (expert/advanced → shown under "Advanced").
+// `options.hidden`, `options.dependencies` and `access` (the tier: "advanced" → under "More options", "expert" → only
+// with the expert tools switch on; see docs/ui-guidelines.md).
 
 import type { JsonSchema } from '../api/types';
 import { SCHEMA_TEXT } from './text';
+
+export type Tier = 'basic' | 'advanced' | 'expert';
 
 export interface FieldDef {
   key: string;
   schema: JsonSchema;
   required: boolean;
-  /** Marked expert/advanced in the schema; shown collapsed. */
-  advanced: boolean;
+  /** Where the field is shown: always, under "More options", or only with expert tools on (schema `access`). */
+  tier: Tier;
 }
 
 export interface Issue {
@@ -32,11 +35,11 @@ export function fieldsOf(schema: JsonSchema | undefined): FieldDef[] {
   const requiredList = Array.isArray(schema?.required) ? schema.required : [];
   return Object.entries(props)
     .filter(([, s]) => !s.options?.hidden)
-    .map(([key, s]) => ({
+    .map(([key, s]): FieldDef => ({
       key,
       schema: s,
       required: s.required === true || requiredList.includes(key),
-      advanced: s.access === 'expert' || s.access === 'advanced',
+      tier: s.access === 'expert' ? 'expert' : s.access === 'advanced' ? 'advanced' : 'basic',
     }))
     .sort((a, b) => (a.schema.propertyOrder ?? 999) - (b.schema.propertyOrder ?? 999) || a.key.localeCompare(b.key));
 }
@@ -147,7 +150,8 @@ export function validate(schema: JsonSchema, value: unknown, path = '', required
   if (value === undefined || value === null) return required ? at('This is required.') : [];
   if (!typeOk(schema, value)) {
     if (schema.type === 'integer' && typeof value === 'number') return at('Use a whole number.');
-    return at(schema.type === 'number' || schema.type === 'integer' ? 'Enter a number.' : `Expected a ${schema.type}.`);
+    if (schema.type === 'number' || schema.type === 'integer') return at('Enter a number.');
+    return at(schema.type === 'string' ? 'Enter text.' : schema.type === 'boolean' ? 'Choose on or off.' : 'This doesn’t look right.');
   }
   if (schema.enum && !schema.enum.includes(value as string | number)) return at('Pick one of the listed options.');
   if (typeof value === 'number') {
@@ -183,6 +187,12 @@ export function rangeOf(schema: JsonSchema | undefined, fallback: { min: number;
     step: schema?.step ?? fallback.step ?? 1,
     default: schema?.default as number | undefined,
   };
+}
+
+/** Whether a value differs from the schema default (a missing value counts as the default). */
+export function differsFromDefault(schema: JsonSchema, value: unknown): boolean {
+  if (value === undefined || schema.default === undefined) return false;
+  return JSON.stringify(value) !== JSON.stringify(schema.default);
 }
 
 /** Schema of a nested property: propertyAt(schema, 'smoothing', 'time_ms'). */

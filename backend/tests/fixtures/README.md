@@ -58,3 +58,13 @@ other value is still the C++ output.
    that an adjustment entry leaves out its ideal value (red = 255,0,0 and so on); HyperHDR read it as black, which
    switched that primary or corner off. The settings schema always stores all eight colors, so this only matters for
    hand-made settings and API clients. Covered by `ColorProcessorTests.FromJson_MissingCalibrationColors_*`.
+4. **Spring smoothing takes steps the spring allows** (`smoothing/cpp-hybrid-rgb-factor-0.3.json`, every tick: the
+   fixture runs at 25 Hz). HyperHDR's Hybrid and HybridRgb interpolators integrate their spring with one semi-implicit
+   Euler step per tick. With a long tick or a stiff spring that step oscillates and diverges (stiffness 300, damping 37
+   at 20 Hz; stiffness 1000, damping 100 at 50 Hz; the lights flicker between the edges of their range), which ruled
+   out the faster Home intensity presets at low update frequencies. Now a tick is split into equal steps of at most
+   20 ms, 1 / damping and 1 / sqrt(stiffness) seconds (`SpringMath.MaxStepMs`, `SpringMath.Substeps`), and the Hybrid
+   interpolator's brightness limit per tick is shared among them. A tick no longer than one such step (20 ms for the
+   fixtures' springs) is integrated exactly as before; the other smoothing fixtures are unchanged. Covered by
+   `SmootherTests.StiffSpring_ApproachesWithoutOscillating` and
+   `SmootherTests.HybridBrightnessLimit_HoldsPerTick_WhenATickTakesSeveralSteps`.

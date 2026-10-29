@@ -31,8 +31,14 @@ export interface MockOptions {
   latencyMs?: number;
   /** Seed config overrides (e.g. a saved `layout`). */
   config?: BackendConfig;
-  /** Start like a fresh install: the lights wait for the welcome's "Start lighting" (`?mock=welcome`). */
+  /** Start like the first start after a HyperHDR import: the lights wait for the welcome's "Turn on lights". */
   firstRun?: boolean;
+  /** With `firstRun`: a new install without an import, so only the test device that discards colors (`?mock=welcome`). */
+  fresh?: boolean;
+  /** The first device can't be reached and is retrying (`?mock=offline`). */
+  offline?: boolean;
+  /** HyperHDR settings were imported at the first start, though setup is done (`?mock=imported`). */
+  imported?: boolean;
   /** HyperHDR runs and drives the LEDs until `quitOtherApp()` (`?mock=hyperhdr`). */
   otherApp?: boolean;
   /** The app can start with Windows (default true). */
@@ -103,6 +109,8 @@ export class MockBackend implements Backend {
   private readonly requireAuth: boolean;
   private readonly seed: BackendConfig;
   private readonly demoLayout: boolean;
+  private readonly fresh: boolean;
+  private readonly offline: boolean;
   private fx: MockFixtures | null = null;
   private admin = false;
   private password: string | null;
@@ -131,11 +139,13 @@ export class MockBackend implements Backend {
     this.password = this.requireAuth ? MOCK_PASSWORD : null;
     this.seed = clone(options.config ?? {});
     this.demoLayout = options.demoLayout ?? false;
+    this.fresh = !!options.firstRun && !!options.fresh;
+    this.offline = options.offline ?? false;
     this.setup = {
       firstRunCompleted: !options.firstRun,
       outputHeld: !!options.firstRun || !!options.otherApp,
       otherApp: options.otherApp ? { name: 'HyperHDR', executable: 'hyperhdr.exe' } : null,
-      importedFrom: options.firstRun ? 'C:\\Users\\demo\\AppData\\Local\\HyperHDR\\db\\hyperhdr.db' : null,
+      importedFrom: (options.firstRun && !this.fresh) || options.imported ? 'C:\\Users\\demo\\AppData\\Local\\HyperHDR\\db\\hyperhdr.db' : null,
       autostart: { available: options.autostart ?? true, enabled: false },
       remoteAccess: { enabled: false, fixedByCommandLine: false, port: 18290, urls: [], advertised: false },
       passwordSet: this.password !== null,
@@ -159,6 +169,13 @@ export class MockBackend implements Backend {
       if (!this.fx) {
         this.fx = MOCK_FIXTURES;
         this.config = { ...clone(MOCK_FIXTURES.config), leds: clone(MOCK_FIXTURES.leds), ...clone(this.seed) };
+        // a new install: the settings' defaults, so one LED on the test device (which discards the colors)
+        if (this.fresh)
+          this.config = {
+            ...this.config,
+            device: { type: 'file', output: '/dev/null', printTimeStamp: true, colorOrder: 'rgb', refreshTime: 0 },
+            leds: [{ hmin: 0, hmax: 1, vmin: 0, vmax: 0.08, group: 0 }],
+          };
         if (this.demoLayout && !this.config.layout) {
           const layout = demoLayout(MOCK_WLED_HOST);
           this.config = { ...this.config, layout, leds: compileLayout(layout).flatMap((c) => c.leds) };
@@ -193,7 +210,7 @@ export class MockBackend implements Backend {
 
   async call(command: string, subcommand?: string, params: Record<string, unknown> = {}, _options?: CallOptions): Promise<RpcReply> {
     const full = subcommand ? `${command}-${subcommand}` : command;
-    if (this._status !== 'open' || !this.fx) throw new ConnectionError('Not connected to the lighting service', full);
+    if (this._status !== 'open' || !this.fx) throw new ConnectionError('Not connected to Backbloom', full);
     await this.delay(this.latencyMs);
     const ok = (info?: unknown): RpcReply => ({ command: full, success: true, info });
     const fail = (error: string, cmd = full, errors?: Issue[]): never => {
@@ -234,6 +251,7 @@ export class MockBackend implements Backend {
         if (!component || !this.components.has(component)) return fail('invalid component name');
         this.components.set(component, !!state);
         this.emit('components-update', { name: component, enabled: !!state });
+        if (component === 'ALL' || component === 'LEDDEVICE') this.emitControllers();
         this.emitPriorities();
         if (component === 'SYSTEMGRABBER') this.emit('capture-update', this.systemGrabbers());
         return ok();
@@ -254,7 +272,7 @@ export class MockBackend implements Backend {
       case 'effect': {
         const name = (params.effect as { name?: string } | undefined)?.name ?? '';
         if (!this.fx.serverInfo.effects?.some((e) => e.name === name)) return fail(`Effect ${name} not found`);
-        if (name.startsWith('Music: ') && !this.sound()?.available) return fail('Turn on sound capture to use music effects');
+        if (name.startsWith('Music: ') && !this.sound()?.available) return fail('Music needs sound input, which is off.');
         this.source = { kind: 'effect', name };
         this.autoSelect = true;
         this.emitPriorities();
@@ -436,6 +454,7 @@ export class MockBackend implements Backend {
     next.outputHeld = !next.firstRunCompleted || next.otherApp !== null;
     this.setup = next;
     this.emit('setup-update', clone(next));
+    if (this.fx) this.emitControllers();
     return clone(next);
   }
 
@@ -523,6 +542,7 @@ export class MockBackend implements Backend {
       if (!changed) continue;
       this.emit('settings-update', { [section]: value });
       if (section === 'leds') this.emit('leds-update', { leds: value });
+      if (section === 'layout') this.emitControllers();
       if (section === 'color') this.emit('adjustment-update', (value as { channelAdjustment: unknown }).channelAdjustment);
       if (section === 'systemGrabber') this.emit('capture-update', this.systemGrabbers());
       if (section === 'layout' && this.manualProfile !== null && !this.profiles().some((p) => p.id === this.manualProfile)) {
@@ -594,7 +614,7 @@ export class MockBackend implements Backend {
     const mode = String((this.config.systemGrabber as { hdrToneMapping?: string } | undefined)?.hdrToneMapping ?? 'auto') as CaptureHdr['mode'];
     return {
       ...clone(this.fx!.serverInfo.systemGrabbers),
-      hdr: { mode, capturing: true, monitorHdr: false, toneMapping: mode === 'on' },
+      hdr: { mode, capturing: true, monitorHdr: false, toneMapping: mode === 'on', sdrWhiteNits: 0 },
     };
   }
 
@@ -618,8 +638,11 @@ export class MockBackend implements Backend {
         }))
       : [{ id: 'controller-1', name: 'LED controller', type: String((this.config.device as { type?: string })?.type ?? ''), enabled: true, ledCount: ((this.config.leds as unknown[]) ?? []).length, strips: [] }];
     let start = 0;
-    return list.map((c) => {
-      const info: ControllerInfo = { ...c, running: c.enabled, state: running && c.enabled ? 'ready' : 'off', status: null, start };
+    // like the backend: held output keeps the controllers closed
+    const open = running && !this.setup.outputHeld;
+    return list.map((c, i) => {
+      const state: ControllerInfo['state'] = !open || !c.enabled ? 'off' : this.offline && i === 0 ? 'waitingToRetry' : 'ready';
+      const info: ControllerInfo = { ...c, running: c.enabled, state, status: null, start };
       start += c.ledCount;
       return info;
     });
@@ -627,6 +650,10 @@ export class MockBackend implements Backend {
 
   private activeAdjustment(): Record<string, unknown> {
     return (this.config.color as { channelAdjustment: Array<Record<string, unknown>> }).channelAdjustment[0];
+  }
+
+  private emitControllers(): void {
+    this.emit('controllers-update', { controllers: this.controllers() });
   }
 
   private emitPriorities(): void {

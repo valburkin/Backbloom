@@ -27,7 +27,10 @@ npm ci
 npx tsc --noEmit
 npm test                           # vitest
 npm run dev                        # Vite dev server; open http://localhost:5173/?backend=127.0.0.1:18290
-                                   # ?mock (demo), ?mock=welcome (first run), ?mock=hyperhdr (first run, HyperHDR running)
+                                   # ?mock (demo), ?mock=welcome (first run of a new install), ?mock=welcome-imported
+                                   # (first run after a HyperHDR import), ?mock=hyperhdr (the same, HyperHDR running),
+                                   # ?mock=imported (no layout saved yet), ?mock=offline (a device can't be reached),
+                                   # ?mock=auth (another device, signs in)
 npm run build                      # ui/dist, copied next to the app by the backend build
 ```
 

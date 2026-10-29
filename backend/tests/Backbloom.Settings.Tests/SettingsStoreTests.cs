@@ -40,8 +40,11 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal("/dev/null", all["device"]!["output"]!.GetValue<string>());
         Assert.Equal(1.5, all["color"]!["channelAdjustment"]![0]!["gamma"]!.GetValue<double>());
         Assert.Equal("HybridRgbInterpolator", all["smoothing"]!["type"]!.GetValue<string>());
-        Assert.Equal("Rainbow swirl fast", all["foregroundEffect"]!["effect"]!.GetValue<string>());
-        Assert.Equal(20, all["systemGrabber"]!["fps"]!.GetValue<int>());
+        Assert.Equal("Breath", all["foregroundEffect"]!["effect"]!.GetValue<string>());
+        Assert.Equal("Warm mood blobs", all["backgroundEffect"]!["effect"]!.GetValue<string>());
+        Assert.Equal(30, all["systemGrabber"]!["fps"]!.GetValue<int>());
+        Assert.True(all["systemGrabber"]!["monitor_nits_auto"]!.GetValue<bool>());
+        Assert.Equal(["systemInstancePriority"], all["systemControl"]!.AsObject().Select(p => p.Key));
         Assert.Single(all["leds"]!.AsArray());
         Assert.Equal(["remoteAccess"], all["network"]!.AsObject().Select(p => p.Key));
         var controller = Assert.Single(Open().Controllers);
@@ -145,7 +148,7 @@ public sealed class SettingsStoreTests : IDisposable
         var changes = 0;
         open.Store.Changed += _ => changes++;
 
-        var result = open.Store.Update(Parse("""{ "general": { "name": "Living room" }, "logger": { "level": "warn" } }"""));
+        var result = open.Store.Update(Parse("""{ "general": { "name": "Living room" }, "logger": { "level": "silent" } }"""));
 
         Assert.False(result.Success);
         Assert.Contains("disk full", Assert.Single(result.Errors).Message, StringComparison.Ordinal);
@@ -194,7 +197,7 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal("Stepper", store.GetSection("smoothing")!["type"]!.GetValue<string>());
         Assert.Null(store.GetSection("futureFeature"));
 
-        store.Update(Parse("""{ "logger": { "level": "warn" } }"""));
+        store.Update(Parse("""{ "logger": { "level": "silent" } }"""));
         var future = _open[^1].Database.Read(c =>
         {
             using var command = c.CreateCommand();
@@ -210,7 +213,7 @@ public sealed class SettingsStoreTests : IDisposable
         var store = Open();
         var content = store.Export();
         content.Sections.Remove("smoothing");
-        content.Sections["logger"] = Parse("""{ "level": "warn" }""");
+        content.Sections["logger"] = Parse("""{ "level": "silent" }""");
         var changed = new List<string>();
         store.Changed += c => changed.AddRange(c.Sections.Keys);
 
@@ -222,7 +225,7 @@ public sealed class SettingsStoreTests : IDisposable
 
         Assert.True(result.Success);
         Assert.Equal(["logger"], changed);
-        Assert.Equal(150, store.GetSection("smoothing")!["time_ms"]!.GetValue<int>());
+        Assert.Equal(350, store.GetSection("smoothing")!["time_ms"]!.GetValue<int>());
         Assert.Equal(["LED controller", "Desk"], store.Controllers.Select(c => c.Name));
         Assert.Equal(255, store.Controllers[1].Device["brightnessMaxLevel"]!.GetValue<int>());
     }

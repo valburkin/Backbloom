@@ -32,10 +32,10 @@ describe('modes', () => {
   });
 
   it('describes sources in plain language', () => {
-    expect(describeSource(p('COLOR', { value: { RGB: [255, 100, 0] } }))).toBe('Static color (255, 100, 0)');
+    expect(describeSource(p('COLOR', { value: { RGB: [255, 100, 0] } }))).toBe('Color');
     expect(describeSource(p('EFFECT', { owner: 'Music: stereo for LED strip (BLUE)' }))).toBe('Music: Stereo (BLUE)');
     expect(describeSource(p('SYSTEMGRABBER'))).toBe('Your screen');
     expect(describeSource(p('FLATBUFSERVER', { origin: 'Game plugin@10.0.0.4' }))).toBe('Game plugin');
-    expect(describeSource(null)).toMatch(/idle/);
+    expect(describeSource(null)).toBe('Nothing right now');
   });
 });

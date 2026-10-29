@@ -221,21 +221,32 @@ public sealed class EngineTests : IDisposable
             sent += output.Tick(clock.NowMilliseconds) ? 1 : 0;
         }
 
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < 100; i++)
         {
             Step();
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 500; i++)
+        // Steady state: a whole round of 500 frames without an allocation. Under load (a full parallel test run) the
+        // runtime may still be tiering up the per-frame code during the first round, which allocates on this thread
+        // once; a later round shows the pipeline's own behavior.
+        var allocated = -1L;
+        var rounds = 0;
+        while (allocated != 0 && rounds < 4)
         {
-            Step();
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 500; i++)
+            {
+                Step();
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            rounds++;
         }
 
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Equal(0, allocated);
-        Assert.Equal(505, pipeline.FrameCount);
-        Assert.Equal(smoothing ? 505 : 0, sent);
+        var frames = 100 + (500 * rounds);
+        Assert.Equal(frames, pipeline.FrameCount);
+        Assert.Equal(smoothing ? frames : 0, sent);
     }
 
     [Fact]

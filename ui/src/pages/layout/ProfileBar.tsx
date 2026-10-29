@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppWindow, Gamepad2, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { AppWindow, Eye, EyeOff, Loader2, Plus, Trash2, X } from 'lucide-react';
 import type { LayoutSpec } from '../../layout';
-import { cx, IconButton } from '../../components/ui';
+import { Button, CHOICE_ACTIVE, cx, IconButton } from '../../components/ui';
 import type { EditorAction } from '../../editor/state';
 import { nextProfileId } from '../../editor/state';
 
@@ -11,18 +11,25 @@ export function programName(text: string): string {
   return !name || name.includes('.') ? name : `${name}.exe`;
 }
 
+export const PROFILES_HINT = 'Profiles change what strips show while a game or app runs, for example music on the ceiling during one game.';
+
+/** Adds a profile named "Profile n" and returns its id. */
+function addProfile(spec: LayoutSpec, dispatch: (a: EditorAction) => void): string {
+  const id = nextProfileId(spec);
+  dispatch({ type: 'addProfile', profile: { id, name: `Profile ${(spec.profiles?.length ?? 0) + 1}`, apps: [], sections: {} } });
+  return id;
+}
+
 /**
- * The profiles of the layout as tabs ("Everyday" = the layout itself), and the settings of the one being edited: its
- * name and the programs that turn it on.
+ * The profiles as compact tabs for the toolbar ("Everyday" is the layout itself) with a button to add one. A dot marks
+ * the profile the lights use now, when known.
  */
-export function ProfileBar({
+export function ProfileTabs({
   spec,
   editing,
   active,
   dispatch,
   onEdit,
-  extra,
-  loadPrograms,
 }: {
   spec: LayoutSpec;
   /** The profile being edited, or null for Everyday. */
@@ -31,27 +38,8 @@ export function ProfileBar({
   active?: string | null;
   dispatch: (a: EditorAction) => void;
   onEdit(profileId: string | null): void;
-  /** More controls for the profile being edited (e.g. trying it now). */
-  extra?: React.ReactNode;
-  /** Programs with a window open now, to pick one from (executable and window title). */
-  loadPrograms?: () => Promise<Array<{ exe: string; title: string }>>;
 }) {
   const profiles = spec.profiles ?? [];
-  const profile = profiles.find((p) => p.id === editing);
-  const [app, setApp] = useState('');
-
-  const add = () => {
-    const id = nextProfileId(spec);
-    dispatch({ type: 'addProfile', profile: { id, name: `Profile ${profiles.length + 1}`, apps: [], sections: {} } });
-    onEdit(id);
-  };
-  const addApp = (text: string) => {
-    const name = programName(text);
-    if (!profile || !name || profile.apps.includes(name)) return;
-    dispatch({ type: 'updateProfile', profileId: profile.id, patch: { apps: [...profile.apps, name] } });
-    setApp('');
-  };
-
   const tab = (id: string | null, label: string) => (
     <button
       key={id ?? 'everyday'}
@@ -60,94 +48,154 @@ export function ProfileBar({
       aria-selected={editing === id}
       onClick={() => onEdit(id)}
       className={cx(
-        'inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium',
-        editing === id ? 'bg-surface-3 text-ink shadow-sm' : 'text-ink-muted hover:text-ink',
+        'inline-flex h-7 max-w-[10rem] items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium',
+        editing === id ? CHOICE_ACTIVE : 'text-ink-muted hover:text-ink',
       )}
     >
-      {label}
-      {active !== undefined && active === id && <span className="h-1.5 w-1.5 rounded-full bg-ok" title="In use now" />}
+      <span className="truncate">{label}</span>
+      {active !== undefined && active === id && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" title="In use now" />}
     </button>
   );
-
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Gamepad2 size={15} className="text-ink-faint" aria-hidden />
-        <div role="tablist" aria-label="Profiles" className="inline-flex flex-wrap rounded-lg border border-line bg-bg/60 p-0.5">
-          {tab(null, 'Everyday')}
-          {profiles.map((p) => tab(p.id, p.name || 'Untitled'))}
-        </div>
-        <button type="button" onClick={add} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-ink-muted hover:bg-surface-3 hover:text-ink">
-          <Plus size={13} /> Profile
-        </button>
+    <div className="flex min-w-0 items-center gap-1">
+      <div role="tablist" aria-label="Profiles" className="inline-flex min-w-0 flex-wrap rounded-lg border border-line-input bg-bg/60 p-0.5">
+        {tab(null, 'Everyday')}
+        {profiles.map((p) => tab(p.id, p.name || 'Untitled'))}
       </div>
-      {!profile && profiles.length === 0 && (
-        <p className="text-xs text-ink-faint">
-          Profiles give strips other jobs while a game or app runs, e.g. the ceiling plays music during one game.
-        </p>
-      )}
-      {profile && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-accent/40 bg-accent/5 p-2">
-          <input
-            aria-label="Profile name"
-            value={profile.name}
-            onChange={(e) => dispatch({ type: 'updateProfile', profileId: profile.id, patch: { name: e.target.value }, coalesce: `profile-name-${profile.id}` })}
-            className="h-7 w-36 rounded-md border border-line bg-bg px-2 text-xs text-ink"
-          />
-          <span className="text-xs text-ink-muted">on while</span>
-          {profile.apps.map((a) => (
-            <span key={a} className="inline-flex h-6 items-center gap-1 rounded-full bg-surface-3 pl-2.5 pr-1 text-xs text-ink">
-              {a}
-              <button
-                type="button"
-                aria-label={`Remove ${a}`}
-                onClick={() => dispatch({ type: 'updateProfile', profileId: profile.id, patch: { apps: profile.apps.filter((x) => x !== a) } })}
-                className="rounded-full p-0.5 text-ink-faint hover:text-ink"
-              >
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-          <form
-            className="inline-flex items-center gap-1"
-            onSubmit={(e) => {
-              e.preventDefault();
-              addApp(app);
-            }}
-          >
-            <input
-              aria-label="Add a program"
-              placeholder={profile.apps.length ? 'or…' : 'witcher3.exe'}
-              value={app}
-              onChange={(e) => setApp(e.target.value)}
-              className="h-7 w-32 rounded-md border border-line bg-bg px-2 text-xs text-ink placeholder:text-ink-faint"
-            />
-            <button type="submit" disabled={!programName(app)} className="h-7 rounded-md px-2 text-xs font-medium text-accent-strong hover:bg-surface-3 disabled:opacity-40">
-              Add
-            </button>
-          </form>
-          <span className="text-xs text-ink-muted">runs</span>
-          {loadPrograms && <ProgramPicker load={loadPrograms} taken={profile.apps} onPick={addApp} />}
-          <div className="ml-auto flex items-center gap-1">
-            {extra}
-            <IconButton
-              label={`Delete ${profile.name}`}
-              className="h-7 w-7 hover:text-bad"
-              onClick={() => {
-                dispatch({ type: 'removeProfile', profileId: profile.id });
-                onEdit(null);
-              }}
-            >
-              <Trash2 size={14} />
-            </IconButton>
-          </div>
-        </div>
-      )}
+      <IconButton label="Add a profile" className="h-7 w-7" onClick={() => onEdit(addProfile(spec, dispatch))}>
+        <Plus size={15} />
+      </IconButton>
     </div>
   );
 }
 
-/** "Pick a running program": a list of the programs with a window open now. */
+/** Where profiles start while there are none: what they are for, and a button to add one. */
+export function ProfileIntro({ spec, dispatch, onEdit }: { spec: LayoutSpec; dispatch: (a: EditorAction) => void; onEdit(profileId: string): void }) {
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold">Profiles</h3>
+      <p className="text-xs text-ink-faint">{PROFILES_HINT}</p>
+      <Button size="sm" icon={<Plus size={14} />} onClick={() => onEdit(addProfile(spec, dispatch))}>
+        Add a profile
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * The profile being edited, as a sentence: "[name] turns on when [program ×] [Add program…] [Pick from running apps]
+ * is running", with Preview (show it on the lights now) and Delete.
+ */
+export function ProfileSettings({
+  spec,
+  profileId,
+  dispatch,
+  onEdit,
+  loadPrograms,
+  previewing,
+  previewBlocked,
+  previewError,
+  onPreview,
+}: {
+  spec: LayoutSpec;
+  profileId: string;
+  dispatch: (a: EditorAction) => void;
+  onEdit(profileId: string | null): void;
+  /** Programs with a window open now, to pick one from (executable and window title). */
+  loadPrograms?: () => Promise<Array<{ exe: string; title: string }>>;
+  /** The lights show this profile because of Preview. */
+  previewing: boolean;
+  /** Why Preview can't run now (unsaved changes), or undefined. */
+  previewBlocked?: string;
+  previewError?: string | null;
+  onPreview(on: boolean): void;
+}) {
+  const profile = spec.profiles?.find((p) => p.id === profileId);
+  const [app, setApp] = useState('');
+  if (!profile) return null;
+
+  const addApp = (text: string) => {
+    const name = programName(text);
+    if (!name || profile.apps.includes(name)) return;
+    dispatch({ type: 'updateProfile', profileId: profile.id, patch: { apps: [...profile.apps, name] } });
+    setApp('');
+  };
+
+  return (
+    <section aria-label={`Profile ${profile.name}`} className="space-y-3">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-[13px] text-ink-muted">
+        <input
+          aria-label="Profile name"
+          value={profile.name}
+          onChange={(e) => dispatch({ type: 'updateProfile', profileId: profile.id, patch: { name: e.target.value }, coalesce: `profile-name-${profile.id}` })}
+          className="h-8 w-36 rounded-md border border-line-input bg-bg px-2 text-[13px] font-medium text-ink"
+        />
+        <span>turns on when</span>
+        {profile.apps.map((a) => (
+          <span key={a} className="inline-flex h-7 items-center gap-1 rounded-full bg-surface-3 pl-2.5 pr-1 text-xs text-ink">
+            {a}
+            <button
+              type="button"
+              aria-label={`Remove ${a}`}
+              onClick={() => dispatch({ type: 'updateProfile', profileId: profile.id, patch: { apps: profile.apps.filter((x) => x !== a) } })}
+              className="rounded-full p-0.5 text-ink-faint hover:text-ink"
+            >
+              <X size={12} />
+            </button>
+          </span>
+        ))}
+        <form
+          className="inline-flex items-center gap-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            addApp(app);
+          }}
+        >
+          <input
+            aria-label="Add program"
+            placeholder="Add program…"
+            value={app}
+            onChange={(e) => setApp(e.target.value)}
+            className="h-8 w-32 rounded-md border border-line-input bg-bg px-2 text-xs text-ink placeholder:text-ink-faint"
+          />
+          {programName(app) && (
+            <button type="submit" className="h-8 rounded-md px-2 text-xs font-medium text-accent-strong hover:bg-surface-3">
+              Add
+            </button>
+          )}
+        </form>
+        {loadPrograms && <ProgramPicker load={loadPrograms} taken={profile.apps} onPick={addApp} />}
+        <span>is running</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {previewing ? (
+          <Button size="sm" icon={<EyeOff size={14} />} onClick={() => onPreview(false)}>
+            Stop preview
+          </Button>
+        ) : (
+          <Button size="sm" icon={<Eye size={14} />} disabled={!!previewBlocked} title={previewBlocked ?? 'Show this profile on your lights now'} onClick={() => onPreview(true)}>
+            Preview
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<Trash2 size={14} />}
+          className="ml-auto hover:text-bad"
+          onClick={() => {
+            dispatch({ type: 'removeProfile', profileId: profile.id });
+            onEdit(null);
+          }}
+        >
+          Delete profile
+        </Button>
+      </div>
+      {previewError && <p className="text-xs text-bad">{previewError}</p>}
+    </section>
+  );
+}
+
+/** "Pick from running apps": a list of the programs with a window open now. */
 function ProgramPicker({
   load,
   taken,
@@ -183,20 +231,20 @@ function ProgramPicker({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-strong hover:bg-surface-3"
+        className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-strong hover:bg-surface-3"
       >
-        <AppWindow size={13} /> Pick a running program
+        <AppWindow size={13} /> Pick from running apps
       </button>
       {open && (
-        <div role="menu" className="scroll-thin absolute left-0 top-8 z-30 max-h-72 w-80 overflow-y-auto rounded-xl border border-line-strong bg-surface p-1.5 shadow-2xl">
+        <div role="menu" className="scroll-thin absolute right-0 top-9 z-30 max-h-72 w-72 overflow-y-auto rounded-xl border border-line-strong bg-surface p-1.5 shadow-2xl">
           {error ? (
-            <p className="p-2 text-xs text-bad">Couldn’t list the programs: {error}</p>
+            <p className="p-2 text-xs text-bad">Couldn’t list the apps: {error}</p>
           ) : !shown ? (
             <p className="flex items-center gap-2 p-2 text-xs text-ink-muted">
               <Loader2 size={13} className="animate-spin" /> Looking…
             </p>
           ) : shown.length === 0 ? (
-            <p className="p-2 text-xs text-ink-muted">No other programs with a window. Start the game first, then pick it here.</p>
+            <p className="p-2 text-xs text-ink-muted">No other apps with a window. Start the game first, then pick it here.</p>
           ) : (
             shown.map((p) => (
               <button

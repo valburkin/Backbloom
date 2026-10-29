@@ -22,7 +22,7 @@ HyperHDR ran one complete pipeline per "instance"; Backbloom runs one pipeline t
 Zones step their effects on the frame loop without waiting for them; the layout's profiles switch the compiled
 rects and zones while a program runs (`ProfileMonitor`, polling `IProcessList`).
 
-The `LightingGate` (Engine) can hold the output: the controllers stay closed while the first-run welcome wasn't
+The `LightingGate` (Engine) can hold the output: the controllers stay closed while the first-run setup wasn't
 completed or HyperHDR runs (`OtherAppMonitor` behind the `IProcessList` platform interface). Network access is
 opt-in: the server listens on loopback until `network.remoteAccess` is turned on, and discovery opens sockets only
 while a search runs (see [backend/README.md](../backend/README.md#first-run-hyperhdr-and-network-access)).

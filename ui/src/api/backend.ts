@@ -42,14 +42,19 @@ export function createBackend(): Backend {
   const loc = window.location;
   const env = import.meta.env;
   if (isMockEnabled(loc, env.VITE_MOCK as string | undefined)) {
-    // ?mock=auth: another device, which signs in; ?mock=welcome: a fresh install's welcome; ?mock=hyperhdr: welcome while
-    // HyperHDR runs; ?mock=imported: no layout saved yet, only the LED positions (as after importing HyperHDR settings)
+    // ?mock=auth: another device, which signs in; ?mock=welcome: a new install's setup (only the test device);
+    // ?mock=welcome-imported: the setup after importing HyperHDR settings; ?mock=hyperhdr: the same while HyperHDR runs;
+    // ?mock=imported: no layout saved yet, only the LED positions (as after importing HyperHDR settings);
+    // ?mock=offline: a device can't be reached
     const mode = new URLSearchParams(loc.search).get('mock');
-    const firstRun = mode === 'welcome' || mode === 'hyperhdr';
+    const firstRun = mode === 'welcome' || mode === 'welcome-imported' || mode === 'hyperhdr';
     return new MockBackend({
       requireAuth: mode === 'auth',
       firstRun,
+      fresh: mode === 'welcome',
       otherApp: mode === 'hyperhdr',
+      offline: mode === 'offline',
+      imported: mode === 'imported',
       demoLayout: !firstRun && mode !== 'imported',
     });
   }

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type Dispatch, type ReactNode } from 'react';
 import type { BackendConfig, JsonSchema, SettingsSchema } from '../api/types';
 import { RpcError } from '../api/types';
-import { withDefaults, validate, type Issue } from '../schema/schema';
+import { fieldLabel, propertyAt, withDefaults, validate, type Issue } from '../schema/schema';
 import { dirtySections, draftsReducer, isPageDirty, setIn, type DraftsAction, type DraftsState } from '../settings/drafts';
 import { useConnection } from './connection';
 import { useToast } from './toast';
@@ -45,11 +45,36 @@ function rejectedFields(e: unknown): Issue[] {
     : [];
 }
 
+/**
+ * What a problem at a settings path ("smoothing.y_limit", "mqtt.port") is called in a message: the page's own label,
+ * else the field's label from the schema, never the raw path.
+ */
+export function issueLabel(path: string, labels: Record<string, string> = {}, schema?: SettingsSchema | null): string {
+  if (labels[path]) return labels[path];
+  const keys = path.split('.');
+  // the last named property on the path ("lamps.0.name" → "name")
+  for (let n = keys.length; n > 1; n--) {
+    const key = keys[n - 1];
+    if (/^\d+$/.test(key)) continue;
+    const s = propertyAt(schema ?? undefined, ...keys.slice(0, n).map((k) => (/^\d+$/.test(k) ? '[]' : k)));
+    if (s) return fieldLabel(key, s);
+  }
+  return 'A setting';
+}
+
+/** "Label: message" for the first few problems. */
+export function issuesText(issues: Issue[], labels: Record<string, string> = {}, schema?: SettingsSchema | null): string {
+  return issues
+    .slice(0, 3)
+    .map((p) => `${issueLabel(p.path, labels, schema)}: ${p.message}`)
+    .join(' ');
+}
+
 /** Turns backend save errors into something a user can act on. */
-export function saveErrorText(e: unknown, labels: Record<string, string> = {}): string {
-  if (e instanceof RpcError && e.isAuthError) return 'Your session isn’t signed in anymore. Sign in and save again.';
+export function saveErrorText(e: unknown, labels: Record<string, string> = {}, schema?: SettingsSchema | null): string {
+  if (e instanceof RpcError && e.isAuthError) return 'You’ve been signed out. Sign in and save again.';
   const fields = rejectedFields(e);
-  if (fields.length) return fields.slice(0, 3).map((f) => `${labels[f.path] ?? f.path}: ${f.message}`).join(' ');
+  if (fields.length) return issuesText(fields, labels, schema);
   return errorText(e);
 }
 
@@ -123,7 +148,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       for (const s of sections) partial[s] = draft.edits[s];
       const problems = sections.flatMap((s) => (schema?.properties[s] ? validate(schema.properties[s], partial[s], s) : []));
       if (problems.length) {
-        if (!quiet) toast('bad', 'Some values need attention', problems.map((p) => `${labels[p.path] ?? p.path}: ${p.message}`).slice(0, 3).join(' '));
+        if (!quiet) toast('bad', 'Some values need attention', issuesText(problems, labels, schema));
         return false;
       }
       setSaving(page);
@@ -135,7 +160,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         if (!quiet) toast('ok', 'Settings saved');
         return true;
       } catch (e) {
-        toast('bad', 'Couldn’t save', saveErrorText(e, labels));
+        toast('bad', 'Couldn’t save', saveErrorText(e, labels, schema));
         return false;
       } finally {
         setSaving(null);

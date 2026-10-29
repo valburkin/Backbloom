@@ -7,7 +7,7 @@ import type { SetupState } from '../../api/types';
 import { ConnectionProvider, sessionAccess } from '../connection';
 import { ToastProvider } from '../toast';
 import { LoginScreen } from '../../pages/LoginScreen';
-import { RemoteAccessProtection, SecurityTab } from '../../pages/settings/SecurityTab';
+import { PasswordForm, RemoteAccessProtection } from '../../pages/settings/RemoteAccess';
 import { newPasswordProblem, passwordStrength } from '../../settings/password';
 
 async function connected(options: ConstructorParameters<typeof MockBackend>[0] = {}) {
@@ -27,7 +27,7 @@ function render(node: ReactNode, backend = new MockBackend()): string {
 }
 
 describe('who signs in', () => {
-  it('gives this computer full access without a login', async () => {
+  it('gives this PC full access without a login', async () => {
     const { api } = await connected();
     expect(await sessionAccess(api, null)).toEqual({ auth: 'admin', remote: false, dropToken: false });
     await expect(api.getConfig()).resolves.toBeTruthy();
@@ -46,12 +46,12 @@ describe('who signs in', () => {
   it('never offers a factory password', () => {
     const html = render(<LoginScreen />, new MockBackend({ requireAuth: true }));
     expect(html).toContain('Sign in');
-    expect(html).toContain('password you set on the computer that runs Backbloom');
+    expect(html).toContain('Enter the password you set in Backbloom on your PC (Settings → Remote access).');
     expect(html).not.toMatch(/factory|default password|without signing in/i);
   });
 });
 
-describe('Settings → Security', () => {
+describe('Settings → Remote access', () => {
   const setup = (change: Partial<SetupState>): SetupState => ({
     firstRunCompleted: true,
     outputHeld: false,
@@ -66,8 +66,7 @@ describe('Settings → Security', () => {
   const on = { enabled: true, fixedByCommandLine: false, port: 18290, urls: ['http://192.168.1.20:18290/'], advertised: true };
 
   it('sets the first password without asking for a current one', () => {
-    const html = render(<SecurityTab />);
-    expect(html).toContain('No password is set.');
+    const html = render(<PasswordForm passwordSet={false} remote={false} />);
     expect(html).toContain('Set password');
     expect(html).not.toContain('Current password');
     expect(html.match(/type="password"/g)).toHaveLength(2);
@@ -75,8 +74,11 @@ describe('Settings → Security', () => {
   });
 
   it('says whether remote access is protected', () => {
-    expect(renderToStaticMarkup(<RemoteAccessProtection setup={setup({})} />)).toContain('only this computer can open Backbloom');
-    expect(renderToStaticMarkup(<RemoteAccessProtection setup={setup({ remoteAccess: on, passwordSet: true })} />)).toContain('on and protected');
+    const off = renderToStaticMarkup(<RemoteAccessProtection setup={setup({})} />);
+    expect(off).toContain('Off — only this PC can open Backbloom.');
+    // off is a normal state: neutral, not a green success
+    expect(off).not.toMatch(/bg-ok|text-ok/);
+    expect(renderToStaticMarkup(<RemoteAccessProtection setup={setup({ remoteAccess: on, passwordSet: true })} />)).toContain('On — devices on your network can open Backbloom.');
     expect(renderToStaticMarkup(<RemoteAccessProtection setup={setup({ remoteAccess: on })} />)).toContain('no password is set');
   });
 });

@@ -5,17 +5,14 @@ import type { PageSettings } from '../../app/config';
 
 type Obj = Record<string, unknown>;
 
-export function MqttTab({ ps }: { ps: PageSettings }) {
+/** Settings → Integrations: MQTT for Home Assistant, Node-RED and the like (topic, reconnects… under More options). */
+export function IntegrationsTab({ ps }: { ps: PageSettings }) {
   const schema = ps.schemaOf('mqtt');
   const mqtt = ps.value<Obj>('mqtt');
   const issues = ps.issues.filter((i) => i.path.startsWith('mqtt.')).map((i) => ({ ...i, path: i.path.slice(5) }));
-  if (!schema) return <p className="text-[13px] text-ink-faint">This version of the service has no MQTT support.</p>;
+  if (!schema) return <p className="text-[13px] text-ink-faint">This version of Backbloom has no MQTT support.</p>;
   return (
-    <Section
-      title="MQTT"
-      icon={<Radio size={18} />}
-      description="Connect Backbloom to a home automation system (Home Assistant, Node-RED…) through an MQTT broker. It publishes its state and accepts commands."
-    >
+    <Section title="MQTT" icon={<Radio size={18} />} description="Control your lights from Home Assistant, Node-RED and similar systems over MQTT.">
       <SchemaForm
         schema={schema}
         value={mqtt}
@@ -23,9 +20,8 @@ export function MqttTab({ ps }: { ps: PageSettings }) {
         onChange={(v) => ps.set('mqtt', v)}
         omit={mqtt.enable === true ? [] : Object.keys(schema.properties ?? {}).filter((k) => k !== 'enable')}
         overrides={{
-          enable: { label: 'Connect to an MQTT broker' },
+          enable: { label: 'Connect to an MQTT broker', hint: 'Backbloom publishes its state and accepts commands.' },
           port: { label: 'Broker port' },
-          maxRetry: { label: 'Reconnect attempts' },
         }}
       />
     </Section>

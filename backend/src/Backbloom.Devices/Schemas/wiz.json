@@ -8,7 +8,7 @@
       "default": 38899,
       "minimum": 1,
       "maximum": 65535,
-      "access": "expert",
+      "access": "advanced",
       "propertyOrder": 1
     },
     "dimming": {

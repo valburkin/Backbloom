@@ -4,7 +4,7 @@
   "properties": {
     "colorModel": {
       "type": "integer",
-      "title": "Output Type",
+      "title": "edt_dev_spec_colorMode_title",
       "enum": [
         0,
         1
@@ -47,12 +47,12 @@
       "append": "ms",
       "minimum": 30,
       "maximum": 5000,
-      "access": "advanced",
       "options": {
         "dependencies": {
           "transEffect": 0
         }
       },
+      "access": "advanced",
       "propertyOrder": 3
     },
     "extraTimeDarkness": {
@@ -103,7 +103,7 @@
       "step": 0.25,
       "minimum": 0.5,
       "maximum": 10.0,
-      "access": "expert",
+      "access": "advanced",
       "propertyOrder": 8
     },
     "restoreOriginalState": {
@@ -111,6 +111,7 @@
       "format": "checkbox",
       "title": "edt_dev_spec_restoreOriginalState_title",
       "default": false,
+      "access": "advanced",
       "propertyOrder": 9
     },
     "maxRetry": {
@@ -122,6 +123,7 @@
       "maximum": 300,
       "default": 60,
       "required": true,
+      "access": "expert",
       "propertyOrder": 10
     },
     "lights": {
@@ -163,7 +165,7 @@
     },
     "quotaWait": {
       "type": "integer",
-      "title": "Wait time (quota)",
+      "title": "edt_dev_spec_quotaWait_title",
       "default": 1000,
       "append": "edt_append_ms",
       "minimum": 0,

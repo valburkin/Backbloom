@@ -12,7 +12,7 @@ UI uses (`ui/src/api/rpcApi.ts` is the reference client).
 | MQTT | `<topic>/JsonAPI` -> `<topic>/JsonAPI/response` | when the `mqtt` section enables it; API rights without configuration access |
 
 The web port is 18290 by default (`--port`). The app listens on 127.0.0.1 only; with the `network.remoteAccess`
-setting on (Settings > Network) it also listens on the computer's network addresses. `--bind` fixes one address.
+setting on (Settings → Remote access) it also listens on the computer's network addresses. `--bind` fixes one address.
 
 ## Messages
 
@@ -66,7 +66,7 @@ needed only from another device; this computer can set a new one without it, als
 | `logging` `start` / `stop` | log history and live log lines |
 | `performance-counters` | CPU, memory, frame and LED rates |
 | `instance` `switchTo` | kept for HyperHDR clients |
-| `setup` `getstate` / `start` / `autostart` / `acknowledge` | first-run welcome: whether the lighting was started once, HyperHDR running, what was imported, autostart, remote access addresses, whether a password is set (`passwordSet`); `start` ends the first-run hold (admin) |
+| `setup` `getstate` / `start` / `autostart` / `acknowledge` | first-run setup: whether the lights were turned on once, HyperHDR running, what was imported, autostart, remote access addresses, whether a password is set (`passwordSet`); `start` ends the first-run hold (admin) |
 | `profile` `getstate` / `select` / `programs` | the layout's profiles at runtime (see below) |
 
 ### Finding an LED (`leddevice identify`, `ledDeviceType: "blink"`)
@@ -84,7 +84,7 @@ A blink replaces the running one (also on another controller) and starts over at
 are switched off or nothing is visible (the controller opens for it and closes again after it); switching `ALL` or
 `LEDDEVICE` off ends it. Replies `{ controller, blinkIndex, hold }`, for a stop `{ controller, stopped: true }`. Errors:
 an LED or controller that doesn't exist, a controller that isn't running (disabled, no usable driver settings), and
-the output being held (before the first-run welcome is completed, or while HyperHDR runs: nothing is sent then).
+the output being held (before the first-run setup is completed, or while HyperHDR runs: nothing is sent then).
 
 ### Profiles (`profile`)
 

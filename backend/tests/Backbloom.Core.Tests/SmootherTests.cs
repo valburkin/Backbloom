@@ -176,6 +176,52 @@ public sealed class SmootherTests
         Assert.InRange(afterwards.Count, 3, 3 + ((10_000 - finishedAt) / 1000) + 1);
     }
 
+    [Theory]
+    [InlineData("HybridRgbInterpolator", 20, 600, 50)]
+    [InlineData("HybridInterpolator", 20, 600, 50)]
+    [InlineData("HybridRgbInterpolator", 50, 1000, 100)]
+    [InlineData("HybridInterpolator", 50, 1000, 100)]
+    [InlineData("HybridRgbInterpolator", 200, 1000, 1000)]
+    public void StiffSpring_ApproachesWithoutOscillating(string type, int updateFrequency, int stiffness, int damping)
+    {
+        // one step per tick made these springs diverge (HyperHDR); each tick is now split into steps the spring allows
+        var smoother = Create($$"""{ "enable": true, "type": "{{type}}", "updateFrequency": {{updateFrequency}}, "stiffness": {{stiffness}}, "damping": {{damping}}, "y_limit": 0, "smoothingFactor": 0 }""");
+        var output = new Vector3[2];
+        var interval = 1000 / updateFrequency;
+        smoother.SetTarget([new Vector3(0.1f), new Vector3(0.1f)], 0, 0);
+        smoother.SetTarget([new Vector3(0.9f), new Vector3(0.9f)], 0, 1);
+
+        var previous = 0.1f;
+        for (long t = interval; t <= 20_000; t += interval)
+        {
+            smoother.Tick(t, output);
+            Assert.InRange(output[0].X, previous - 0.001f, 0.901f);
+            previous = output[0].X;
+        }
+
+        Assert.Equal(0.9f, previous, 0.001f);
+    }
+
+    [Fact]
+    public void HybridBrightnessLimit_HoldsPerTick_WhenATickTakesSeveralSteps()
+    {
+        const float Limit = 0.05f;
+        var smoother = Create("""{ "enable": true, "type": "HybridInterpolator", "updateFrequency": 20, "stiffness": 600, "damping": 50, "y_limit": 0.05, "smoothingFactor": 0 }""");
+        var output = new Vector3[2];
+        smoother.SetTarget([new Vector3(0.1f), new Vector3(0.1f)], 0, 0);
+        smoother.SetTarget([new Vector3(0.9f), new Vector3(0.9f)], 0, 1);
+
+        var previous = 0.1f;
+        for (long t = 50; t <= 1000; t += 50)
+        {
+            smoother.Tick(t, output);
+            Assert.InRange(output[0].X - previous, -0.001f, Limit + 0.001f); // gray: Y' equals each RGB channel
+            previous = output[0].X;
+        }
+
+        Assert.True(previous > 0.8f, $"still at {previous}");
+    }
+
     [Fact]
     public void SmoothingTicks_DoNotAllocate()
     {

@@ -18,7 +18,8 @@ public enum ToneMappingMode
 /// <param name="Capturing">A monitor is being captured; the other values describe it (any of them for several).</param>
 /// <param name="MonitorHdr">Windows drives a captured monitor in HDR mode.</param>
 /// <param name="ToneMapped">HDR colors are converted to SDR: by the HDR capture shader or by the table.</param>
-public sealed record CaptureHdrStatus(ToneMappingMode Mode, bool Capturing, bool MonitorHdr, bool ToneMapped)
+/// <param name="SdrWhiteNits">The SDR white level the HDR capture converts with (0 without HDR capture).</param>
+public sealed record CaptureHdrStatus(ToneMappingMode Mode, bool Capturing, bool MonitorHdr, bool ToneMapped, int SdrWhiteNits = 0)
 {
     public static CaptureHdrStatus Idle(ToneMappingMode mode) => new(mode, false, false, false);
 }

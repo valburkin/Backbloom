@@ -56,7 +56,7 @@
       "type": "string",
       "format": "select",
       "title": "edt_conf_fge_effect_title",
-      "default": "Rainbow swirl fast",
+      "default": "Warm mood blobs",
       "required": true,
       "propertyOrder": 4,
       "options": {

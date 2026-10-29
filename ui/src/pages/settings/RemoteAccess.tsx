@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
-import { KeyRound, Loader2, ShieldCheck, Smartphone } from 'lucide-react';
-import { Button, Dialog } from '../../components/ui';
-import { Callout, Section } from '../../components/form';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Copy, KeyRound, Loader2, Lock, Plus, ShieldAlert, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
+import { Button, Dialog, IconButton, StatusDot } from '../../components/ui';
+import { Advanced, Callout, Expert, Input, NumberField, Section } from '../../components/form';
 import { NewPasswordFields } from '../../components/PasswordFields';
 import { QrCode } from '../../components/QrCode';
 import { newPasswordProblem } from '../../settings/password';
+import { deepEqual } from '../../settings/drafts';
+import { differsFromDefault, propertyAt, rangeOf } from '../../schema/schema';
 import type { PageSettings } from '../../app/config';
 import { useConnection } from '../../app/connection';
 import { useAction } from '../../app/useAction';
-import type { SetupState } from '../../api/types';
+import { useToast } from '../../app/toast';
+import type { SetupState, TokenInfo } from '../../api/types';
 
 type Obj = Record<string, unknown>;
 
@@ -62,9 +65,8 @@ export function RemoteAccessDialog({
     >
       <div className="space-y-4 text-[13px] text-ink-muted">
         <p>
-          <span className="font-medium text-ink">What it does:</span> Backbloom starts accepting connections from your local network, so you can open this
-          page on your phone, a tablet or another computer, and it announces itself on the network so apps can find it. Until now it only accepted
-          connections from this computer.
+          <span className="font-medium text-ink">What it does:</span> Backbloom starts accepting connections from your home network, so you can open it
+          on your phone, a tablet or another PC, and it announces itself on the network so apps can find it. Until now only this PC could open it.
         </p>
         <div className="rounded-xl border border-accent/30 bg-accent/10 p-3 text-ink">
           <p className="font-medium">Windows will ask next</p>
@@ -76,7 +78,7 @@ export function RemoteAccessDialog({
         {passwordSet ? (
           <p>
             <span className="font-medium text-ink">Who can change settings:</span> other devices sign in with your Backbloom password (you can change it
-            in Settings → Security). This computer never needs it.
+            in Settings → Remote access). This PC never needs it.
           </p>
         ) : (
           <div className="space-y-3 rounded-xl border border-line bg-surface-2 p-3">
@@ -84,15 +86,15 @@ export function RemoteAccessDialog({
               <KeyRound size={15} className="mt-0.5 shrink-0 text-accent-strong" />
               <span>
                 <span className="font-medium">Choose a password for other devices.</span>{' '}
-                <span className="text-ink-muted">They sign in with it; this computer never needs it. You can change it later in Settings → Security.</span>
+                <span className="text-ink-muted">They sign in with it; this PC never needs it. You can change it later in Settings → Remote access.</span>
               </span>
             </p>
             <NewPasswordFields password={password} confirm={confirm} onPassword={setPassword} onConfirm={setConfirm} label="Password" />
           </div>
         )}
         <p>
-          <span className="font-medium text-ink">Turning it off:</span> come back here and choose Turn off. Backbloom then listens on this computer only
-          again. To remove the Windows permission as well, open Windows Security → Firewall &amp; network protection → Allow an app through firewall.
+          <span className="font-medium text-ink">Turning it off:</span> come back here and choose Turn off. Then only this PC can open Backbloom again. To
+          remove the Windows permission as well, open Windows Security → Firewall &amp; network protection → Allow an app through firewall.
         </p>
       </div>
     </Dialog>
@@ -102,8 +104,7 @@ export function RemoteAccessDialog({
 /** The addresses other devices open, with a QR code for the first. */
 export function RemoteAccessAddresses({ status }: { status: SetupState['remoteAccess'] }) {
   const first = status.urls[0];
-  if (!first)
-    return <Callout tone="warn">Remote access is on, but this computer has no network address right now. Check that it is connected to your network.</Callout>;
+  if (!first) return <Callout tone="warn">Remote access is on, but this PC has no network address right now. Check that it’s connected to your network.</Callout>;
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
       <QrCode text={first} label={`QR code for ${first}`} />
@@ -118,18 +119,195 @@ export function RemoteAccessAddresses({ status }: { status: SetupState['remoteAc
             </li>
           ))}
         </ul>
-        <p className="text-xs text-ink-faint">Your phone must be on the same network as this computer.</p>
+        <p className="text-xs text-ink-faint">Your phone must be on the same network as this PC.</p>
       </div>
     </div>
   );
 }
 
-/** Settings → Network: "Control from your phone / other devices" (the `network.remoteAccess` setting, off by default). */
-export function RemoteAccessSection({ ps }: { ps: PageSettings }) {
-  const { setup, api } = useConnection();
+/** Whether other devices can open Backbloom, and whether they can sign in. Off is a normal state, not a success. */
+export function RemoteAccessProtection({ setup }: { setup: SetupState }) {
+  if (!setup.remoteAccess.enabled)
+    return (
+      <p className="flex items-center gap-2.5 text-sm text-ink-muted">
+        <StatusDot tone="neutral" />
+        Off — only this PC can open Backbloom.
+      </p>
+    );
+  if (setup.passwordSet)
+    return (
+      <p className="flex items-start gap-2.5 text-sm">
+        <span className="mt-1.5">
+          <StatusDot tone="ok" />
+        </span>
+        <span>
+          On — devices on your network can open Backbloom.
+          <span className="block text-[13px] text-ink-muted">They sign in with your password. This PC never needs it.</span>
+        </span>
+      </p>
+    );
+  return (
+    <Callout tone="bad" icon={<ShieldAlert size={16} />}>
+      On, but no password is set, so other devices can’t sign in. Set one under Password below.
+    </Callout>
+  );
+}
+
+/**
+ * Sets or changes the password other devices sign in with. This PC never needs it, so it may set a new one without
+ * the current one (also how a forgotten password is replaced); another device that signed in confirms it.
+ */
+export function PasswordForm({ passwordSet, remote }: { passwordSet: boolean; remote: boolean }) {
+  const { api, applySetup, setup } = useConnection();
+  const { run, busy } = useAction();
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const needsCurrent = remote && passwordSet;
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const problem = newPasswordProblem(next, confirm);
+    if (problem) return setError(problem);
+    const ok = await run(
+      'password',
+      passwordSet ? 'Couldn’t change the password' : 'Couldn’t set the password',
+      () => api.setPassword(next, needsCurrent ? current : undefined),
+      passwordSet ? 'Password changed' : 'Password set',
+    );
+    if (ok) {
+      setCurrent('');
+      setNext('');
+      setConfirm('');
+      if (setup && !setup.passwordSet) applySetup({ ...setup, passwordSet: true });
+    } else if (needsCurrent) setError('Check the current password and try again.');
+  };
+  return (
+    <form onSubmit={(e) => void submit(e)} className="space-y-4">
+      {needsCurrent && (
+        <Input className="sm:max-w-[calc(50%-0.5rem)]" label="Current password" type="password" autoComplete="current-password" value={current} onChange={setCurrent} />
+      )}
+      <NewPasswordFields password={next} confirm={confirm} onPassword={setNext} onConfirm={setConfirm} label={passwordSet ? 'New password' : 'Password'} />
+      {error && (
+        <p role="alert" className="text-[13px] text-bad">
+          {error}
+        </p>
+      )}
+      <Button type="submit" variant="primary" icon={<Lock size={15} />} disabled={busy === 'password' || !next || !confirm || (needsCurrent && !current)}>
+        {passwordSet ? 'Change password' : 'Set password'}
+      </Button>
+    </form>
+  );
+}
+
+/** App keys: a key per app (a Stream Deck plugin, a home automation…) that can be revoked on its own. */
+function AppKeys() {
+  const { api, session } = useConnection();
+  const toast = useToast();
+  const { run, busy } = useAction();
+  const [tokens, setTokens] = useState<TokenInfo[] | null>(null);
+  const [comment, setComment] = useState('');
+  const [created, setCreated] = useState<string | null>(null);
+  const load = useCallback(() => api.listTokens().then(setTokens, () => setTokens([])), [api]);
+  useEffect(() => {
+    void load();
+  }, [load, session]);
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-medium">App keys</p>
+        <p className="text-xs text-ink-faint">Give an app (a Stream Deck plugin, a home automation…) its own key that you can revoke at any time.</p>
+      </div>
+      {tokens === null ? (
+        <p className="text-[13px] text-ink-faint">Loading…</p>
+      ) : tokens.length === 0 ? (
+        <p className="text-[13px] text-ink-faint">No apps have a key.</p>
+      ) : (
+        <ul className="divide-y divide-line border-y border-line">
+          {tokens.map((t) => (
+            <li key={t.id} className="flex items-center gap-3 py-2 text-[13px]">
+              <KeyRound size={15} className="text-ink-faint" />
+              <span className="min-w-0 flex-1 truncate">{t.comment}</span>
+              <span className="hidden text-xs text-ink-faint sm:inline">{t.last_use ? `Last used ${t.last_use.replace('T', ' ').slice(0, 16)}` : 'Never used'}</span>
+              <IconButton
+                label={`Revoke the key of ${t.comment}`}
+                disabled={busy === `del-${t.id}`}
+                onClick={() =>
+                  window.confirm(`Revoke the key of “${t.comment}”? That app loses access.`) &&
+                  void run(`del-${t.id}`, 'Couldn’t revoke the key', () => api.deleteToken(t.id)).then(load)
+                }
+              >
+                <Trash2 size={15} />
+              </IconButton>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (comment.trim().length < 5) return toast('bad', 'Name the app', 'Use at least 5 characters so you recognize it later.');
+          void run('create', 'Couldn’t create a key', async () => {
+            const t = await api.createToken(comment.trim());
+            setCreated(t.token);
+            setComment('');
+            await load();
+          });
+        }}
+      >
+        <Input className="min-w-[14rem] flex-1" label="App name" placeholder="For example Stream Deck" value={comment} onChange={setComment} />
+        <Button type="submit" icon={<Plus size={15} />} disabled={busy === 'create'}>
+          Create key
+        </Button>
+      </form>
+      <Dialog
+        open={!!created}
+        title="App key created"
+        onClose={() => setCreated(null)}
+        footer={
+          <Button variant="primary" onClick={() => setCreated(null)}>
+            Done
+          </Button>
+        }
+      >
+        <p className="mb-3 text-[13px] text-ink-muted">Copy it into the app now — it isn’t shown again.</p>
+        <div className="flex items-center gap-2">
+          <code className="min-w-0 flex-1 break-all rounded-lg bg-bg p-2.5 font-mono text-xs">{created}</code>
+          <IconButton label="Copy key" onClick={() => created && void navigator.clipboard?.writeText(created).then(() => toast('ok', 'Copied'))}>
+            <Copy size={15} />
+          </IconButton>
+        </div>
+      </Dialog>
+    </div>
+  );
+}
+
+const PORTS = ['port', 'sslPort'] as const;
+const CERTIFICATE = ['crtPath', 'keyPath', 'keyPassPhrase'] as const;
+
+/** Settings → Remote access: on/off (the `network.remoteAccess` setting, off by default), password, app keys, ports. */
+export function RemoteAccessTab({ ps }: { ps: PageSettings }) {
+  const { setup, api, remote, backend } = useConnection();
   const { run, busy } = useAction();
   const [asking, setAsking] = useState(false);
   const status = setup?.remoteAccess;
+  const passwordSet = setup?.passwordSet ?? false;
+
+  const web = ps.value<Obj>('webConfig');
+  const webSchema = ps.schemaOf('webConfig');
+  const set = (k: string) => (v: unknown) => ps.setPath('webConfig', [k], v);
+  const err = (p: string) => ps.issues.find((i) => i.path === p)?.message;
+  const port = rangeOf(propertyAt(webSchema, 'port'), { min: 80, max: 65535 });
+  const before = ps.baseline.webConfig as Obj | undefined;
+  const portChanged = !!before && PORTS.some((k) => !deepEqual(before[k], web[k]));
+  const host = backend.mode === 'live' ? new URL(backend.url.replace(/^ws/, 'http')).hostname : 'localhost';
+  const moreKeys = [...PORTS, ...CERTIFICATE];
+  const changed = moreKeys.filter((k) => {
+    const s = propertyAt(webSchema, k);
+    return !!s && differsFromDefault(s, web[k]);
+  });
 
   const apply = (on: boolean, password?: string) =>
     run('remote-access', on ? 'Couldn’t turn on remote access' : 'Couldn’t turn off remote access', async () => {
@@ -142,44 +320,83 @@ export function RemoteAccessSection({ ps }: { ps: PageSettings }) {
     }, on ? 'Remote access is on' : 'Remote access is off');
 
   return (
-    <Section
-      title="Control from your phone / other devices"
-      icon={<Smartphone size={18} />}
-      description={
-        status?.enabled
-          ? 'Other devices on your network can open Backbloom.'
-          : 'Off: Backbloom only accepts connections from this computer, so Windows never asks for network access.'
-      }
-      actions={
-        status && !status.fixedByCommandLine ? (
-          status.enabled ? (
-            <Button variant="danger" disabled={!ps.canEdit || busy === 'remote-access'} onClick={() => void apply(false)}>
-              Turn off
-            </Button>
-          ) : (
-            <Button variant="primary" disabled={!ps.canEdit} onClick={() => setAsking(true)}>
-              Turn on…
-            </Button>
-          )
-        ) : undefined
-      }
-    >
-      {!status ? (
-        <p className="text-[13px] text-ink-muted">Loading…</p>
-      ) : status.fixedByCommandLine ? (
-        <Callout icon={<ShieldCheck size={15} />}>
-          Backbloom was started with <span className="font-mono">--bind</span>, which decides where it listens{status.enabled ? '' : ' (this computer only)'}; this
-          setting has no effect.
-        </Callout>
-      ) : null}
-      {status?.enabled && <RemoteAccessAddresses status={status} />}
-      <RemoteAccessDialog
-        open={asking}
-        busy={busy === 'remote-access'}
-        passwordSet={setup?.passwordSet ?? false}
-        onCancel={() => setAsking(false)}
-        onConfirm={(password) => void apply(true, password)}
-      />
-    </Section>
+    <>
+      <Section
+        title="Remote access"
+        icon={<Smartphone size={18} />}
+        description="Use Backbloom from your phone, tablet or another PC on your home network."
+        actions={
+          status && !status.fixedByCommandLine ? (
+            status.enabled ? (
+              <Button variant="danger" disabled={!ps.canEdit || busy === 'remote-access'} onClick={() => void apply(false)}>
+                Turn off
+              </Button>
+            ) : (
+              <Button variant="primary" disabled={!ps.canEdit} onClick={() => setAsking(true)}>
+                Turn on…
+              </Button>
+            )
+          ) : undefined
+        }
+      >
+        {!setup || !status ? (
+          <p className="text-[13px] text-ink-muted">Loading…</p>
+        ) : (
+          <>
+            <RemoteAccessProtection setup={setup} />
+            {status.fixedByCommandLine && (
+              <Callout icon={<ShieldCheck size={15} />}>
+                Backbloom was started with <span className="font-mono">--bind</span>, which decides where it listens{status.enabled ? '' : ' (this PC only)'}; this
+                setting has no effect.
+              </Callout>
+            )}
+            {status.enabled && <RemoteAccessAddresses status={status} />}
+          </>
+        )}
+        <Advanced
+          changed={changed.length}
+          invalid={moreKeys.some((k) => !!err(`webConfig.${k}`))}
+          onReset={ps.canEdit ? () => ps.set('webConfig', { ...web, ...Object.fromEntries(changed.map((k) => [k, propertyAt(webSchema, k)?.default])) }) : undefined}
+        >
+          <AppKeys />
+          <div className="grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
+            <NumberField integer label="Port (http)" min={port.min} max={port.max} value={Number(web.port)} error={err('webConfig.port')} onChange={set('port')} />
+            <NumberField integer label="Secure port (https)" min={port.min} max={port.max} value={Number(web.sslPort)} error={err('webConfig.sslPort')} onChange={set('sslPort')} />
+          </div>
+          {portChanged && (
+            <Callout tone="warn">
+              After saving, this page moves to <span className="font-mono">http://{host}:{String(web.port)}</span>. Bookmarks and apps that use the old port need updating.
+            </Callout>
+          )}
+          <Expert always={CERTIFICATE.some((k) => changed.includes(k))}>
+            <div className="space-y-4 border-t border-line pt-4">
+              <p className="text-xs text-ink-faint">Backbloom uses a self-signed certificate for https unless you provide one.</p>
+              <Input label="Certificate file (PEM)" placeholder="C:\certs\backbloom.crt" value={String(web.crtPath ?? '')} onChange={set('crtPath')} />
+              <Input label="Private key file (PEM)" placeholder="C:\certs\backbloom.key" value={String(web.keyPath ?? '')} onChange={set('keyPath')} />
+              <Input label="Key password" type="password" autoComplete="new-password" hint="Only if the key is protected with a password." value={String(web.keyPassPhrase ?? '')} onChange={set('keyPassPhrase')} />
+            </div>
+          </Expert>
+        </Advanced>
+        <RemoteAccessDialog
+          open={asking}
+          busy={busy === 'remote-access'}
+          passwordSet={passwordSet}
+          onCancel={() => setAsking(false)}
+          onConfirm={(password) => void apply(true, password)}
+        />
+      </Section>
+
+      <Section
+        title="Password"
+        icon={<Lock size={18} />}
+        description={
+          passwordSet
+            ? 'Other devices (your phone, a tablet, another PC) sign in with it. This PC never needs it.'
+            : 'No password is set. This PC never needs one; other devices do, so turning on remote access asks you to set it first.'
+        }
+      >
+        <PasswordForm passwordSet={passwordSet} remote={remote} />
+      </Section>
+    </>
   );
 }

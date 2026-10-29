@@ -99,12 +99,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'markSaved', spec });
       setLoad((l) => ({ ...l, source: 'saved', note: undefined }));
       if (res.layoutPersisted)
-        toast('ok', 'Layout saved', `${res.ledCount} LEDs${res.controllers > 1 ? ` on ${res.controllers} controllers` : ''} are now placed in your room.`);
+        toast('ok', `Layout saved – ${res.ledCount} LEDs${res.controllers > 1 ? ` on ${res.controllers} devices` : ''}.`);
       else
         toast(
           'info',
           'LED positions saved',
-          'Your lights use the new layout, but this version of the service can’t store the layout itself yet, so editing it later starts from the LED positions.',
+          'Your lights use the new layout, but this version of Backbloom can’t store the layout itself yet, so editing it later starts from the LED positions.',
         );
     } catch (e) {
       toast('bad', 'Couldn’t save the layout', errorText(e));

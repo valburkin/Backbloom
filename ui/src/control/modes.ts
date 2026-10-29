@@ -5,6 +5,9 @@ export type Mode = 'screen' | 'music' | 'effect' | 'color';
 
 const MUSIC_PREFIX = 'Music: ';
 
+/** Tooltip of the Stop buttons (Home, Effects & Music). */
+export const STOP_HINT = 'Stop the effect or color and go back to screen sync';
+
 export function isMusicEffect(name: string): boolean {
   return name.startsWith(MUSIC_PREFIX);
 }
@@ -39,16 +42,14 @@ export function currentSource(priorities: readonly PriorityInfo[] | undefined): 
   }
 }
 
-/** Plain-language description of a source for the Home page. */
+/** Plain-language description of a source for the Home page (a color source is shown with a swatch next to it). */
 export function describeSource(source: PriorityInfo | null): string {
-  if (!source) return 'Nothing — the lights are idle';
+  if (!source) return 'Nothing right now';
   switch (source.componentId) {
     case 'SYSTEMGRABBER':
       return 'Your screen';
-    case 'COLOR': {
-      const rgb = source.value?.RGB;
-      return rgb ? `Static color (${rgb.join(', ')})` : 'Static color';
-    }
+    case 'COLOR':
+      return 'Color';
     case 'EFFECT':
       return source.owner ? `${isMusicEffect(source.owner) ? 'Music' : 'Effect'}: ${effectLabel(source.owner)}` : 'An effect';
     case 'IMAGE':

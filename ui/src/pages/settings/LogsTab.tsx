@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownToLine, Copy, Download, Eraser, Pause, Play, ScrollText, Search } from 'lucide-react';
+import { ChevronsDown, Copy, FileDown, Eraser, Pause, Play, ScrollText, Search } from 'lucide-react';
 import { cx, IconButton } from '../../components/ui';
 import { Callout, Section, Select } from '../../components/form';
 import type { PageSettings } from '../../app/config';
@@ -56,14 +56,19 @@ export function LogsTab({ ps }: { ps: PageSettings }) {
       <Section
         title="Live log"
         icon={<ScrollText size={18} />}
-        description="What Backbloom is doing right now. Attach a download when you ask for help."
+        description="What Backbloom is doing right now. Save it to a file and attach it when you ask for help."
         actions={
           <div className="flex items-center gap-1">
             <IconButton label={paused ? 'Resume' : 'Pause'} onClick={() => setPaused((p) => (p ? null : logs.lines))}>
               {paused ? <Play size={16} /> : <Pause size={16} />}
             </IconButton>
-            <IconButton label={follow ? 'Stop following new messages' : 'Follow new messages'} className={follow ? 'text-accent-strong' : ''} onClick={() => setFollow((f) => !f)}>
-              <ArrowDownToLine size={16} />
+            <IconButton
+              label={follow ? 'Stop scrolling to new messages' : 'Scroll to new messages'}
+              aria-pressed={follow}
+              className={follow ? 'bg-accent/15 text-accent-strong' : ''}
+              onClick={() => setFollow((f) => !f)}
+            >
+              <ChevronsDown size={16} />
             </IconButton>
             <IconButton
               label="Copy shown messages"
@@ -77,7 +82,7 @@ export function LogsTab({ ps }: { ps: PageSettings }) {
               <Copy size={16} />
             </IconButton>
             <IconButton
-              label="Download shown messages"
+              label="Save shown messages to a file"
               onClick={() => {
                 const url = URL.createObjectURL(new Blob([text()], { type: 'text/plain' }));
                 const a = document.createElement('a');
@@ -87,7 +92,7 @@ export function LogsTab({ ps }: { ps: PageSettings }) {
                 setTimeout(() => URL.revokeObjectURL(url), 1000);
               }}
             >
-              <Download size={16} />
+              <FileDown size={16} />
             </IconButton>
             <IconButton label="Clear" onClick={clear}>
               <Eraser size={16} />
@@ -162,7 +167,7 @@ export function LogsTab({ ps }: { ps: PageSettings }) {
       <Section title="How much to log" icon={<ScrollText size={18} />}>
         <Select
           label="Log detail"
-          hint="More detail helps troubleshooting but writes more. “Warnings and errors” is fine for everyday use."
+          hint="More detail helps troubleshooting but writes more. “Warnings and errors” is right for everyday use."
           value={String(logger.level ?? 'warn')}
           options={LOGGER_LEVELS}
           onChange={(v) => ps.setPath('logger', ['level'], v)}

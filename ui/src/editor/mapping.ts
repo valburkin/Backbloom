@@ -123,7 +123,7 @@ export function setStripShows(path: readonly PathPoint[], section: Section | und
 export function roleLabel(section: Section): string | null {
   switch (section.kind) {
     case 'whole':
-      return 'Whole screen';
+      return 'Screen average';
     case 'area':
       return 'One area';
     case 'none':

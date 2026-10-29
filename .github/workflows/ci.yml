@@ -55,15 +55,3 @@ jobs:
       - name: Third-party notices are up to date
         shell: pwsh
         run: ./packaging/Update-ThirdPartyNotices.ps1 -Check
-
-      - name: Package
-        if: github.event_name == 'push'
-        shell: pwsh
-        run: ./packaging/build.ps1 -SkipUi
-
-      - uses: actions/upload-artifact@v4
-        if: github.event_name == 'push'
-        with:
-          name: backbloom-windows
-          path: artifacts/releases/
-          if-no-files-found: error

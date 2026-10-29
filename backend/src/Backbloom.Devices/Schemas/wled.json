@@ -12,6 +12,7 @@
       "title": "wledBrightnessOverride",
       "format": "checkbox",
       "default": true,
+      "access": "advanced",
       "propertyOrder": 2
     },
     "brightnessMaxLevel": {
@@ -28,6 +29,7 @@
         }
       },
       "required": true,
+      "access": "advanced",
       "propertyOrder": 3
     },
     "restoreOriginalState": {
@@ -35,6 +37,7 @@
       "format": "checkbox",
       "title": "edt_dev_spec_restoreOriginalState_title",
       "default": false,
+      "access": "advanced",
       "propertyOrder": 4
     },
     "maxRetry": {
@@ -46,6 +49,7 @@
       "maximum": 300,
       "default": 60,
       "required": true,
+      "access": "expert",
       "propertyOrder": 5
     }
   },

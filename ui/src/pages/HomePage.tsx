@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Activity, ArrowRight, AudioLines, Cpu, Gauge, Loader2, MemoryStick, MonitorSmartphone, Palette, Play, ScreenShare, Sparkles, Square, Sun } from 'lucide-react';
-import { Badge, Button, Card, cx, StatusDot } from '../components/ui';
-import { Callout, Select, Switch } from '../components/form';
+import { Activity, ArrowRight, AudioLines, CircleHelp, Cpu, Gauge, Loader2, MemoryStick, MonitorSmartphone, Palette, Play, ScreenShare, Sparkles, Square, Sun, TriangleAlert } from 'lucide-react';
+import { Badge, Button, Card, ChoiceCard, cx, StatusDot } from '../components/ui';
+import { Expert, Select, Switch } from '../components/form';
 import { PageHeader } from '../components/PageHeader';
 import { ColorPicker } from '../components/ColorPicker';
 import { LedPreview } from '../components/LedPreview';
@@ -16,123 +16,253 @@ import { hrefFor } from '../app/router';
 import { stripLedCount } from '../layout';
 import { useLedFrame, usePerformance } from '../live/hooks';
 import type { ControllerPerformance } from '../live/performance';
-import { currentSource, describeSource, effectLabel, splitEffects, type Mode } from '../control/modes';
-import { applyIntensity, describeIntensity, detectIntensity, INTENSITY_PRESETS, type IntensityPreset } from '../settings/intensity';
+import { currentSource, describeSource, effectLabel, splitEffects, STOP_HINT, type Mode } from '../control/modes';
+import { deviceProblems } from '../control/health';
+import { TroubleshooterDialog } from '../control/Troubleshooter';
+import { useExpertTools } from '../app/expert';
+import { useStartMusic } from '../control/music';
+import { IntensityPicker } from '../control/IntensityPicker';
+import { applyIntensity, detectIntensity, INTENSITY_PRESETS } from '../settings/intensity';
+
 import type { Rgb } from '../color/color';
 
-const MODES: Array<{ id: Mode; label: string; hint: string; icon: ReactNode }> = [
-  { id: 'screen', label: 'Screen sync', hint: 'Mirror what’s on your screen', icon: <ScreenShare size={22} /> },
-  { id: 'music', label: 'Music', hint: 'Pulse to the sound', icon: <AudioLines size={22} /> },
-  { id: 'effect', label: 'Effect', hint: 'Animated scenes', icon: <Sparkles size={22} /> },
-  { id: 'color', label: 'Static color', hint: 'One color everywhere', icon: <Palette size={22} /> },
+const SHOWS: Array<{ id: Mode; label: string; hint: string; icon: ReactNode }> = [
+  { id: 'screen', label: 'Screen sync', hint: 'Follow your screen', icon: <ScreenShare size={20} /> },
+  { id: 'music', label: 'Music', hint: 'React to sound', icon: <AudioLines size={20} /> },
+  { id: 'effect', label: 'Effect', hint: 'Animated scenes', icon: <Sparkles size={20} /> },
+  { id: 'color', label: 'Color', hint: 'One color everywhere', icon: <Palette size={20} /> },
 ];
 
-function PowerCard() {
-  const { serverInfo, api } = useConnection();
+const LINK = 'text-accent-strong underline-offset-2 hover:underline';
+
+/** The main card: lights on or off, what they show, and the brightness. */
+function LightsCard() {
+  const { serverInfo, api, setup } = useConnection();
   const { run, busy } = useAction();
   const comp = (name: string) => serverInfo?.components?.find((c) => c.name === name)?.enabled;
   const on = comp('ALL') !== false;
+  // switched on, but nothing reaches the LEDs until "Turn on lights" (or while HyperHDR runs)
+  const waiting = on && setup?.outputHeld === true;
+  const preview = serverInfo?.profile?.manual ? serverInfo.profile : null;
   const { source } = currentSource(serverInfo?.priorities);
   const manual = serverInfo?.priorities_autoselect === false;
+  const rgb = source?.componentId === 'COLOR' ? source.value?.RGB : undefined;
   return (
-    <Card className="flex flex-wrap items-center gap-5 p-5">
-      <Switch size="lg" label="Lights" checked={on} disabled={busy === 'power'} onChange={(v) => void run('power', 'Couldn’t switch the lights', () => api.setComponent('ALL', v))} />
-      <div className="min-w-0 flex-1">
-        <p className="text-lg font-semibold">{on ? 'Lights are on' : 'Lights are off'}</p>
-        <p className="text-[13px] text-ink-muted">
-          {on ? (
-            <>
-              Showing: <span className="text-ink">{describeSource(source)}</span>
-              {source && <span className="text-ink-faint"> · priority {source.priority}</span>}
-              {serverInfo?.profile && (
-                <>
-                  {' · '}profile <span className="text-ink">{serverInfo.profile.name}</span>
-                  {serverInfo.profile.manual ? ' (tried from the Layout page)' : ''}
-                </>
-              )}
-            </>
-          ) : (
-            'Backbloom is paused. Turn it on to light things up again.'
-          )}
-        </p>
+    <Card className="p-5">
+      <div className="flex flex-wrap items-center gap-5">
+        <Switch size="lg" label="Lights" checked={on} disabled={busy === 'power'} onChange={(v) => void run('power', 'Couldn’t switch the lights', () => api.setComponent('ALL', v))} />
+        <div className="min-w-0 flex-1">
+          <p className="text-lg font-semibold">
+            {waiting ? (setup?.otherApp ? `Waiting for ${setup.otherApp.name} to quit` : 'Waiting — turn on your lights to start') : on ? 'Lights are on' : 'Lights are off'}
+          </p>
+          <p className="text-[13px] text-ink-muted">
+            {on ? (
+              <>
+                {waiting ? 'Will show: ' : 'Showing: '}
+                <span className="text-ink">{describeSource(source)}</span>
+                {rgb && (
+                  <span
+                    className="ml-1.5 inline-block h-3 w-3 rounded-full border border-line-strong align-[-1px]"
+                    style={{ backgroundColor: `rgb(${rgb.join(',')})` }}
+                    title={`RGB ${rgb.join(', ')}`}
+                    aria-hidden
+                  />
+                )}
+                {serverInfo?.profile && (
+                  <>
+                    {' · '}profile <span className="text-ink">{serverInfo.profile.name}</span>
+                    {preview ? ' (preview)' : ''}
+                  </>
+                )}
+              </>
+            ) : (
+              'Your lights are off. Turn them on to light things up again.'
+            )}
+          </p>
+        </div>
+        {preview && (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<Square size={13} />}
+            title="Back to the profile chosen by the running programs"
+            disabled={busy === 'preview'}
+            onClick={() => void run('preview', 'Couldn’t stop the preview', () => api.setProfile(null))}
+          >
+            Stop preview
+          </Button>
+        )}
+        {manual && (
+          <Button size="sm" variant="secondary" title="Let Backbloom choose what to show" onClick={() => void run('auto', 'Couldn’t switch back to automatic', () => api.selectSource('auto'))}>
+            Back to automatic
+          </Button>
+        )}
       </div>
-      {manual && (
-        <Button size="sm" variant="secondary" onClick={() => void run('auto', 'Couldn’t switch sources', () => api.selectSource('auto'))}>
-          Back to automatic source
-        </Button>
-      )}
+      <Brightness />
     </Card>
   );
 }
 
-function ModeSwitch() {
+/**
+ * Brightness 0–100% (`scaleOutput`, the same value as everywhere). A value boosted above 100% (Colors, expert) is
+ * shown as it is; it only changes when the slider is moved.
+ */
+function Brightness() {
   const { serverInfo, api, auth } = useConnection();
-  const { config } = useConfig();
+  const stored = serverInfo?.adjustment?.[0]?.scaleOutput ?? 1;
+  const [dragging, setDragging] = useState<number | null>(null);
+  // The `adjustment` command applies the value and stores it (it needs a signed-in session).
+  const send = useThrottled((v: number) => void api.adjust({ scaleOutput: v }).catch(() => undefined), 100);
+  const releaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canEdit = auth === 'admin';
+  // Show the dragged value until the backend's adjustment-update has caught up.
+  const release = () => {
+    if (releaseTimer.current) clearTimeout(releaseTimer.current);
+    releaseTimer.current = setTimeout(() => setDragging(null), 600);
+  };
+  useEffect(
+    () => () => {
+      if (releaseTimer.current) clearTimeout(releaseTimer.current);
+    },
+    [],
+  );
+  const value = dragging ?? stored;
+  const fill = Math.min(1, Math.max(0, value)) * 100;
+  return (
+    <div className="mt-5 border-t border-line pt-4">
+      <div className="mb-2 flex items-center justify-between">
+        <label htmlFor="home-brightness" className="flex items-center gap-2 text-sm font-semibold">
+          <Sun size={16} className="text-ink-faint" /> Brightness
+        </label>
+        <span className="text-sm tabular-nums text-ink-muted">
+          {Math.round(value * 100)}%{value > 1.005 && <span className="text-ink-faint"> (boosted)</span>}
+        </span>
+      </div>
+      <input
+        id="home-brightness"
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={Math.min(1, value)}
+        disabled={!canEdit}
+        aria-valuetext={`${Math.round(value * 100)}%`}
+        style={{ background: `linear-gradient(to right, var(--color-accent) ${fill}%, var(--color-surface-3) ${fill}%)` }}
+        className={cx(
+          'h-3 w-full appearance-none rounded-full disabled:cursor-not-allowed disabled:opacity-50',
+          '[&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-[0_0_0_1px_rgba(0,0,0,0.4),0_2px_6px_rgba(0,0,0,0.5)]',
+          '[&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white',
+        )}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setDragging(v);
+          send(v);
+          release();
+        }}
+      />
+      <p className="mt-1.5 text-xs text-ink-faint">{canEdit ? 'Saved automatically.' : 'Sign in to change the brightness.'}</p>
+    </div>
+  );
+}
+
+/** Shown only while a device that is switched on gets no colors; links to Setup → Devices. */
+function DeviceHealth() {
+  const { serverInfo } = useConnection();
+  const on = serverInfo?.components?.find((c) => c.name === 'ALL')?.enabled !== false;
+  const problems = on ? deviceProblems(serverInfo?.controllers, serverInfo?.ledDevices) : [];
+  if (!problems.length) return null;
+  const bad = problems.some((p) => p.tone === 'bad');
+  return (
+    <a
+      href={hrefFor('devices')}
+      className={cx(
+        'group flex items-start gap-3 rounded-2xl border px-4 py-3 text-[13px] transition-colors',
+        bad ? 'border-bad/30 bg-bad/10 text-bad hover:border-bad/50' : 'border-warn/30 bg-warn/10 text-warn hover:border-warn/50',
+      )}
+    >
+      <TriangleAlert size={16} className="mt-px shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 space-y-0.5">
+        {problems.slice(0, 3).map((p) => (
+          <span key={p.id} className="block">
+            {p.text}
+          </span>
+        ))}
+        {problems.length > 3 && <span className="block">And {problems.length - 3} more.</span>}
+      </span>
+      <span className="flex shrink-0 items-center gap-1 font-medium">
+        Devices <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+      </span>
+    </a>
+  );
+}
+
+function ShowCard() {
+  const { serverInfo, api } = useConnection();
   const { run, busy } = useAction();
+  const startMusic = useStartMusic();
   const { mode: liveMode, source } = currentSource(serverInfo?.priorities);
+  // The controls shown: what runs, or what was picked last.
   const [mode, setMode] = useState<Mode>(liveMode ?? 'screen');
   useEffect(() => {
     if (liveMode) setMode(liveMode);
   }, [liveMode]);
+  // Highlighted is only what runs; a pick counts while it starts and until the backend reports it (or 2 s pass).
+  const [pending, setPending] = useState<Mode | null>(null);
+  useEffect(() => {
+    if (pending && liveMode === pending) setPending(null);
+  }, [liveMode, pending]);
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => setPending(null), 2000);
+    return () => clearTimeout(t);
+  }, [pending]);
+  const highlighted = pending ?? liveMode;
   const { music, regular } = splitEffects(serverInfo?.effects);
   const running = source?.componentId === 'EFFECT' ? source.owner : undefined;
-  const [effect, setEffect] = useState<string>(() => running ?? (regular.includes('Rainbow swirl') ? 'Rainbow swirl' : (regular[0] ?? '')));
+  const [effect, setEffect] = useState<string>(() => (running && !music.includes(running) ? running : regular.includes('Rainbow swirl') ? 'Rainbow swirl' : (regular[0] ?? '')));
   const [song, setSong] = useState<string>(() => (running && music.includes(running) ? running : (music.find((m) => m.includes('MULTI COLOR)')) ?? music[0] ?? '')));
   const [color, setColor] = useState<Rgb>(() => (source?.value?.RGB as Rgb | undefined) ?? [255, 170, 90]);
   const sendColor = useThrottled((rgb: Rgb) => void api.setColor(rgb).catch(() => undefined), 120);
   const grabberOn = serverInfo?.components?.find((c) => c.name === 'SYSTEMGRABBER')?.enabled === true;
-  const sound = config?.soundEffect as { enable?: boolean; device?: string } | undefined;
-  const musicAvailable = serverInfo?.sound ? serverInfo.sound.available !== false : true;
 
-  const start = (m: Mode) => {
+  // Picks a show; when it can't start, the card goes back to what actually runs.
+  const start = async (m: Mode) => {
+    const previous = mode;
     setMode(m);
+    setPending(m);
+    let ok = true;
     if (m === 'screen')
-      void run('mode', 'Couldn’t switch to screen sync', async () => {
+      ok = await run('mode', 'Couldn’t switch to screen sync', async () => {
         await api.clear();
         if (!grabberOn) await api.setComponent('SYSTEMGRABBER', true);
       });
-    else if (m === 'effect' && effect) void run('mode', 'Couldn’t start the effect', () => api.runEffect(effect));
-    else if (m === 'music' && song && musicAvailable) void run('mode', 'Couldn’t start music mode', () => api.runEffect(song));
-    else if (m === 'color') void run('mode', 'Couldn’t set the color', () => api.setColor(color));
+    else if (m === 'effect' && effect) ok = await run('mode', 'Couldn’t start the effect', () => api.runEffect(effect));
+    else if (m === 'music' && song) ok = await run('mode', 'Couldn’t start the music effect', () => startMusic(song));
+    else if (m === 'color') ok = await run('mode', 'Couldn’t set the color', () => api.setColor(color));
+    if (!ok) {
+      setPending(null);
+      setMode(liveMode ?? previous);
+    }
   };
 
   return (
     <Card className="p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-[15px] font-semibold">Mode</h2>
+        <h2 className="text-base font-semibold">Show</h2>
         {busy === 'mode' && <Loader2 size={16} className="animate-spin text-ink-faint" />}
       </div>
-      <div role="radiogroup" aria-label="Mode" className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        {MODES.map((m) => {
-          const active = m.id === mode;
-          return (
-            <button
-              key={m.id}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              onClick={() => start(m.id)}
-              className={cx(
-                'flex flex-col items-start gap-2 rounded-xl border p-3.5 text-left transition-colors',
-                active ? 'border-accent bg-accent/10' : 'border-line bg-surface-2 hover:border-line-strong',
-              )}
-            >
-              <span className={active ? 'text-accent-strong' : 'text-ink-muted'}>{m.icon}</span>
-              <span>
-                <span className="block text-sm font-semibold">{m.label}</span>
-                <span className="block text-xs text-ink-muted">{m.hint}</span>
-              </span>
-            </button>
-          );
-        })}
+      <div role="radiogroup" aria-label="Show" className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        {SHOWS.map((s) => (
+          <ChoiceCard key={s.id} active={s.id === highlighted}title={s.label} description={s.hint} icon={s.icon} onClick={() => void start(s.id)} />
+        ))}
       </div>
 
       <div className="mt-5">
         {mode === 'screen' && (
           <p className="text-[13px] text-ink-muted">
-            {grabberOn ? 'Your lights follow the picture on your screen.' : 'Screen capture is off.'}{' '}
-            <a className="text-accent-strong underline-offset-2 hover:underline" href={hrefFor('capture')}>
-              Screen capture settings
+            {grabberOn ? 'Your lights follow your screen.' : 'Screen sync is paused.'}{' '}
+            <a className={LINK} href={hrefFor('capture')}>
+              Screen sync settings
             </a>
           </p>
         )}
@@ -142,7 +272,7 @@ function ModeSwitch() {
               className="min-w-[16rem] flex-1"
               label="Effect"
               value={effect}
-              options={regular.map((n) => ({ value: n, label: n }))}
+              options={regular.map((n) => ({ value: n, label: effectLabel(n) }))}
               onChange={(v) => {
                 setEffect(v);
                 void run('mode', 'Couldn’t start the effect', () => api.runEffect(v));
@@ -152,29 +282,18 @@ function ModeSwitch() {
           </div>
         )}
         {mode === 'music' && (
-          <div className="space-y-3">
-            {!musicAvailable &&
-              (auth === 'admin' && sound ? (
-                <SoundOffNotice onEnabled={() => song && void run('mode', 'Couldn’t start music mode', () => api.runEffect(song))} />
-              ) : (
-                <Callout tone="info" icon={<AudioLines size={16} />}>
-                  Sound capture is off on this PC, so the music effects can’t run.
-                </Callout>
-              ))}
-            <div className="flex flex-wrap items-end gap-3">
-              <Select
-                className="min-w-[16rem] flex-1"
-                label="Music effect"
-                value={song}
-                options={music.map((n) => ({ value: n, label: effectLabel(n) }))}
-                disabled={!musicAvailable}
-                onChange={(v) => {
-                  setSong(v);
-                  void run('mode', 'Couldn’t start music mode', () => api.runEffect(v));
-                }}
-              />
-              <StopButton />
-            </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <Select
+              className="min-w-[16rem] flex-1"
+              label="Music effect"
+              value={song}
+              options={music.map((n) => ({ value: n, label: effectLabel(n) }))}
+              onChange={(v) => {
+                setSong(v);
+                void run('mode', 'Couldn’t start the music effect', () => startMusic(v));
+              }}
+            />
+            <StopButton />
           </div>
         )}
         {mode === 'color' && (
@@ -200,90 +319,9 @@ function StopButton() {
   const { api } = useConnection();
   const { run, busy } = useAction();
   return (
-    <Button icon={<Square size={14} />} disabled={busy === 'stop'} onClick={() => void run('stop', 'Couldn’t stop', () => api.clear())}>
+    <Button icon={<Square size={14} />} title={STOP_HINT} disabled={busy === 'stop'} onClick={() => void run('stop', 'Couldn’t stop', () => api.clear())}>
       Stop
     </Button>
-  );
-}
-
-/** Music effects need the sound capture: a way to turn it on, then `onEnabled` (start the chosen effect). */
-function SoundOffNotice({ onEnabled }: { onEnabled?: () => void }) {
-  const { api } = useConnection();
-  const { config } = useConfig();
-  const { run, busy } = useAction();
-  return (
-    <Callout tone="warn" icon={<AudioLines size={16} />}>
-      Sound capture is off, so music effects can’t run.{' '}
-      <button
-        type="button"
-        className="font-medium underline underline-offset-2"
-        disabled={busy === 'sound'}
-        onClick={() =>
-          void run(
-            'sound',
-            'Couldn’t turn on sound capture',
-            async () => {
-              await api.setConfig({ soundEffect: { ...(config?.soundEffect as object), enable: true } });
-              onEnabled?.();
-            },
-            'Sound capture is on',
-          )
-        }
-      >
-        Turn it on
-      </button>{' '}
-      or pick a device under{' '}
-      <a className="font-medium underline underline-offset-2" href={hrefFor('effects')}>
-        Effects &amp; Music
-      </a>
-      .
-    </Callout>
-  );
-}
-
-function BrightnessCard() {
-  const { serverInfo, api, auth } = useConnection();
-  const stored = serverInfo?.adjustment?.[0]?.scaleOutput ?? 1;
-  const [dragging, setDragging] = useState<number | null>(null);
-  // The `adjustment` command applies the value and stores it (it needs a signed-in session).
-  const send = useThrottled((v: number) => void api.adjust({ scaleOutput: v }).catch(() => undefined), 100);
-  const releaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const canEdit = auth === 'admin';
-  // Show the dragged value until the backend's adjustment-update has caught up.
-  const release = () => {
-    if (releaseTimer.current) clearTimeout(releaseTimer.current);
-    releaseTimer.current = setTimeout(() => setDragging(null), 600);
-  };
-  useEffect(() => () => {
-    if (releaseTimer.current) clearTimeout(releaseTimer.current);
-  }, []);
-  const value = dragging ?? Math.min(1, stored);
-  return (
-    <Card className="p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <label htmlFor="home-brightness" className="flex items-center gap-2 text-[15px] font-semibold">
-          <Sun size={17} className="text-accent-strong" /> Brightness
-        </label>
-        <span className="text-sm tabular-nums text-ink-muted">{Math.round(value * 100)}%</span>
-      </div>
-      <input
-        id="home-brightness"
-        type="range"
-        min={0}
-        max={1}
-        step={0.01}
-        value={value}
-        className="w-full"
-        disabled={!canEdit}
-        onChange={(e) => {
-          const v = Number(e.target.value);
-          setDragging(v);
-          send(v);
-          release();
-        }}
-      />
-      <p className="mt-1 text-xs text-ink-faint">{canEdit ? 'Applies immediately and is remembered.' : 'Sign in to change the brightness.'}</p>
-    </Card>
   );
 }
 
@@ -291,66 +329,34 @@ function IntensityCard() {
   const { api } = useConnection();
   const { config } = useConfig();
   const { run, busy } = useAction();
-  const current = detectIntensity(config);
-  const [preview, setPreview] = useState<IntensityPreset['id'] | null>(null);
-  const shown = INTENSITY_PRESETS.find((p) => p.id === (preview ?? (current !== 'custom' ? current : null)));
-  const canEdit = !!config;
   return (
+    <div id="intensity">
     <Card className="p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
-          <Gauge size={17} className="text-accent-strong" /> Intensity
+        <h2 className="flex items-center gap-2 text-base font-semibold">
+          <Gauge size={16} className="text-ink-faint" /> Intensity
         </h2>
-        {current === 'custom' && <Badge>Custom</Badge>}
+        {detectIntensity(config) === 'custom' && <Badge>Custom</Badge>}
       </div>
-      <div role="radiogroup" aria-label="Intensity" className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-        {INTENSITY_PRESETS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            role="radio"
-            aria-checked={current === p.id}
-            disabled={!canEdit || busy === 'intensity'}
-            onMouseEnter={() => setPreview(p.id)}
-            onMouseLeave={() => setPreview(null)}
-            onFocus={() => setPreview(p.id)}
-            onBlur={() => setPreview(null)}
-            onClick={() =>
-              config && void run('intensity', 'Couldn’t change the intensity', () => api.setConfig(applyIntensity(config, p.id)), `Intensity: ${p.label}`)
-            }
-            className={cx(
-              'h-10 rounded-lg border text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-              current === p.id ? 'border-accent bg-accent/15 text-ink' : 'border-line bg-surface-2 text-ink-muted hover:text-ink',
-            )}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-      <div className="mt-3 min-h-[4.5rem] text-[13px]">
-        {shown ? (
+      <IntensityPicker
+        current={detectIntensity(config)}
+        disabled={!config || busy === 'intensity'}
+        onPick={(id) =>
+          config &&
+          void run('intensity', 'Couldn’t change the intensity', () => api.setConfig(applyIntensity(config, id)), `Intensity: ${INTENSITY_PRESETS.find((p) => p.id === id)?.label}`)
+        }
+        customHint={
           <>
-            <p className="text-ink-muted">{shown.description}</p>
-            <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs">
-              {describeIntensity(shown).map(([k, v]) => (
-                <div key={k} className="flex gap-1.5">
-                  <dt className="text-ink-faint">{k}</dt>
-                  <dd className="tabular-nums text-ink">{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </>
-        ) : (
-          <p className="text-ink-muted">
-            Your smoothing and color settings don’t match a preset. Pick one to replace them, or fine-tune on the{' '}
-            <a className="text-accent-strong underline-offset-2 hover:underline" href={hrefFor('colors')}>
+            You’ve adjusted the colors yourself. Pick a preset to replace your changes, or keep tuning on the{' '}
+            <a className={LINK} href={hrefFor('colors')}>
               Colors
             </a>{' '}
             page.
-          </p>
-        )}
-      </div>
+          </>
+        }
+      />
     </Card>
+    </div>
   );
 }
 
@@ -361,16 +367,16 @@ function PreviewCard() {
   return (
     <Card className="overflow-hidden">
       <div className="flex items-center justify-between border-b border-line px-5 py-3">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
-          <Activity size={17} className="text-accent-strong" /> Live preview
+        <h2 className="flex items-center gap-2 text-base font-semibold">
+          <Activity size={16} className="text-ink-faint" /> Live preview
         </h2>
         <span className="flex items-center gap-2 text-xs text-ink-faint">
-          <StatusDot tone={frame ? 'ok' : 'neutral'} />
+          <StatusDot tone={frame ? 'ok' : 'neutral'} live />
           {frame ? 'Live' : 'Waiting for colors…'}
         </span>
       </div>
       <div className="bg-[radial-gradient(ellipse_at_center,#141826_0%,#0b0d13_70%)] p-4">
-        {view ? <LiveLayoutLights view={view} frame={frame} /> : <LedPreview rects={serverInfo?.leds} frame={frame} />}
+        {view ? <LiveLayoutLights view={view} frame={frame} compact /> : <LedPreview rects={serverInfo?.leds} frame={frame} />}
       </div>
     </Card>
   );
@@ -389,13 +395,14 @@ function Stat({ icon, label, value, sub }: { icon: ReactNode; label: string; val
   );
 }
 
+/** Diagnostics: processing and LED update rates, CPU and memory (expert tools only). */
 function PerformanceCard() {
   const perf = usePerformance();
   const dash = <span className="text-ink-faint">—</span>;
   return (
     <Card className="p-5">
-      <h2 className="mb-3 flex items-center gap-2 text-[15px] font-semibold">
-        <Gauge size={17} className="text-accent-strong" /> Performance
+      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
+        <Gauge size={16} className="text-ink-faint" /> Performance
       </h2>
       <div className="grid grid-cols-2 gap-2">
         <Stat icon={<Play size={13} />} label="Processing" value={perf.processingFps !== null ? `${perf.processingFps} fps` : dash} sub="frames analyzed per second" />
@@ -403,9 +410,9 @@ function PerformanceCard() {
           icon={<MonitorSmartphone size={13} />}
           label="LED updates"
           value={perf.ledFps !== null ? `${perf.ledFps} /s` : dash}
-          sub={perf.controllers.length > 1 ? 'first controller, all listed below' : perf.ledDropped ? <span className="text-warn">{perf.ledDropped} dropped</span> : 'sent to the controller'}
+          sub={perf.controllers.length > 1 ? 'first device, all listed below' : perf.ledDropped ? <span className="text-warn">{perf.ledDropped} dropped</span> : 'sent to the device'}
         />
-        <Stat icon={<Cpu size={13} />} label="CPU" value={perf.cpuPercent !== null ? `${perf.cpuPercent}%` : dash} sub="whole computer" />
+        <Stat icon={<Cpu size={13} />} label="CPU" value={perf.cpuPercent !== null ? `${perf.cpuPercent}%` : dash} sub="whole PC" />
         <Stat
           icon={<MemoryStick size={13} />}
           label="Memory"
@@ -418,15 +425,15 @@ function PerformanceCard() {
   );
 }
 
-/** LED updates per controller, when more than one is fed. */
+/** LED updates per device, when more than one is fed. */
 function ControllerRates({ controllers }: { controllers: ControllerPerformance[] }) {
   return (
     <div className="mt-3 overflow-hidden rounded-xl border border-line">
       <table className="w-full text-[13px]">
-        <caption className="sr-only">LED updates per controller</caption>
+        <caption className="sr-only">LED updates per device</caption>
         <thead className="bg-surface-2 text-left text-xs text-ink-faint">
           <tr>
-            <th className="px-3 py-2 font-medium">Controller</th>
+            <th className="px-3 py-2 font-medium">Device</th>
             <th className="px-3 py-2 text-right font-medium">Updates</th>
             <th className="px-3 py-2 text-right font-medium">Delay</th>
           </tr>
@@ -448,6 +455,21 @@ function ControllerRates({ controllers }: { controllers: ControllerPerformance[]
   );
 }
 
+/** "Lights look wrong?": a small link to the troubleshooter. */
+function TroubleshooterLink() {
+  const { setup } = useConnection();
+  const expert = useExpertTools();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button size="sm" variant="ghost" icon={<CircleHelp size={15} />} onClick={() => setOpen(true)}>
+        Lights look wrong?
+      </Button>
+      <TroubleshooterDialog open={open} onClose={() => setOpen(false)} held={setup?.outputHeld === true} expert={expert} />
+    </>
+  );
+}
+
 export function HomePage() {
   const { serverInfo, sysInfo, backend } = useConnection();
   const { state } = useEditor();
@@ -459,38 +481,45 @@ export function HomePage() {
       <PageHeader
         title="Home"
         subtitle={host ? `Running on ${host}` : undefined}
-        actions={backend.mode === 'mock' ? <Badge tone="accent">Demo data</Badge> : null}
+        actions={
+          <>
+            <TroubleshooterLink />
+            {backend.mode === 'mock' && <Badge tone="accent">Demo data</Badge>}
+          </>
+        }
       />
       <div className="mx-auto grid max-w-6xl gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
         <div className="space-y-4">
-          <PowerCard />
-          <ModeSwitch />
+          <LightsCard />
+          <DeviceHealth />
+          <ShowCard />
           <PreviewCard />
         </div>
         <div className="space-y-4">
-          <BrightnessCard />
           <IntensityCard />
-          <PerformanceCard />
           <a href={hrefFor('layout')} className="group block">
             <Card className="flex items-center gap-4 p-5 transition-colors group-hover:border-line-strong">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400/20 via-violet-500/20 to-pink-500/20 text-accent-strong">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-3 text-ink-muted">
                 <MonitorSmartphone size={22} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-semibold">LED layout</p>
+                <p className="font-semibold">Layout</p>
                 <p className="text-[13px] text-ink-muted">
                   {state.spec.strips.length
                     ? `${state.spec.strips.length} strip${state.spec.strips.length === 1 ? '' : 's'} · ${ledTotal} LEDs in your room`
-                    : 'Tell us where your LED strips are.'}
+                    : 'Show Backbloom where your strips are.'}
                 </p>
               </div>
               <ArrowRight size={18} className="text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
             </Card>
           </a>
-          <p className="px-1 text-xs text-ink-faint">
-            {sysInfo?.backbloom?.version ? `Service version ${sysInfo.backbloom.version} · ` : ''}
-            {backend.url}
-          </p>
+          <Expert>
+            <PerformanceCard />
+            <p className="px-1 text-xs text-ink-faint">
+              {sysInfo?.backbloom?.version ? `Version ${sysInfo.backbloom.version} · ` : ''}
+              {backend.url}
+            </p>
+          </Expert>
         </div>
       </div>
     </div>

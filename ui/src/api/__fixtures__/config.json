@@ -183,7 +183,6 @@
   "enable_smoothing": false
  },
  "systemControl": {
-  "systemInstanceEnable": true,
   "systemInstancePriority": 245
  },
  "systemGrabber": {
@@ -196,6 +195,7 @@
   "hardware": true,
   "hdrToneMapping": "auto",
   "monitor_nits": 200,
+  "monitor_nits_auto": true,
   "reorder_displays": 0,
   "videoMode": 512
  },

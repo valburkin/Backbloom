@@ -121,12 +121,14 @@ public sealed class HybridInterpolator : Interpolator
     private Vector3[] _velocities = [];
     private float _stiffness = 150.0f;
     private float _damping = 26.0f;
+    private float _maxStepMs = SpringMath.MaxStepMs(150.0f, 26.0f);
     private float _maxLuminanceChangePerStep = 0.02f;
 
     public override void SetSpringiness(float stiffness, float damping)
     {
         _stiffness = CppMath.Max(0.1f, stiffness);
         _damping = CppMath.Max(0.1f, damping);
+        _maxStepMs = SpringMath.MaxStepMs(_stiffness, _damping);
     }
 
     public override void SetMaxLuminanceChangePerFrame(float maxChangePerStep) => _maxLuminanceChangePerStep = maxChangePerStep;
@@ -176,7 +178,8 @@ public sealed class HybridInterpolator : Interpolator
 
         var dt = CppMath.Clamp(currentTimeMs - LastUpdate, 0.001f, 100.0f);
         LastUpdate = currentTimeMs;
-        var seconds = dt * 0.001f;
+        var substeps = SpringMath.Substeps(dt, _maxStepMs, out var seconds);
+        var maxLuminanceChange = _maxLuminanceChangePerStep / substeps;
         var minLimits = new Vector3(minBrightness, -0.5f, -0.5f);
         var maxLimits = new Vector3(1.0f, 0.5f, 0.5f);
 
@@ -194,18 +197,23 @@ public sealed class HybridInterpolator : Interpolator
             }
 
             // semi-implicit Euler
-            var acc = (_stiffness * diff) - (_damping * vel);
-            vel += acc * seconds;
-            var step = vel * seconds;
-            if (_maxLuminanceChangePerStep > 0.0f && MathF.Abs(step.X) > _maxLuminanceChangePerStep)
+            var tgt = _targetYuv[i];
+            for (var s = 0; s < substeps; s++)
             {
-                var scale = _maxLuminanceChangePerStep / MathF.Abs(step.X);
-                step *= scale;
-                vel *= scale;
+                var acc = (_stiffness * (tgt - cur)) - (_damping * vel);
+                vel += acc * seconds;
+                var step = vel * seconds;
+                if (maxLuminanceChange > 0.0f && MathF.Abs(step.X) > maxLuminanceChange)
+                {
+                    var scale = maxLuminanceChange / MathF.Abs(step.X);
+                    step *= scale;
+                    vel *= scale;
+                }
+
+                cur += step;
+                SpringMath.Bound(ref cur, ref vel, minLimits, maxLimits);
             }
 
-            cur += step;
-            SpringMath.Bound(ref cur, ref vel, minLimits, maxLimits);
             _currentYuv[i] = cur;
             _velocities[i] = vel;
             complete = false;
@@ -231,12 +239,14 @@ public sealed class HybridRgbInterpolator : Interpolator
     private Vector3[] _velocities = [];
     private float _stiffness = 150.0f;
     private float _damping = 26.0f;
+    private float _maxStepMs = SpringMath.MaxStepMs(150.0f, 26.0f);
     private float _smoothingFactor;
 
     public override void SetSpringiness(float stiffness, float damping)
     {
         _stiffness = CppMath.Max(0.1f, stiffness);
         _damping = CppMath.Max(0.1f, damping);
+        _maxStepMs = SpringMath.MaxStepMs(_stiffness, _damping);
     }
 
     public override void SetSmoothingFactor(float factor) => _smoothingFactor = CppMath.Max(0.0f, CppMath.Min(factor, 1.0f));
@@ -293,7 +303,7 @@ public sealed class HybridRgbInterpolator : Interpolator
 
         var dt = CppMath.Clamp(currentTimeMs - LastUpdate, 0.001f, 100.0f);
         LastUpdate = currentTimeMs;
-        var seconds = dt * 0.001f;
+        var substeps = SpringMath.Substeps(dt, _maxStepMs, out var seconds);
         var minLimits = new Vector3(minBrightness);
         var maxLimits = Vector3.One;
 
@@ -303,7 +313,6 @@ public sealed class HybridRgbInterpolator : Interpolator
             var cur = _current[i];
             var vel = _velocities[i];
             var tgt = _target[i];
-            var diff = tgt - cur;
             if (SpringMath.HasArrived(tgt, cur, vel, minLimits, maxLimits, VelocityThreshold))
             {
                 _current[i] = tgt;
@@ -311,10 +320,14 @@ public sealed class HybridRgbInterpolator : Interpolator
                 continue;
             }
 
-            var acc = (_stiffness * diff) - (_damping * vel);
-            vel += acc * seconds;
-            cur += vel * seconds;
-            SpringMath.Bound(ref cur, ref vel, minLimits, maxLimits);
+            for (var s = 0; s < substeps; s++)
+            {
+                var acc = (_stiffness * (tgt - cur)) - (_damping * vel);
+                vel += acc * seconds;
+                cur += vel * seconds;
+                SpringMath.Bound(ref cur, ref vel, minLimits, maxLimits);
+            }
+
             _current[i] = cur;
             _velocities[i] = vel;
             complete = false;
@@ -336,6 +349,34 @@ public sealed class HybridRgbInterpolator : Interpolator
 
 internal static class SpringMath
 {
+    /// <summary>The longest step the springs are integrated with, whatever the spring.</summary>
+    public const float LongestStepMs = 20.0f;
+
+    /// <summary>
+    /// The longest step that integrates this spring without oscillating: at most 1 / damping and 1 / sqrt(stiffness)
+    /// seconds, so h²k + 2hc stays below 4 (stable) and 1 - hc at or above 0 (no sign flip from step to step), and at
+    /// most <see cref="LongestStepMs"/>.
+    /// </summary>
+    public static float MaxStepMs(float stiffness, float damping) =>
+        CppMath.Min(LongestStepMs, CppMath.Min(1000.0f / damping, 1000.0f / MathF.Sqrt(stiffness)));
+
+    /// <summary>
+    /// Splits a tick of <paramref name="dtMs"/> into equal steps of at most <paramref name="maxStepMs"/>, returning
+    /// their count and length in seconds.
+    /// </summary>
+    /// <remarks>
+    /// Deliberate deviation from HyperHDR, which took one step per tick: semi-implicit Euler with a stiff spring
+    /// oscillates and diverges when the step is long (stiffness 300, damping 37 at 20 Hz), so the lights flickered at
+    /// low update frequencies or with a stiff spring. A tick no longer than the spring's longest step (20 ms for the
+    /// usual springs, i.e. 50 Hz ticks that arrive on time) is integrated exactly as before.
+    /// </remarks>
+    public static int Substeps(float dtMs, float maxStepMs, out float seconds)
+    {
+        var count = Math.Max(1, (int)MathF.Ceiling(dtMs / maxStepMs));
+        seconds = dtMs / count * 0.001f;
+        return count;
+    }
+
     /// <summary>
     /// A spring color has arrived when it is still and every channel is at its target, or at the edge of its range
     /// when the target lies beyond it (<see cref="Bound"/> keeps such a channel there for good).

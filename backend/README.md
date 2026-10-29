@@ -218,13 +218,14 @@ failures and rebuilds the duplication when it is lost.
 | | |
 |---|---|
 | Monitors | `MonitorEnumerator`: DXGI outputs plus the display configuration API. Setting values: `auto` (primary monitor; HyperHDR took the first sorted entry, which could be a multi-monitor one), `\\.\DISPLAY5\|NVIDIA GeForce RTX 5080` (HyperHDR's id, kept so imported settings work and the UI can show it), the stable monitor device path (or `edid:manufacturer:product:connector` when the driver reports none), or `MULTI-MONITOR\|adapter` (all monitors of an adapter side by side, ordered by `reorder_displays` as `std::next_permutation` did). Windows renumbers the GDI names after a driver update or a reconnect (`DISPLAY5` came back as `DISPLAY9`), so a single-monitor setting (`MonitorEnumerator.SelectFor`, a fallback logged once as a warning) captures the monitor with the device path it matched last in this run (also when another monitor took the old name); one that matched nothing yet in this run captures the only connected monitor, if there is just one (not remembered, so a monitor that is away, like a TV switched off, is waited for and not replaced by the remaining screen). Still open (roadmap): after a restart with several monitors a stale id matches nothing (or, if another monitor took the old name, that one), and the UI only offers Auto and the captured monitor. |
-| Duplication | `IDXGIOutput6::DuplicateOutput1` (the capture thread is made per-monitor DPI aware, otherwise it fails with `DXGI_ERROR_UNSUPPORTED`). HDR is detected per monitor (`DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020`); with hardware on and `monitor_nits` > 0 the desktop is duplicated as FP16 scRGB (10-bit PQ as a fallback), else as 8-bit BGRA, which Windows converts to SDR. |
-| GPU path (`hardware`) | `GpuScaler`: the acquired texture is copied into an own texture (the frame is released at once), `Shaders/Downscale.hlsl` averages each `divide` x `divide` block of the cropped area (bilinear taps between texels, up to 8 x 8 per pixel) into a small BGRA target, then one staging readback of that size. Modes: scRGB scaled by 80 / `monitor_nits` + BT.709 OETF (the C++ HDR shader, reconstructed from its bytecode), PQ/BT.2020 -> BT.709, the LUT as a 256^3 RGBA8 3D texture read with exact texel loads (8-bit captures that tone mapping applies to, see below), or plain SDR. The shader only runs when the image or the mode changed. |
+| Duplication | `IDXGIOutput6::DuplicateOutput1` (the capture thread is made per-monitor DPI aware, otherwise it fails with `DXGI_ERROR_UNSUPPORTED`). HDR is detected per monitor (`DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020`); with hardware on and an SDR white level above 0 (see SDR white below) the desktop is duplicated as FP16 scRGB (10-bit PQ as a fallback), else as 8-bit BGRA, which Windows converts to SDR. |
+| GPU path (`hardware`) | `GpuScaler`: the acquired texture is copied into an own texture (the frame is released at once), `Shaders/Downscale.hlsl` averages each `divide` x `divide` block of the cropped area (bilinear taps between texels, up to 8 x 8 per pixel) into a small BGRA target, then one staging readback of that size. Modes: scRGB scaled by 80 / SDR white level + BT.709 OETF (the C++ HDR shader, reconstructed from its bytecode), PQ/BT.2020 -> BT.709, the LUT as a 256^3 RGBA8 3D texture read with exact texel loads (8-bit captures that tone mapping applies to, see below), or plain SDR. The shader only runs when the image or the mode changed. |
 | CPU path | `CpuScaler` + `BgraDownscaler` (port of `decodeBGRA`): full-size 8-bit readback, every `divide`-th pixel, LUT on the CPU. Used when `hardware` is off or the shaders can't be created. |
 | Scaling, crop | `CaptureRegion`: the smallest whole factor that makes the cropped width fit `videoMode` (as `getTargetSystemFrameDimension`). Crops are in screen pixels on both paths (the C++ GPU path cropped the scaled image) and are ignored when they leave 16 pixels or less. |
 | Pacing, latency | `fps` via `FramePacer`; then `AcquireNextFrame(0)` returns the newest desktop image (no new image: the last one is delivered again from the staging texture; only the pointer moved: no GPU work). Until the first image after (re)start it waits up to 100 ms. |
 | Recovery | `DXGI_ERROR_ACCESS_LOST` / invalid call / device removed (display mode or HDR change, desktop switch, driver reset): everything is released and rebuilt 100 ms later. `E_ACCESSDENIED` (secure desktop: UAC, lock screen): retried every second; the thread attaches to the input desktop (`OpenInputDesktop` + `SetThreadDesktop`) so a service can follow it. Missing monitor: retried every 5 s. A retry waits instead of spinning; the same problem is logged once. |
-| Tone mapping | `hdrToneMapping` (`ToneMapping.AppliesLut`): `auto` (default) applies the LUT to the 8-bit capture of a monitor only while Windows drives it in HDR mode, `on` to every 8-bit capture (HDR10 content shown without Windows HDR), `off` never. An HDR capture (FP16/PQ) is always converted by the shader, never by the LUT. The decision is made when a monitor's duplication opens; toggling Windows HDR ends the duplication, so it follows within ~100 ms. HyperHDR's switch applied the LUT to SDR monitors too, which oversaturates normal content (red/magenta shift); imports and older databases turn on into `auto` and off into `off`. `serverinfo.systemGrabbers.hdr` = `{ mode, capturing, monitorHdr, toneMapping }` (tone mapped by the shader or the LUT), pushed as `capture-update` (the whole `systemGrabbers` object) when it changes. |
+| Tone mapping | `hdrToneMapping` (`ToneMapping.AppliesLut`): `auto` (default) applies the LUT to the 8-bit capture of a monitor only while Windows drives it in HDR mode, `on` to every 8-bit capture (HDR10 content shown without Windows HDR), `off` never. An HDR capture (FP16/PQ) is always converted by the shader, never by the LUT. The decision is made when a monitor's duplication opens; toggling Windows HDR ends the duplication, so it follows within ~100 ms. HyperHDR's switch applied the LUT to SDR monitors too, which oversaturates normal content (red/magenta shift); imports and older databases turn on into `auto` and off into `off`. `serverinfo.systemGrabbers.hdr` = `{ mode, capturing, monitorHdr, toneMapping, sdrWhiteNits }` (tone mapped by the shader or the LUT; the SDR white level of an HDR capture, 0 without one), pushed as `capture-update` (the whole `systemGrabbers` object) when it changes. |
+| SDR white | The level an HDR desktop is converted with (`CaptureSettings.SdrWhiteNits`). With `monitor_nits_auto` (default, a Backbloom addition) it is Windows' "SDR content brightness" of the monitor: `MonitorEnumerator` reads `DisplayConfigGetDeviceInfo(DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL)` (`SDRWhiteLevel`, 1000 = 80 nits) with the monitor names when the capture starts, and the capture loop asks again every 2 s (one non-allocating call, since a brightness change alone needn't end the duplication) and reopens when it changed. Without a reported level, and with the switch off, `monitor_nits` applies (0 turns the HDR capture off). |
 | LUT | `LutLoader`: first existing `lut_lin_tables.3d` or `.3d.zst` wins; one table or the legacy three-table file (first table used). `LutProvider` loads in the background on first use (only when tone mapping applies to an 8-bit capture) and otherwise builds the default table (`DefaultLut`, bit-identical to C++, ~0.3 s on 24 cores) and saves it to the first LUT directory. |
 | Settings | `systemGrabber` (schema in `Backbloom.Settings`); `App` reconfigures the source on every change of that section, the next frame restarts the capture. |
 
@@ -249,7 +250,9 @@ allocations on either path. Waiting for a monitor that delivers no frames costs 
 
 Port of `InfiniteSmoothing` and the six interpolators (`Backbloom.Core/Smoothing`), bit-identical to the C++ ones
 (`fixtures/smoothing`, tolerance 0), except that the Hybrid and HybridRgb transitions now finish when a channel's
-target is below the minimal backlight (HyperHDR kept them running, and sending, forever; see the fixtures README). C++'s Stepper and Rgb interpolators differ only in target blending, so
+target is below the minimal backlight (HyperHDR kept them running, and sending, forever) and that their spring is
+integrated in steps the spring allows, at most 20 ms (one step per tick diverged for stiff springs or long ticks; see the fixtures
+README). C++'s Stepper and Rgb interpolators differ only in target blending, so
 `StepperInterpolator` is the `RgbInterpolator` without it.
 
 | Setting (`smoothing`) | Effect |
@@ -465,9 +468,9 @@ in the room, the walls and ceiling folded out around the front wall).
 
 **Music effects need sound capture.** Without it they would freeze on their last picture (HyperHDR ran them anyway).
 `EffectEngine.Run` refuses one while `SoundCapture.CanCapture` is false (`EffectStart.NoSound`; the `effect` command
-answers "Turn on sound capture to use music effects", the tray greys the music entries out), switching capture off ends
+answers "Music needs sound input, which is off.", the tray greys the music entries out), switching capture off ends
 the running ones (what is below shows again), and a music background effect ends and comes back with the capture.
-`serverinfo.sound.available` tells the UI, which dims the music cards.
+`serverinfo.sound.available` tells the UI, which turns sound input on (`soundEffect.enable`) when a music effect is picked while it is off.
 
 "Effect default" is the 200 ms / 25 Hz configuration the C++ engine registered for effects; equal configurations are
 shared (C++ `addCustomSmoothingConfig`), so the engine registers three: default, Candle, direct. Smoothing applies only
@@ -490,8 +493,8 @@ effect holds the sound capture until then. A waiting effect returns at once when
 
 | Setting | Behavior (as in C++) |
 |---|---|
-| `foregroundEffect` (startup) | at start, priority 0, `duration_ms` (0 or -1: 3000 ms, logged), effect or color; when the LEDs start disabled, it runs if they are switched on within 5 s; later changes of the setting don't run it |
-| `backgroundEffect` | priority 254, until cleared; every change of the setting replaces it; `clear -1` keeps it; not listed in `activeEffects` |
+| `foregroundEffect` (startup) | at start, priority 0, `duration_ms` (0 or -1: 3000 ms, logged), effect or color (default "Breath", a short white fade; HyperHDR's was "Rainbow swirl fast"); when the LEDs start disabled, it runs if they are switched on within 5 s; later changes of the setting don't run it |
+| `backgroundEffect` | the idle effect: priority 254, until cleared (default "Warm mood blobs" when turned on); every change of the setting replaces it; `clear -1` keeps it; not listed in `activeEffects` |
 
 The owner's configuration (startup "Rainbow swirl fast" 3000 ms, background off) runs the swirl for 3 s at start, then
 the screen shows (it became active during the effect, so the controllers stay on).
@@ -578,7 +581,17 @@ throws `DeviceLostException`; the runner goes to `WaitingToRetry` and reopens it
 `RetryPolicy.Default`, which also covers the SyncLight HID strip) don't give up after their `maxRetry` quick retries
 as the C++ code did: they go on every 30 s (`RetryPolicy.ThenEvery`; logged once, then at debug level), so a
 controller that was away for a while (or a USB strip plugged in again) is used again by itself. Serial and file
-devices still give up. JSON/REST drivers write their JSON with sorted keys, as `QJsonDocument` did.
+devices still give up, so the UI describes their `maxRetry` differently (`edt_dev_max_retry_serial`). JSON/REST drivers
+write their JSON with sorted keys, as `QJsonDocument` did.
+
+**Setting tiers.** Every property of a driver schema (and of `device`, `mqtt`, `webConfig`) has a tier in `access`
+(docs/ui-guidelines.md): none for what is needed to connect (the address or port, the lamps or lights, the universe of
+Art-Net/E1.31), `"advanced"` for fine-tuning the UI puts under More options (WLED brightness, RGBW, network ports, Hue
+streaming and black handling, transitions), `"expert"` for what only expert tools show (`maxRetry`, ICE parameters and
+white calibration, `cid`, serial handshakes and delays, timeouts, `verbose`, `debugLevel`, `refreshTime`). The UI makes
+color order expert for WLED and DDP, which order the colors themselves. Titles are keys of `ui/src/schema/text.ts`;
+Backbloom's own keys (`edt_dev_spec_hueBridge_title`, `edt_dev_spec_lampColorModel_title`, …) replace C++ keys whose
+text didn't fit. Serial devices default to the `auto` port (sp616e and Skydimo had the Linux `ttyACM0`).
 
 **Host names** (`HostResolver`, the default `DriverContext.ResolveHost`): the system resolver (3 s at most), for a
 `.local` name it can't resolve an mDNS A query of our own (`MdnsService.ResolveAsync`, 1.5 s), and when both fail the
@@ -603,11 +616,12 @@ and requests reach that one until the name resolves again.
 
 **Discovery** (`Backbloom.Discovery`). Passive: it only sends queries (mDNS PTR, SSDP M-SEARCH, the LIFX/WiZ broadcast
 probes) and lists what answers; nothing found is configured or contacted by the discovery itself. It runs only when
-asked (`leddevice discover`, the UI's Find) and listens nowhere in between: every query goes out from `QuerySockets`,
+asked (`leddevice discover`: the UI's Search my network in Add device, or Search in a device's connection settings,
+explained once before the first network search) and listens nowhere in between: every query goes out from `QuerySockets`,
 one UDP socket per local IPv4 address bound to that address and an ephemeral port, closed when the query ends. The
 answers come back to that port (Windows Firewall lets unicast answers to a multicast or broadcast query in for a few
 seconds without an inbound rule), so nothing is bound to 0.0.0.0 or to a well-known port. Measured on the
-development machine: at startup only `127.0.0.1:<port>` (TCP); during a Find one ephemeral UDP port per interface
+development machine: at startup only `127.0.0.1:<port>` (TCP); during a search one ephemeral UDP port per interface
 address; afterwards loopback only again.
 - mDNS is implemented here (about 900 lines: DNS message codec, cache with TTLs and goodbyes, responder) instead of using a
   library: the maintained .NET options are browse-only (Zeroconf) or unmaintained since 2019 (Makaretu.Dns.Multicast),
@@ -651,9 +665,9 @@ wires them (`DesktopRegistration`).
 | Single instance | One app per data directory (C++: one `backbloom.exe` per machine, a second start failed). The first instance holds `backbloom.lock` in the data directory exclusively (released by the OS even after a crash) and listens on a named pipe derived from the directory (current user only). A second start with the same directory asks it to show its window (headless: the second process opens the UI in the browser) and exits; `--quit` asks it to quit and waits. Instances with different data directories run side by side. |
 | Tray | `Shell_NotifyIcon` (version 4) with the Backbloom icon (`branding/backbloom.ico`, embedded; the best size is picked from the .ico). Menu, rebuilt on each open (`TrayMenu`): **Open Backbloom** (default, also a click on the icon), **Lights** (`ALL`), **Screen sync** (removes colors and effects, capture on; checked while the screen shows or waits for its first frame), **Music** (the music effects), **Effect** (the six effects), **Color** (the C++ colors) -- music, effects and colors run at priority 1 until something else is chosen, as C++ did; the running one is checked --, **Pause for 30 minutes** (then *Resume*; a switch elsewhere ends the pause), **Start with Windows**, **Quit**. The icon comes back after an Explorer restart (`TaskbarCreated`). C++'s "Instances" submenu is gone (one pipeline). |
 | Window | A plain Win32 window hosting the UI in WebView2 (`Microsoft.Web.WebView2.Core` only, BSD-3; no WinForms/WPF, their assemblies are kept out of the output by `Directory.Build.targets`). Dark title bar, the UI's background until the page draws, placement (normal bounds + maximized) in `window.json` (atomic write; restored only when it is on a monitor). Closing it destroys the window and its browser processes (no memory held while hidden); the app stays in the tray. Links to other sites open in the default browser. Without the WebView2 runtime (`GetAvailableBrowserVersionString`) or when it fails to start, the UI opens in the default browser. Profile in `<data>/webview`. |
-| Autostart | `RegistryAutostart`: value `Backbloom` in `HKCU\...\CurrentVersion\Run` (as C++), command `"<exe>" --no-window` plus `--data-dir` when it isn't the default; enabled only when the entry starts this executable (also C++'s bare-path entries). Off by default: only the user turns it on (tray menu, the welcome's checkbox, `setup autostart`). The key is a constructor parameter; the tests use a scratch key and never write the real Run key. |
+| Autostart | `RegistryAutostart`: value `Backbloom` in `HKCU\...\CurrentVersion\Run` (as C++), command `"<exe>" --no-window` plus `--data-dir` when it isn't the default; enabled only when the entry starts this executable (also C++'s bare-path entries). Off by default: only the user turns it on (tray menu, the first-run setup's checkbox, `setup autostart`). The key is a constructor parameter; the tests use a scratch key and never write the real Run key. |
 | Power and session | `WindowsSystemEvents` (hidden top-level window: `RegisterSuspendResumeNotification`, `RegisterPowerSettingNotification(GUID_SESSION_DISPLAY_STATUS)`, `WTSRegisterSessionNotification`, `WM_ENDSESSION`) raises `ISystemEvents`; `PowerPolicy` (port of `InstanceManager::hibernate`) reacts: sleep -> `ALL` off, wake-up -> on 3 s later; locked or display off with `general.disableOnLocked` -> `SYSTEMGRABBER` off (the screen source leaves, so the LEDs go dark unless a color or effect shows: an effect chosen by the user keeps running while locked, as in C++; without this setting the screen still leaves 800 ms after the lock screen stops its frames), unlocked and display on -> capture on 3 s later, and the screen shows again with its first frame. A lock in a remote desktop session is ignored (as C++). |
-| Startup | `general.disableLedsStartup` starts with `LEDDEVICE` off (engine, unchanged); `--no-window` keeps the window closed, except until the first-run welcome was completed (the window always opens then, so the welcome is seen). |
+| Startup | `general.disableLedsStartup` starts with `LEDDEVICE` off (engine, unchanged); `--no-window` keeps the window closed, except until the first-run setup was completed (the window always opens then, so the setup is seen). |
 | Logging | Console (when there is one), `logs/backbloom-yyyyMMdd.log` in the data directory and the UI's log view, at the level of the `logger` section (silent = errors only, warn, verbose = info, debug), applied at once when it changes. One plain-text line per message (time, level, category, rendered message template; exceptions indented below), written by a background thread; a new file per day and per 10 MB, the newest 10 kept. A failed start or a crash (unhandled exception) is appended there as a `FATAL` entry by `CrashReport` (directly, so it is recorded before logging exists and when the process ends; with the [recent performance](#performance-recording) when there is any), printed to the console if there is one, and shown in a message box (`ErrorDialog`) unless `--service`. |
 | Shutdown | Quit, `--quit` and Ctrl+C stop the host: WebSocket clients are closed at once, the engine switches every controller off (black frame, then closed), then the tray icon goes. Where Windows ends the process as soon as a notification returns (`WM_ENDSESSION` at logoff/shutdown; console close and shutdown signals), the handler stops the host and waits up to 4.5 s for the LEDs (`GracefulShutdown`). C++ didn't handle the session end. |
 | Settings | Crash-safe as before: every change is one SQLite transaction (rollback journal, `synchronous=FULL` by default); `window.json` is written to a temporary file and moved over. |
@@ -683,8 +697,8 @@ at once (two senders, flickering, while HyperHDR still ran) and the installed co
 closed, nothing is sent; capture, mapping and the preview keep running, the protocol's switches keep the user's choice)
 
 - until the first run is completed: the meta key `first_run_completed` (`ISetupState`, in `settings.db`'s `meta`, not
-  in a settings section, so backups, restores and imports don't touch it), set by the welcome's "Start lighting"
-  (`setup start`). A new data directory and every first-start import wait for it; while it waits the window opens
+  in a settings section, so backups, restores and imports don't touch it), set by "Turn on lights" in the first-run
+  setup or in the banner shown after "Look around first" (`setup start`). A new data directory and every first-start import wait for it; while it waits the window opens
   even with `--no-window`. An update keeps the key, so it never holds a configured setup (or an autostarted one);
 - while HyperHDR (`hyperhdr.exe`) or Hyperion (`hyperiond.exe`) runs: `OtherAppMonitor` asks `IProcessList` at start
   and every 2 s (`WindowsProcessList`: one Toolhelp snapshot, image names only, no handles; elsewhere
@@ -694,6 +708,23 @@ closed, nothing is sent; capture, mapping and the preview keep running, the prot
 The gate starts before the engine, so a held start never opens a controller. The startup effect waits for the
 release and runs then, as if the app had started at that moment.
 
+**First-run setup** (UI, `ui/src/pages/welcome`). Shown instead of the app until `firstRunCompleted`; three steps:
+
+1. Welcome: what Backbloom does; after an import, what came over from HyperHDR (the device, the number of LEDs, the
+   screen sync, color and effect settings), on a new install what to check before starting. While HyperHDR runs, two
+   sentences say that Backbloom waits and takes over by itself when it quits. The technical summary (monitor, frame
+   rate, startup effects, the imported database's path) shows only with expert tools on.
+2. Your lights: the devices of the layout (the test device of a new install, `file`, is not listed), or "No device
+   yet" with Add device: the same dialog as on Devices (`AddDeviceDialog`, with the network search and its
+   explanation). The first real device replaces the test device. Devices added here are layout edits, saved on the
+   Layout page.
+3. Turn on: "Your lights stay as they are until you turn them on here", the unchecked Start with Windows box and Turn
+   on lights (`setup start`; while HyperHDR runs it takes over once it quits). The app then opens on Devices when there
+   is still no real device, on Layout while no layout is saved (or the setup added a device), else on Home.
+
+"Look around first" opens the app without turning the lights on: a banner says they are waiting and offers Turn on
+lights, and Home shows "Waiting — turn on your lights to start" (or "Waiting for HyperHDR to quit").
+
 **Network access** (`Backbloom.App/RemoteAccess`, setting `network.remoteAccess`, default off, also for imports). Off:
 Kestrel listens on 127.0.0.1 only and nothing is advertised. On: an endpoint per IPv4 interface address
 (`<address>:<port>`) comes from a reloadable configuration (`NetworkEndpointConfiguration`, Kestrel
@@ -702,12 +733,14 @@ Kestrel listens on 127.0.0.1 only and nothing is advertised. On: an endpoint per
 window stays connected). Specific addresses rather than 0.0.0.0, so they never overlap the loopback endpoint and the
 tests (127.0.0.2 as the "network" address, `RemoteAccessOptions`) exercise the same binding. Unbinding waits for open
 connections on those endpoints to end (a few seconds). The mDNS responder starts and stops with them. `--bind` fixes
-one address instead and the setting has no effect. The UI explains what turning it on does (and that Windows asks
-next, Private networks only) before it sets the setting. Without a password the endpoints stay closed even when the
+one address instead and the setting has no effect. The UI (Settings → Remote access, with the password, app keys
+and ports) explains what turning it on does (and that Windows asks next, Private networks only) before it sets the
+setting. Without a password the endpoints stay closed even when the
 setting is on (see [Access](#access-this-computer-and-other-devices)); setting one opens them at once.
 
 **Protocol.** `setup` (Backbloom addition): `getstate` for any authorized session; `start` `{ autostart? }`,
-`autostart` `{ enabled }`, `acknowledge` `{ topic: "discovery" }` for admins. Each replies with
+`autostart` `{ enabled }` (the welcome, the tray menu and Settings → General → Start with Windows),
+`acknowledge` `{ topic: "discovery" }` for admins. Each replies with
 `{ firstRunCompleted, outputHeld, otherApp: { name, executable } | null, importedFrom, autostart: { available, enabled },
 remoteAccess: { enabled, fixedByCommandLine, port, urls, advertised }, passwordSet, acknowledged }`, which the
 `setup-update` event pushes on every change (also when the password is set).
@@ -718,7 +751,7 @@ Port of `sources/mqtt` on top of the shared `MqttConnection` (MQTTnet), in `Back
 
 | | |
 |---|---|
-| Connection | The `mqtt` section: `enable`, `host`, `port`, `username`, `password`, `is_ssl`, `ignore_ssl_errors`, `maxRetry` (5 s apart; C++: 10 s). Reconnects when the section changes; the first attempt runs in the background so an unreachable broker doesn't delay the start. |
+| Connection | The `mqtt` section (Settings → Integrations): `enable`, `host`, `port`, `username`, `password`, `is_ssl`, `ignore_ssl_errors`, `maxRetry` (5 s apart, then it gives up; C++: 10 s). Reconnects when the section changes; the first attempt runs in the background so an unreachable broker doesn't delay the start. |
 | JSON-RPC | Requests on `<topic>/JsonAPI` (`custom_topic`, default `Backbloom`; HyperHDR used `HyperHDR`): one request object or an array of them, run with the rights of a local client (C++ `localConnection`), every message the session produced is published as one JSON array on `<topic>/JsonAPI/response` (QoS 2). Unreadable JSON gets `{ success: false, error }`. `disableApiAccess` doesn't subscribe at all (as C++). |
 | Availability (new) | `<topic>/status`: `online` (retained) after every connect, `offline` as the connection's last will and published before a clean disconnect. |
 | Home Assistant (new) | With `homeAssistantDiscovery` (new setting, default on): a retained discovery config on `homeassistant/light/backbloom_<id>/light/config` (JSON schema, RGB, brightness, effect list "Screen sync" plus every effect and music effect, device = `general.name`), commands on `<topic>/light/set` (`OFF` -> `ALL` off; `ON` -> on; a color -> static color at priority 1 scaled by the brightness; effect "Screen sync" -> colors cleared, capture on; any other effect -> runs at priority 1) and the retained state on `<topic>/light/state`, published on every change from any client. Switching discovery off removes the entity (empty retained config). |
@@ -853,11 +886,17 @@ driver had written the frame (`FrameStats` latency).
 | `profile` | `getstate` (`{ profile }`), `select` `{ id: string \| null }` (null: choose by the running programs; replies `{ profile }`), `programs` (admins: the programs with a window, `{ programs: [{ exe, title }] }`, one per executable, sorted, from `IProgramList`: `EnumWindows` on Windows without tool, owned or cloaked windows, `Process.MainWindowTitle` elsewhere). See [docs/protocol.md](../docs/protocol.md#profiles-profile) |
 
 **UI** (`ui/`): the Layout page saves layouts with any number of controllers (`saveLayout` sends `layout`, plus the
-compiled `leds` for backends that don't compile layouts); the Devices page lists every controller with its outputs, an
-on/off switch, its state and its driver settings (the schema form per controller, saved with the layout), and adds
-WLED controllers (outputs read from the device) or controllers of any other driver (LED count entered); Find LED and
-the driver test blink address a controller; each strip has a brightness slider; Home lists the LED updates and delay
-per controller when there are several.
+compiled `leds` for backends that don't compile layouts); the Devices page shows one card per controller ("device" in
+the UI) with its outputs (LEDs numbered from 1), an on/off switch, its state and its connection settings (the driver's
+schema form plus `device`'s shared settings, collapsed, saved with the layout). Add device takes WLED (outputs read
+from the device) or any other device type, with Search my network for the address, and then points to the Layout
+page. Lamp devices (Home Assistant, Zigbee2MQTT, LIFX, WiZ, Yeelight) get one LED per lamp in their list: the UI keeps
+the output's length equal to it instead of asking. The `file` driver is offered only with expert tools on. The Layout
+page has two modes, Place (where strips run, their outputs and LED counts, matching with the lights, the test pattern;
+guided steps while no layout is saved) and Customize (what each part shows, per-strip brightness, turned-off LEDs,
+depth and softness, profiles). Matching and Find an LED (an expert tool, LEDs numbered from 1) light one LED with
+`leddevice identify` `blink` on that controller; Home lists the LED updates and delay per controller when there are
+several.
 
 Measured (Release, synthetic source at 60 fps, smoothing off, file controllers writing to the null device, process CPU
 over 30-60 s, 24 logical cores, other load on the machine): the owner's 168 LEDs on one controller 0.8-1.1 % of one
@@ -974,7 +1013,7 @@ Converting is a pure function of the source, so importing the same file again ch
 `<legacy>/db/hyperhdr.db` is imported (`--legacy-data-dir`, default HyperHDR's folder: `~/.hyperhdr` if it exists,
 else `%LOCALAPPDATA%\HyperHDR` / `~/Library/Preferences/HyperHDR` / `~/.config/HyperHDR`; source-tree builds don't look
 unless told). A failed import is logged and the app starts with defaults; it isn't retried automatically. Either
-way the lights wait for the first-run welcome; the imported file is remembered (`imported_from`) for its summary.
+way the lights wait for the first-run setup; the imported file is remembered (`imported_from`) for its summary.
 `backbloom --import <file> --data-dir <dir>` imports a database explicitly (the current settings go to `backups/` first).
 
 **Backups.** `save-db` returns the C++ export format (`Backbloom_export_format_v1`: `instances` + `settings` rows with

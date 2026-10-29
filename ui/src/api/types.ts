@@ -194,6 +194,8 @@ export interface CaptureHdr {
   monitorHdr: boolean;
   /** HDR colors are converted to SDR (by the HDR capture or the tone mapping table). */
   toneMapping: boolean;
+  /** SDR white level in nits the HDR capture converts with: Windows' or the setting's (0 without HDR capture). */
+  sdrWhiteNits?: number;
 }
 
 /** `serverinfo.systemGrabbers` and the `capture-update` event. `hdr` is missing without screen capture (test pattern). */

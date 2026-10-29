@@ -4,7 +4,7 @@
   "properties": {
     "output": {
       "type": "string",
-      "title": "edt_dev_spec_targetIp_title",
+      "title": "edt_dev_spec_hueBridge_title",
       "default": "",
       "propertyOrder": 1
     },
@@ -30,6 +30,7 @@
       "format": "checkbox",
       "title": "edt_dev_spec_useEntertainmentAPI_title",
       "default": true,
+      "access": "advanced",
       "propertyOrder": 4
     },
     "useEntertainmentAPIV2": {
@@ -37,6 +38,7 @@
       "format": "checkbox",
       "title": "edt_dev_spec_useEntertainmentAPIV2_title",
       "default": false,
+      "access": "advanced",
       "propertyOrder": 5,
       "options": {
         "dependencies": {
@@ -50,6 +52,7 @@
       "title": "edt_dev_spec_convertToLinearRgb_title",
       "default": false,
       "required": true,
+      "access": "advanced",
       "propertyOrder": 6
     },
     "switchOffOnBlack": {
@@ -57,6 +60,7 @@
       "format": "checkbox",
       "title": "edt_dev_spec_switchOffOnBlack_title",
       "default": false,
+      "access": "advanced",
       "propertyOrder": 7,
       "options": {
         "dependencies": {
@@ -72,6 +76,7 @@
       "step": 0.01,
       "minimum": 0.001,
       "maximum": 1.0,
+      "access": "advanced",
       "propertyOrder": 8,
       "options": {
         "dependencies": {
@@ -89,6 +94,7 @@
       "maximum": 100000,
       "default": 600,
       "required": true,
+      "access": "advanced",
       "propertyOrder": 9,
       "options": {
         "dependencies": {
@@ -106,6 +112,7 @@
       "maximum": 100000,
       "default": 300,
       "required": true,
+      "access": "advanced",
       "propertyOrder": 10,
       "options": {
         "dependencies": {
@@ -118,6 +125,7 @@
       "format": "checkbox",
       "title": "edt_dev_spec_restoreOriginalState_title",
       "default": false,
+      "access": "advanced",
       "propertyOrder": 11
     },
     "lightIds": {
@@ -184,6 +192,7 @@
       "maximum": 300,
       "default": 60,
       "required": true,
+      "access": "expert",
       "propertyOrder": 15
     },
     "handshakeTimeoutMin": {
@@ -194,7 +203,6 @@
       "step": 100,
       "minimum": 100,
       "maximum": 30000,
-      "access": "expert",
       "append": "edt_append_ms",
       "required": true,
       "options": {
@@ -202,6 +210,7 @@
           "useEntertainmentAPI": true
         }
       },
+      "access": "expert",
       "propertyOrder": 16
     },
     "handshakeTimeoutMax": {
@@ -212,7 +221,6 @@
       "step": 100,
       "minimum": 100,
       "maximum": 30000,
-      "access": "expert",
       "append": "edt_append_ms",
       "required": true,
       "options": {
@@ -220,6 +228,7 @@
           "useEntertainmentAPI": true
         }
       },
+      "access": "expert",
       "propertyOrder": 17
     },
     "verbose": {
@@ -243,6 +252,7 @@
           "useEntertainmentAPI": false
         }
       },
+      "access": "advanced",
       "propertyOrder": 21
     },
     "blackLightsTimeout": {

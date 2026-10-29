@@ -14,16 +14,16 @@ React UI; see [Credits](#credits).
   detection, multi-monitor capture.
 - **Color**: per-channel calibration (primaries or a full 3D LUT), gamma, temperature, brightness and saturation,
   minimal backlight, power limit.
-- **Smoothing**: six interpolators (Stepper, RGB, exponential, YUV, Hybrid, HybridRgb) at a configurable rate, with
-  an anti-flicker filter. See [docs/smoothing.md](docs/smoothing.md).
+- **Smoothing**: a soft spring by default, set by one transition time (or the Intensity presets on Home); five more
+  styles under Advanced, a configurable rate and an anti-flicker filter. See [docs/smoothing.md](docs/smoothing.md).
 - **Effects and music mode**: rainbow swirls, mood blobs, breath, candle, and nine music effects driven by WASAPI
   loopback or a microphone.
 - **Desktop app**: tray menu (lights, screen sync, music, effects, colors, pause), window with the UI, start with
   Windows (opt-in), sleep and lock handling, single instance, automatic updates.
 - **Control**: JSON-RPC over WebSocket and HTTP (compatible with HyperHDR clients for the commands the UI uses), MQTT
   with Home Assistant discovery; other devices and mDNS advertisement only after you turn remote access on.
-- **Import and first run**: HyperHDR v17-v24 settings databases are imported on the first start; a welcome window
-  shows what was imported, and the LEDs stay off until you press Start lighting. While HyperHDR runs, Backbloom sends
+- **Import and first run**: HyperHDR v17-v24 settings databases are imported on the first start; a three-step setup
+  shows what was imported, confirms or adds the device, and the LEDs stay off until you press Turn on lights. While HyperHDR runs, Backbloom sends
   nothing to the LEDs and asks you to quit HyperHDR.
 - **Network only when asked**: the app listens on 127.0.0.1 until you turn remote access on (with an explanation of
   the Windows Firewall question that follows); device discovery runs only when you press Find.
@@ -49,7 +49,7 @@ Discovery (mDNS, SSDP, UDP broadcast, serial and HID enumeration) finds most of 
 | [ui/](ui) | React 19 + TypeScript + Vite + Tailwind web UI, served by the app. |
 | [branding/](branding) | Logo, app icon and installer images (`generate_icons.py`). |
 | [packaging/](packaging) | Windows installer and update packaging (Velopack), third-party notice generator. |
-| [docs/](docs) | Architecture, protocol, settings, smoothing, development guide. |
+| [docs/](docs) | Architecture, protocol, settings, smoothing, development guide, product direction and roadmap. |
 
 ## Build, test, run, package
 
@@ -84,9 +84,10 @@ unless told to (`--legacy-data-dir`). Every copy listens on `127.0.0.1:18290` on
 - [Architecture](docs/architecture.md): projects, dependency rules, threading, hot path
 - [JSON-RPC protocol](docs/protocol.md)
 - [Settings and HyperHDR import](docs/settings.md)
-- [Smoothing](docs/smoothing.md): the interpolators compared
+- [Smoothing](docs/smoothing.md): the default spring and the intensity presets, the six styles compared
 - [Development guide](docs/development.md)
 - [Backend reference](backend/README.md): every subsystem in detail
+- [Immersion](docs/immersion.md): where Backbloom is going: game events, room and desk lights, sound, haptics, wind
 - [Roadmap](docs/roadmap.md): what's next
 - [Changelog](CHANGELOG.md): what changed in each release
 
