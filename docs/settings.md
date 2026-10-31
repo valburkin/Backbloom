@@ -65,7 +65,8 @@ the program in `%LOCALAPPDATA%\BackbloomApp`, separate from the data, so uninsta
   ("softness") and `brightness`.
 - The points split a strip into sections ("parts" in the UI); a point's `next` says what the section to the following
   point does: `{ kind: "edge", from, to }` repeats a stretch of the screen's outline (positions 0..4 clockwise from the
-  top-left corner, one per edge; "Screen edge"), `whole` shows the whole picture ("Screen average"),
+  top-left corner, one per edge; "Screen edge"), `whole` shows the whole picture ("Screen average"; its color changes more slowly than
+  the smoothing settings say, about half a second more, so small changes in the picture don't make it flicker),
   `{ kind: "area", area }` one area of it, `none` nothing, and `gap` means the strip has no LEDs there (a cut corner, a
   cable). Without `next` a section repeats the stretch of the outline it faces when the room is seen straight on
   against the front wall.

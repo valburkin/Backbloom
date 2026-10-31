@@ -66,7 +66,7 @@ describe('MockBackend like the .NET app', () => {
 
     // no program runs in the mock, so only a profile chosen by hand runs
     await api.setConfig({ layout: specJson });
-    const witcher = { id: 'witcher', name: 'Witcher 3', manual: true };
+    const witcher = { id: 'witcher', name: 'Witcher 3', manual: true, game: false };
     expect(await api.setProfile('witcher')).toEqual(witcher);
     expect((await api.serverInfo()).profile).toEqual(witcher);
     expect(await api.setProfile(null)).toBeNull();
@@ -79,6 +79,34 @@ describe('MockBackend like the .NET app', () => {
       { exe: 'witcher3.exe', title: 'The Witcher 3' },
     ]);
   });
+  it('switches between Ambient and Game mode, and to Game while a game’s profile runs', async () => {
+    const { api, backend } = await connected();
+    const events: unknown[] = [];
+    backend.onEvent('mode-update', (e) => events.push((e.data as { mode: unknown }).mode));
+    expect(SUBSCRIPTIONS).toContain('mode-update');
+    expect((await api.serverInfo()).mode).toEqual({ mode: 'ambient', saved: 'ambient', gameProfile: null, dismissedGame: null });
+
+    expect(await api.setMode('game')).toEqual({ mode: 'game', saved: 'game', gameProfile: null, dismissedGame: null });
+    expect(((await api.getConfig()).modes as { mode: string }).mode).toBe('game');
+    // only the screen shows in Game mode; a color waits for Ambient
+    await api.setColor([255, 0, 0]);
+    expect((await api.serverInfo()).priorities?.find((p) => p.visible)?.componentId).toBe('SYSTEMGRABBER');
+    await api.setMode('ambient');
+    expect((await api.serverInfo()).priorities?.find((p) => p.visible)?.componentId).toBe('COLOR');
+
+    // the witcher profile marked as a game, previewed: Game mode until Ambient is chosen
+    const layout = { ...specJson, profiles: specJson.profiles!.map((p) => (p.id === 'witcher' ? { ...p, game: true } : p)) };
+    await api.setConfig({ layout });
+    await api.setProfile('witcher');
+    expect((await api.serverInfo()).mode).toEqual({ mode: 'game', saved: 'ambient', gameProfile: 'Witcher 3', dismissedGame: null });
+    expect(await api.setMode('ambient')).toEqual({ mode: 'ambient', saved: 'ambient', gameProfile: null, dismissedGame: 'Witcher 3' });
+    // Game again while it runs: on again, Ambient stays the chosen mode
+    expect(await api.setMode('game')).toEqual({ mode: 'game', saved: 'ambient', gameProfile: 'Witcher 3', dismissedGame: null });
+    expect(((await api.getConfig()).modes as { mode: string }).mode).toBe('ambient');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events.map((e) => (e as { mode: string }).mode)).toEqual(['game', 'ambient', 'game', 'ambient', 'game']);
+  });
+
   it('saves while the lights are off and stores adjustments', async () => {
     const { api } = await connected();
     await api.setComponent('ALL', false);

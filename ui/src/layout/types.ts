@@ -181,6 +181,8 @@ export interface Profile {
    * When programs of several profiles run, the first profile in the list wins.
    */
   apps: string[];
+  /** The programs are games: Game mode is on while the profile runs (the backend’s ModeMonitor). */
+  game?: boolean;
   /**
    * What the profile changes, per strip id: what each section does (index = the section's index, i.e. the index of
    * the point it starts at; null = 'auto'). Strips not listed, gaps, and lists whose length doesn't match the strip's

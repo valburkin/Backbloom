@@ -158,6 +158,19 @@ public sealed class LayoutTests : IDisposable
     }
 
     [Fact]
+    public void Profiles_MarkedAsAGame_SayIt()
+    {
+        var spec = NormalizedSpec();
+        spec["profiles"]![0]!["game"] = true;
+        spec["profiles"]![1]!["game"] = false;
+        Assert.Empty(Errors(spec));
+        Assert.Equal([true, false], LayoutSpecification.Profiles(spec).Select(p => p.Game));
+
+        spec["profiles"]![0]!.AsObject().Remove("game");
+        Assert.False(LayoutSpecification.Profiles(spec)[0].Game);
+    }
+
+    [Fact]
     public void Zones_LeaveOutDarkLedsAndLedsPastTheirOutput_AndKeepColorsApart()
     {
         // two strips of 4 on one controller; the first plays an effect from LED 1 on (LED 0 is dark), the second shows a
@@ -434,6 +447,8 @@ public sealed class LayoutTests : IDisposable
     [InlineData("""{ "name": null }""", "layout.profiles.0.name")]
     [InlineData("""{ "apps": "witcher3.exe" }""", "layout.profiles.0.apps")]
     [InlineData("""{ "apps": ["witcher3.exe", ""] }""", "layout.profiles.0.apps")]
+    [InlineData("""{ "game": "yes" }""", "layout.profiles.0.game")]
+    [InlineData("""{ "game": null }""", "layout.profiles.0.game")]
     [InlineData("""{ "apps": [3] }""", "layout.profiles.0.apps")]
     [InlineData("""{ "sections": [] }""", "layout.profiles.0.sections")]
     [InlineData("""{ "sections": { "ceiling": { "kind": "none" } } }""", "layout.profiles.0.sections.ceiling")]

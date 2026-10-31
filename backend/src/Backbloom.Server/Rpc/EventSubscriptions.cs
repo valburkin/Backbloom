@@ -18,7 +18,8 @@ public sealed class EventSubscriptions(
     Payloads payloads,
     PerformanceMonitor performance,
     SetupService setup,
-    ProfileMonitor profiles)
+    ProfileMonitor profiles,
+    ModeMonitor modes)
 {
     /// <summary>Every name the protocol knows; unknown names are ignored like in HyperHDR.</summary>
     public static readonly IReadOnlyList<string> Available =
@@ -26,6 +27,7 @@ public sealed class EventSubscriptions(
         "components-update", "performance-update", "sessions-update", "priorities-update", "imageToLedMapping-update",
         "adjustment-update", "leds-colors", "live-video", "settings-update", "leds-update", "instance-update", "token-update",
         "controllers-update", "capture-update", "setup-update", "sound-update", "profile-update",
+        "mode-update",
     ];
 
     private static readonly TimeSpan s_performanceInterval = TimeSpan.FromSeconds(4);
@@ -163,6 +165,13 @@ public sealed class EventSubscriptions(
                     void Handler(ActiveProfile? profile) => session.Send(RpcReplies.Event(name, new JsonObject { ["profile"] = Payloads.Profile(profile) }));
                     profiles.Changed += Handler;
                     return new Subscription(() => profiles.Changed -= Handler);
+                }
+            case "mode-update":
+                {
+                    // serverinfo.mode again when the mode changed (chosen on Home, a game's profile started or quit)
+                    void Handler(ModeState state) => session.Send(RpcReplies.Event(name, new JsonObject { ["mode"] = Payloads.Mode(state) }));
+                    modes.Changed += Handler;
+                    return new Subscription(() => modes.Changed -= Handler);
                 }
             case "setup-update":
                 {

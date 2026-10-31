@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type Dispatch, type ReactNode } from 'react';
-import { validateLayout, type LayoutIssue } from '../layout';
+import { validateLayout, type LayoutIssue, type LayoutSpec } from '../layout';
 import { loadLayout, saveBlockers, saveLayout, type LayoutSource, type SaveBlocker } from '../api/layoutService';
 import { editorReducer, initialEditorState, isDirty, type EditorAction, type EditorState } from '../editor/state';
 import { useConnection } from './connection';
@@ -24,7 +24,11 @@ export interface EditorContextValue {
   validatorError: string | null;
   blockers: SaveBlocker[];
   saving: boolean;
-  save(): Promise<void>;
+  /**
+   * Saves the layout; `done` replaces the usual “Layout saved” message. `spec` saves that layout instead of the
+   * current one: the result of an edit dispatched just now, which the state doesn't have yet.
+   */
+  save(done?: string, spec?: LayoutSpec): Promise<void>;
 }
 
 const Ctx = createContext<EditorContextValue | null>(null);
@@ -88,17 +92,18 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     [state.spec, issues],
   );
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (done?: string, next?: LayoutSpec) => {
     if (saving) return;
     if (conn.auth !== 'admin') return;
     if (blockers.length) return;
     setSaving(true);
-    const spec = state.spec;
+    const spec = next ?? state.spec;
     try {
       const res = await saveLayout(conn.api, spec);
       dispatch({ type: 'markSaved', spec });
       setLoad((l) => ({ ...l, source: 'saved', note: undefined }));
-      if (res.layoutPersisted)
+      if (done) toast('ok', done);
+      else if (res.layoutPersisted)
         toast('ok', `Layout saved – ${res.ledCount} LEDs${res.controllers > 1 ? ` on ${res.controllers} devices` : ''}.`);
       else
         toast(

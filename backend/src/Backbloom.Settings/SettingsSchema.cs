@@ -18,7 +18,7 @@ public sealed class SettingsSchema
     [
         "general", "logger", "device", "color", "smoothing", "systemGrabber", "blackborderdetector", "foregroundEffect",
         "backgroundEffect", "soundEffect", "webConfig", "effects", "systemControl", "network", "ledConfig", "leds", "mqtt",
-        "layout",
+        "layout", "modes", "game",
     ];
 
     /// <summary>Sections without a default: absent until a client saves them (HyperHDR stored an empty <c>layout</c>).</summary>

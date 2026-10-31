@@ -19,9 +19,10 @@ export interface Symptom {
 
 /**
  * The common "my lights look wrong" problems, each with a one-line fix and links to the exact control
- * (`?focus=` opens it, also inside More options). `held`: the lights wait for "Turn on lights"; `expert`: offer the log.
+ * (`?focus=` opens it, also inside More options). `held`: the lights wait for "Turn on lights"; `expert`: offer the log;
+ * `game`: Game mode (its Intensity instead of Ambient's Mood).
  */
-export function symptoms({ held, expert }: { held: boolean; expert: boolean }): Symptom[] {
+export function symptoms({ held, expert, game = false }: { held: boolean; expert: boolean; game?: boolean }): Symptom[] {
   return [
     {
       id: 'nothing',
@@ -64,26 +65,31 @@ export function symptoms({ held, expert }: { held: boolean; expert: boolean }): 
       id: 'white',
       title: 'White looks blue or yellow',
       fix: 'Adjust the white balance until white on the LEDs matches white on your screen.',
-      links: [{ label: 'White balance', href: hrefFor('colors', null, 'white-balance') }],
+      links: [{ label: 'White balance', href: hrefFor('calibration', null, 'white-balance') }],
     },
     {
       id: 'flicker',
       title: 'Flicker or jumpy colors',
-      fix: 'Pick a calmer Intensity, or make the transitions gentler.',
-      links: [
-        { label: 'Intensity', href: hrefFor('home', null, 'intensity') },
-        { label: 'Transitions', href: hrefFor('colors', null, 'transitions') },
-      ],
+      fix: game ? 'Pick a calmer Intensity, or a longer reaction time.' : 'Pick a calmer Mood, or make the transitions gentler.',
+      links: game
+        ? [
+            { label: 'Intensity', href: hrefFor('home', null, 'intensity') },
+            { label: 'Reaction time', href: hrefFor('colors', null, 'transitions') },
+          ]
+        : [
+            { label: 'Mood', href: hrefFor('home', null, 'mood') },
+            { label: 'Transitions', href: hrefFor('colors', null, 'transitions') },
+          ],
     },
   ];
 }
 
 /** "Lights look wrong?" on Home: symptoms with their fix, each a link to the control. */
-export function TroubleshooterDialog({ open, onClose, held, expert }: { open: boolean; onClose(): void; held: boolean; expert: boolean }) {
+export function TroubleshooterDialog({ open, onClose, held, expert, game }: { open: boolean; onClose(): void; held: boolean; expert: boolean; game?: boolean }) {
   return (
     <Dialog open={open} title="Lights look wrong?" onClose={onClose} wide>
       <ul className="divide-y divide-line">
-        {symptoms({ held, expert }).map((s) => (
+        {symptoms({ held, expert, game }).map((s) => (
           <li key={s.id} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:gap-4">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">{s.title}</p>

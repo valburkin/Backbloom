@@ -12,7 +12,8 @@ namespace Backbloom.Core.Mapping;
 /// </summary>
 /// <remarks>
 /// All buffers are built in the constructor; <see cref="Process"/> does not allocate. Averaging happens in linear
-/// light: every sampled 8-bit sRGB value goes through a 16-bit linear lookup table before it is summed.
+/// light: every sampled 8-bit sRGB value goes through a 16-bit linear lookup table before it is summed. LEDs of no
+/// group that sample the same pixels (every LED of a "Screen average" part) are averaged once and share the color.
 /// </remarks>
 public sealed class ImageToLedMap
 {
@@ -22,6 +23,7 @@ public sealed class ImageToLedMap
     private readonly int[] _offsets;
     private readonly int[] _start;
     private readonly int[] _count;
+    private readonly int[] _sameAs;
     private readonly int[][] _groups;
 
     public ImageToLedMap(
@@ -60,6 +62,9 @@ public sealed class ImageToLedMap
         var perLed = new List<int>[layout.Count];
         var groups = new SortedDictionary<int, List<int>>();
         var autoSparse = new List<int>();
+        var sameAs = new int[layout.Count];
+        Array.Fill(sameAs, -1);
+        var firstWithPixels = new Dictionary<(int MinX, int EndX, int MinY, int EndY, int Increment), int>();
 
         for (var ledIndex = 0; ledIndex < layout.Count; ledIndex++)
         {
@@ -100,6 +105,17 @@ public sealed class ImageToLedMap
             }
 
             var increment = sparse ? 2 : 1;
+            if (!led.Disabled && led.Group == 0)
+            {
+                if (firstWithPixels.TryGetValue((minX, endX, minY, endY, increment), out var first))
+                {
+                    sameAs[ledIndex] = first;
+                    continue;
+                }
+
+                firstWithPixels.Add((minX, endX, minY, endY, increment), ledIndex);
+            }
+
             if (!led.Disabled)
             {
                 for (var y = minY; y < endY; y += increment)
@@ -144,6 +160,7 @@ public sealed class ImageToLedMap
             perLed[i].CopyTo(_offsets, _start[i]);
         }
 
+        _sameAs = sameAs;
         _groups = [.. groups.Values.Select(g => g.ToArray())];
         AutoSparseLeds = autoSparse;
         SampledPixels = total;
@@ -166,7 +183,7 @@ public sealed class ImageToLedMap
     /// <summary>LEDs whose area was so large that sparse sampling was switched on for them.</summary>
     public IReadOnlyList<int> AutoSparseLeds { get; }
 
-    /// <summary>Total number of pixel samples per frame (advanced mapping).</summary>
+    /// <summary>Total number of pixel samples per frame (advanced mapping; LEDs sharing their pixels count once).</summary>
     public int SampledPixels { get; }
 
     /// <summary>
@@ -195,6 +212,12 @@ public sealed class ImageToLedMap
         var lut = Srgb.U8ToLinear16;
         for (var led = 0; led < Layout.Count; led++)
         {
+            if (_sameAs[led] >= 0)
+            {
+                ledColors[led] = ledColors[_sameAs[led]];
+                continue;
+            }
+
             var count = _count[led];
             if (count == 0)
             {

@@ -6,19 +6,23 @@ features are added.
 
 ## Structure
 
-Five sections in the navigation, no more:
+The app is two apps in one: the Mode switch at the top of the sidebar (under the logo; in Home's header on a phone,
+`ui/src/control/ModeSwitch.tsx`) chooses Ambient or Game. The sidebar has two groups (`MODE_NAV` and `SHARED_NAV` in
+`ui/src/app/App.tsx`), three sections for the mode and two shared ones at the bottom, no more:
 
-| Section | Pages | What it's for |
-|---|---|---|
-| Home | Home | What the lights show right now: on/off, Show (screen, music, effect, color), brightness, intensity, health |
-| Setup | Layout, Devices | Where the strips are and what they're plugged into |
-| Picture | Screen sync, Colors | How the screen is read and how its colors look on the LEDs |
-| Effects & Music | Effects & Music | The library of effects and music effects |
-| Settings | General, Remote access, Integrations, About (Support with expert tools) | Everything about the app itself |
+| Section | Ambient | Game | What it's for |
+|---|---|---|---|
+| Home | Home | Home | Ambient: what the lights show right now (on/off, Show: screen, music, effect, color), brightness, Mood, health. Game: on/off, brightness, the game being played, Intensity, health |
+| Colors | Colors | Colors, with Game's own values | Fine-tuning what Home's preset sets. Ambient: saturation, color brightness, minimum glow, transitions. Game: saturation, color brightness, reaction time, screen reads per second (no minimum glow while playing) |
+| Effects & Music / Games | Effects & Music | Games | Ambient: the library of effects and music effects. Game: the games that turn Game mode on while they run |
+| Setup (shared) | Layout, Devices, Screen, Calibration | the same | The hardware: where the strips are, what they're plugged into, how the screen is read, and what makes the LEDs match the screen and the power supply (white balance, contrast, per-color calibration, power limit) |
+| Settings (shared) | General, Remote access, Integrations, About (Support with expert tools) | the same | Everything about the app itself |
 
-A new feature goes into one of these. The only planned addition is a Profiles/Games page once game profiles grow
-(see [roadmap.md](roadmap.md) and [immersion.md](immersion.md)). Each setting lives in exactly one place; Home may
-offer a shortcut to a setting, but it is the same control and the same value.
+Pages that differ between the modes show the mode next to their title (`ModeBadge`). Effects & Music leads Home in
+Game mode (it shows only the screen, so it offers nothing that starts a color, effect or music). Games stays reachable
+in Ambient, from Ambient's Home, so games can be added without switching the lights to Game mode. A new feature goes into one of these sections: the mode it serves (game events and room
+reactions go to Game), or Setup when it is about the hardware and the same in both modes. Each setting lives in exactly
+one place; Home may offer a shortcut to a setting, but it is the same control and the same value.
 
 To send the user to one control (Home's "Lights look wrong?" troubleshooter does), link with a focus:
 `hrefFor('capture', null, 'crop')` is `#/capture?focus=crop`. The page scrolls to the element with that id (else the
@@ -29,7 +33,8 @@ when moving it (`ui/src/control/Troubleshooter.tsx`).
 ## Setting tiers
 
 Every setting has a tier. Prefer them in this order: **automate** (the app decides) > **preset** (one choice sets
-several values, like Intensity) > **advanced** > **essential**.
+several values, like Mood and Intensity) > **advanced** > **essential**. A preset lives in one place (Home); the
+page that fine-tunes its values says which preset they match.
 
 | Tier | Shown | Use for |
 |---|---|---|
@@ -56,8 +61,12 @@ One term per concept, in the UI, docs, toasts and backend messages that reach th
 | Hardware that receives colors | device | controller, LED controller, driver |
 | Its protocol choice | device type; its settings: connection settings | driver, LED driver settings |
 | A pin/port on a device | output (WLED's word) | bus |
-| What the lights show (Home) | Show | Mode (reserved for the planned Ambient / Game modes) |
+| What the lights show (Ambient's Home) | Show | Mode (that is Ambient / Game) |
+| Ambient or Game | Mode: Ambient mode, Game mode | gaming mode, ambient lighting |
+| A profile for a game | game (Games page: “Your games”, “Add a running game”) | game profile type, “It’s a game” |
 | Lights follow the screen | Screen sync | screen capture, mirror, grabber |
+| How the room feels (Ambient's preset) | Mood: Relaxed, Natural, Rich | intensity, style, profile |
+| How punchy the lights are while playing (Game's preset) | Intensity: Subtle, Vivid, Intense | mood, level |
 | Lights react to sound | Music (what's shown), sound input (the setting) | sound capture |
 | How gently colors change | transitions | smoothing, smoothness |
 | Rates | fps (screen frames), per second (LED updates) | Hz |

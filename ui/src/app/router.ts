@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export const ROUTES = ['home', 'layout', 'devices', 'capture', 'colors', 'effects', 'settings'] as const;
+export const ROUTES = ['home', 'games', 'layout', 'devices', 'capture', 'calibration', 'colors', 'effects', 'settings'] as const;
 export type Route = (typeof ROUTES)[number];
 
 export interface Location {
@@ -17,6 +17,11 @@ export function parseHash(hash: string): Location {
   const route = (ROUTES as readonly string[]).includes(r) ? (r as Route) : 'home';
   const focus = new URLSearchParams(query).get('focus');
   return { route, sub: route === r && sub ? sub : null, focus: focus || null };
+}
+
+/** Layout with a profile open for editing (the Games page's “Edit strips”). */
+export function hrefForProfile(id: string): string {
+  return hrefFor('layout', `profile:${encodeURIComponent(id)}`);
 }
 
 export function hrefFor(route: Route, sub?: string | null, focus?: string | null): string {

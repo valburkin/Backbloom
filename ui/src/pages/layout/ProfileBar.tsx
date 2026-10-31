@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppWindow, Eye, EyeOff, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { AppWindow, Eye, EyeOff, Gamepad2, Loader2, Plus, Trash2, X } from 'lucide-react';
 import type { LayoutSpec } from '../../layout';
 import { Button, CHOICE_ACTIVE, cx, IconButton } from '../../components/ui';
 import type { EditorAction } from '../../editor/state';
@@ -11,7 +11,8 @@ export function programName(text: string): string {
   return !name || name.includes('.') ? name : `${name}.exe`;
 }
 
-export const PROFILES_HINT = 'Profiles change what strips show while a game or app runs, for example music on the ceiling during one game.';
+export const PROFILES_HINT =
+  'Profiles change what strips show while a game or app runs, for example music on the ceiling during one game. A game added on Games has one too, and also turns on Game mode.';
 
 /** Adds a profile named "Profile n" and returns its id. */
 function addProfile(spec: LayoutSpec, dispatch: (a: EditorAction) => void): string {
@@ -40,7 +41,7 @@ export function ProfileTabs({
   onEdit(profileId: string | null): void;
 }) {
   const profiles = spec.profiles ?? [];
-  const tab = (id: string | null, label: string) => (
+  const tab = (id: string | null, label: string, game = false) => (
     <button
       key={id ?? 'everyday'}
       type="button"
@@ -52,6 +53,7 @@ export function ProfileTabs({
         editing === id ? CHOICE_ACTIVE : 'text-ink-muted hover:text-ink',
       )}
     >
+      {game && <Gamepad2 size={12} className="shrink-0" aria-label="Game" />}
       <span className="truncate">{label}</span>
       {active !== undefined && active === id && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" title="In use now" />}
     </button>
@@ -60,7 +62,7 @@ export function ProfileTabs({
     <div className="flex min-w-0 items-center gap-1">
       <div role="tablist" aria-label="Profiles" className="inline-flex min-w-0 flex-wrap rounded-lg border border-line-input bg-bg/60 p-0.5">
         {tab(null, 'Everyday')}
-        {profiles.map((p) => tab(p.id, p.name || 'Untitled'))}
+        {profiles.map((p) => tab(p.id, p.name || 'Untitled', p.game === true))}
       </div>
       <IconButton label="Add a profile" className="h-7 w-7" onClick={() => onEdit(addProfile(spec, dispatch))}>
         <Plus size={15} />
@@ -84,7 +86,7 @@ export function ProfileIntro({ spec, dispatch, onEdit }: { spec: LayoutSpec; dis
 
 /**
  * The profile being edited, as a sentence: "[name] turns on when [program ×] [Add program…] [Pick from running apps]
- * is running", with Preview (show it on the lights now) and Delete.
+ * is running", whether it's a game's (added on the Games page), with Preview (show it on the lights now) and Delete.
  */
 export function ProfileSettings({
   spec,
@@ -167,6 +169,11 @@ export function ProfileSettings({
         {loadPrograms && <ProgramPicker load={loadPrograms} taken={profile.apps} onPick={addApp} />}
         <span>is running</span>
       </div>
+      {profile.game && (
+        <p className="flex items-center gap-1.5 text-xs text-ink-faint">
+          <Gamepad2 size={13} aria-hidden /> One of your games: Game mode is on while it runs (Games). Deleting the profile removes the game too.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {previewing ? (
           <Button size="sm" icon={<EyeOff size={14} />} onClick={() => onPreview(false)}>
@@ -196,14 +203,19 @@ export function ProfileSettings({
 }
 
 /** "Pick from running apps": a list of the programs with a window open now. */
-function ProgramPicker({
+export function ProgramPicker({
   load,
   taken,
   onPick,
+  label = 'Pick from running apps',
+  primary = false,
 }: {
   load: () => Promise<Array<{ exe: string; title: string }>>;
   taken: readonly string[];
-  onPick(exe: string): void;
+  onPick(exe: string, title: string): void;
+  label?: string;
+  /** Shown as the page's main button (the Games page) instead of a link-like one. */
+  primary?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [programs, setPrograms] = useState<Array<{ exe: string; title: string }> | null>(null);
@@ -231,12 +243,16 @@ function ProgramPicker({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-strong hover:bg-surface-3"
+        className={
+          primary
+            ? 'inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-accent-ink hover:bg-accent-strong'
+            : 'inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-strong hover:bg-surface-3'
+        }
       >
-        <AppWindow size={13} /> Pick from running apps
+        <AppWindow size={primary ? 16 : 13} /> {label}
       </button>
       {open && (
-        <div role="menu" className="scroll-thin absolute right-0 top-9 z-30 max-h-72 w-72 overflow-y-auto rounded-xl border border-line-strong bg-surface p-1.5 shadow-2xl">
+        <div role="menu" className={cx('scroll-thin absolute z-30 max-h-72 w-72 overflow-y-auto rounded-xl border border-line-strong bg-surface p-1.5 shadow-2xl', primary ? 'left-0 top-11' : 'right-0 top-9')}>
           {error ? (
             <p className="p-2 text-xs text-bad">Couldn’t list the apps: {error}</p>
           ) : !shown ? (
@@ -252,7 +268,7 @@ function ProgramPicker({
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  onPick(p.exe);
+                  onPick(p.exe, p.title);
                   setOpen(false);
                 }}
                 className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-surface-3"

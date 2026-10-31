@@ -38,6 +38,14 @@ const spec = (strips: Strip[], controllers: Controller[] = [controller()], room:
 const messages = (s: LayoutSpec) => validateLayout(s).map((i) => `${i.severity}: ${i.message}`);
 
 describe('validateLayout', () => {
+  it('accepts a profile marked as a game, and only true or false for it', () => {
+    const profile = { id: 'p', name: 'Game', apps: ['game.exe'], sections: {} };
+    expect(messages({ ...spec([strip()]), profiles: [{ ...profile, game: true }] })).toEqual([]);
+    expect(messages({ ...spec([strip()]), profiles: [{ ...profile, game: 'yes' as unknown as boolean }] })).toEqual([
+      'error: Profile “Game” needs “game” to be true or false.',
+    ]);
+  });
+
   it('accepts a correct layout', () => {
     expect(validateLayout(spec([strip(), strip({ id: 'b', output: 1, ledCount: 5 })]))).toEqual([]);
   });

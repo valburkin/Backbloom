@@ -160,7 +160,7 @@ export function DriverForm({
   dirty: boolean;
   onChange: (device: DriverSettings) => void;
 }) {
-  const { api } = useConnection();
+  const { api, serverInfo } = useConnection();
   const { config } = useConfig();
   const { run, busy } = useAction();
   const devices = useDeviceSearch();
@@ -192,15 +192,16 @@ export function DriverForm({
         </Button>
       ),
     };
-  if (smoothing.enable === true)
+  // Game mode always smooths
+  if (smoothing.enable === true || serverInfo?.mode?.mode === 'game')
     overrides.refreshTime = {
       hint: (
         <>
-          While transitions are on, colors are sent {String(smoothing.updateFrequency ?? 50)} times a second (set on the{' '}
+          While transitions are on, colors are sent {String(smoothing.updateFrequency ?? 50)} times a second (LED updates, on the{' '}
           <a className="text-accent-strong hover:underline" href={hrefFor('colors')}>
             Colors
           </a>{' '}
-          page), so this value has no effect.
+          page in Ambient mode), so this value has no effect.
         </>
       ),
     };

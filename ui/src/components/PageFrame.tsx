@@ -10,6 +10,7 @@ import { PageHeader } from './PageHeader';
  */
 export function PageFrame({
   title,
+  badge,
   subtitle,
   actions,
   settings,
@@ -21,6 +22,8 @@ export function PageFrame({
   children,
 }: {
   title: string;
+  /** Next to the title (the mode on a page that differs between Ambient and Game). */
+  badge?: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
   settings?: PageSettings;
@@ -41,6 +44,7 @@ export function PageFrame({
     <div className="relative flex h-full flex-col">
       <PageHeader
         title={title}
+        badge={badge}
         subtitle={subtitle}
         actions={
           status || actions ? (

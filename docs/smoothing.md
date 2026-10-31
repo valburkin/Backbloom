@@ -11,15 +11,17 @@ HybridRgb ("Natural") is the default and the only style offered outside More opt
 with games, video and music (stiffness 150, damping 26 at 50 Hz). The other five stay available under Colors →
 Transitions → More options → Style.
 
-- **One setting: the transition time.** The Colors page's Transition time slider and the Intensity presets write
+- **One setting: the transition time.** The Colors page's Transition time slider and the presets on Home write
   `time_ms` together with the spring that reaches 90% of a change in about that time at any update frequency
   (`springFor` in `ui/src/settings/smoothing.ts`: slightly over-damped, 0.35 s gives 150 / 26). A faster spring than
   0.15 s would need a stiffness above the setting's maximum, so with a Natural style the slider's times start at
   0.15 s. Its left end, **Instant**, turns smoothing off (`enable`); moving it to a time turns it on again. Stiffness
   and damping (expert tools) override the spring until the time is changed again.
-- **Intensity presets** (Home and Colors → Picture): Calm 0.55 s, Balanced 0.35 s (the default settings), Lively
-  0.25 s, Intense 0.15 s, each with its saturation and color brightness (luminance) gain. A preset is shown as chosen
-  only when transitions are on and time, spring and gains all match.
+- **Presets on Home**, one set per mode (`ui/src/settings/intensity.ts`), each with its saturation and color
+  brightness (luminance) gain. Ambient's **Mood**: Relaxed 0.55 s, Natural 0.35 s (the default settings), Rich 0.3 s.
+  Game's **Intensity**: Subtle 0.25 s, Vivid 0.2 s, Intense 0.15 s (the `game` section's default). A preset is shown as
+  chosen only when transitions are on and time, spring and gains all match. Game mode always smooths, so its Reaction
+  time slider (Colors in Game mode) has no Instant.
 
 ## The six styles compared
 

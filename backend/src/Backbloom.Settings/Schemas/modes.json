@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "title": "Modes",
+  "required": true,
+  "comment": "Ambient and Game mode (new in Backbloom): the mode chosen in the app. A profile marked as a game switches to Game mode while it runs (Engine/ModeMonitor). What Game mode changes is the game section.",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": [ "ambient", "game" ],
+      "default": "ambient",
+      "required": true,
+      "propertyOrder": 1
+    }
+  },
+  "additionalProperties": false
+}

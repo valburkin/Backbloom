@@ -27,7 +27,8 @@ namespace Backbloom.Settings.Layout;
 /// with an area that isn't inside out, none, effect with a name, color with three whole numbers 0..255, or gap), valid
 /// <c>dark</c>, <c>depth</c>, <c>blend</c> and <c>brightness</c>, names an existing controller and output, one strip
 /// per output, and has at most as many LEDs as its output (fewer: the rest stays dark). <c>profiles</c>, when given,
-/// is a list of profiles with unique non-empty ids, a name, <c>apps</c> as a list of program names and
+/// is a list of profiles with unique non-empty ids, a name, <c>apps</c> as a list of program names, an optional
+/// <c>game</c> flag (true or false: Game mode while the profile runs) and
 /// <c>sections</c> as an object of lists per strip id whose entries are null or valid sections other than gap (a list
 /// for a strip that isn't there, or of another length, is only a warning in the UI and is ignored when applied).
 /// Properties the backend doesn't use (the UI's <c>kind</c>, <c>host</c>, <c>pin</c>, <c>name</c>, ...) are kept as
@@ -221,7 +222,8 @@ public static class LayoutSpecification
             if (String(profile["id"]) is { Length: > 0 } id)
             {
                 var apps = (profile["apps"] as JsonArray ?? []).Select(String).OfType<string>().Where(a => a.Trim().Length > 0).ToList();
-                list.Add(new LayoutProfile(id, String(profile["name"]) ?? id, apps));
+                var game = profile["game"] is JsonValue g && g.TryGetValue(out bool isGame) && isGame;
+                list.Add(new LayoutProfile(id, String(profile["name"]) ?? id, apps, game));
             }
         }
 
@@ -684,6 +686,11 @@ public static class LayoutSpecification
             if (profile["apps"] is not JsonArray apps || apps.Any(a => String(a) is not { } app || app.Trim().Length == 0))
             {
                 errors.Add(new SettingsError($"{p}.apps", "must be a list of program names (such as \"game.exe\")"));
+            }
+
+            if (profile.TryGetPropertyValue("game", out var game) && (game is not JsonValue gv || !gv.TryGetValue(out bool _)))
+            {
+                errors.Add(new SettingsError($"{p}.game", "must be true or false"));
             }
 
             if (profile["sections"] is not JsonObject sections)

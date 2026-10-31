@@ -196,6 +196,7 @@ function validateProfiles(spec: LayoutSpec, push: (severity: LayoutIssue['severi
     } else if (p.apps.length === 0) {
       push('warning', `${label} has no programs, so it never turns on by itself.`);
     }
+    if (p.game !== undefined && typeof p.game !== 'boolean') push('error', `${label} needs “game” to be true or false.`);
     if (!p.sections || typeof p.sections !== 'object' || Array.isArray(p.sections)) {
       push('error', `${label} needs what each strip’s parts show.`);
       continue;

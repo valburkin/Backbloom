@@ -2,6 +2,7 @@ using System.Numerics;
 using Backbloom.Core.Color;
 using Backbloom.Core.Layout;
 using Backbloom.Core.Mapping;
+using Backbloom.Core.Smoothing;
 
 namespace Backbloom.Core.Tests;
 
@@ -21,10 +22,14 @@ public sealed class HotPathAllocationTests
     [Fact]
     public void MappingProcessingAndQuantization_DoNotAllocatePerFrame()
     {
-        var layout = LedLayout.FromJson(Fixtures.Load("layouts/owner-168.json"));
+        // the owner's layout plus a few "Screen average" LEDs
+        var owner = LedLayout.FromJson(Fixtures.Load("layouts/owner-168.json"));
+        var layout = new LedLayout([.. owner.Areas, new LedArea(0, 1, 0, 1), new LedArea(0, 1, 0, 1)]);
         var frame = TestFrames.Solid(512, 288, 30, 120, 220);
         var options = new LedMappingOptions(layout);
         var mapper = new LedMapper();
+        var screenAverage = new ScreenAverageFilter();
+        long now = 0;
         var processor = new ColorProcessor(new ColorAdjustment
         {
             Temperature = TemperaturePreset.Warm,
@@ -40,6 +45,7 @@ public sealed class HotPathAllocationTests
         void RunFrame()
         {
             mapper.Process(frame, options, colors);
+            screenAverage.Apply(layout, colors, now += 16);
             processor.Process(colors);
             ColorQuantizer.ToBytes(colors, ColorOrder.Grb, bytes);
         }

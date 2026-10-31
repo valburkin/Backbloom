@@ -15,6 +15,9 @@ public readonly record struct LedArea(double HMin, double HMax, double VMin, dou
     /// <summary>True when the area is too thin to sample anything (as in ImageColorAveraging's 1e-6 check).</summary>
     public bool IsEmpty => HMax - HMin < 1e-6 || VMax - VMin < 1e-6;
 
+    /// <summary>True for an enabled LED of no group that samples the whole frame (a "Screen average" part).</summary>
+    public bool IsWholeScreen => !Disabled && Group == 0 && HMin <= 0.0 && HMax >= 1.0 && VMin <= 0.0 && VMax >= 1.0;
+
     /// <summary>Clamps every edge to 0..1 and swaps min/max when they were given the wrong way round.</summary>
     public LedArea Normalized()
     {

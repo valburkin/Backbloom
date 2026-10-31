@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Activity, ArrowRight, AudioLines, CircleHelp, Cpu, Gauge, Loader2, MemoryStick, MonitorSmartphone, Palette, Play, ScreenShare, Sparkles, Square, Sun, TriangleAlert } from 'lucide-react';
+import { Activity, ArrowRight, Gamepad2, AudioLines, CircleHelp, Cpu, Gauge, Lamp, Loader2, MemoryStick, MonitorSmartphone, Palette, Play, ScreenShare, Sparkles, Square, Sun, TriangleAlert } from 'lucide-react';
 import { Badge, Button, Card, ChoiceCard, cx, StatusDot } from '../components/ui';
 import { Expert, Select, Switch } from '../components/form';
 import { PageHeader } from '../components/PageHeader';
@@ -21,8 +21,10 @@ import { deviceProblems } from '../control/health';
 import { TroubleshooterDialog } from '../control/Troubleshooter';
 import { useExpertTools } from '../app/expert';
 import { useStartMusic } from '../control/music';
-import { IntensityPicker } from '../control/IntensityPicker';
-import { applyIntensity, detectIntensity, INTENSITY_PRESETS } from '../settings/intensity';
+import { PresetPicker } from '../control/PresetPicker';
+import { applyGameIntensity, applyMood, detectGameIntensity, detectMood, GAME_PRESETS, MOOD_PRESETS } from '../settings/intensity';
+import { ModeSwitch } from '../control/ModeSwitch';
+import { ModeBadge } from '../components/ModeBadge';
 
 import type { Rgb } from '../color/color';
 
@@ -34,6 +36,88 @@ const SHOWS: Array<{ id: Mode; label: string; hint: string; icon: ReactNode }> =
 ];
 
 const LINK = 'text-accent-strong underline-offset-2 hover:underline';
+
+/**
+ * Game mode's place of the Show card: the lights always follow the screen there, so it says which game runs and leads
+ * to the games that turn Game mode on.
+ */
+function PlayingCard() {
+  const { serverInfo, api } = useConnection();
+  const { run, busy } = useAction();
+  const { state } = useEditor();
+  const mode = serverInfo?.mode;
+  const playing = mode?.gameProfile;
+  const count = (state.spec.profiles ?? []).filter((p) => p.game).length;
+  const grabberOn = serverInfo?.components?.find((c) => c.name === 'SYSTEMGRABBER')?.enabled !== false;
+  // Game mode shows only the screen: with screen sync paused, nothing lights up
+  const follows = grabberOn ? 'Your lights follow the game.' : 'Screen sync is paused, so your lights stay dark.';
+  const after = mode?.saved === 'game' ? 'You chose Game mode, so it stays on after the game quits.' : 'Ambient comes back when it quits.';
+  return (
+    <Card className="p-5">
+      <div className="flex items-start gap-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent-strong">
+          <Gamepad2 size={22} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-semibold">{playing ? `Playing ${playing}` : 'No game running'}</h2>
+          <p className="mt-0.5 text-[13px] text-ink-muted">
+            {playing
+              ? `${follows} ${after}`
+              : `${grabberOn ? 'Your lights follow your screen, quicker and richer than in Ambient.' : follows} Effects, music and colors wait until you switch back to Ambient.`}
+          </p>
+          {!grabberOn && (
+            <Button
+              size="sm"
+              className="mt-3"
+              icon={<ScreenShare size={14} />}
+              disabled={busy === 'grabber'}
+              onClick={() => void run('grabber', 'Couldn’t turn on screen sync', () => api.setComponent('SYSTEMGRABBER', true))}
+            >
+              Turn on screen sync
+            </Button>
+          )}
+          <p className="mt-3 text-[13px] text-ink-muted">
+            {count ? `Game mode turns on by itself for ${count} game${count === 1 ? '' : 's'}.` : 'Add your games and Game mode turns on by itself when you play.'}{' '}
+            <a className={LINK} href={hrefFor('games')}>
+              {count ? 'Your games' : 'Add games'}
+            </a>
+          </p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * Ambient's way to the games: they turn Game mode on by themselves, so they can be added here without switching the
+ * lights to Game mode. Says when a running game's Game mode was turned off.
+ */
+function GamesCard() {
+  const { serverInfo } = useConnection();
+  const { state } = useEditor();
+  const count = (state.spec.profiles ?? []).filter((p) => p.game).length;
+  const dismissed = serverInfo?.mode?.dismissedGame;
+  return (
+    <a href={hrefFor('games')} className="group block">
+      <Card className="flex items-center gap-4 p-5 transition-colors group-hover:border-line-strong">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-3 text-ink-muted">
+          <Gamepad2 size={22} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">Games</p>
+          <p className="text-[13px] text-ink-muted">
+            {dismissed
+              ? `Game mode is off for ${dismissed} until it quits. Choose Game in the sidebar to turn it back on.`
+              : count
+                ? `Game mode turns on by itself for ${count} game${count === 1 ? '' : 's'}.`
+                : 'Playing? Add your games and Game mode turns on by itself.'}
+          </p>
+        </div>
+        <ArrowRight size={18} className="text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
+      </Card>
+    </a>
+  );
+}
 
 /** The main card: lights on or off, what they show, and the brightness. */
 function LightsCard() {
@@ -262,7 +346,7 @@ function ShowCard() {
           <p className="text-[13px] text-ink-muted">
             {grabberOn ? 'Your lights follow your screen.' : 'Screen sync is paused.'}{' '}
             <a className={LINK} href={hrefFor('capture')}>
-              Screen sync settings
+              Screen settings
             </a>
           </p>
         )}
@@ -325,37 +409,69 @@ function StopButton() {
   );
 }
 
-function IntensityCard() {
-  const { api } = useConnection();
+/**
+ * The mode's presets: Ambient's Mood (the saved smoothing and color) or Game's Intensity (the `game` section). The
+ * Colors page fine-tunes the same values.
+ */
+function PresetCard() {
+  const { api, serverInfo } = useConnection();
   const { config } = useConfig();
   const { run, busy } = useAction();
-  return (
-    <div id="intensity">
-    <Card className="p-5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-base font-semibold">
-          <Gauge size={16} className="text-ink-faint" /> Intensity
-        </h2>
-        {detectIntensity(config) === 'custom' && <Badge>Custom</Badge>}
+  const game = serverInfo?.mode?.mode === 'game';
+  const custom = (what: string) => (
+    <>
+      You’ve fine-tuned {what} on{' '}
+      <a className={LINK} href={hrefFor('colors')}>
+        Colors
+      </a>
+      . Pick one to start over from it.
+    </>
+  );
+  const header = (title: string, icon: ReactNode, isCustom: boolean) => (
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <h2 className="flex items-center gap-2 text-base font-semibold">
+        {icon} {title}
+      </h2>
+      {isCustom && <Badge>Custom</Badge>}
+    </div>
+  );
+  if (game) {
+    const current = detectGameIntensity(config);
+    return (
+      <div id="intensity">
+        <Card className="p-5">
+          {header('Intensity', <Gauge size={16} className="text-ink-faint" />, current === 'custom')}
+          <PresetPicker
+            label="Intensity"
+            presets={GAME_PRESETS}
+            current={current}
+            disabled={!config || busy === 'preset'}
+            onPick={(id) =>
+              config &&
+              void run('preset', 'Couldn’t change the intensity', () => api.setConfig(applyGameIntensity(config, id)), `Intensity: ${GAME_PRESETS.find((p) => p.id === id)?.label}`)
+            }
+            customHint={custom('Game mode’s colors')}
+          />
+        </Card>
       </div>
-      <IntensityPicker
-        current={detectIntensity(config)}
-        disabled={!config || busy === 'intensity'}
-        onPick={(id) =>
-          config &&
-          void run('intensity', 'Couldn’t change the intensity', () => api.setConfig(applyIntensity(config, id)), `Intensity: ${INTENSITY_PRESETS.find((p) => p.id === id)?.label}`)
-        }
-        customHint={
-          <>
-            You’ve adjusted the colors yourself. Pick a preset to replace your changes, or keep tuning on the{' '}
-            <a className={LINK} href={hrefFor('colors')}>
-              Colors
-            </a>{' '}
-            page.
-          </>
-        }
-      />
-    </Card>
+    );
+  }
+  const current = detectMood(config);
+  return (
+    <div id="mood">
+      <Card className="p-5">
+        {header('Mood', <Lamp size={16} className="text-ink-faint" />, current === 'custom')}
+        <PresetPicker
+          label="Mood"
+          presets={MOOD_PRESETS}
+          current={current}
+          disabled={!config || busy === 'preset'}
+          onPick={(id) =>
+            config && void run('preset', 'Couldn’t change the mood', () => api.setConfig(applyMood(config, id)), `Mood: ${MOOD_PRESETS.find((p) => p.id === id)?.label}`)
+          }
+          customHint={custom('the colors')}
+        />
+      </Card>
     </div>
   );
 }
@@ -457,7 +573,7 @@ function ControllerRates({ controllers }: { controllers: ControllerPerformance[]
 
 /** "Lights look wrong?": a small link to the troubleshooter. */
 function TroubleshooterLink() {
-  const { setup } = useConnection();
+  const { setup, serverInfo } = useConnection();
   const expert = useExpertTools();
   const [open, setOpen] = useState(false);
   return (
@@ -465,7 +581,7 @@ function TroubleshooterLink() {
       <Button size="sm" variant="ghost" icon={<CircleHelp size={15} />} onClick={() => setOpen(true)}>
         Lights look wrong?
       </Button>
-      <TroubleshooterDialog open={open} onClose={() => setOpen(false)} held={setup?.outputHeld === true} expert={expert} />
+      <TroubleshooterDialog open={open} onClose={() => setOpen(false)} held={setup?.outputHeld === true} expert={expert} game={serverInfo?.mode?.mode === 'game'} />
     </>
   );
 }
@@ -480,9 +596,11 @@ export function HomePage() {
     <div className="scroll-thin h-full overflow-y-auto">
       <PageHeader
         title="Home"
+        badge={<ModeBadge />}
         subtitle={host ? `Running on ${host}` : undefined}
         actions={
           <>
+            <ModeSwitch className="sm:hidden" />
             <TroubleshooterLink />
             {backend.mode === 'mock' && <Badge tone="accent">Demo data</Badge>}
           </>
@@ -492,11 +610,12 @@ export function HomePage() {
         <div className="space-y-4">
           <LightsCard />
           <DeviceHealth />
-          <ShowCard />
+          {serverInfo?.mode?.mode === 'game' ? <PlayingCard /> : <ShowCard />}
           <PreviewCard />
         </div>
         <div className="space-y-4">
-          <IntensityCard />
+          <PresetCard />
+          {serverInfo?.mode?.mode !== 'game' && <GamesCard />}
           <a href={hrefFor('layout')} className="group block">
             <Card className="flex items-center gap-4 p-5 transition-colors group-hover:border-line-strong">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-3 text-ink-muted">

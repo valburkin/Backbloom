@@ -8,7 +8,8 @@ namespace Backbloom.Engine;
 
 /// <summary>The profile whose roles the strips have now.</summary>
 /// <param name="Manual">Chosen by hand (<see cref="ProfileMonitor.Select"/>) rather than by a running program.</param>
-public sealed record ActiveProfile(string Id, string Name, bool Manual);
+/// <param name="Game">The profile is a game's: Game mode is on while it runs (<see cref="ModeMonitor"/>).</param>
+public sealed record ActiveProfile(string Id, string Name, bool Manual, bool Game = false);
 
 /// <summary>
 /// Picks the layout's profile (<c>layout.profiles</c>) that runs: the first one in list order one of whose programs
@@ -117,7 +118,7 @@ public sealed partial class ProfileMonitor : IDisposable
             UpdateTimer();
             if (_manualId is not null)
             {
-                next = _profiles.FirstOrDefault(p => p.Id == _manualId) is { } chosen ? new ActiveProfile(chosen.Id, chosen.Name, Manual: true) : null;
+                next = _profiles.FirstOrDefault(p => p.Id == _manualId) is { } chosen ? new ActiveProfile(chosen.Id, chosen.Name, Manual: true, chosen.Game) : null;
             }
             else if (!TryFindRunning(out var running))
             {
@@ -125,7 +126,7 @@ public sealed partial class ProfileMonitor : IDisposable
             }
             else
             {
-                next = running is null ? null : new ActiveProfile(running.Id, running.Name, Manual: false);
+                next = running is null ? null : new ActiveProfile(running.Id, running.Name, Manual: false, running.Game);
             }
 
             if (next == _current)

@@ -92,4 +92,29 @@ public sealed class MuxerTests
         muxer.ClearAll(0, force: true);
         Assert.Equal([255], muxer.Inputs.Select(i => i.Priority));
     }
+
+    [Fact]
+    public void ScreenOnly_HoldsColorsAndEffects_UntilTurnedOff()
+    {
+        var muxer = new Muxer();
+        muxer.Register(245, SourceComponent.SystemGrabber, "System", "DirectX11", Rgb8.Black, 0);
+        muxer.SetInput(245, Muxer.NoTimeout, 0);
+        muxer.Register(1, SourceComponent.Color, "UI", null, s_red, 0);
+        muxer.SetInput(1, Muxer.NoTimeout, 0);
+        muxer.Register(64, SourceComponent.Effect, "UI", "Rainbow swirl", Rgb8.Black, 0);
+        muxer.SetInput(64, 5000, 0);
+        Assert.True(muxer.Select(64, 0, out _));
+        Assert.Equal(64, muxer.CurrentPriority);
+
+        Assert.Equal(MuxerChanges.Priorities | MuxerChanges.Visible, muxer.SetScreenOnly(true, 10));
+        Assert.Equal(245, muxer.CurrentPriority);
+        Assert.Equal(MuxerChanges.None, muxer.SetScreenOnly(true, 10));
+        Assert.False(muxer.AutoSelect);
+
+        // held sources still expire
+        muxer.Update(6000);
+        Assert.False(muxer.Has(64));
+        muxer.SetScreenOnly(false, 6000);
+        Assert.Equal(1, muxer.CurrentPriority);
+    }
 }

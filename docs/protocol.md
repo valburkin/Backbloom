@@ -68,6 +68,7 @@ needed only from another device; this computer can set a new one without it, als
 | `instance` `switchTo` | kept for HyperHDR clients |
 | `setup` `getstate` / `start` / `autostart` / `acknowledge` | first-run setup: whether the lights were turned on once, HyperHDR running, what was imported, autostart, remote access addresses, whether a password is set (`passwordSet`); `start` ends the first-run hold (admin) |
 | `profile` `getstate` / `select` / `programs` | the layout's profiles at runtime (see below) |
+| `mode` `getstate` / `set` | Ambient or Game mode (see below) |
 
 ### Finding an LED (`leddevice identify`, `ledDeviceType: "blink"`)
 
@@ -89,8 +90,9 @@ the output being held (before the first-run setup is completed, or while HyperHD
 ### Profiles (`profile`)
 
 A layout's `profiles` give its strips other roles while a program runs; the first profile in the list one of whose
-programs runs is active (checked every 2 s). `serverinfo.profile` is the active one, `{ id, name, manual }`, or null
-(the layout as saved); `manual` is true for a profile chosen with `select`.
+programs runs is active (checked every 2 s). `serverinfo.profile` is the active one, `{ id, name, manual, game }`, or
+null (the layout as saved); `manual` is true for a profile chosen with `select`, `game` for a profile marked as a game's
+(`game: true` in the layout: Game mode is on while it runs, see below).
 
 | Subcommand | Params | Reply |
 |---|---|---|
@@ -100,10 +102,29 @@ programs runs is active (checked every 2 s). `serverinfo.profile` is the active 
 
 `profile-update` pushes `{ profile }` whenever the active profile changes.
 
+### Modes (`mode`)
+
+Ambient (the lights as the settings say) or Game: while Game mode is on, only the screen is shown (colors, pictures,
+effects and music stay in the priority list, active but not visible, and show again in Ambient), and the values of the
+`game` section replace the transition time and spring (`smoothing.time_ms`, `stiffness`, `damping`, with smoothing on),
+the saturation and color brightness gains (`color.channelAdjustment[0]`, whose minimum glow `backlightThreshold` is 0)
+and raise the capture rate to at least
+`game.fps`, without changing those sections. The mode chosen in the app is saved as `modes.mode`; a game's profile turns Game mode on while it runs.
+`serverinfo.mode` is `{ mode, saved, gameProfile, dismissedGame }`: `mode` the one that applies, `saved` the chosen
+one (both `"ambient"` or `"game"`), `gameProfile` the name of the game's profile that turned Game mode on, else null,
+and `dismissedGame` the name of the running game whose Game mode was turned off with `set ambient`, else null.
+
+| Subcommand | Params | Reply |
+|---|---|---|
+| `getstate` | | `{ mode }` |
+| `set` | `{ mode: "ambient" \| "game" }` | saves the chosen mode; `ambient` while a game's profile has Game mode on also turns it off until another profile (or none) runs, and `game` while that game still runs only turns it back on (the saved mode stays). Replies `{ mode }`. API access is enough |
+
+`mode-update` pushes `{ mode }` whenever it changes, in the order of the changes. Game mode's Intensity is set with `setconfig` on `game`.
+
 Events: `components-update`, `priorities-update`, `adjustment-update`, `settings-update`, `leds-update`,
 `imageToLedMapping-update`, `performance-update`, `token-update`, `instance-update`, `sessions-update`,
 `controllers-update`, `capture-update` (screen capture started or stopped, monitor HDR mode and tone mapping),
-`setup-update` (the `setup` state), `profile-update` (the active profile), `sound-update` (`serverinfo.sound` when the
+`setup-update` (the `setup` state), `profile-update` (the active profile), `mode-update` (Ambient or Game), `sound-update` (`serverinfo.sound` when the
 sound capture starts, stops, fails or recovers), `logging-update`, and the LED color stream.
 
 Differences from HyperHDR (rejected invalid settings, persisted `adjustment`, restore without restart, and others)

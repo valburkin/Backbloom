@@ -107,6 +107,14 @@
   "enable": true,
   "type": "effect"
  },
+ "game": {
+  "damping": 61,
+  "fps": 60,
+  "luminanceGain": 1.2,
+  "saturationGain": 1.5,
+  "stiffness": 817,
+  "time_ms": 150
+ },
  "general": {
   "disableLedsStartup": false,
   "disableOnLocked": true,
@@ -148,6 +156,9 @@
  },
  "logger": {
   "level": "debug"
+ },
+ "modes": {
+  "mode": "ambient"
  },
  "mqtt": {
   "custom_topic": "",

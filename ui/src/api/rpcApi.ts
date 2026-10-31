@@ -5,6 +5,8 @@ import type {
   ChannelAdjustment,
   DiscoveredDevice,
   EffectPreviews,
+  LightMode,
+  ModeState,
   RunningProgram,
   ServerInfo,
   SettingsSchema,
@@ -28,6 +30,7 @@ export const SUBSCRIPTIONS = [
   'setup-update',
   'sound-update',
   'profile-update',
+  'mode-update',
 ] as const;
 
 /** Priority and origin the UI uses for colors and effects it starts (the backend's web-UI slot). */
@@ -218,6 +221,16 @@ export class RpcApi {
   /** Remembers that the user has read an explanation ("discovery"). */
   async acknowledge(topic: 'discovery'): Promise<SetupState> {
     return info<SetupState>(await this.backend.call('setup', 'acknowledge', { topic }));
+  }
+
+  // ---- modes ----
+
+  /**
+   * Saves the mode chosen on Home. Ambient while a game’s profile has Game mode on also turns it off until another
+   * profile runs. Resolves with the mode the lights are in now (`serverinfo.mode`).
+   */
+  async setMode(mode: LightMode): Promise<ModeState | undefined> {
+    return info<{ mode?: ModeState }>(await this.backend.call('mode', 'set', { mode })).mode;
   }
 
   // ---- profiles ----

@@ -46,7 +46,8 @@ const memo: {
   guideStarted: boolean;
 } = { mode: 'place', guide: null, guideStarted: false };
 
-export function LayoutPage() {
+/** @param openProfile A profile to open for editing (the Games page links to a game's), from `#/layout/profile:<id>`. */
+export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}) {
   const { state, dispatch, load, reload, issues, validatorError, blockers, dirty } = useEditor();
   const { backend, serverInfo, api, setup } = useConnection();
   const expert = useExpertTools();
@@ -164,6 +165,14 @@ export function LayoutPage() {
     setPreviewError(null);
     setEditing(id);
   };
+  // a link to a profile (the Games page's) opens it once it is loaded
+  const openable = !!openProfile && (layout.profiles ?? []).some((p) => p.id === openProfile);
+  useEffect(() => {
+    if (!openable || !openProfile) return;
+    memo.mode = 'customize';
+    setModeState('customize');
+    setEditing(openProfile);
+  }, [openProfile, openable]);
   const onPreview = (on: boolean) => {
     if (!profile) return;
     api

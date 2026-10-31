@@ -45,7 +45,7 @@ export function createBackend(): Backend {
     // ?mock=auth: another device, which signs in; ?mock=welcome: a new install's setup (only the test device);
     // ?mock=welcome-imported: the setup after importing HyperHDR settings; ?mock=hyperhdr: the same while HyperHDR runs;
     // ?mock=imported: no layout saved yet, only the LED positions (as after importing HyperHDR settings);
-    // ?mock=offline: a device can't be reached
+    // ?mock=offline: a device can't be reached; ?mock=game: in Game mode
     const mode = new URLSearchParams(loc.search).get('mock');
     const firstRun = mode === 'welcome' || mode === 'welcome-imported' || mode === 'hyperhdr';
     return new MockBackend({
@@ -56,6 +56,7 @@ export function createBackend(): Backend {
       offline: mode === 'offline',
       imported: mode === 'imported',
       demoLayout: !firstRun && mode !== 'imported',
+      config: mode === 'game' ? { modes: { mode: 'game' } } : undefined,
     });
   }
   return new WsClient({ url: resolveBackendUrl(loc, env.VITE_BACKEND as string | undefined, env.DEV) });

@@ -12,6 +12,8 @@ import {
   type ConnectionStatus,
   type ControllerInfo,
   type JsonSchema,
+  type LightMode,
+  type ModeState,
   type PerformanceReport,
   type PriorityInfo,
   type RpcEvent,
@@ -125,6 +127,8 @@ export class MockBackend implements Backend {
   private setup: SetupState;
   /** The profile chosen by hand (profile select); no program ever runs in the mock, so none runs otherwise. */
   private manualProfile: string | null = null;
+  /** The game's profile whose Game mode was turned off on Home (mode set ambient) until another profile runs. */
+  private dismissedProfile: string | null = null;
   private logSeq = 0;
   /** Log of LEDs blinked (controller id, or none for an index over all LEDs; `hold` when held), for tests / debugging. */
   readonly blinks: Array<{ index: number; controller?: string; hold?: boolean }> = [];
@@ -312,6 +316,8 @@ export class MockBackend implements Backend {
         return ok(this.ledDevice(subcommand, params, fail));
       case 'profile':
         return ok(this.profileCommand(subcommand, params, fail, needAdmin));
+      case 'mode':
+        return ok(this.modeCommand(subcommand, params, fail));
       case 'setup':        // only this computer and devices that signed in (which are admins here)
         needAdmin();
         return ok(this.setupCommand(subcommand, params, fail));
@@ -406,8 +412,10 @@ export class MockBackend implements Backend {
         if (id !== null && typeof id !== 'string') return fail('id must be a profile\'s id or null (choose by the running programs)');
         if (id !== null && !this.profiles().some((p) => p.id === id)) return fail(`The layout has no profile '${id}'`);
         const before = JSON.stringify(this.activeProfile());
+        const mode = this.modeState();
         this.manualProfile = id;
         if (JSON.stringify(this.activeProfile()) !== before) this.emit('profile-update', { profile: this.activeProfile() });
+        this.emitModeIfChanged(mode);
         return { profile: this.activeProfile() };
       }
       case 'programs':
@@ -418,15 +426,64 @@ export class MockBackend implements Backend {
     }
   }
 
-  private profiles(): Array<{ id: string; name: string }> {
+  private profiles(): Array<{ id: string; name: string; game?: boolean }> {
     const profiles = (this.config.layout as { profiles?: unknown } | undefined)?.profiles;
-    return Array.isArray(profiles) ? (profiles as Array<{ id: string; name: string }>) : [];
+    return Array.isArray(profiles) ? (profiles as Array<{ id: string; name: string; game?: boolean }>) : [];
   }
 
   /** `serverinfo.profile`: the profile chosen by hand, or null. */
   private activeProfile(): ActiveProfile | null {
     const p = this.manualProfile === null ? undefined : this.profiles().find((x) => x.id === this.manualProfile);
-    return p ? { id: p.id, name: p.name, manual: true } : null;
+    return p ? { id: p.id, name: p.name, manual: true, game: p.game === true } : null;
+  }
+
+  /** `mode`: getstate, set (saves `modes.mode`; Ambient while a game's profile runs turns its Game mode off). */
+  private modeCommand(subcommand: string | undefined, params: Record<string, unknown>, fail: (e: string) => never): unknown {
+    switch (subcommand) {
+      case 'getstate':
+        return { mode: this.modeState() };
+      case 'set': {
+        const mode = params.mode;
+        if (mode !== 'ambient' && mode !== 'game') return fail('mode must be "ambient" or "game"');
+        const before = this.modeState();
+        const profile = this.activeProfile();
+        // Game again while the dismissed game runs: on again, the chosen mode stays (as ModeMonitor.Set)
+        if (mode === 'game' && profile?.game && this.dismissedProfile === profile.id) {
+          this.dismissedProfile = null;
+          this.emitModeIfChanged(before);
+          return { mode: this.modeState() };
+        }
+        // before saving, as the backend: no Game in between for the running game
+        this.dismissedProfile = mode === 'ambient' && profile?.game ? profile.id : null;
+        this.writeConfig({ modes: { ...((this.config.modes as object | undefined) ?? {}), mode } });
+        this.emitModeIfChanged(before);
+        return { mode: this.modeState() };
+      }
+      default:
+        return fail('unknown or missing subcommand');
+    }
+  }
+
+  /** `serverinfo.mode`: Game while a game's profile runs (unless turned off on Home), else the saved mode. */
+  private modeState(): ModeState {
+    const saved: LightMode = (this.config.modes as { mode?: unknown } | undefined)?.mode === 'game' ? 'game' : 'ambient';
+    const profile = this.activeProfile();
+    if (this.dismissedProfile !== null && profile?.id !== this.dismissedProfile) this.dismissedProfile = null;
+    if (profile?.game && profile.id !== this.dismissedProfile) return { mode: 'game', saved, gameProfile: profile.name, dismissedGame: null };
+    return { mode: saved, saved, gameProfile: null, dismissedGame: profile?.game ? profile.name : null };
+  }
+
+  /** The mode last announced with mode-update (or the state before the first change), so that no change is sent twice. */
+  private announcedMode: ModeState | null = null;
+
+  private emitModeIfChanged(before: ModeState): void {
+    const last = this.announcedMode ?? before;
+    const now = this.modeState();
+    if (JSON.stringify(now) === JSON.stringify(last)) return;
+    this.announcedMode = now;
+    this.emit('mode-update', { mode: now });
+    // Game mode shows only the screen; a color or effect waits
+    if (now.mode !== last.mode) this.emitPriorities();
   }
 
   private setupCommand(subcommand: string | undefined, params: Record<string, unknown>, fail: (e: string) => never): SetupState {
@@ -535,6 +592,7 @@ export class MockBackend implements Backend {
 
   /** Partial setconfig of validated sections: replace the sent sections, announce the changed ones. */
   private writeConfig(sent: BackendConfig): void {
+    const mode = this.modeState();
     const next = this.applyLayout(sent);
     for (const [section, value] of Object.entries(next)) {
       const changed = JSON.stringify(value) !== JSON.stringify(this.config[section]);
@@ -549,7 +607,8 @@ export class MockBackend implements Backend {
         // the chosen profile is gone: back to choosing by the programs
         this.manualProfile = null;
         this.emit('profile-update', { profile: null });
-      }      if (section === 'soundEffect') {
+      }
+      if (section === 'soundEffect') {
         this.emit('sound-update', this.sound());
         if (!this.sound()?.available && this.source?.kind === 'effect' && this.source.name.startsWith('Music: ')) {
           this.source = null;
@@ -561,6 +620,7 @@ export class MockBackend implements Backend {
         this.updateSetup({ remoteAccess: { ...this.setup.remoteAccess, enabled: on, urls: on ? [MOCK_LAN_URL] : [], advertised: on } });
       }
     }
+    this.emitModeIfChanged(mode);
   }
 
   // ---- state ----
@@ -580,7 +640,9 @@ export class MockBackend implements Backend {
     }
     if (this.components.get('SYSTEMGRABBER'))
       list.push({ priority: 245, componentId: 'SYSTEMGRABBER', origin: 'System', owner: 'DirectX11', active: true, visible: false });
-    if (list.length) list[0].visible = true;
+    // Game mode shows only the screen: a color or effect waits until Ambient
+    const shown = this.modeState().mode === 'game' ? list.find((p) => p.componentId === 'SYSTEMGRABBER') : list[0];
+    if (shown) shown.visible = true;
     return list;
   }
 
@@ -600,6 +662,7 @@ export class MockBackend implements Backend {
       systemGrabbers: this.systemGrabbers(),
       sound: this.sound(),
       profile: this.activeProfile(),
+      mode: this.modeState(),
     };
   }
 

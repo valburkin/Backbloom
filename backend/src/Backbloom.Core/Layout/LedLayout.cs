@@ -20,6 +20,7 @@ public sealed class LedLayout
         ArgumentNullException.ThrowIfNull(areas);
         Areas = [.. areas.Select(a => a.Normalized())];
         HasDisabled = Areas.Any(a => a.Disabled);
+        WholeScreenLeds = [.. Enumerable.Range(0, Areas.Length).Where(i => Areas[i].IsWholeScreen)];
     }
 
     public ImmutableArray<LedArea> Areas { get; }
@@ -27,6 +28,9 @@ public sealed class LedLayout
     public int Count => Areas.Length;
 
     public bool HasDisabled { get; }
+
+    /// <summary>Indexes of the LEDs that show the average of the whole screen (see <see cref="LedArea.IsWholeScreen"/>).</summary>
+    public ImmutableArray<int> WholeScreenLeds { get; }
 
     /// <summary>
     /// Parses the <c>leds</c> setting: an array of <c>{hmin, hmax, vmin, vmax, group?, disabled?}</c>.

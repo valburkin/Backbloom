@@ -160,11 +160,11 @@ the C++ fixtures by `Core.Tests`; `Audio` only gets the sound into that analysis
 
 | Thread | Owner | Does |
 |---|---|---|
-| Frame loop (1, above-normal priority) | `LightingPipeline` | capture (or step the visible effect) -> map -> process -> zones (step their effects without waiting, write their colors) -> hand frames to controllers and the preview feed |
+| Frame loop (1, above-normal priority) | `LightingPipeline` | capture (or step the visible effect) -> map -> slow down the "Screen average" LEDs -> process -> zones (step their effects without waiting, write their colors) -> hand frames to controllers and the preview feed |
 | Sound capture (1 while a music effect runs, above-normal) | `WasapiSession` | read the device's buffers, convert them into blocks, analyze each block |
 | Smoothing (1, above-normal priority) | `OutputStage` | while smoothing runs: one tick per update interval (interpolate, anti-flicker filter, hand the frame to the controllers and the preview); idle otherwise |
 | One per controller | `LedDeviceRunner` | open (with retries), send the newest frame (its slice of the LEDs), refresh, blink, close |
-| Thread pool | ASP.NET Core, `OtherAppMonitor`, `ProfileMonitor`, `PerformanceRecorder` | JSON-RPC requests (in order per connection), event pushes, LED stream timers, the HyperHDR process check, (while the layout has profiles) the profile programs check every 2 s, and the performance samples (CPU every 2 s, a sample every 10 s) |
+| Thread pool | ASP.NET Core, `OtherAppMonitor`, `ProfileMonitor` (and `ModeMonitor` after it), `PerformanceRecorder` | JSON-RPC requests (in order per connection), event pushes, LED stream timers, the HyperHDR process check, (while the layout has profiles) the profile programs check every 2 s, and the performance samples (CPU every 2 s, a sample every 10 s) |
 | UI (1, STA, Windows) | `UiThread` | Win32 message loop: hidden message window (power/session notifications, tray callbacks), tray menu, WebView2 window |
 | Log file (1, below normal) | `RollingFileLoggerProvider` | writes queued log lines |
 
@@ -772,7 +772,7 @@ of a controller. There are no per-controller pipelines ("instances").
              dark?: [{ start, count }], depth?, blend?, brightness? }] }
 next: { kind: edge, from, to } | { kind: whole } | { kind: area, area } | { kind: none }
     | { kind: effect, effect } | { kind: color, color: [r, g, b] } | { kind: gap }
-profiles?: [{ id, name, apps: [executable names], sections: { <strip id>: [section | null per section] } }]
+profiles?: [{ id, name, apps: [executable names], game?: bool, sections: { <strip id>: [section | null per section] } }]
 ```
 
 Strips are placed in a schematic room (meters): the screen hangs on the front wall, and a strip is a path of two or
@@ -785,7 +785,10 @@ to `to` (outline positions 0..4 clockwise from the top-left corner, one per edge
 evenly over the stretch, each `depth` (default 0.1) screen heights into the picture and as wide along the edge as the
 LED spacing there times `blend` (default 1.2). Without `next` (auto) a section is the edge stretch it faces: both ends
 seen straight on against the front wall (depth dropped), each at the nearest point of the outline, the short way
-round. `whole` LEDs show the whole picture, `area` LEDs one area, `none` LEDs stay off, as do LEDs in `dark`.
+round. `whole` LEDs show the whole picture (averaged once for all of them, and slowed down on the frame loop by
+`ScreenAverageFilter` before the color settings: an exponential filter with a 500 ms time constant, because a
+whole-screen average is a pale color whose hue swings with small changes in the picture and the saturation gain makes
+the swings visible), `area` LEDs one area, `none` LEDs stay off, as do LEDs in `dark`.
 `effect` and `color` LEDs play something of their own (a zone, see below), whatever the rest of the lights show.
 
 `Backbloom.Settings/Layout`: `LayoutSpecification.Normalize` validates it (rejecting with `layout.<path>` errors, like
@@ -846,6 +849,24 @@ anything; controllers whose driver settings and LED count didn't change keep run
 again); removing that profile from the layout goes back to automatic. Later layout saves are compiled for the active
 profile.
 
+**Ambient and Game mode.** The `modes` section (new, `Schemas/modes.json`) holds the mode chosen in the app (`mode`:
+`ambient` or `game`), the `game` section (new, `Schemas/game.json`) what Game mode changes (`time_ms`, `stiffness`,
+`damping`, `saturationGain`, `luminanceGain`, `fps`; the defaults are the UI's Intense preset, `springFor(150)`, and
+60 fps). Two sections, so that saving Game's values can't overwrite a mode chosen meanwhile. `ModeMonitor` (Engine)
+decides which mode applies: the saved one, except Game while the active profile is a game's (`game: true`); `set`
+Ambient while such a profile runs keeps Ambient until another profile (or none) runs, and `set` Game while it still runs
+only turns Game mode back on (`dismissedGame` says which game it is off for). Changes are announced under its lock, in
+order. It calls
+`LightingEngine.ApplyGameMode`, which builds the color processor and the smoothing from `GameTuning` applied to the
+saved `color` and `smoothing` sections (nothing is saved; smoothing is on and the minimum glow off in Game mode, and
+the `SMOOTHING` component
+follows the applied setting), shows only the screen (`Muxer.ScreenOnly`, not in the C++ code: colors, pictures and
+effects keep their place and timeouts but aren't selected, so they come back in Ambient; a held effect doesn't render,
+a held music effect keeps its sound capture), and tells `CaptureModeFollower` (App), which reconfigures the screen
+capture with at least `game.fps` (only when the
+resulting `CaptureSettings` differ, since each new configuration restarts the capture). The follower exists because
+the monitor depends on the engine, which depends on the capture source.
+
 The store keeps the other sections consistent with it, in the same transaction:
 
 | Saved | Effect |
@@ -882,7 +903,8 @@ driver had written the frame (`FrameStats` latency).
 | `performance-update` | one LED report (type 3) per controller: `id` = position, `param1` updates/s, `param2` written, `param3` submitted, `param4` dropped since the last report, plus `controller`, `controllerName`, `ledCount`, `state`, `latencyMs` |
 | `leddevice identify` `blink` | `params: { blinkIndex, controller?, hold? }` or `{ stop: true, controller? }`: `controller` is an id (or a position); without it `blinkIndex` counts over all LEDs (old clients, one controller: unchanged). `hold` keeps the LED cycling red, green, blue until the next blink, a stop or 120 s (`BlinkPattern.HoldTimeout`). Replies `{ controller, blinkIndex, hold }` (a stop: `{ controller, stopped }`); an LED that doesn't exist, a controller that isn't running, or a held output (first run, HyperHDR running) is an error. See [docs/protocol.md](../docs/protocol.md#finding-an-led-leddevice-identify-leddevicetype-blink) |
 | `ledcolors` stream | `leds` covers every controller's LEDs; each message and the `ledstream-start` reply carry `controllers: [{ id, start, length }]` |
-| `serverinfo.profile`, event `profile-update` | the active profile `{ id, name, manual }` or null; the event carries `{ profile }` |
+| `serverinfo.profile`, event `profile-update` | the active profile `{ id, name, manual, game }` or null; the event carries `{ profile }` |
+| `serverinfo.mode`, event `mode-update`, `mode` | `{ mode, saved, gameProfile, dismissedGame }`; `mode getstate` (`{ mode }`), `set` `{ mode: "ambient" \| "game" }` (API access; replies `{ mode }`). See [docs/protocol.md](../docs/protocol.md#modes-mode) |
 | `profile` | `getstate` (`{ profile }`), `select` `{ id: string \| null }` (null: choose by the running programs; replies `{ profile }`), `programs` (admins: the programs with a window, `{ programs: [{ exe, title }] }`, one per executable, sorted, from `IProgramList`: `EnumWindows` on Windows without tool, owned or cloaked windows, `Process.MainWindowTitle` elsewhere). See [docs/protocol.md](../docs/protocol.md#profiles-profile) |
 
 **UI** (`ui/`): the Layout page saves layouts with any number of controllers (`saveLayout` sends `layout`, plus the
@@ -923,6 +945,7 @@ Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): r
 | `effect` (`priority` 1..253, `effect.name`, `duration`, `origin`) | done (see [Effects](#effects)); `effect.args`, `pythonScript` and `imageData` are rejected (C++ rejected arguments too) |
 | `setup` getstate, start, autostart, acknowledge (+ `setup-update`) | new (see [First run, HyperHDR and network access](#first-run-hyperhdr-and-network-access)) |
 | `profile` getstate, select, programs (+ `profile-update`, `serverinfo.profile`) | new (see [LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)) |
+| `mode` getstate, set (+ `mode-update`, `serverinfo.mode`) | new (see [LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)) |
 | `image`, imagestream | not yet ("Command not implemented") |
 
 Deliberate differences from the C++ backend (its bug backlog):
@@ -949,9 +972,9 @@ before the controller's color order (so it is really red, green, blue on GRB str
 
 **Sections and validation.** Every settings type the C++ build kept is a section: `general`, `logger`, `device`,
 `color`, `smoothing`, `systemGrabber`, `blackborderdetector`, `foregroundEffect`, `backgroundEffect`, `soundEffect`,
-`webConfig`, `effects`, `systemControl`, `network`, `ledConfig`, `leds`, `mqtt`, `layout`. Their schemas are the C++
-files (`sources/base/schema`, copied into `Backbloom.Settings/Schemas`; the additions are
-`mqtt.homeAssistantDiscovery` and `network.remoteAccess`), the LED driver schemas come from `Backbloom.Devices`, and defaults exist only there. The in-house validator stays: the schemas use the draft-03
+`webConfig`, `effects`, `systemControl`, `network`, `ledConfig`, `leds`, `mqtt`, `layout`, plus Backbloom's `modes`
+and `game` (Ambient and Game mode). Their schemas are the C++ files (`sources/base/schema`, copied into
+`Backbloom.Settings/Schemas`; the additions are `mqtt.homeAssistantDiscovery`, `network.remoteAccess`, `modes` and `game`), the LED driver schemas come from `Backbloom.Devices`, and defaults exist only there. The in-house validator stays: the schemas use the draft-03
 `required: true` form that the standard validators don't support. `setconfig` uses it strictly (reject, per-field
 errors); only imports and stored data from an older schema use its repair mode (clamp numbers, reset values of the wrong
 type or outside an enum to their default, drop unknown fields, report every fix).

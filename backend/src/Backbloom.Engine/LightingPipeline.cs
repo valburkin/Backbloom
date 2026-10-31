@@ -6,6 +6,7 @@ using Backbloom.Core.Color;
 using Backbloom.Core.Imaging;
 using Backbloom.Core.Mapping;
 using Backbloom.Core.Priorities;
+using Backbloom.Core.Smoothing;
 using Backbloom.Engine.Platform;
 
 namespace Backbloom.Engine;
@@ -22,8 +23,8 @@ public sealed record PipelineConfig(LedMappingOptions Mapping, ColorProcessor Pr
 }
 
 /// <summary>
-/// The single frame loop: the visible source (screen capture -> black border -> image-to-LED mapping, an effect, or a
-/// static color) -> color processing -> the zones' colors in their LEDs (<see cref="ZoneLayer"/>) ->
+/// The single frame loop: the visible source (screen capture -> black border -> image-to-LED mapping -> the slower
+/// "Screen average" LEDs (<see cref="ScreenAverageFilter"/>), an effect, or a static color) -> color processing -> the zones' colors in their LEDs (<see cref="ZoneLayer"/>) ->
 /// <see cref="OutputStage"/> (smoothing, controllers, live preview). Runs on one dedicated thread and does not allocate
 /// per frame (buffers are only resized when the LED count, frame size or border changes).
 /// </summary>
@@ -53,6 +54,7 @@ public sealed partial class LightingPipeline : IDisposable
     private readonly ScreenActivity? _screen;
     private readonly IClock _clock;
     private readonly LedMapper _mapper = new();
+    private readonly ScreenAverageFilter _screenAverage = new();
     private readonly FramePool _frames = new(capacity: 1);
     private readonly AutoResetEvent _wake = new(false);
     private readonly CancellationTokenSource _stop = new();
@@ -229,6 +231,7 @@ public sealed partial class LightingPipeline : IDisposable
             }
 
             _screen?.FrameCaptured();
+            _screenAverage.Apply(config.Mapping.Layout, colors, _clock.NowMilliseconds);
             config.Processor.Process(colors);
             Submit(colors, config.Processor.MinimalBacklight, zones, config, stepping);
         }

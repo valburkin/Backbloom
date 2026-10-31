@@ -115,6 +115,15 @@ public static class BackbloomHost
         // The layout's profiles: other roles for the strips while a program runs (or one chosen by hand).
         services.AddSingleton<ProfileMonitor>();
 
+        // Ambient or Game mode: chosen on Home, Game while a game's profile runs; screen capture follows Game's rate.
+        services.AddSingleton(sp =>
+        {
+            var modes = ActivatorUtilities.CreateInstance<ModeMonitor>(sp);
+            var capture = sp.GetRequiredService<CaptureModeFollower>();
+            modes.Changed += state => capture.SetGameMode(state.Mode == LightMode.Game);
+            return modes;
+        });
+
         // Registered before the engine so that it stops after it: the tray icon goes once the LEDs are off.
         services.AddDesktop(options, launch);
         services.AddHostedService<EngineHostedService>();

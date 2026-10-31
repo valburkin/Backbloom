@@ -11,6 +11,12 @@ release note. See [docs/development.md](docs/development.md#branches-and-release
 
 ### Added
 
+- **Ambient and Game mode**: two apps in one, switched at the top of the sidebar. Ambient is for movies, music and
+  everyday use, with screen sync, music, effects and colors. Game is made for playing: the lights follow the game on
+  your screen, react faster with richer colors, dark scenes stay dark, and the screen is read more often. Its
+  Intensity (Subtle, Vivid or Intense) is its own, so your everyday settings stay as they are, and an effect, music or
+  color you had on comes back when you switch to Ambient.
+  Add your games on the new Games page and Game mode turns on by itself while one runs, and off when it quits.
 - **Room layout**: place your LED strips where they really are, on a drawing of your room unfolded around the screen
   (walls, ceiling and floor, with your desk and monitor or TV). Pick a ready-made shape or draw a strip yourself, drag
   its bends, and mark gaps where a strip is cut or runs around something. Bends snap to the screen and the furniture.
@@ -43,13 +49,15 @@ release note. See [docs/development.md](docs/development.md#branches-and-release
   the Layout page; drag the strips to where they are and save.
 - The log no longer calls WLED's power limiter an error: it protects the LEDs and the power supply from drawing too
   much.
-- **Intensity changes how fast the lights follow the picture**: Calm, Balanced, Lively and Intense (before: Subtle,
-  Moderate, High, Intense) now also set the speed of the default smoothing style, as does Transitions on the Colors
-  page (before, they only changed the colors). Balanced is the default. The other smoothing styles moved under More
-  options.
+- **Mood replaces Intensity in Ambient**: Relaxed, Natural and Rich (before: Subtle, Moderate, High, Intense) on Home
+  set how the room feels, including the speed of the default smoothing style, as does Transitions on the Colors page
+  (before, they only changed the colors). Natural is the default. Colors fine-tunes the same values and says which
+  Mood they match. The other smoothing styles moved under More options.
 - **A simpler app**: everyday settings are in view and the rest is tucked away.
-  - Five sections instead of seven: Home, Setup (Layout and Devices), Picture (Screen sync and Colors), Effects &
-    Music, and Settings. Their names show in the sidebar at the default window size.
+  - Fewer sections, in two groups: what belongs to the mode (Home, Colors, and Effects & Music or Games) and, at the
+    bottom of the sidebar, what both modes share: Setup (Layout, Devices, Screen and Calibration) and Settings. White
+    balance, contrast, per-color calibration and the power limit moved to Setup → Calibration. Their names show in the sidebar at
+    the default window size.
   - Fine-tuning sits under **More options** at the end of each section; it says how many values you changed and can
     put them back. Diagnostics and technical settings (performance numbers, logs, protocol details, Find an LED)
     appear only with **Settings → General → Show expert and diagnostic tools**.
@@ -62,7 +70,7 @@ release note. See [docs/development.md](docs/development.md#branches-and-release
   you already added are marked. Afterwards Backbloom points you to placing your strips.
 - **Layout has two modes**: Place (where your strips are, with four guided steps when there's no layout yet) and
   Customize (what each part shows, brightness, profiles). Trying a profile is now called Preview, and Home can stop it.
-- **Home** shows what matters: on/off, what's shown, brightness and intensity, a warning when a device can't be
+- **Home** shows what matters: on/off, what's shown, brightness and Mood (Intensity in Game mode), a warning when a device can't be
   reached, and **Lights look wrong?**, which names the usual causes and takes you to the right setting. Brightness is
   set only here now (above 100% is an expert setting on Colors).
 - **Music effects turn on sound input by themselves.**
@@ -75,6 +83,8 @@ release note. See [docs/development.md](docs/development.md#branches-and-release
 
 ### Fixed
 
+- **Screen average lights flickered between colors** (e.g. yellow and green) in some scenes, most of all in Game mode:
+  their color now changes more gently, while the lights along the screen edges stay as quick as before.
 - Finding an LED did nothing while the lights were off or nothing was shown.
 - **WLED lights stayed off after a display change** (a game starting, a resolution or HDR change): Backbloom no longer switches the
   controllers off when the picture is gone for a moment (they go dark for up to 10 seconds first), finds a WLED

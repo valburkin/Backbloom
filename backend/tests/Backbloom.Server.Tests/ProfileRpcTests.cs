@@ -44,7 +44,7 @@ public sealed class ProfileRpcTests
         // chosen by hand
         var selected = await client.CallAsync("profile", "select", Obj("""{ "id": "game" }"""));
         Assert.True(selected["success"]!.GetValue<bool>(), selected.ToJsonString());
-        Assert.Equal("""{"id":"game","name":"Game","manual":true}""", selected["info"]!["profile"]!.ToJsonString());
+        Assert.Equal("""{"id":"game","name":"Game","manual":true,"game":false}""", selected["info"]!["profile"]!.ToJsonString());
         Assert.Equal("game", client.NextEvent("profile-update")["data"]!["profile"]!["id"]!.GetValue<string>());
         Assert.True((await client.CallAsync("serverinfo"))["info"]!["profile"]!["manual"]!.GetValue<bool>());
         Assert.Equal("game", (await client.CallAsync("profile", "getstate"))["info"]!["profile"]!["id"]!.GetValue<string>());
@@ -56,7 +56,7 @@ public sealed class ProfileRpcTests
         // the program starts: the profile follows within a poll (2 s)
         processes.Start("Game.exe");
         var update = client.NextEvent("profile-update");
-        Assert.Equal("""{"id":"game","name":"Game","manual":false}""", update["data"]!["profile"]!.ToJsonString());
+        Assert.Equal("""{"id":"game","name":"Game","manual":false,"game":false}""", update["data"]!["profile"]!.ToJsonString());
 
         Assert.Equal("The layout has no profile 'nope'", (await client.CallAsync("profile", "select", Obj("""{ "id": "nope" }""")))["error"]!.GetValue<string>());
         Assert.False((await client.CallAsync("profile", "select", Obj("""{ "id": 5 }""")))["success"]!.GetValue<bool>());

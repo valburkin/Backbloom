@@ -119,6 +119,23 @@ public sealed class ImageToLedMapTests
     }
 
     [Fact]
+    public void Process_LedsOverTheSamePixelsAreAveragedOnce()
+    {
+        var frame = TestFrames.Solid(4, 2, 0, 0, 0);
+        TestFrames.SetPixel(frame, 0, 0, 255, 0, 0);
+        var layout = new LedLayout([new LedArea(0, 1, 0, 1), new LedArea(0, 0.5, 0, 1), new LedArea(0, 1, 0, 1), new LedArea(0, 1, 0, 1, Group: 1)]);
+        var map = new ImageToLedMap(layout, LedMappingType.Advanced, false, 4, 2);
+        var colors = new Vector3[4];
+
+        map.Process(frame.ReadOnlyPixels, colors);
+
+        var average = new Vector3(1.0f / 8, 0, 0);
+        Assert.Equal([average, new Vector3(1.0f / 4, 0, 0), average, average], colors);
+        // the grouped LED keeps its own samples
+        Assert.Equal(8 + 4 + 8, map.SampledPixels);
+    }
+
+    [Fact]
     public void Constructor_HonorsBlackBorders()
     {
         // With a 2 px vertical border on a 10 px wide frame, x = 0..1 maps to columns 2..7.

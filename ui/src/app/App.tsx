@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
-import { House, Loader2, MonitorSmartphone, Palette, Power, Settings as SettingsIcon, Sparkles, WifiOff } from 'lucide-react';
+import { Gamepad2, House, Loader2, MonitorSmartphone, Palette, Power, Settings as SettingsIcon, Sparkles, WifiOff } from 'lucide-react';
 import { Button, cx, StatusDot } from '../components/ui';
 import { Logo } from '../components/Logo';
 import { isPageDirty } from '../settings/drafts';
@@ -12,11 +12,15 @@ import { HomePage } from '../pages/HomePage';
 import { DevicesPage } from '../pages/DevicesPage';
 import { CapturePage } from '../pages/CapturePage';
 import { ColorsPage } from '../pages/ColorsPage';
+import { CalibrationPage } from '../pages/CalibrationPage';
 import { EffectsPage } from '../pages/EffectsPage';
+import { GamesPage } from '../pages/GamesPage';
 import { SettingsPage } from '../pages/settings/SettingsPage';
 import { WelcomeScreen } from '../pages/welcome/WelcomeScreen';
 import { OtherAppNotice } from '../pages/welcome/OtherAppNotice';
 import { useAction } from './useAction';
+import { ModeSwitch } from '../control/ModeSwitch';
+import type { LightMode } from '../api/types';
 
 // The layout editor is the biggest page; it loads when first opened.
 const LayoutPage = lazy(() => import('../pages/layout/LayoutPage').then((m) => ({ default: m.LayoutPage })));
@@ -30,34 +34,54 @@ interface NavItem {
   pages: ReadonlyArray<{ route: Route; label: string }>;
 }
 
-// Five sections (docs/ui-guidelines.md): what's on, where things are, how the picture looks, effects, settings.
-const NAV: readonly NavItem[] = [
-  { label: 'Home', icon: <House size={20} />, pages: [{ route: 'home', label: 'Home' }] },
+const HOME: NavItem = { label: 'Home', icon: <House size={20} />, pages: [{ route: 'home', label: 'Home' }] };
+const COLORS: NavItem = { label: 'Colors', icon: <Palette size={20} />, pages: [{ route: 'colors', label: 'Colors' }] };
+
+// Each mode is its own app (docs/ui-guidelines.md): its pages come first in the sidebar, under the Mode switch.
+const MODE_NAV: Record<LightMode, readonly NavItem[]> = {
+  ambient: [
+    HOME,
+    COLORS,
+    { label: 'Effects & Music', short: 'Effects', icon: <Sparkles size={20} />, pages: [{ route: 'effects', label: 'Effects & Music' }] },
+  ],
+  game: [HOME, COLORS, { label: 'Games', icon: <Gamepad2 size={20} />, pages: [{ route: 'games', label: 'Games' }] }],
+};
+
+// What both modes share, at the bottom of the sidebar: the hardware and the app itself.
+const SHARED_NAV: readonly NavItem[] = [
   {
     label: 'Setup',
     icon: <MonitorSmartphone size={20} />,
     pages: [
       { route: 'layout', label: 'Layout' },
       { route: 'devices', label: 'Devices' },
+      { route: 'capture', label: 'Screen' },
+      { route: 'calibration', label: 'Calibration' },
     ],
   },
-  {
-    label: 'Picture',
-    icon: <Palette size={20} />,
-    pages: [
-      { route: 'capture', label: 'Screen sync' },
-      { route: 'colors', label: 'Colors' },
-    ],
-  },
-  { label: 'Effects & Music', short: 'Effects', icon: <Sparkles size={20} />, pages: [{ route: 'effects', label: 'Effects & Music' }] },
   { label: 'Settings', icon: <SettingsIcon size={20} />, pages: [{ route: 'settings', label: 'Settings' }] },
 ];
 
-const sectionOf = (route: Route) => NAV.find((n) => n.pages.some((p) => p.route === route)) ?? NAV[0];
+const NAV: Record<LightMode, readonly NavItem[]> = {
+  ambient: [...MODE_NAV.ambient, ...SHARED_NAV],
+  game: [...MODE_NAV.game, ...SHARED_NAV],
+};
 
-/** Tabs between the pages of a section (Setup: Layout / Devices; Picture: Screen sync / Colors). */
-function SectionTabs({ route, go, unsaved }: { route: Route; go: (r: Route) => void; unsaved: (r: Route) => boolean }) {
-  const section = sectionOf(route);
+/** The profile a `#/layout/profile:<id>` link opens (the id URL-encoded, see hrefForProfile), or null. */
+function profileLink(sub: string | null): string | null {
+  if (!sub?.startsWith('profile:')) return null;
+  try {
+    return decodeURIComponent(sub.slice('profile:'.length));
+  } catch {
+    return null;
+  }
+}
+
+const sectionOf = (nav: readonly NavItem[], route: Route) => nav.find((n) => n.pages.some((p) => p.route === route)) ?? nav[0];
+
+/** Tabs between the pages of a section (Setup: Layout / Devices / Screen / Calibration). */
+function SectionTabs({ nav, route, go, unsaved }: { nav: readonly NavItem[]; route: Route; go: (r: Route) => void; unsaved: (r: Route) => boolean }) {
+  const section = sectionOf(nav, route);
   if (section.pages.length < 2) return null;
   return (
     <nav aria-label={section.label} className="flex gap-1 border-b border-line px-4 pt-2 sm:px-6">
@@ -118,6 +142,15 @@ function Shell() {
     main.current?.focus({ preventScroll: true });
   }, [loc.route]);
   const unsaved = (r: Route) => isPageDirty(drafts[r]) || (layoutDirty && (r === 'layout' || r === 'devices'));
+  const mode = useConnection().serverInfo?.mode?.mode;
+  const nav = NAV[mode ?? 'ambient'];
+  // Effects & Music leads Home once Game mode is known (it shows only the screen). Games stays reachable in Ambient:
+  // Ambient's Home links to it, so games can be added without switching the lights to Game mode.
+  const offered = loc.route === 'games' || nav.some((n) => n.pages.some((p) => p.route === loc.route));
+  useEffect(() => {
+    // replace, so that Back doesn't return to the page that isn't there
+    if (mode && !offered) window.location.replace(hrefFor('home'));
+  }, [mode, offered]);
 
   return (
     <div className="flex h-full min-h-0 flex-col sm:flex-row">
@@ -135,13 +168,15 @@ function Shell() {
           <Logo />
           <span className="hidden text-[15px] font-semibold tracking-tight lg:inline">Backbloom</span>
         </div>
-        <ul className="flex w-full justify-around gap-1 sm:flex-col sm:justify-start">
-          {NAV.map((n) => {
-            const active = n === sectionOf(loc.route);
+        <ModeSwitch className="mb-5 hidden sm:block" />
+        <ul className="flex w-full justify-around gap-1 sm:flex-1 sm:flex-col sm:justify-start">
+          {nav.map((n) => {
+            const shared = n === SHARED_NAV[0];
+            const active = n === sectionOf(nav, loc.route);
             const showDot = n.pages.some((p) => unsaved(p.route));
             const target = n.pages[0].route;
             return (
-              <li key={n.label} className="min-w-0 flex-1 sm:flex-none">
+              <li key={n.label} className={cx('min-w-0 flex-1 sm:flex-none', shared && 'sm:mt-auto sm:border-t sm:border-line sm:pt-3')}>
                 <a
                   href={hrefFor(target)}
                   aria-current={active ? 'page' : undefined}
@@ -170,25 +205,27 @@ function Shell() {
             );
           })}
         </ul>
-        <div className="mt-auto hidden sm:block">
+        <div className="mt-3 hidden sm:block">
           <ConnectionPill />
         </div>
       </nav>
       <main id="main" ref={main} tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none">
         <ReconnectBanner />
         <SetupBanner />
-        <SectionTabs route={loc.route} go={go} unsaved={unsaved} />
+        <SectionTabs nav={nav} route={loc.route} go={go} unsaved={unsaved} />
         <div className="min-h-0 flex-1">
           {loc.route === 'home' && <HomePage />}
+          {loc.route === 'games' && offered && <GamesPage />}
           {loc.route === 'layout' && (
             <Suspense fallback={null}>
-              <LayoutPage />
+              <LayoutPage openProfile={profileLink(loc.sub)} />
             </Suspense>
           )}
           {loc.route === 'devices' && <DevicesPage />}
           {loc.route === 'capture' && <CapturePage />}
           {loc.route === 'colors' && <ColorsPage />}
-          {loc.route === 'effects' && <EffectsPage />}
+          {loc.route === 'calibration' && <CalibrationPage />}
+          {loc.route === 'effects' && offered && <EffectsPage />}
           {loc.route === 'settings' && <SettingsPage tab={loc.sub} onTab={(t) => go('settings', t)} />}
         </div>
       </main>

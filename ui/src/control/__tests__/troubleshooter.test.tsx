@@ -11,9 +11,11 @@ describe('troubleshooter', () => {
       direction: ['#/layout'],
       hdr: ['#/capture?focus=hdr'],
       crop: ['#/capture?focus=crop'],
-      white: ['#/colors?focus=white-balance'],
-      flicker: ['#/home?focus=intensity', '#/colors?focus=transitions'],
+      white: ['#/calibration?focus=white-balance'],
+      flicker: ['#/home?focus=mood', '#/colors?focus=transitions'],
     });
+    const game = symptoms({ held: false, expert: false, game: true }).find((s) => s.id === 'flicker')!;
+    expect(game.links.map((l) => l.href)).toEqual(['#/home?focus=intensity', '#/colors?focus=transitions']);
   });
 
   it('offers the log only with expert tools, and points at Turn on lights while the lights wait', () => {

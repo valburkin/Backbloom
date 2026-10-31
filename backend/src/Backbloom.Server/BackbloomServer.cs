@@ -47,6 +47,7 @@ public static class BackbloomServer
         services.AddSingleton<IRpcCommand, InstanceCommand>();
         services.AddSingleton<IRpcCommand, SetupCommand>();
         services.AddSingleton<IRpcCommand, ProfileCommand>();
+        services.AddSingleton<IRpcCommand, ModeCommand>();
         return services;
     }
 

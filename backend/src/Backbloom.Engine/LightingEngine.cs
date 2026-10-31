@@ -22,8 +22,9 @@ namespace Backbloom.Engine;
 /// <c>color</c> section and the controllers' LEDs, smoothing from <c>smoothing</c>, black border detection from
 /// <c>blackborderdetector</c>, configures the controllers from <c>layout</c> (or, without one, <c>device</c> +
 /// <c>leds</c>), plays the layout's zones (<see cref="ZoneLayer"/>), registers the screen as a source and applies
-/// component switches. A profile of the layout (<see cref="ApplyProfile"/>) switches the compiled setup without saving
-/// anything. The API layer talks to this class only; it never reaches into the pipeline thread.
+/// component switches. A profile of the layout (<see cref="ApplyProfile"/>) switches the compiled setup, and Game mode
+/// (<see cref="ApplyGameMode"/>) the transitions and color gains (<see cref="GameTuning"/>) and shows only the screen,
+/// without saving anything. The API layer talks to this class only; it never reaches into the pipeline thread.
 /// </summary>
 public sealed partial class LightingEngine : IDisposable
 {
@@ -50,6 +51,7 @@ public sealed partial class LightingEngine : IDisposable
     private volatile ControllerSetup _setup;
     private ZoneLayer _zones = ZoneLayer.Empty;
     private string? _profileId;
+    private bool _game;
     private int _screenPriority;
     private bool _screenRegistered;
     private bool _started;
@@ -80,6 +82,7 @@ public sealed partial class LightingEngine : IDisposable
         Sources = new PriorityManager(clock);
         _output = new OutputStage(devices, LedColors, clock, loggerFactory.CreateLogger<OutputStage>());
         _output.Configure(smoothing);
+        SmoothingApplied = smoothing;
         _screen = new ScreenActivity(Sources, clock);
         _pipeline = new LightingPipeline(
             source, Components, () => Sources.Visible, _output, BuildConfig(settings.GetSection("color"), Layout), loggerFactory.CreateLogger<LightingPipeline>(), _screen, clock);
@@ -146,6 +149,15 @@ public sealed partial class LightingEngine : IDisposable
     public string? ProfileId => _setup.ProfileId;
 
     public LedMappingType MappingType => _pipeline.Config.Mapping.MappingType;
+
+    /// <summary>Whether Game mode's values apply (<see cref="ApplyGameMode"/>).</summary>
+    public bool GameMode => _game;
+
+    /// <summary>The color settings the screen and effects are processed with now.</summary>
+    internal ColorAdjustment Adjustment => _pipeline.Config.Processor.Adjustment;
+
+    /// <summary>The smoothing settings the output runs with now.</summary>
+    internal SmoothingSettings SmoothingApplied { get; private set; }
 
     /// <summary>Frames processed by the frame loop since start.</summary>
     public long FrameCount => _pipeline.FrameCount;
@@ -221,11 +233,34 @@ public sealed partial class LightingEngine : IDisposable
             _profileId = profileId;
             if (Recompile())
             {
-                _pipeline.Configure(BuildConfig(_settings.GetSection("color"), Layout));
+                _pipeline.Configure(BuildConfig(ColorSection(), Layout));
             }
         }
 
         LogProfile(profileId ?? "(none)");
+    }
+
+    /// <summary>
+    /// Turns Game mode on or off: while it is on, the <c>game</c> section (<see cref="GameTuning"/>) replaces the transition
+    /// time, the spring and the color gains of the saved settings, and only the screen is shown: colors, effects and music
+    /// wait (<see cref="PriorityManager.SetScreenOnly"/>) and show again when it is turned off. Nothing is saved.
+    /// </summary>
+    public void ApplyGameMode(bool on)
+    {
+        lock (_applyLock)
+        {
+            if (_disposed || on == _game)
+            {
+                return;
+            }
+
+            _game = on;
+            ApplyTuning();
+        }
+
+        Sources.SetScreenOnly(on);
+
+        LogGameMode(on);
     }
 
     /// <summary>Runs an effect (the <c>effect</c> command) for <paramref name="durationMs"/> ms (&lt;= 0: until cleared).</summary>
@@ -301,6 +336,23 @@ public sealed partial class LightingEngine : IDisposable
         _output.Dispose();
         Sources.Dispose();
         _devices.Dispose();
+    }
+
+    // The color and smoothing sections as they apply now: with Game mode's values while it is on.
+    private JsonNode? ColorSection() =>
+        _game ? GameTuning.FromJson(_settings.GetSection(GameTuning.SectionName)).ApplyToColor(_settings.GetSection("color")) : _settings.GetSection("color");
+
+    private JsonNode? SmoothingSection() =>
+        _game ? GameTuning.FromJson(_settings.GetSection(GameTuning.SectionName)).ApplyToSmoothing(_settings.GetSection("smoothing")) : _settings.GetSection("smoothing");
+
+    // After Game mode or its values changed. Runs under _applyLock; the smoothing switch keeps its state.
+    private void ApplyTuning()
+    {
+        _pipeline.Configure(BuildConfig(ColorSection(), Layout));
+        SmoothingApplied = SmoothingSettings.FromJson(SmoothingSection());
+        Components.Set(Component.Smoothing, SmoothingApplied.Enable);
+        _output.Configure(SmoothingApplied);
+        _pipeline.Refresh();
     }
 
     private static PipelineConfig BuildConfig(JsonNode? color, LedLayout layout)
@@ -530,16 +582,21 @@ public sealed partial class LightingEngine : IDisposable
 
             if (change.Contains("layout") || change.Contains("leds") || change.Contains("color"))
             {
-                _pipeline.Configure(BuildConfig(_settings.GetSection("color"), Layout));
+                _pipeline.Configure(BuildConfig(ColorSection(), Layout));
             }
 
-            if (change.Sections.TryGetValue("smoothing", out var smoothing))
+            if (change.Contains("smoothing"))
             {
-                var parsed = SmoothingSettings.FromJson(smoothing);
+                var parsed = SmoothingSettings.FromJson(SmoothingSection());
                 Components.Set(Component.Smoothing, parsed.Enable);
                 _output.Configure(parsed);
+                SmoothingApplied = parsed;
                 _pipeline.Refresh();
-                
+            }
+
+            if (change.Contains(GameTuning.SectionName) && _game)
+            {
+                ApplyTuning();
             }
 
             if (change.Sections.TryGetValue("blackborderdetector", out var border))
@@ -604,4 +661,7 @@ public sealed partial class LightingEngine : IDisposable
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Profile: {Profile}")]
     private partial void LogProfile(string profile);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Game mode: {On}")]
+    private partial void LogGameMode(bool on);
 }

@@ -43,7 +43,8 @@ public sealed record LayoutZone(ZoneRole Role, IReadOnlyList<int> Leds, JsonArra
 
 /// <summary>A profile of the layout: other roles for the strips' sections while one of <see cref="Apps"/> runs.</summary>
 /// <param name="Apps">Executable names such as "game.exe" (compared case-insensitively).</param>
-public sealed record LayoutProfile(string Id, string Name, IReadOnlyList<string> Apps);
+/// <param name="Game">The programs are games: Game mode is on while the profile runs (<c>game: true</c>).</param>
+public sealed record LayoutProfile(string Id, string Name, IReadOnlyList<string> Apps, bool Game = false);
 
 /// <summary>
 /// The controllers the one pipeline feeds, in order: each gets the slice of the pipeline's LEDs that follows the

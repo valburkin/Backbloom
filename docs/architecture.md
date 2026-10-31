@@ -20,7 +20,10 @@ frame source (DXGI screen capture | effect | static color | synthetic test patte
 HyperHDR ran one complete pipeline per "instance"; Backbloom runs one pipeline that fans out to several controllers.
 
 Zones step their effects on the frame loop without waiting for them; the layout's profiles switch the compiled
-rects and zones while a program runs (`ProfileMonitor`, polling `IProcessList`).
+rects and zones while a program runs (`ProfileMonitor`, polling `IProcessList`). Ambient and Game mode
+(`ModeMonitor`) follow it: Game mode, chosen in the app or on while a game's profile runs, shows only the screen
+(the muxer holds colors and effects) and puts its own transitions, color gains and capture rate (`GameTuning`, the
+`game` setting) on top of the saved settings without changing them.
 
 The `LightingGate` (Engine) can hold the output: the controllers stay closed while the first-run setup wasn't
 completed or HyperHDR runs (`OtherAppMonitor` behind the `IProcessList` platform interface). Network access is
