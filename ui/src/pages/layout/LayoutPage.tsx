@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Crosshair, Info, Loader2, MonitorPlay, RotateCcw, X } from 'lucide-react';
+import { Activity, Crosshair, Info, Loader2, MonitorPlay, RotateCcw, X } from 'lucide-react';
 import { applyProfile, withStripSections, type LayoutIssue, type PathPoint, type Room, type ShapeId } from '../../layout';
 import { Button, Card, IconButton, Segmented } from '../../components/ui';
 import { Expert } from '../../components/form';
@@ -12,6 +12,7 @@ import { useExpertTools } from '../../app/expert';
 import { lastStepAddedStrip, nextStripId, selectedStrip } from '../../editor/state';
 import { mappingJoints } from '../../editor/mapping';
 import { RoomCanvas, type FoundLed } from './RoomCanvas';
+import { useLedFrame } from '../../live/hooks';
 import { StripPanel } from './StripPanel';
 import { CustomizeEditor, PlaceEditor } from './StripEditor';
 import { MatchLights } from './MatchLights';
@@ -20,6 +21,9 @@ import { TestPattern } from './TestPattern';
 import { IssueSummary } from './IssueSummary';
 import { ProfileIntro, ProfileSettings, ProfileTabs } from './ProfileBar';
 import { PlaceGuide, type GuideState } from './PlaceGuide';
+
+/** Live colors before the first frame: every LED unlit. */
+const NO_COLORS: readonly number[] = [];
 
 /** Place: where strips really are. Customize: what each part shows. */
 export type LayoutMode = 'place' | 'customize';
@@ -79,6 +83,10 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
   const spec = useMemo(() => (profile ? applyProfile(layout, profile.id) : layout), [layout, profile]);
   const strip = selectedStrip(state) && spec.strips.find((s) => s.id === selection.stripId);
   const place = mode === 'place';
+  // Customize can show the LEDs' live colors instead of what each one follows (the rainbow).
+  const [liveOn, setLiveOn] = useState(false);
+  const showLive = liveOn && !place;
+  const liveFrame = useLedFrame(showLive);
 
   // No layout yet, or one made from LED positions alone: Place starts as a short guided sequence.
   const wantsGuide = load.status === 'ready' && layout.controllers.length > 0 && (load.source !== 'saved' || layout.strips.length === 0);
@@ -183,7 +191,11 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
 
   const hint = drawing
     ? HINTS.draw
-    : !strip
+    : showLive
+      ? dirty
+        ? 'Live colors follow the saved layout: save to see these changes lit.'
+        : 'Live colors: each LED as it lights your room right now. Turn them off to see and adjust what each LED follows.'
+      : !strip
       ? profile
         ? `Select a strip to choose what it shows in ${profile.name || 'this profile'}.`
         : HINTS.idle
@@ -288,6 +300,19 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
                         />
                       )}
                       <div className="ml-auto flex items-center gap-1">
+                        {!place && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            icon={<Activity size={15} />}
+                            aria-pressed={liveOn}
+                            className={liveOn ? 'text-ink' : undefined}
+                            title="Show the colors your LEDs have right now"
+                            onClick={() => setLiveOn((on) => !on)}
+                          >
+                            <span className="hidden @min-[42rem]:inline">Live colors</span>
+                          </Button>
+                        )}
                         {place && (
                           <Button
                             size="sm"
@@ -327,9 +352,11 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
                   matching={matching && matchPoint !== null ? { stripId: matching, pointIndex: matchPoint } : null}
                   effects={effects}
                   rolesOnly={!place}
-                  showMapping={!place}
+                  showMapping={!place && !showLive}
                   allowGaps={!profile}
                   onRoles={onRoles}
+                  // Until the first colors arrive, every LED is shown unlit (not the rainbow).
+                  liveColors={showLive ? (liveFrame ?? NO_COLORS) : null}
                 />
                 {load.status === 'loading' && (
                   <div className="absolute inset-0 flex items-center justify-center bg-bg/60 text-sm text-ink-muted">

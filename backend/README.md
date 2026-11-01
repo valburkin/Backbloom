@@ -52,7 +52,8 @@ values are errors (exit code 2, with the usage); `--name value` and `--name=valu
 | `--legacy-data-dir` | HyperHDR's data folder; none when run from the source tree | Where the first start looks for `db/hyperhdr.db` to import. `none` turns it off. |
 | `--ui-dir` | `ui/` next to the program, else `ui/dist` of the source tree | Built React UI to serve. |
 | `--capture` | `screen` | Frame source: `screen` (DXGI desktop duplication, configured by `systemGrabber`; falls back to the test pattern on other OSes) or `synthetic` (test pattern, used by the server tests). |
-| `--fps` | `60` | Rate of the synthetic test source. |
+| `--capture-image` | none | A still picture (binary PPM, P6) as the frame source instead (it overrides `--capture`); scaled down to at most 512 px wide. For screenshots and demos with known colors. |
+| `--fps` | `60` | Rate of the synthetic test source or the still picture. |
 | `--lut-dirs` | data dir, app dir | Directories searched for `lut_lin_tables.3d` (or `.3d.zst`), separated by `;`; the default table is written to the first. |
 | `--no-window` | | Start in the tray without opening the window (the autostart entry uses it). |
 | `--service` | | No tray icon, no window, console log: headless use (C++ `--service`). Power events are still handled. |

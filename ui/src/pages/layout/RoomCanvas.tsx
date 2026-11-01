@@ -29,6 +29,7 @@ import { RoleChooser } from './RoleChooser';
 import { insertPoint, removePoint as withoutPoint, setSection } from '../../editor/sections';
 import { unpinPoint } from '../../editor/strips';
 import { ledColor, mappingJoints, moveJoint, roleLabel, stationColor, type MappingEnd } from '../../editor/mapping';
+import { stripLedRanges } from '../../live/layoutView';
 import {
   appendPoint,
   fitView,
@@ -71,6 +72,8 @@ interface Props {
   allowGaps?: boolean;
   /** What a strip's sections do changed (`path` carries them); the page saves it to the layout or the profile. */
   onRoles(stripId: string, path: PathPoint[], coalesce?: string): void;
+  /** The LEDs' live colors (a flat [r, g, b, ...] list in the engine's order): every strip is drawn lit with them. */
+  liveColors?: ArrayLike<number> | null;
 }
 
 /** Pixels within which points snap. */
@@ -185,6 +188,7 @@ const StripLayer = memo(function StripLayer({
   onLedEnter,
   onLedLeave,
   onSelect,
+  live,
 }: {
   strip: Strip;
   index: number;
@@ -193,19 +197,22 @@ const StripLayer = memo(function StripLayer({
   selected: boolean;
   /** The selected section, drawn stronger. */
   selectedSection: number | null;
-  dimmed: boolean;
+  /** Opacity of a strip that isn't selected while another one is (1: not dimmed). */
+  dimmed: number;
   hoverLed: number | null;
   foundLed: number | null;
   onLedEnter(stripId: string, led: number): void;
   onLedLeave(): void;
   /** Select the strip, or a section of it once it is selected. */
   onSelect(stripId: string, section: number | null): void;
+  /** Live colors and where this strip's LEDs are in them; unlit while a color is missing. */
+  live?: { colors: ArrayLike<number>; first: number; length: number };
 }) {
   const color = stripColor(index);
   const r = Math.min(5 * u, Math.max(1.6 * u, geo.spacing * 0.36));
   const start = geo.points[0];
   return (
-    <g opacity={dimmed ? 0.4 : 1} style={{ transition: 'opacity 150ms' }} data-strip={strip.id}>
+    <g opacity={dimmed} style={{ transition: 'opacity 150ms' }} data-strip={strip.id}>
       {geo.pieces.map((p, i) => {
         const strong = selected && selectedSection === i;
         return (
@@ -249,7 +256,7 @@ const StripLayer = memo(function StripLayer({
           cx={led.x}
           cy={led.y}
           r={hoverLed === i ? r * 1.5 : r}
-          fill={led.dark ? '#0b0d12' : ledFill(geo.roles[led.piece], selected ? ledColor(i, geo.leds.length) : color)}
+          fill={led.dark ? '#0b0d12' : live ? liveColor(live, i) : ledFill(geo.roles[led.piece], selected ? ledColor(i, geo.leds.length) : color)}
           stroke={led.dark ? '#6a7285' : hoverLed === i ? '#fff' : 'none'}
           strokeWidth={1.2 * u}
           className="cursor-pointer"
@@ -307,6 +314,13 @@ const StripLayer = memo(function StripLayer({
   );
 });
 
+/** LED `i` of a strip in the live colors, or unlit when it isn't driven or no color arrived for it. */
+function liveColor(live: { colors: ArrayLike<number>; first: number; length: number }, i: number): string {
+  const o = (live.first + i) * 3;
+  if (i >= live.length || o + 2 >= live.colors.length) return '#1e222e';
+  return `rgb(${live.colors[o]},${live.colors[o + 1]},${live.colors[o + 2]})`;
+}
+
 /** An LED's look by what its part does: its own color, a pale dot for an effect, dim when off; `screen` otherwise. */
 function ledFill(role: Section | undefined, screen: string): string {
   switch (role?.kind) {
@@ -325,7 +339,8 @@ function ledFill(role: Section | undefined, screen: string): string {
 
 // ---- the canvas ----
 
-export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found, matching, effects, rolesOnly = false, showMapping = true, allowGaps, onRoles }: Props) {
+export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found, matching, effects, rolesOnly = false, showMapping = true, allowGaps, onRoles, liveColors }: Props) {
+  const ranges = useMemo(() => stripLedRanges(spec), [spec]);
   const gaps = allowGaps ?? !rolesOnly;
   const { room } = spec;
   const box = useRef<HTMLDivElement>(null);
@@ -630,7 +645,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
           >
             <title>Your screen. Drag to move it.</title>
           </rect>
-          {selGeo?.rects && !drawing && (
+          {selGeo?.rects && !drawing && !liveColors && (
             <g pointerEvents="none">
               {/* What each LED repeats, in the LED's own rainbow color. */}
               {selGeo.rects.map((r, i) =>
@@ -682,12 +697,14 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
               u={u}
               selected={s.id === selection.stripId}
               selectedSection={s.id === selection.stripId ? selection.sectionIndex : null}
-              dimmed={!!selection.stripId && s.id !== selection.stripId}
+              // With live colors the others are only slightly dimmed, so the room still reads as it is lit.
+              dimmed={selection.stripId && s.id !== selection.stripId ? (liveColors ? 0.75 : 0.4) : 1}
               hoverLed={hover && hover.stripId === s.id ? hover.led : null}
               foundLed={found && found.stripId === s.id ? found.local : null}
               onLedEnter={onLedEnter}
               onLedLeave={onLedLeave}
               onSelect={onSelectStrip}
+              live={liveColors && ranges.has(s.id) ? { colors: liveColors, ...ranges.get(s.id)! } : undefined}
             />
           ))}
 

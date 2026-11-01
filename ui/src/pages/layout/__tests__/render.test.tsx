@@ -13,6 +13,8 @@ import { ProfileSettings, ProfileTabs } from '../ProfileBar';
 // Smoke test: the editor's presentational pieces render the product owner's real layout without throwing.
 const spec = specFromLegacy(legacyLeds as LedRect[], controllerFromWledConfig('wled.local', wledCfg));
 const noop = () => {};
+/** The owner's two strips in the fixture: 91 + 77 LEDs. */
+const FIXTURE_LEDS = 168;
 
 describe('layout editor rendering', () => {
   it('renders the room with every LED, the handles of the selected strip and its sampling areas', () => {
@@ -42,6 +44,37 @@ describe('layout editor rendering', () => {
     const customize = canvas(true);
     expect(customize).not.toContain('Drag to add a bend here');
     expect(customize).toContain('Drag along the screen’s edge');
+  });
+
+  it('draws every strip lit with the live colors, without the rainbow sampling areas', () => {
+    const colors = new Array(400 * 3).fill(0).map((_, i) => (i % 3 === 0 ? 255 : i % 3 === 1 ? 120 : 10));
+    const html = renderToStaticMarkup(
+      <RoomCanvas
+        spec={spec}
+        selection={{ stripId: spec.strips[0].id, pointIndex: null, sectionIndex: null }}
+        dispatch={noop}
+        drawing={null}
+        onDrawn={noop}
+        found={null}
+        effects={[]}
+        rolesOnly
+        showMapping={false}
+        onRoles={noop}
+        liveColors={colors}
+      />,
+    );
+    expect((html.match(/fill="rgb\(255,120,10\)"/g) ?? []).length).toBe(FIXTURE_LEDS);
+    // No rainbow (the LEDs' and their sampling areas' hsl colors).
+    expect(html).not.toContain('hsl(');
+    expect(html).not.toContain('opacity="0.4"');
+    expect(html).toContain('opacity="0.75"');
+
+    // LEDs without a color yet are drawn unlit.
+    const empty = renderToStaticMarkup(
+      <RoomCanvas spec={spec} selection={{ stripId: null, pointIndex: null, sectionIndex: null }} dispatch={noop} drawing={null} onDrawn={noop} found={null} effects={[]} rolesOnly onRoles={noop} liveColors={[]} />,
+    );
+    expect((empty.match(/fill="#1e222e"/g) ?? []).length).toBe(FIXTURE_LEDS);
+    expect(empty).not.toContain('hsl(');
   });
 
   it('renders the strip list for both modes, with count badges only when they need attention', () => {

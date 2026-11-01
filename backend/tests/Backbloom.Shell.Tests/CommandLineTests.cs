@@ -29,6 +29,22 @@ public sealed class CommandLineTests
     }
 
     [Fact]
+    public void CaptureImage_NeedsAnExistingFile()
+    {
+        var file = Path.GetTempFileName();
+        try
+        {
+            Assert.Equal(["--capture-image", file], Parse("--capture-image", file).ConfigurationArgs);
+            Assert.Equal("--capture-image: there is no file 'missing.ppm'.", Error("--capture-image", "missing.ppm"));
+            Assert.Equal("--capture must be 'screen' or 'synthetic', not 'image'.", Error("--capture", "image"));
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
     public void Modes_AndFlags()
     {
         Assert.Equal(LaunchMode.Version, Parse("--version").Mode);

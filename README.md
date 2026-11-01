@@ -50,6 +50,7 @@ Discovery (mDNS, SSDP, UDP broadcast, serial and HID enumeration) finds most of 
 | [branding/](branding) | Logo, app icon and installer images (`generate_icons.py`). |
 | [packaging/](packaging) | Windows installer and update packaging (Velopack), third-party notice generator. |
 | [docs/](docs) | Architecture, protocol, settings, smoothing, development guide, product direction and roadmap. |
+| [site/](site) | Landing page (static, Vite), deployed with Netlify (`netlify.toml`). See [site/README.md](site/README.md). |
 
 ## Build, test, run, package
 

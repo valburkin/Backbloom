@@ -26,7 +26,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: ui/package-lock.json
+          cache-dependency-path: |
+            ui/package-lock.json
+            site/package-lock.json
 
       - name: UI - install
         working-directory: ui
@@ -42,6 +44,14 @@ jobs:
 
       - name: UI - build
         working-directory: ui
+        run: npm run build
+
+      - name: Site - install
+        working-directory: site
+        run: npm ci
+
+      - name: Site - build (type check + Vite)
+        working-directory: site
         run: npm run build
 
       - name: Backend - build

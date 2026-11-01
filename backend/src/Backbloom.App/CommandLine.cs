@@ -28,7 +28,7 @@ internal enum LaunchMode
 /// </summary>
 internal sealed record CommandLine(LaunchMode Mode, IReadOnlyList<string> ConfigurationArgs, string? ImportFile, bool NoWindow, bool Service)
 {
-    private static readonly string[] s_settings = ["data-dir", "legacy-data-dir", "port", "bind", "ui-dir", "capture", "fps", "lut-dirs", "update-url", "update-channel"];
+    private static readonly string[] s_settings = ["data-dir", "legacy-data-dir", "port", "bind", "ui-dir", "capture", "capture-image", "fps", "lut-dirs", "update-url", "update-channel"];
 
     public static string Usage => """
         Usage: backbloom [options]
@@ -40,7 +40,8 @@ internal sealed record CommandLine(LaunchMode Mode, IReadOnlyList<string> Config
                                     only while remote access is on in Settings)
           --ui-dir <dir>            Built web UI to serve (default: ui next to the program, or ui/dist)
           --capture screen|synthetic  Frame source (default screen)
-          --fps <n>                 Rate of the synthetic test pattern (default 60)
+          --capture-image <file>    Use a still picture (binary PPM) as the frame source instead (screenshots)
+          --fps <n>                 Rate of the synthetic test pattern or the picture (default 60)
           --lut-dirs <dirs>         Folders searched for the HDR tone mapping table, separated by ';'
           --update-url <url>        Release feed for automatic updates of an installed copy
           --update-channel <name>   Release channel to follow (default: the installed one, e.g. stable)
@@ -160,8 +161,9 @@ internal sealed record CommandLine(LaunchMode Mode, IReadOnlyList<string> Config
         "port" when !int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var port) || port > 65535 =>
             $"--port must be a number from 0 to 65535, not '{value}'.",
         "bind" when !IPAddress.TryParse(value, out _) => $"--bind must be an IP address, not '{value}'.",
-        "capture" when !Enum.TryParse<CaptureKind>(value, ignoreCase: true, out var kind) || !Enum.IsDefined(kind) || int.TryParse(value, out _) =>
+        "capture" when !Enum.TryParse<CaptureKind>(value, ignoreCase: true, out var kind) || kind is not (CaptureKind.Screen or CaptureKind.Synthetic) || int.TryParse(value, out _) =>
             $"--capture must be 'screen' or 'synthetic', not '{value}'.",
+        "capture-image" when !File.Exists(value) => $"--capture-image: there is no file '{value}'.",
         "update-url" when !Uri.TryCreate(value, UriKind.Absolute, out var feed) || feed.Scheme is not ("https" or "http" or "file") =>
             $"--update-url must be an absolute http(s) or file URL, not '{value}'.",
         "fps" when !double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var fps) || fps is <= 0 or > 1000 =>

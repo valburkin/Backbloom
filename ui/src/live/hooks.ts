@@ -15,7 +15,10 @@ export function useLedFrame(enabled = true): number[] | null {
   const live = enabled && status === 'open' && session > 0;
 
   useEffect(() => {
-    if (!live) return;
+    if (!live) {
+      setFrame(null);
+      return;
+    }
     const users = (ledStreamUsers.get(api) ?? 0) + 1;
     ledStreamUsers.set(api, users);
     if (users === 1) api.ledStream(true).catch(() => undefined);

@@ -36,6 +36,33 @@ export interface LayoutView {
   spacing: number;
 }
 
+/** Where a strip's LEDs are in the engine's LED list (and the preview frames): from `first`, at most `length` of them. */
+export interface StripLeds {
+  first: number;
+  length: number;
+}
+
+/**
+ * Each strip's place in the engine's LED list: the controllers one after the other (each as long as its outputs
+ * reach), a strip at its output's start, cut to the output's length. Strips without a controller or output are left out.
+ */
+export function stripLedRanges(spec: LayoutSpec): Map<string, StripLeds> {
+  const offsets = new Map<string, number>();
+  let next = 0;
+  for (const c of spec.controllers) {
+    offsets.set(c.id, next);
+    next += c.outputs.reduce((m, o) => Math.max(m, Math.max(0, Math.floor(o.start)) + Math.max(0, Math.floor(o.length))), 0);
+  }
+  const ranges = new Map<string, StripLeds>();
+  for (const strip of spec.strips) {
+    const controller = spec.controllers.find((c) => c.id === strip.controllerId);
+    const output = controller?.outputs.find((o) => o.index === strip.output);
+    if (!controller || !output) continue;
+    ranges.set(strip.id, { first: offsets.get(controller.id)! + Math.max(0, Math.floor(output.start)), length: Math.max(0, Math.floor(output.length)) });
+  }
+  return ranges;
+}
+
 /** Width of the view in its units; the height follows the part of the room shown. */
 const VIEW_W = 480;
 
@@ -46,12 +73,7 @@ const VIEW_W = 480;
  */
 export function buildLayoutView(spec: LayoutSpec): LayoutView {
   const { room } = spec;
-  const offsets = new Map<string, number>();
-  let next = 0;
-  for (const c of spec.controllers) {
-    offsets.set(c.id, next);
-    next += c.outputs.reduce((m, o) => Math.max(m, Math.max(0, Math.floor(o.start)) + Math.max(0, Math.floor(o.length))), 0);
-  }
+  const ranges = stripLedRanges(spec);
 
   const scr = toUnfolded(room, { surface: 'front', x: room.screen.x, y: room.screen.y });
   let x0 = scr.x;
@@ -61,17 +83,16 @@ export function buildLayoutView(spec: LayoutSpec): LayoutView {
   const placed: Array<{ x: number; y: number; led: number }> = [];
   const gaps: number[] = [];
   for (const strip of spec.strips) {
-    const controller = spec.controllers.find((c) => c.id === strip.controllerId);
-    const output = controller?.outputs.find((o) => o.index === strip.output);
-    if (!controller || !output || strip.path.length < 2) continue;
+    const range = ranges.get(strip.id);
+    if (!range || strip.path.length < 2) continue;
     const dark = darkMask(strip);
-    const first = offsets.get(controller.id)! + Math.max(0, Math.floor(output.start));
+    const { first } = range;
     let prev: { x: number; y: number } | null = null;
     for (const led of placeLeds(room, strip)) {
       const p = ledInUnfolded(room, strip.path, led);
       if (prev) gaps.push(Math.hypot(p.x - prev.x, p.y - prev.y));
       prev = p;
-      if (dark[led.index] || led.index >= output.length) continue;
+      if (dark[led.index] || led.index >= range.length) continue;
       placed.push({ ...p, led: first + led.index });
       x0 = Math.min(x0, p.x);
       y0 = Math.min(y0, p.y);

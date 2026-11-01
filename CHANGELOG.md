@@ -3,14 +3,19 @@
 What changed in each Backbloom release, written for the people who use it. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
-Every change merged into `main` adds its entry under **Unreleased** (in the same commit), in one of the groups
+Every change to the app merged into `main` adds its entry under **Unreleased** (in the same commit), in one of the groups
 **Added**, **Changed**, **Fixed**, **Removed**. A release turns Unreleased into its version section; that section is the
-release note. See [docs/development.md](docs/development.md#branches-and-releases).
+release note (the landing page in `site/` isn't part of a release and has no entries). See
+[docs/development.md](docs/development.md#branches-and-releases).
 
 ## Unreleased
 
 ### Added
 
+- **Live colors on the Layout page**: in Customize, show every LED in the color it lights your room right now,
+  instead of the rainbow that marks what each LED follows.
+- **`--capture-image <file>`** (for developers): a still picture as the frame source instead of the screen, so
+  screenshots and demos show known colors.
 - **Ambient and Game mode**: two apps in one, switched at the top of the sidebar. Ambient is for movies, music and
   everyday use, with screen sync, music, effects and colors. Game is made for playing: the lights follow the game on
   your screen, react faster with richer colors, dark scenes stay dark, and the screen is read more often. Its

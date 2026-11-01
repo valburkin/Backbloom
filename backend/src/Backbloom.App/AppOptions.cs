@@ -13,11 +13,14 @@ public enum CaptureKind
 
     /// <summary>The synthetic test pattern (development, tests, platforms without capture).</summary>
     Synthetic,
+
+    /// <summary>A still picture given with <c>--capture-image</c> (screenshots and demos with known colors).</summary>
+    Image,
 }
 
 /// <summary>
 /// Process options from the command line (<c>--data-dir</c>, <c>--legacy-data-dir</c>, <c>--port</c>, <c>--bind</c>,
-/// <c>--ui-dir</c>, <c>--capture</c>, <c>--fps</c>, <c>--lut-dirs</c>) or <c>BACKBLOOM_</c>-prefixed environment variables
+/// <c>--ui-dir</c>, <c>--capture</c>, <c>--capture-image</c>, <c>--fps</c>, <c>--lut-dirs</c>) or <c>BACKBLOOM_</c>-prefixed environment variables
 /// (<c>BACKBLOOM_DATA_DIR</c> and <c>BACKBLOOM_LEGACY_DATA_DIR</c>).
 /// </summary>
 /// <param name="LegacyDataDirectory">HyperHDR's data directory to import on the first start; null: none.</param>
@@ -25,8 +28,9 @@ public enum CaptureKind
 /// <c>--bind</c>: the one address to listen on, which overrides the <c>network.remoteAccess</c> setting; null (the
 /// default): loopback, plus every interface while remote access is on (see <see cref="RemoteAccess"/>).
 /// </param>
-/// <param name="Capture">Frame source: screen capture (default) or the synthetic test pattern.</param>
-/// <param name="SyntheticFps">Rate of the synthetic test pattern.</param>
+/// <param name="Capture">Frame source: screen capture (default), the synthetic test pattern or a still picture.</param>
+/// <param name="SyntheticFps">Rate of the synthetic test pattern or the still picture.</param>
+/// <param name="CaptureImage">The still picture (binary PPM) when <paramref name="Capture"/> is <see cref="CaptureKind.Image"/>.</param>
 /// <param name="LutDirectories">Directories searched for <c>lut_lin_tables.3d</c>, in order; the default table is created in the first.</param>
 public sealed record AppOptions(
     string DataDirectory,
@@ -36,6 +40,7 @@ public sealed record AppOptions(
     string? UiDirectory,
     CaptureKind Capture,
     double SyntheticFps,
+    string? CaptureImage,
     IReadOnlyList<string> LutDirectories)
 {
     /// <summary>Default web port of the .NET backend while it runs next to HyperHDR (which owns 8090/8092).</summary>
@@ -49,7 +54,11 @@ public sealed record AppOptions(
         ArgumentNullException.ThrowIfNull(configuration);
         var port = int.TryParse(configuration["port"], NumberStyles.None, CultureInfo.InvariantCulture, out var p) ? p : DefaultPort;
         var bind = IPAddress.TryParse(Read(configuration, "bind", "BIND"), out var b) ? b : null;
-        var capture = Enum.TryParse<CaptureKind>(configuration["capture"], ignoreCase: true, out var c) ? c : CaptureKind.Screen;
+        var image = configuration["capture-image"] is { Length: > 0 } picture ? Path.GetFullPath(picture) : null;
+
+        // A picture makes it the frame source; --capture alone chooses between the screen and the test pattern.
+        var capture = image is not null ? CaptureKind.Image
+            : Enum.TryParse<CaptureKind>(configuration["capture"], ignoreCase: true, out var c) && c != CaptureKind.Image ? c : CaptureKind.Screen;
         var fps = double.TryParse(configuration["fps"], NumberStyles.Float, CultureInfo.InvariantCulture, out var f) && f > 0 ? f : 60;
         var backend = FindBackendDirectory();
         var data = ResolveDataDirectory(Read(configuration, "data-dir", "DATA_DIR"), backend);
@@ -66,6 +75,7 @@ public sealed record AppOptions(
             configuration["ui-dir"] is { Length: > 0 } ui ? Path.GetFullPath(ui) : FindUiDirectory(backend),
             capture,
             fps,
+            image,
             lutDirs);
     }
 

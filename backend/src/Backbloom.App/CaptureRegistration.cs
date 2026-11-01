@@ -11,7 +11,7 @@ namespace Backbloom.App;
 /// <summary>
 /// Registers the frame source chosen by <c>--capture</c>: screen capture configured by the <c>systemGrabber</c>
 /// settings (reconfigured on every change of that section, and with Game mode's rate while it is on, see
-/// <see cref="CaptureModeFollower"/>), or the synthetic test pattern.
+/// <see cref="CaptureModeFollower"/>), the synthetic test pattern, or a still picture (<c>--capture-image</c>).
 /// </summary>
 internal static partial class CaptureRegistration
 {
@@ -28,6 +28,11 @@ internal static partial class CaptureRegistration
     private static IFrameSource CreateSource(AppOptions options, IServiceProvider services)
     {
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(CaptureRegistration));
+        if (options is { Capture: CaptureKind.Image, CaptureImage: { } image })
+        {
+            return new ImageFrameSource(image, options.SyntheticFps);
+        }
+
         if (options.Capture == CaptureKind.Screen)
         {
             if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763))

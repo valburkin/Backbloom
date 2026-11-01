@@ -32,6 +32,11 @@ npm run dev                        # Vite dev server; open http://localhost:5173
                                    # ?mock=imported (no layout saved yet), ?mock=offline (a device can't be reached),
                                    # ?mock=auth (another device, signs in)
 npm run build                      # ui/dist, copied next to the app by the backend build
+
+cd ../site                         # the landing page (Netlify), see site/README.md
+npm ci
+npm run dev                        # http://127.0.0.1:5190
+npm run build                      # type check + site/dist
 ```
 
 ## Running a development instance
@@ -45,6 +50,8 @@ dotnet run --project src/Backbloom.App -c Release -- --capture synthetic --port 
   only, and doesn't import HyperHDR settings unless `--legacy-data-dir` points somewhere.
 - `--capture synthetic` drives the LEDs with a test pattern instead of the screen; a fresh data directory uses the
   `file` driver writing to the null device, so no real lights are touched.
+- `--capture-image <file>` drives them with a still picture instead (binary PPM, e.g. `magick in.png out.ppm`), so
+  screenshots and demos show known colors, like the landing page's matching its photos.
 - `--service` runs without tray and window (logs in the console); `--quit --data-dir <dir>` stops an instance.
 - Several instances run side by side with different data directories and ports.
 
@@ -102,7 +109,9 @@ at a real LED controller.
 
 After adding or updating a NuGet package used by the app or an npm production dependency, run
 `packaging/Update-ThirdPartyNotices.ps1` (it fails on non-permissive licenses) and commit `THIRD-PARTY-NOTICES.md` and
-`3RD_PARTY_LICENSES`. CI checks that they are up to date.
+`3RD_PARTY_LICENSES`. CI checks that they are up to date. The landing page in `site/` isn't shipped with the app, so
+its dependencies don't go into these files (they must still be permissively licensed); it lists them in
+`site/public/licenses.txt`.
 
 ## Packaging
 
