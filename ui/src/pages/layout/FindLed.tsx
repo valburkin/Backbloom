@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Crosshair, X } from 'lucide-react';
 import type { LayoutSpec } from '../../layout';
-import { IconButton, Stepper } from '../../components/ui';
+import { IconButton, rangeFill, Stepper } from '../../components/ui';
 import { Select } from '../../components/form';
 import { useConnection } from '../../app/connection';
 import { locateLed } from './model';
@@ -112,6 +112,7 @@ export function FindLed({
             min={1}
             max={total}
             value={shown + 1}
+            style={rangeFill(shown + 1, 1, total)}
             onChange={(e) => change(Number(e.target.value) - 1)}
           />
           <p className="text-xs text-ink-faint" aria-live="polite">

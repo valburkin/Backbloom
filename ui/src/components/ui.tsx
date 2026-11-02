@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import { X } from 'lucide-react';
@@ -15,34 +16,36 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
 // ---- Buttons ----
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+/** xs only inside compact toolbars (the drawing bar on the Layout canvas). */
+type ButtonSize = 'xs' | 'sm' | 'md';
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    'bg-accent text-accent-ink hover:bg-accent-strong shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset,0_6px_20px_-8px_rgba(139,124,246,0.7)] disabled:bg-surface-3 disabled:text-ink-muted disabled:hover:bg-surface-3',
-  secondary: 'bg-surface-3 text-ink hover:bg-line-strong border border-line-strong',
+    'bg-brand text-accent-ink font-semibold hover:brightness-110 shadow-[0_0_0_1px_rgba(255,255,255,0.12)_inset,0_8px_24px_-10px_rgba(255,60,172,0.6),0_8px_28px_-12px_rgba(34,211,238,0.55)] disabled:bg-none disabled:bg-surface-3 disabled:text-ink-muted disabled:hover:brightness-100',
+  secondary: 'bg-white/[0.05] text-ink hover:bg-white/[0.09] border border-white/[0.12]',
   ghost: 'text-ink-muted hover:text-ink hover:bg-surface-3',
   danger: 'text-bad hover:bg-bad/10 border border-bad/30',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
-  size?: 'sm' | 'md';
+  size?: ButtonSize;
   icon?: ReactNode;
+}
+
+/** A button's classes, for elements that must look like one without being a Button (a link, a menu trigger). */
+export function buttonClass(variant: Variant = 'secondary', size: ButtonSize = 'md'): string {
+  return cx(
+    'inline-flex items-center justify-center gap-2 rounded-full font-medium transition-[background-color,filter,box-shadow,color] select-none',
+    'disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none',
+    { xs: 'h-7 px-3 text-[13px]', sm: 'h-8 px-3.5 text-[13px]', md: 'h-10 px-5 text-sm' }[size],
+    VARIANTS[variant],
+  );
 }
 
 export function Button({ variant = 'secondary', size = 'md', icon, className, children, type = 'button', ...rest }: ButtonProps) {
   return (
-    <button
-      type={type}
-      className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors select-none',
-        'disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none',
-        size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-10 px-4 text-sm',
-        VARIANTS[variant],
-        className,
-      )}
-      {...rest}
-    >
+    <button type={type} className={cx(buttonClass(variant, size), className)} {...rest}>
       {icon}
       {children}
     </button>
@@ -75,8 +78,11 @@ export function IconButton({
 
 // ---- Surfaces ----
 
+/** The one card look: a slightly translucent surface with a light top edge, so the page glow shows through a little. */
+export const CARD = 'rounded-2xl border border-line bg-surface/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_10px_30px_-18px_rgba(0,0,0,0.8)]';
+
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cx('rounded-2xl border border-line bg-surface', className)}>{children}</div>;
+  return <div className={cx(CARD, className)}>{children}</div>;
 }
 
 export function Badge({ tone = 'neutral', children, className }: { tone?: 'neutral' | 'ok' | 'warn' | 'bad' | 'accent'; children: ReactNode; className?: string }) {
@@ -108,7 +114,13 @@ export function StatusDot({ tone, live }: { tone: 'ok' | 'warn' | 'bad' | 'neutr
 // ---- Form controls ----
 
 /** The one look of a chosen option, shared by Segmented and ChoiceCard. */
-export const CHOICE_ACTIVE = 'bg-accent/15 text-ink ring-1 ring-inset ring-accent/60';
+export const CHOICE_ACTIVE = 'bg-accent/15 text-ink ring-1 ring-inset ring-accent/70 shadow-[0_0_24px_-10px_rgba(139,92,246,0.9)]';
+
+/** Style for a range input: how far its track is filled (see the slider rules in index.css). */
+export function rangeFill(value: number, min: number, max: number): CSSProperties {
+  const f = max > min ? ((Math.min(max, Math.max(min, value)) - min) / (max - min)) * 100 : 0;
+  return { '--fill': `${f}%` } as CSSProperties;
+}
 
 /**
  * Larger "pick one" option with a title and an optional line of explanation (modes, presets). Use inside an element
@@ -281,6 +293,7 @@ export function SliderField({
         max={max}
         step={step}
         value={value}
+        style={rangeFill(value, min, max)}
         disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
       />

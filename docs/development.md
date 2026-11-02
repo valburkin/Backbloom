@@ -108,7 +108,7 @@ at a real LED controller.
 ## Third-party notices
 
 After adding or updating a NuGet package used by the app or an npm production dependency, run
-`packaging/Update-ThirdPartyNotices.ps1` (it fails on non-permissive licenses) and commit `THIRD-PARTY-NOTICES.md` and
+`packaging/Update-ThirdPartyNotices.ps1` (it fails on non-permissive licenses; fonts may also be OFL-1.1) and commit `THIRD-PARTY-NOTICES.md` and
 `3RD_PARTY_LICENSES`. CI checks that they are up to date. The landing page in `site/` isn't shipped with the app, so
 its dependencies don't go into these files (they must still be permissively licensed); it lists them in
 `site/public/licenses.txt`.

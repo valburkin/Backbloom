@@ -21,7 +21,7 @@ release note (the landing page in `site/` isn't part of a release and has no ent
   your screen, react faster with richer colors, dark scenes stay dark, and the screen is read more often. Its
   Intensity (Subtle, Vivid or Intense) is its own, so your everyday settings stay as they are, and an effect, music or
   color you had on comes back when you switch to Ambient.
-  Add your games on the new Games page and Game mode turns on by itself while one runs, and off when it quits.
+  Add your games on Game mode's Games page and Game mode turns on by itself while one runs, and off when it quits.
 - **Room layout**: place your LED strips where they really are, on a drawing of your room unfolded around the screen
   (walls, ceiling and floor, with your desk and monitor or TV). Pick a ready-made shape or draw a strip yourself, drag
   its bends, and mark gaps where a strip is cut or runs around something. Bends snap to the screen and the furniture.
@@ -47,6 +47,9 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ### Changed
 
+- **A fresh look**: the app now matches the Backbloom website, with new fonts, the pink-to-cyan Backbloom colors on
+  the main buttons, switches and the brightness slider, sliders that fill up to their handle, and a soft glow at the
+  top of every page. On Home the glow takes the colors your lights show right now.
 - **Find an LED** keeps the LED lit (cycling red, green and blue) until you pick another one or turn it off, and works
   while the lights are off.
 - Effect previews and the live preview show your LEDs where they are in the room.

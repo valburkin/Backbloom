@@ -8,7 +8,7 @@ features are added.
 
 The app is two apps in one: the Mode switch at the top of the sidebar (under the logo; in Home's header on a phone,
 `ui/src/control/ModeSwitch.tsx`) chooses Ambient or Game. The sidebar has two groups (`MODE_NAV` and `SHARED_NAV` in
-`ui/src/app/App.tsx`), three sections for the mode and two shared ones at the bottom, no more:
+`ui/src/app/nav.tsx`), three sections for the mode and two shared ones at the bottom, no more:
 
 | Section | Ambient | Game | What it's for |
 |---|---|---|---|
@@ -18,9 +18,10 @@ The app is two apps in one: the Mode switch at the top of the sidebar (under the
 | Setup (shared) | Layout, Devices, Screen, Calibration | the same | The hardware: where the strips are, what they're plugged into, how the screen is read, and what makes the LEDs match the screen and the power supply (white balance, contrast, per-color calibration, power limit) |
 | Settings (shared) | General, Remote access, Integrations, About (Support with expert tools) | the same | Everything about the app itself |
 
-Pages that differ between the modes show the mode next to their title (`ModeBadge`). Effects & Music leads Home in
-Game mode (it shows only the screen, so it offers nothing that starts a color, effect or music). Games stays reachable
-in Ambient, from Ambient's Home, so games can be added without switching the lights to Game mode. A new feature goes into one of these sections: the mode it serves (game events and room
+Pages that differ between the modes show the mode next to their title (`ModeBadge`). A page the mode doesn't offer
+leads Home: Effects & Music in Game mode (it shows only the screen, so it offers nothing that starts a color, effect or
+music), Games in Ambient. Games stays open when the mode changes while it is open (a game quits or is removed, or
+Ambient is chosen there). A new feature goes into one of these sections: the mode it serves (game events and room
 reactions go to Game), or Setup when it is about the hardware and the same in both modes. Each setting lives in exactly
 one place; Home may offer a shortcut to a setting, but it is the same control and the same value.
 
@@ -89,7 +90,14 @@ One term per concept, in the UI, docs, toasts and backend messages that reach th
 ## Visual rules
 
 - Type scale: page title 24 px (`text-2xl`), section title 16 px (`text-base`), labels and body 14 px (`text-sm`),
-  hints 12 px (`text-xs`, `text-ink-faint`). Nothing smaller than 11 px.
+  hints 12 px (`text-xs`, `text-ink-faint`). Nothing smaller than 11 px. Like the landing page, titles (`h1`, `h2`) are
+  Space Grotesk and everything else is Inter, both bundled (`@fontsource-variable`).
+- The brand gradient (`bg-brand`: pink, violet, cyan, the logo's) is decoration and the one primary action: the primary
+  button, a switch that is on, Home's brightness slider, the active section's marker. Never for status, never for
+  text. Other sliders fill in violet (pass `rangeFill(value, min, max)` as their style).
+- The page glow behind the top of every page (`.app-glow` on the main area) shows the brand colors; on Home it takes
+  the colors the lights show right now (`useAppGlow`, once a second, not with reduced motion). Cards are `CARD` (`Card`, `Section`), slightly translucent so the glow shows
+  through; a hand-made element that must look like a button uses `buttonClass`, not its own colors.
 - One container level: a section is a card; inside it, separate groups with spacing or `divide-y divide-line`, not
   nested bordered boxes. More options is a divider and a disclosure, not a box.
 - One primary button per view, and only when it does something now (Save is primary only with unsaved changes).

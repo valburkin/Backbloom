@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Gamepad2, House, Loader2, MonitorSmartphone, Palette, Power, Settings as SettingsIcon, Sparkles, WifiOff } from 'lucide-react';
+import { Loader2, Power, WifiOff } from 'lucide-react';
 import { Button, cx, StatusDot } from '../components/ui';
 import { Logo } from '../components/Logo';
 import { isPageDirty } from '../settings/drafts';
@@ -20,52 +20,10 @@ import { WelcomeScreen } from '../pages/welcome/WelcomeScreen';
 import { OtherAppNotice } from '../pages/welcome/OtherAppNotice';
 import { useAction } from './useAction';
 import { ModeSwitch } from '../control/ModeSwitch';
-import type { LightMode } from '../api/types';
+import { gamesStayOpen, NAV, pageShown, sectionOf, SHARED_NAV, type NavItem } from './nav';
 
 // The layout editor is the biggest page; it loads when first opened.
 const LayoutPage = lazy(() => import('../pages/layout/LayoutPage').then((m) => ({ default: m.LayoutPage })));
-
-interface NavItem {
-  label: string;
-  /** Label in the phone's bottom bar, when `label` is too long for it. */
-  short?: string;
-  icon: ReactNode;
-  /** Pages of the section; more than one shows tabs above them. */
-  pages: ReadonlyArray<{ route: Route; label: string }>;
-}
-
-const HOME: NavItem = { label: 'Home', icon: <House size={20} />, pages: [{ route: 'home', label: 'Home' }] };
-const COLORS: NavItem = { label: 'Colors', icon: <Palette size={20} />, pages: [{ route: 'colors', label: 'Colors' }] };
-
-// Each mode is its own app (docs/ui-guidelines.md): its pages come first in the sidebar, under the Mode switch.
-const MODE_NAV: Record<LightMode, readonly NavItem[]> = {
-  ambient: [
-    HOME,
-    COLORS,
-    { label: 'Effects & Music', short: 'Effects', icon: <Sparkles size={20} />, pages: [{ route: 'effects', label: 'Effects & Music' }] },
-  ],
-  game: [HOME, COLORS, { label: 'Games', icon: <Gamepad2 size={20} />, pages: [{ route: 'games', label: 'Games' }] }],
-};
-
-// What both modes share, at the bottom of the sidebar: the hardware and the app itself.
-const SHARED_NAV: readonly NavItem[] = [
-  {
-    label: 'Setup',
-    icon: <MonitorSmartphone size={20} />,
-    pages: [
-      { route: 'layout', label: 'Layout' },
-      { route: 'devices', label: 'Devices' },
-      { route: 'capture', label: 'Screen' },
-      { route: 'calibration', label: 'Calibration' },
-    ],
-  },
-  { label: 'Settings', icon: <SettingsIcon size={20} />, pages: [{ route: 'settings', label: 'Settings' }] },
-];
-
-const NAV: Record<LightMode, readonly NavItem[]> = {
-  ambient: [...MODE_NAV.ambient, ...SHARED_NAV],
-  game: [...MODE_NAV.game, ...SHARED_NAV],
-};
 
 /** The profile a `#/layout/profile:<id>` link opens (the id URL-encoded, see hrefForProfile), or null. */
 function profileLink(sub: string | null): string | null {
@@ -77,12 +35,11 @@ function profileLink(sub: string | null): string | null {
   }
 }
 
-const sectionOf = (nav: readonly NavItem[], route: Route) => nav.find((n) => n.pages.some((p) => p.route === route)) ?? nav[0];
 
 /** Tabs between the pages of a section (Setup: Layout / Devices / Screen / Calibration). */
 function SectionTabs({ nav, route, go, unsaved }: { nav: readonly NavItem[]; route: Route; go: (r: Route) => void; unsaved: (r: Route) => boolean }) {
   const section = sectionOf(nav, route);
-  if (section.pages.length < 2) return null;
+  if (!section || section.pages.length < 2) return null;
   return (
     <nav aria-label={section.label} className="flex gap-1 border-b border-line px-4 pt-2 sm:px-6">
       {section.pages.map((p) => {
@@ -144,13 +101,14 @@ function Shell() {
   const unsaved = (r: Route) => isPageDirty(drafts[r]) || (layoutDirty && (r === 'layout' || r === 'devices'));
   const mode = useConnection().serverInfo?.mode?.mode;
   const nav = NAV[mode ?? 'ambient'];
-  // Effects & Music leads Home once Game mode is known (it shows only the screen). Games stays reachable in Ambient:
-  // Ambient's Home links to it, so games can be added without switching the lights to Game mode.
-  const offered = loc.route === 'games' || nav.some((n) => n.pages.some((p) => p.route === loc.route));
+  const [gamesOpen, setGamesOpen] = useState(false);
+  const stayOpen = gamesStayOpen(loc.route, mode, gamesOpen);
+  if (stayOpen !== gamesOpen) setGamesOpen(stayOpen);
+  const shown = pageShown(loc.route, mode, stayOpen);
   useEffect(() => {
     // replace, so that Back doesn't return to the page that isn't there
-    if (mode && !offered) window.location.replace(hrefFor('home'));
-  }, [mode, offered]);
+    if (!shown) window.location.replace(hrefFor('home'));
+  }, [shown]);
 
   return (
     <div className="flex h-full min-h-0 flex-col sm:flex-row">
@@ -160,13 +118,13 @@ function Shell() {
       <nav
         aria-label="Main"
         className={cx(
-          'order-last flex shrink-0 border-line bg-surface/95 backdrop-blur',
-          'border-t px-1 pb-[env(safe-area-inset-bottom)] sm:order-first sm:w-[72px] sm:flex-col sm:border-r sm:border-t-0 sm:bg-surface/60 sm:px-3 sm:py-4 lg:w-56',
+          'order-last flex shrink-0 border-line/70 bg-surface/95 backdrop-blur',
+          'border-t px-1 pb-[env(safe-area-inset-bottom)] sm:order-first sm:w-[72px] sm:flex-col sm:border-r sm:border-t-0 sm:bg-surface/50 sm:px-3 sm:py-4 lg:w-56',
         )}
       >
         <div className="mb-6 hidden items-center gap-2.5 px-1.5 sm:flex">
           <Logo />
-          <span className="hidden text-[15px] font-semibold tracking-tight lg:inline">Backbloom</span>
+          <span className="hidden font-display text-[17px] font-semibold tracking-tight lg:inline">Backbloom</span>
         </div>
         <ModeSwitch className="mb-5 hidden sm:block" />
         <ul className="flex w-full justify-around gap-1 sm:flex-1 sm:flex-col sm:justify-start">
@@ -187,11 +145,11 @@ function Shell() {
                   className={cx(
                     'relative flex h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[11px] font-medium transition-colors',
                     'sm:h-11 sm:flex-row sm:justify-start sm:gap-3 sm:px-3 sm:text-sm',
-                    active ? 'bg-surface-3 text-ink' : 'text-ink-muted hover:bg-surface-2 hover:text-ink',
+                    active ? 'bg-gradient-to-r from-accent/15 to-white/[0.03] text-ink' : 'text-ink-muted hover:bg-white/[0.04] hover:text-ink',
                   )}
                   title={n.label}
                 >
-                  {active && <span className="absolute left-0 top-2.5 hidden h-6 w-[3px] rounded-r bg-accent sm:block" aria-hidden />}
+                  {active && <span className="bg-brand absolute left-0 top-2.5 hidden h-6 w-[3px] rounded-r shadow-[0_0_10px_rgba(139,92,246,0.9)] sm:block" aria-hidden />}
                   <span className={active ? 'text-accent-strong' : ''}>{n.icon}</span>
                   <span className="max-w-full truncate sm:sr-only lg:not-sr-only lg:whitespace-nowrap">
                     <span className="sm:hidden">{n.short ?? n.label}</span>
@@ -209,13 +167,13 @@ function Shell() {
           <ConnectionPill />
         </div>
       </nav>
-      <main id="main" ref={main} tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none">
+      <main id="main" ref={main} tabIndex={-1} className="app-glow flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none">
         <ReconnectBanner />
         <SetupBanner />
         <SectionTabs nav={nav} route={loc.route} go={go} unsaved={unsaved} />
         <div className="min-h-0 flex-1">
           {loc.route === 'home' && <HomePage />}
-          {loc.route === 'games' && offered && <GamesPage />}
+          {loc.route === 'games' && shown && <GamesPage />}
           {loc.route === 'layout' && (
             <Suspense fallback={null}>
               <LayoutPage openProfile={profileLink(loc.sub)} />
@@ -225,7 +183,7 @@ function Shell() {
           {loc.route === 'capture' && <CapturePage />}
           {loc.route === 'colors' && <ColorsPage />}
           {loc.route === 'calibration' && <CalibrationPage />}
-          {loc.route === 'effects' && offered && <EffectsPage />}
+          {loc.route === 'effects' && shown && <EffectsPage />}
           {loc.route === 'settings' && <SettingsPage tab={loc.sub} onTab={(t) => go('settings', t)} />}
         </div>
       </main>

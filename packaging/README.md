@@ -119,5 +119,6 @@ without installing it:
 
 `Update-ThirdPartyNotices.ps1` regenerates `THIRD-PARTY-NOTICES.md` (summary and license texts) and
 `3RD_PARTY_LICENSES` (shown on the UI's About page) from the app's NuGet packages and the UI's npm production
-dependencies, and fails on a license outside the permissive allow list. `-Check` only verifies (CI).
+dependencies, and fails on a license outside the permissive allow list (fonts, `@fontsource` packages, may also be
+OFL-1.1, which allows bundling them with any software). `-Check` only verifies (CI).
 `licenses/` holds the MIT template and the Apache 2.0 text used for packages that don't ship their license file.

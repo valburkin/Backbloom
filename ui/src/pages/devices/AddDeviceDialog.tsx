@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowRight, CheckCircle2, Loader2, ScanSearch } from 'lucide-react';
 import { controllerFromWledConfig, type Controller, type LayoutSpec } from '../../layout';
-import { Button, Dialog, Segmented, Stepper } from '../../components/ui';
+import { Button, buttonClass, Dialog, Segmented, Stepper } from '../../components/ui';
 import { Input, Select } from '../../components/form';
 import { useConnection } from '../../app/connection';
 import { useEditor } from '../../app/editor';
@@ -177,7 +177,7 @@ export function AddDeviceDialog({ open, onClose, onAdded }: { open: boolean; onC
             <a
               href={hrefFor('layout')}
               onClick={close}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-accent px-3.5 text-sm font-medium text-accent-ink hover:bg-accent-strong"
+              className={buttonClass('primary')}
             >
               Next: place your strips <ArrowRight size={15} />
             </a>

@@ -49,9 +49,8 @@ export function removeGame(profile: Profile): GameChange {
 }
 
 /**
- * The games that switch to Game mode while they run (the layout's profiles marked as a game). In Game mode's sidebar,
- * and linked from Ambient's Home, so games can be added without switching the lights to Game mode. Each change is
- * saved at once with the layout, so it needs the layout without unsaved edits.
+ * The games that switch to Game mode while they run (the layout's profiles marked as a game), in Game mode's sidebar.
+ * Each change is saved at once with the layout, so it needs the layout without unsaved edits.
  */
 export function GamesPage() {
   const { state, dispatch, load, dirty, blockers, saving, save, reload } = useEditor();
@@ -82,7 +81,11 @@ export function GamesPage() {
   return (
     <PageFrame
       title="Games"
-      subtitle={`Game mode turns on by itself while one of these runs${mode?.saved === 'game' ? '.' : ', and Ambient comes back when it quits.'}`}
+      subtitle={
+        mode?.saved === 'game'
+          ? 'Game mode turns on by itself while one of these runs. You chose Game mode, so it stays on after a game quits. Choose Ambient to have it on only while one runs.'
+          : 'Game mode turns on by itself while one of these runs, and Ambient comes back when it quits.'
+      }
     >
       {auth !== 'admin' ? (
         <Callout>Sign in on this PC to see and change the games.</Callout>

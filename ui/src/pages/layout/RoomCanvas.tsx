@@ -23,7 +23,7 @@ import {
 } from '../../layout';
 import { stripColor } from '../../editor/colors';
 import type { EditorAction, Selection } from '../../editor/state';
-import { cx } from '../../components/ui';
+import { buttonClass, cx } from '../../components/ui';
 import { Scenery } from './Scenery';
 import { RoleChooser } from './RoleChooser';
 import { insertPoint, removePoint as withoutPoint, setSection } from '../../editor/sections';
@@ -882,7 +882,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
             type="button"
             disabled={draft.length < 2}
             onClick={finishDrawing}
-            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 font-medium text-accent-ink hover:bg-accent-strong disabled:opacity-40"
+            className={buttonClass('primary', 'xs')}
           >
             <Check size={14} /> Finish
           </button>

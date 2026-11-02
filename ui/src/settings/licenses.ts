@@ -30,4 +30,6 @@ export const UI_LIBRARIES: ReadonlyArray<{ name: string; license: string; url: s
   { name: 'React', license: 'MIT', url: 'https://react.dev' },
   { name: 'Lucide icons', license: 'ISC', url: 'https://lucide.dev' },
   { name: 'Tailwind CSS', license: 'MIT', url: 'https://tailwindcss.com' },
+  { name: 'Inter (font)', license: 'OFL-1.1', url: 'https://rsms.me/inter' },
+  { name: 'Space Grotesk (font)', license: 'OFL-1.1', url: 'https://github.com/floriankarsten/space-grotesk' },
 ];

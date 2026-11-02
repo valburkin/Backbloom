@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useExpertTools } from '../app/expert';
-import { cx } from './ui';
+import { CARD, cx } from './ui';
 
 /** Label + control + hint/error, with ids wired for screen readers. */
 export function Field({
@@ -302,13 +302,13 @@ export function Switch({
       className={cx(
         'relative inline-flex shrink-0 items-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40',
         lg ? 'h-8 w-14' : 'mt-0.5 h-6 w-11',
-        checked ? 'border-accent bg-accent' : 'border-line-strong bg-surface-3',
+        checked ? 'bg-brand border-transparent shadow-[0_0_18px_-4px_rgba(139,92,246,0.75)]' : 'border-line-strong bg-surface-3',
       )}
     >
       <span
         aria-hidden
         className={cx(
-          'inline-block rounded-full bg-white shadow transition-transform',
+          'inline-block rounded-full bg-white shadow-[0_1px_4px_rgba(0,0,0,0.45)] transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
           lg ? 'h-6 w-6' : 'h-[18px] w-[18px]',
           checked ? (lg ? 'translate-x-[26px]' : 'translate-x-[21px]') : 'translate-x-[3px]',
         )}
@@ -335,7 +335,7 @@ export function Section({
 }) {
   const id = useId();
   return (
-    <section aria-labelledby={id} className={cx('rounded-2xl border border-line bg-surface p-5', className)}>
+    <section aria-labelledby={id} className={cx(CARD, 'p-5', className)}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           {icon && <div className="mt-0.5 text-ink-faint">{icon}</div>}

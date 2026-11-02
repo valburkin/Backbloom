@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #090b10;
-  --color-surface: #10131a;
-  --color-surface-2: #161a23;
-  --color-surface-3: #1e2330;
-  --color-line: #252b39;
+  --color-bg: #07080d;
+  --color-surface: #0f121a;
+  --color-surface-2: #151923;
+  --color-surface-3: #1d2230;
+  --color-line: #222838;
   --color-line-strong: #343c4f;
   /* Borders of inputs and choice controls: 3:1 against the background (WCAG 1.4.11). */
   --color-line-input: #5a6480;
@@ -16,10 +16,17 @@
   --color-accent: #8b7cf6;
   --color-accent-strong: #a89cff;
   --color-accent-ink: #0d0b1a;
+  /* Brand gradient (the logo's and the landing page's): pink, violet, cyan. Decoration and the one primary action, never
+     status. Dark text (accent-ink) on it keeps 4.5:1 along the whole gradient. */
+  --color-pink: #ff3cac;
+  --color-violet: #8b5cf6;
+  --color-cyan: #22d3ee;
   --color-ok: #34d399;
   --color-warn: #fbbf24;
   --color-bad: #f87171;
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
+  --font-sans: "Inter Variable", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  /* Titles, like the landing page. */
+  --font-display: "Space Grotesk Variable", "Inter Variable", system-ui, sans-serif;
   --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
 }
 
@@ -41,17 +48,158 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Consistent, visible keyboard focus everywhere. */
-:focus-visible {
-  outline: 2px solid var(--color-accent-strong);
-  outline-offset: 2px;
-  border-radius: 6px;
+/* A utility (not a plain rule) so variants like disabled:bg-none can switch it off. */
+@utility bg-brand {
+  background-image: linear-gradient(100deg, var(--color-pink), var(--color-violet) 50%, var(--color-cyan));
 }
 
-input[type="range"] {
-  accent-color: var(--color-accent);
-  height: 1.25rem;
-  cursor: pointer;
+/* Soft light behind the top of each page: the brand colors, or on Home the colors the LEDs show right now (set by
+   useAppGlow). Registered so the colors fade instead of jumping. */
+@property --glow-l {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: #ff3cac;
+}
+@property --glow-m {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: #8b5cf6;
+}
+@property --glow-a {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 20%;
+}
+@property --glow-r {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: #22d3ee;
+}
+.app-glow {
+  --glow-a: 20%;
+  background-repeat: no-repeat;
+  background-size: 100% 520px;
+  background-image:
+    radial-gradient(42% 70% at 8% -10%, color-mix(in srgb, var(--glow-l) var(--glow-a), transparent), transparent 70%),
+    radial-gradient(40% 60% at 52% -20%, color-mix(in srgb, var(--glow-m) var(--glow-a), transparent), transparent 70%),
+    radial-gradient(42% 70% at 96% -10%, color-mix(in srgb, var(--glow-r) var(--glow-a), transparent), transparent 70%);
+  transition:
+    --glow-l 1s linear,
+    --glow-m 1s linear,
+    --glow-r 1s linear,
+    --glow-a 1s linear;
+}
+.app-glow[data-live] {
+  --glow-a: 34%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-glow {
+    transition: none;
+  }
+}
+
+/* Element defaults go in the base layer, so Tailwind utilities on an element (rounded-full, tracking-tight, h-*)
+   still win over them. */
+@layer base {
+  h1,
+  h2 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+
+  /* Consistent, visible keyboard focus everywhere. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent-strong);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Sliders: a track filled up to the thumb (components pass --fill, see rangeFill in components/ui.tsx). */
+  input[type="range"]:not(.hue-range) {
+    --fill: 0%;
+    --track: 6px;
+    appearance: none;
+    height: 1.25rem;
+    background: transparent;
+    cursor: pointer;
+  }
+  input[type="range"]:not(.hue-range):disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  input[type="range"]:not(.hue-range)::-webkit-slider-runnable-track {
+    height: var(--track);
+    border-radius: 999px;
+    background:
+      linear-gradient(90deg, var(--color-violet), var(--color-accent-strong)) 0 / var(--fill) 100% no-repeat,
+      var(--color-surface-3);
+  }
+  input[type="range"]:not(.hue-range)::-moz-range-track {
+    height: var(--track);
+    border-radius: 999px;
+    background: var(--color-surface-3);
+  }
+  input[type="range"]:not(.hue-range)::-moz-range-progress {
+    height: var(--track);
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--color-violet), var(--color-accent-strong));
+  }
+  input[type="range"]:not(.hue-range)::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: calc((var(--track) - 18px) / 2);
+    border-radius: 50%;
+    background: #fff;
+    box-shadow:
+      0 0 0 4px rgb(139 92 246 / 0.25),
+      0 2px 6px rgb(0 0 0 / 0.5);
+    transition: box-shadow 0.15s;
+  }
+  input[type="range"]:not(.hue-range)::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow:
+      0 0 0 4px rgb(139 92 246 / 0.25),
+      0 2px 6px rgb(0 0 0 / 0.5);
+  }
+  input[type="range"]:not(.hue-range):enabled:hover::-webkit-slider-thumb,
+  input[type="range"]:not(.hue-range):enabled:active::-webkit-slider-thumb {
+    box-shadow:
+      0 0 0 6px rgb(139 92 246 / 0.35),
+      0 2px 6px rgb(0 0 0 / 0.5);
+  }
+  /* The big one (Home's brightness). */
+  input[type="range"].range-lg {
+    --track: 12px;
+    height: 1.75rem;
+  }
+  input[type="range"].range-lg::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+    margin-top: calc((var(--track) - 24px) / 2);
+  }
+  input[type="range"].range-lg::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+  }
+  input[type="range"].range-lg::-webkit-slider-runnable-track {
+    background:
+      linear-gradient(90deg, var(--color-pink), var(--color-violet) 50%, var(--color-cyan)) 0 / var(--fill) 100% no-repeat,
+      var(--color-surface-3);
+  }
+  input[type="range"].range-lg::-moz-range-progress {
+    background: linear-gradient(90deg, var(--color-pink), var(--color-violet) 50%, var(--color-cyan));
+  }
+  /* Windows High Contrast drops the custom track and thumb: give the slider back its native look there. */
+  @media (forced-colors: active) {
+    input[type="range"]:not(.hue-range) {
+      appearance: auto;
+    }
+  }
 }
 
 input[type="number"]::-webkit-inner-spin-button {

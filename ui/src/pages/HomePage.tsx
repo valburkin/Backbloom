@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Activity, ArrowRight, Gamepad2, AudioLines, CircleHelp, Cpu, Gauge, Lamp, Loader2, MemoryStick, MonitorSmartphone, Palette, Play, ScreenShare, Sparkles, Square, Sun, TriangleAlert } from 'lucide-react';
-import { Badge, Button, Card, ChoiceCard, cx, StatusDot } from '../components/ui';
-import { Expert, Select, Switch } from '../components/form';
+import { Badge, Button, Card, ChoiceCard, cx, rangeFill, StatusDot } from '../components/ui';
+import { Callout, Expert, Select, Switch } from '../components/form';
 import { PageHeader } from '../components/PageHeader';
 import { ColorPicker } from '../components/ColorPicker';
 import { LedPreview } from '../components/LedPreview';
+import { useAppGlow } from '../app/appGlow';
 import { LiveLayoutLights } from '../components/LayoutLights';
 import { useLayoutView } from '../live/layoutView';
 import { useConnection } from '../app/connection';
@@ -15,6 +16,7 @@ import { useThrottled } from '../app/useThrottled';
 import { hrefFor } from '../app/router';
 import { stripLedCount } from '../layout';
 import { useLedFrame, usePerformance } from '../live/hooks';
+import { glowColors } from '../live/ledPreview';
 import type { ControllerPerformance } from '../live/performance';
 import { currentSource, describeSource, effectLabel, splitEffects, STOP_HINT, type Mode } from '../control/modes';
 import { deviceProblems } from '../control/health';
@@ -85,37 +87,6 @@ function PlayingCard() {
         </div>
       </div>
     </Card>
-  );
-}
-
-/**
- * Ambient's way to the games: they turn Game mode on by themselves, so they can be added here without switching the
- * lights to Game mode. Says when a running game's Game mode was turned off.
- */
-function GamesCard() {
-  const { serverInfo } = useConnection();
-  const { state } = useEditor();
-  const count = (state.spec.profiles ?? []).filter((p) => p.game).length;
-  const dismissed = serverInfo?.mode?.dismissedGame;
-  return (
-    <a href={hrefFor('games')} className="group block">
-      <Card className="flex items-center gap-4 p-5 transition-colors group-hover:border-line-strong">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-3 text-ink-muted">
-          <Gamepad2 size={22} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">Games</p>
-          <p className="text-[13px] text-ink-muted">
-            {dismissed
-              ? `Game mode is off for ${dismissed} until it quits. Choose Game in the sidebar to turn it back on.`
-              : count
-                ? `Game mode turns on by itself for ${count} game${count === 1 ? '' : 's'}.`
-                : 'Playing? Add your games and Game mode turns on by itself.'}
-          </p>
-        </div>
-        <ArrowRight size={18} className="text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
-      </Card>
-    </a>
   );
 }
 
@@ -211,7 +182,6 @@ function Brightness() {
     [],
   );
   const value = dragging ?? stored;
-  const fill = Math.min(1, Math.max(0, value)) * 100;
   return (
     <div className="mt-5 border-t border-line pt-4">
       <div className="mb-2 flex items-center justify-between">
@@ -231,12 +201,8 @@ function Brightness() {
         value={Math.min(1, value)}
         disabled={!canEdit}
         aria-valuetext={`${Math.round(value * 100)}%`}
-        style={{ background: `linear-gradient(to right, var(--color-accent) ${fill}%, var(--color-surface-3) ${fill}%)` }}
-        className={cx(
-          'h-3 w-full appearance-none rounded-full disabled:cursor-not-allowed disabled:opacity-50',
-          '[&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-[0_0_0_1px_rgba(0,0,0,0.4),0_2px_6px_rgba(0,0,0,0.5)]',
-          '[&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white',
-        )}
+        style={rangeFill(value, 0, 1)}
+        className="range-lg w-full"
         onChange={(e) => {
           const v = Number(e.target.value);
           setDragging(v);
@@ -480,6 +446,7 @@ function PreviewCard() {
   const { serverInfo, api, auth } = useConnection();
   const view = useLayoutView(api, auth === 'admin', serverInfo?.leds);
   const frame = useLedFrame();
+  useAppGlow(useMemo(() => glowColors(frame, serverInfo?.leds), [frame, serverInfo?.leds]));
   return (
     <Card className="overflow-hidden">
       <div className="flex items-center justify-between border-b border-line px-5 py-3">
@@ -610,12 +577,22 @@ export function HomePage() {
         <div className="space-y-4">
           <LightsCard />
           <DeviceHealth />
-          {serverInfo?.mode?.mode === 'game' ? <PlayingCard /> : <ShowCard />}
+          {serverInfo?.mode?.mode === 'game' ? (
+            <PlayingCard />
+          ) : (
+            <>
+              {serverInfo?.mode?.dismissedGame && (
+                <Callout icon={<Gamepad2 size={16} />}>
+                  Game mode is off for “{serverInfo.mode.dismissedGame}” until it quits. Choose Game to turn it back on.
+                </Callout>
+              )}
+              <ShowCard />
+            </>
+          )}
           <PreviewCard />
         </div>
         <div className="space-y-4">
           <PresetCard />
-          {serverInfo?.mode?.mode !== 'game' && <GamesCard />}
           <a href={hrefFor('layout')} className="group block">
             <Card className="flex items-center gap-4 p-5 transition-colors group-hover:border-line-strong">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-3 text-ink-muted">

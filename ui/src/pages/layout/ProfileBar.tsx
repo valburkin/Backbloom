@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppWindow, Eye, EyeOff, Gamepad2, Loader2, Plus, Trash2, X } from 'lucide-react';
 import type { LayoutSpec } from '../../layout';
-import { Button, CHOICE_ACTIVE, cx, IconButton } from '../../components/ui';
+import { Button, buttonClass, CHOICE_ACTIVE, cx, IconButton } from '../../components/ui';
 import type { EditorAction } from '../../editor/state';
 import { nextProfileId } from '../../editor/state';
 
@@ -12,7 +12,7 @@ export function programName(text: string): string {
 }
 
 export const PROFILES_HINT =
-  'Profiles change what strips show while a game or app runs, for example music on the ceiling during one game. A game added on Games has one too, and also turns on Game mode.';
+  'Profiles change what strips show while a game or app runs, for example music on the ceiling during one game. A game added on Game mode’s Games page has one too, and also turns on Game mode.';
 
 /** Adds a profile named "Profile n" and returns its id. */
 function addProfile(spec: LayoutSpec, dispatch: (a: EditorAction) => void): string {
@@ -171,7 +171,7 @@ export function ProfileSettings({
       </div>
       {profile.game && (
         <p className="flex items-center gap-1.5 text-xs text-ink-faint">
-          <Gamepad2 size={13} aria-hidden /> One of your games: Game mode is on while it runs (Games). Deleting the profile removes the game too.
+          <Gamepad2 size={13} aria-hidden /> One of your games: Game mode is on while it runs (Game mode’s Games page). Deleting the profile removes the game too.
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
@@ -245,7 +245,7 @@ export function ProgramPicker({
         onClick={() => setOpen((o) => !o)}
         className={
           primary
-            ? 'inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-accent-ink hover:bg-accent-strong'
+            ? buttonClass('primary')
             : 'inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-strong hover:bg-surface-3'
         }
       >

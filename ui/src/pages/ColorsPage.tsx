@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { Gauge, Palette, Waves } from 'lucide-react';
-import { SliderField } from '../components/ui';
+import { rangeFill, SliderField } from '../components/ui';
 import { Advanced, Expert, Section, Select, Toggle } from '../components/form';
 import { PageFrame } from '../components/PageFrame';
 import { ModeBadge } from '../components/ModeBadge';
@@ -87,6 +87,7 @@ function TransitionSlider({
         max={max}
         step={step}
         value={value}
+        style={rangeFill(value, instant, max)}
         aria-valuetext={enabled ? formatSeconds(ms) : 'Instant'}
         onChange={(e) => {
           const v = Number(e.target.value);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import legacyLeds from '../../layout/__fixtures__/my-layout.json';
 import { appendLogs, filterLogs, formatLogs, normalizeLevel, type LogState } from '../logs';
-import { ledColor, PREVIEW_FRAME, previewPoints } from '../ledPreview';
+import { glowColors, ledColor, PREVIEW_FRAME, previewPoints } from '../ledPreview';
 import { performanceReducer, summarize } from '../performance';
 
 const report = (type: number, extra: object = {}) => ({ type, id: 0, name: '', param1: 0, param2: 0, param3: 0, param4: 0, token: 1, remove: 0, ...extra });
@@ -89,5 +89,29 @@ describe('led preview', () => {
   it('reads colors from a flat frame', () => {
     expect(ledColor([1, 2, 3, 4, 5, 6], 1)).toBe('rgb(4,5,6)');
     expect(ledColor(null, 0)).toBe('rgb(30,34,46)');
+  });
+});
+
+describe('glow colors', () => {
+  const at = (x: number) => ({ hmin: x - 0.05, hmax: x + 0.05, vmin: 0, vmax: 0.1 });
+
+  it('averages the left, middle and right LEDs, keeping their brightness', () => {
+    const rects = [at(0.1), at(0.1), at(0.5), at(0.9)];
+    const frame = [255, 0, 0, 0, 0, 255, 0, 255, 0, 0, 0, 0];
+    // Red and blue average to purple at full brightness, not to a dim 128,0,128.
+    expect(glowColors(frame, rects)).toEqual(['rgb(255,0,255)', 'rgb(0,255,0)', 'rgb(0,0,0)']);
+  });
+
+  it('uses the overall color for a side without LEDs, and nothing without a frame', () => {
+    expect(glowColors([0, 0, 200], [at(0.5)])).toEqual(['rgb(0,0,200)', 'rgb(0,0,200)', 'rgb(0,0,200)']);
+    expect(glowColors(null, [at(0.5)])).toBeNull();
+    expect(glowColors([1, 2, 3], [])).toBeNull();
+  });
+});
+
+describe('glow colors with a short frame', () => {
+  it('skips LEDs the frame has no color for', () => {
+    const at = (x: number) => ({ hmin: x, hmax: x, vmin: 0, vmax: 0.1 });
+    expect(glowColors([0, 200, 0], [at(0.1), at(0.9)])).toEqual(['rgb(0,200,0)', 'rgb(0,200,0)', 'rgb(0,200,0)']);
   });
 });

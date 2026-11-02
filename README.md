@@ -49,7 +49,7 @@ Discovery (mDNS, SSDP, UDP broadcast, serial and HID enumeration) finds most of 
 | [ui/](ui) | React 19 + TypeScript + Vite + Tailwind web UI, served by the app. |
 | [branding/](branding) | Logo, app icon and installer images (`generate_icons.py`). |
 | [packaging/](packaging) | Windows installer and update packaging (Velopack), third-party notice generator. |
-| [docs/](docs) | Architecture, protocol, settings, smoothing, development guide, product direction and roadmap. |
+| [docs/](docs) | The app: architecture, protocol, settings, smoothing, development guide, product direction and roadmap. |
 | [site/](site) | Landing page (static, Vite), deployed with Netlify (`netlify.toml`). See [site/README.md](site/README.md). |
 
 ## Build, test, run, package
@@ -89,7 +89,7 @@ unless told to (`--legacy-data-dir`). Every copy listens on `127.0.0.1:18290` on
 - [Development guide](docs/development.md)
 - [Backend reference](backend/README.md): every subsystem in detail
 - [Immersion](docs/immersion.md): where Backbloom is going: game events, room and desk lights, sound, haptics, wind
-- [Roadmap](docs/roadmap.md): what's next
+- [Roadmap](docs/roadmap.md): what's next in the app
 - [Changelog](CHANGELOG.md): what changed in each release
 
 ## Credits
