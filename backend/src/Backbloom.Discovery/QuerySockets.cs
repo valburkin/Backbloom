@@ -75,7 +75,11 @@ public sealed class QuerySockets : IDisposable
 
     /// <summary>Opens one socket per address; addresses that can't be bound (gone in the meantime) are skipped.</summary>
     /// <param name="multicastTtl">Multicast hops for the queries (null: no multicast).</param>
-    public static QuerySockets Open(IEnumerable<IPAddress> locals, int? multicastTtl = null, bool broadcast = false)
+    /// <param name="localPort">
+    /// The port to bind (0: an ephemeral one). For protocols whose devices answer at a fixed port rather than the
+    /// query's (Govee: 4002); a port another program holds on an address skips that address.
+    /// </param>
+    public static QuerySockets Open(IEnumerable<IPAddress> locals, int? multicastTtl = null, bool broadcast = false, int localPort = 0)
     {
         ArgumentNullException.ThrowIfNull(locals);
         var sockets = new QuerySockets();
@@ -84,7 +88,8 @@ public sealed class QuerySockets : IDisposable
             var socket = new Socket(local.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
             try
             {
-                socket.Bind(new IPEndPoint(local, 0));
+                socket.ExclusiveAddressUse = localPort != 0;
+                socket.Bind(new IPEndPoint(local, localPort));
                 socket.EnableBroadcast = broadcast;
                 if (multicastTtl is { } ttl && local.AddressFamily == AddressFamily.InterNetwork)
                 {

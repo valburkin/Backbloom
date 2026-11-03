@@ -303,6 +303,213 @@ export interface SetupState {
 export interface DiscoveredDevice {
   name: string;
   value: string;
+  /** What else the driver reports (LIFX and WiZ: ipAddress, macAddress; SSDP: ip, port; Govee: ipAddress, sku, deviceId). */
+  [key: string]: unknown;
+}
+
+// ---- `hardware` (Backbloom addition, admin only; see docs/guided-setup.md) ----
+
+/** A monitor as `hardware screens` reports it; sizes from its EDID, null when it doesn't report them. */
+export interface ScreenInfo {
+  name: string;
+  primary: boolean;
+  widthMm: number | null;
+  heightMm: number | null;
+  /** Windows' name for the output (`\\.\DISPLAY1`). */
+  device?: string;
+  /** The id screen capture keeps. */
+  devicePath?: string;
+}
+
+/**
+ * A board on a USB serial port that answers Improv Wi-Fi. `ready`: not on Wi-Fi yet; `provisioned`: on Wi-Fi
+ * (`address` set); `authorize`: the board's button must be pressed before it takes Wi-Fi settings; `provisioning`:
+ * joining a network; `unavailable`: its Wi-Fi is off.
+ */
+export interface UsbBoard {
+  port: string;
+  /** The USB bridge's name. */
+  name: string;
+  state: 'ready' | 'provisioned' | 'authorize' | 'provisioning' | 'unavailable';
+  firmware: string;
+  version: string;
+  chip: string;
+  deviceName: string;
+  address: string | null;
+}
+
+/** `hardware usb-scan`: the boards that answered, and ESP ports that didn't (no WLED, or another program has the port). */
+export interface UsbScan {
+  boards: UsbBoard[];
+  silent: Array<{ port: string; name: string }>;
+}
+
+/**
+ * A WLED board `hardware find` found: on USB (Improv), on the home network, or as a hotspot of its own that this PC's
+ * Wi-Fi sees (a new board opens one until it has Wi-Fi). Boards found by USB or their hotspot need Wi-Fi first
+ * (`connect-wifi`). `isNew`: WLED's first-start settings (`setUp`, the opposite, is a guess from its name and LEDs).
+ */
+export interface FoundBoard {
+  id: string;
+  via: 'usb' | 'network' | 'hotspot';
+  name: string;
+  isNew: boolean;
+  port?: string;
+  host?: string;
+  hotspot?: string;
+  mac?: string;
+  version?: string;
+  ledCount?: number;
+  /** Its LEDs are set up already (not WLED's first-start settings). */
+  setUp?: boolean;
+  /** USB: the port's friendly name ("Silicon Labs CP210x USB to UART Bridge (COM5)"). */
+  portName?: string;
+  /** USB (Improv): the chip ("ESP32") and firmware ("WLED"). */
+  chip?: string;
+  firmware?: string;
+  /** Hotspot: its signal in % as this PC sees it. */
+  signal?: number;
+  /** Network: its mDNS host name ("wled-a1b2c3"). */
+  mdnsName?: string;
+  /** USB: the WLED device name Improv reports. */
+  deviceName?: string;
+}
+
+/** `hardware find`: every board on every route, and what this PC's Wi-Fi can do. */
+export interface FindResult {
+  boards: FoundBoard[];
+  wifi: {
+    /** This PC has Wi-Fi (false: only USB finds and sets up new boards). */
+    adapter: boolean | string | null;
+    /** The network this PC is on, to prefill the board's. */
+    currentSsid: string | null;
+    /** Windows keeps the Wi-Fi networks nearby from apps until location access is on. */
+    blocked?: 'location' | null;
+    /** Windows has the password of `currentSsid` saved: `connect-wifi { useSavedPassword: true }` (the UI never sees it). */
+    savedPassword?: boolean;
+  };
+  /** ESP ports on USB that didn't answer. */
+  usbSilent: Array<{ port: string; name: string }>;
+}
+
+/** `hardware connect-wifi`: where the board is on the home Wi-Fi now. */
+export interface ConnectedBoard {
+  host: string;
+  address: string | null;
+  name: string;
+  mac: string;
+}
+
+/** `hardware wled-probe-start`: temporary outputs on likely pins (60–300 LEDs each, the first 20 lit white). */
+export interface ProbeCandidate {
+  output: number;
+  pin: number;
+}
+
+/** `hardware-progress-update` (to the asking connection only) while a board joins the Wi-Fi from its hotspot. */
+export type HardwareProgressStep = 'joining-hotspot' | 'sending' | 'rejoining' | 'waiting';
+
+/** A Wi-Fi network a board can see (signal in %, strongest first). */
+export interface WifiNetwork {
+  ssid: string;
+  signal: number;
+  secure: boolean;
+  rssi?: number;
+}
+
+/** WLED color orders (the order the strip's chips expect the colors in). */
+export type ColorOrder = 'GRB' | 'RGB' | 'BRG' | 'RBG' | 'BGR' | 'GBR';
+
+/**
+ * One LED output of a WLED board as `wled-read` reports it (`hw.led.ins[]`): `strip` a strip preset id
+ * (ui/src/setup/plan.ts), null for a WLED type without one (`type` is WLED's number); `clockPin` for two-wire strips.
+ */
+export interface WledOutput {
+  index: number;
+  strip: string | null;
+  type?: number;
+  pin: number;
+  clockPin?: number;
+  length: number;
+  start: number;
+  colorOrder: ColorOrder;
+  reverse: boolean;
+}
+
+/**
+ * An output for `wled-write`: what isn't given keeps the board's value (the pin, the color order while the strip type
+ * stays, else the preset's; `start` follows the output before).
+ */
+export interface WledOutputChange {
+  strip: string;
+  length: number;
+  pin?: number;
+  clockPin?: number;
+  start?: number;
+  colorOrder?: ColorOrder;
+  reverse?: boolean;
+}
+
+/** `hardware wled-read`: what a WLED board is set to. Currents in mA. */
+export interface WledState {
+  name: string;
+  version: string;
+  chip: string;
+  mac: string;
+  address?: string | null;
+  ledCount: number;
+  outputs: WledOutput[];
+  /** The board's current limit for all its LEDs (0: none). */
+  maxCurrent: number;
+  /** Current per LED at full white that the limit assumes (null: not set). */
+  ledCurrent: number | null;
+  wifi: { ssid: string };
+}
+
+/** `hardware wled-write`: only what is given changes. Every output is sent (WLED rebuilds them from the list). */
+export interface WledChange {
+  name?: string;
+  outputs?: WledOutputChange[];
+  maxCurrent?: number;
+  ledCurrent?: number;
+  wifi?: { ssid: string; password: string };
+}
+
+/**
+ * `hardware wled-test`, lit directly on the board: `first` the first LED; `range` the first `count` LEDs dim and LED
+ * `count` bright; `color` / `white` the whole output; `off` restores the board's state from before the first test.
+ */
+export interface WledTest {
+  output: number;
+  pattern: 'first' | 'range' | 'color' | 'white' | 'points' | 'off';
+  count?: number;
+  color?: [number, number, number];
+  /** `points`: the LEDs lit bright (counted from 1, 1–64 of them), the rest of the output dim. */
+  leds?: number[];
+}
+
+/**
+ * A Hue bridge as the API v2 shows it (`leddevice getProperties philipshue { host, user, filter: "/clip/v2/…" }`,
+ * the `data` of three resources; only the fields used).
+ */
+export interface HueBridgeState {
+  /** `/clip/v2/resource/entertainment_configuration`: the entertainment areas, a channel per streamed color. */
+  configurations: Array<{
+    id: string;
+    metadata?: { name?: string };
+    name?: string;
+    channels?: Array<{ channel_id?: number; members?: Array<{ service?: { rid?: string; rtype?: string } }> }>;
+  }>;
+  /** `/clip/v2/resource/light`. */
+  lights: Array<{ id: string; id_v1?: string; metadata?: { name?: string } }>;
+  /** `/clip/v2/resource/entertainment`: the lights' entertainment services (`renderer`: it can be in an area). */
+  services: Array<{ id: string; renderer?: boolean; renderer_reference?: { rid?: string; rtype?: string } }>;
+}
+
+/** A Home Assistant light (`leddevice getProperties home_assistant { host, token }`). */
+export interface HomeAssistantLight {
+  id: string;
+  name: string;
 }
 
 export interface TokenInfo {

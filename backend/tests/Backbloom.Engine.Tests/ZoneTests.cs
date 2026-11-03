@@ -19,6 +19,8 @@ using Backbloom.Settings.Storage;
 
 namespace Backbloom.Engine.Tests;
 
+// the allocation tests measure on their own thread, without the parallel tests' load (see Allocations)
+[Collection(SerialTests.Name)]
 public sealed class ZoneTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"backbloom-zones-{Guid.NewGuid():N}");
@@ -347,19 +349,26 @@ public sealed class ZoneTests : IDisposable
             output.Tick(clock.NowMilliseconds);
         }
 
-        for (var i = 0; i < 5; i++)
-        {
-            Step();
-        }
+        long due = 0;
+        var allocated = Allocations.Measure(
+            () =>
+            {
+                for (var i = 0; i < 5; i++)
+                {
+                    Step();
+                }
 
-        var due = zones.NextDue;
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 500; i++)
-        {
-            Step();
-        }
+                due = zones.NextDue;
+            },
+            () =>
+            {
+                for (var i = 0; i < 500; i++)
+                {
+                    Step();
+                }
+            });
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, allocated);
         Assert.True(zones.NextDue > due + 9000, "the zone effects stepped with the frames");
     }
 
@@ -394,19 +403,26 @@ public sealed class ZoneTests : IDisposable
             clock.Advance(5);
         }
 
-        for (var i = 0; i < 20; i++)
-        {
-            Step();
-        }
+        long sent = 0;
+        var allocated = Allocations.Measure(
+            () =>
+            {
+                for (var i = 0; i < 20; i++)
+                {
+                    Step();
+                }
 
-        var sent = feed.Sequence;
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 2000; i++)
-        {
-            Step();
-        }
+                sent = feed.Sequence;
+            },
+            () =>
+            {
+                for (var i = 0; i < 2000; i++)
+                {
+                    Step();
+                }
+            });
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, allocated);
 
         // black drawn once; then a frame per zone step (the swirl steps every 56 ms, the candle every 100 ms)
         Assert.Equal(1, pipeline.FrameCount);

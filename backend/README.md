@@ -122,9 +122,11 @@ src/
   Backbloom.Capture.Windows  DXGI desktop duplication + Direct3D 11 scaling / HDR shader (TerraFX interop)
   Backbloom.Audio      sound capture abstraction, soundEffect settings, device sessions, conversion to analysis blocks
   Backbloom.Audio.Windows  WASAPI loopback and recording capture, endpoint enumeration (TerraFX interop)
-  Backbloom.Devices    LED device lifecycle (LedDeviceRunner), RGBW encoders and the 16 drivers (network, serial, HID,
-                      file); driver tools for leddevice discover/getProperties/identify
-  Backbloom.Discovery  mDNS client/responder, SSDP search, UDP broadcast probes, serial port and HID enumeration
+  Backbloom.Devices    LED device lifecycle (LedDeviceRunner), RGBW encoders and the 17 drivers (network, serial, HID,
+                      file); driver tools for leddevice discover/getProperties/identify; the guided setup's Improv
+                      Wi-Fi (USB serial) and WLED setup clients (Setup/)
+  Backbloom.Discovery  mDNS client/responder, SSDP search, UDP broadcast and multicast probes, serial port and HID
+                      enumeration
   Backbloom.Mqtt       the one MQTT broker connection (MQTTnet), shared by Zigbee2MQTT and the MQTT integration
   Backbloom.Settings   settings schemas + validation, SQLite store, credential store, HyperHDR import, backups
   Backbloom.Engine     orchestration: frame loop, component switches, controllers, live preview feed, running effects,
@@ -133,7 +135,8 @@ src/
   Backbloom.Shell      desktop integration, platform-neutral: power/session policy, tray menu, window placement,
                       single instance, the contracts of tray, window, autostart and system events
   Backbloom.Platform.Windows  Windows implementations of the platform interfaces: high-resolution clock, machine CPU and
-                      memory load, power and session events, tray icon, WebView2 window, Run-key autostart
+                      memory load, power and session events, tray icon, WebView2 window, Run-key autostart, monitor
+                      sizes (EDID)
   Backbloom.App        host: composition root (DI), command line, single instance, logging, lifetime (exe: backbloom)
 tests/
   Backbloom.*.Tests    xUnit v3; fixtures/ holds golden fixtures shared by the test projects
@@ -183,7 +186,7 @@ the C++ fixtures by `Core.Tests`; `Audio` only gets the sound into that analysis
 
 The frame loop, `LedDeviceRunner.Submit` and the sound capture loop must not allocate in steady state
 (`GC.GetAllocatedBytesForCurrentThread` tests enforce it in Core, Devices, Engine, Capture, Capture.Windows and Audio;
-Core's measure on a dedicated thread after a full collection, in a collection that runs without parallel tests, since
+Core's and Engine's zone tests measure on a dedicated thread after a full collection, in a collection that runs without parallel tests, since
 the counter of a test-runner thread occasionally grew by 4-6 KB under full-suite load without any allocation by the
 measured code):
 
@@ -199,7 +202,7 @@ measured code):
 - logging only through `[LoggerMessage]` methods and never per frame;
 - drivers send with preallocated packet buffers over connected UDP sockets (`Socket.Send(ReadOnlySpan<byte>)`); the
   streaming drivers (WLED, DDP, E1.31, Art-Net, Adalight, Skydimo, SP616E, SyncLight, Nanoleaf, LIFX, Hue
-  Entertainment) and the RGBW encoders are allocation-free per frame. The JSON/REST lamp drivers (WiZ, Yeelight, Home
+  Entertainment, Govee) and the RGBW encoders are allocation-free per frame. The JSON/REST lamp drivers (WiZ, Yeelight, Home
   Assistant, Zigbee2MQTT, Hue REST) build small strings per frame on their device thread, at most a few times a second.
 
 Measured with the owner's 168-LED layout, the synthetic source at 60 fps (512x288 frames, 155,684 sampled pixels per
@@ -364,10 +367,13 @@ Nanoleaf, WiZ, Yeelight, Home Assistant, Zigbee2MQTT) and the file driver.
 
 Drivers whose controller reports about itself implement `ITelemetryDriver`. The WLED driver (checked against WLED's
 json.cpp, cfg.cpp and bus_manager.cpp, v16) reads `GET /json/cfg` once per connection for the power limiter: the global
-limit `hw.led.maxpwr`, each output's limit `hw.led.ins[].maxpwr` and LED current `ins[].ledma`; as WLED's
-`initializeABL`, the limiter is in use with a global limit and an output with an LED current, or without a global one,
-with an output that has both (then the limit is their sum); WLED 0.14 and older have one LED current `hw.led.ledma`
-and treat a limit below 150 mA as none; and "force max brightness" for realtime data
+limit `hw.led.maxpwr`, each output's limit `hw.led.ins[].maxpwr` and LED current `ins[].ledma`, read by the
+controller's version (`info.ver`, `WledConfig`): 0.16 and the development branch (`initializeABL`) use a global limit
+with an output that has an LED current, or without a global one, the outputs that have both (then the limit is their
+sum); 0.15 enforces only the outputs' own limits (`BusDigital::estimateCurrentAndLimitBri`; an output below its share
+of the 100 mA kept for the ESP isn't limited) and ignores a global one; 0.14 and older have one LED current
+`hw.led.ledma` and treat a limit below 150 mA as none; with an unknown version the limiter counts only when 0.15's and
+the newer rules agree; and "force max brightness" for realtime data
 (`if.live.maxbri`). While connected it reads `GET /json/si` (state and info, without the effect lists) every 10 s
 (never in `Write`, never while switched off; the readings are published only once a connection succeeded and cleared
 on close, which waits for the poll to end, so nothing it sends can come after the switch-off). It records WLED's
@@ -560,12 +566,13 @@ Every driver of the C++ build is ported (sources/led-drivers); the settings keys
 | `ddp` | network | UDP 4048 | RGB, classic RGBW (`rgbw` + `white_algorithm`), RGBW by the Infinite Color Engine |
 | `udpe131` | network | UDP 5568 | E1.31/sACN, 512 or 510 channels per universe, CID from the settings or random |
 | `udpartnet` | network | UDP 6454 | ArtDmx, channels per fixture, splitting, RGBW (ICE) |
-| `philipshue` | network | REST (v1 http, v2 https) + DTLS 1.2 PSK UDP 2100 | REST lights, Entertainment v1 groups and v2 configurations; discovery: mDNS `_hue._tcp`, else SSDP "IpBridge"; `getProperties` reads the bridge, with `pair: true` it creates a username + client key |
-| `nanoleaf` | network | REST 16021 + UDP | panel order (top/bottom, left/right, start panel), External Control v2; discovery: SSDP |
+| `philipshue` | network | REST (v1 http, v2 https) + DTLS 1.2 PSK UDP 2100 | REST lights, Entertainment v1 groups and v2 configurations; discovery: mDNS `_hue._tcp`, else SSDP "IpBridge"; `getProperties` reads the bridge (API v2 for a `/clip/v2` filter), with `pair: true` it creates a username + client key, with `createArea` an entertainment area (see [guided-setup.md](../docs/guided-setup.md#protocol-hardware)) |
+| `nanoleaf` | network | REST 16021 + UDP | panel order (top/bottom, left/right, start panel), External Control v2; discovery: SSDP; `getProperties` with `pair: true` creates a token (`POST /api/v1/new`, the controller in pairing mode) |
 | `lifx` | network | UDP 56700 | SetColor (HSBK, unrounded colors) per lamp, SetPower; discovery: GetService broadcast |
 | `wiz` | network | UDP 38899 | JSON setPilot per lamp; discovery: getPilot broadcast |
+| `govee` | network | UDP 4003 (LAN API) | Backbloom's own: `colorwc` per light, at most every `updateInterval` (100 ms) and only when the color changed (all every 2 s), `turn` + `brightness` on open, off on close; discovery: `scan` to 239.255.255.250:4001 from port 4002 (see Discovery); identify: a short blink, then the light as it was (`devStatus`); on/brightness commands 200 ms apart. The lights need LAN Control turned on in the Govee app |
 | `yeelight` | network | TCP 55443 + music mode | the lamp connects back to our music mode server; command quota wait; discovery: SSDP port 1982 |
-| `home_assistant` | network | REST | `light.turn_on` per entity (RGB or hue/saturation), constant brightness, state restore; discovery: mDNS `_home-assistant._tcp` |
+| `home_assistant` | network | REST | `light.turn_on` per entity (RGB or hue/saturation), constant brightness, state restore; discovery: mDNS `_home-assistant._tcp`; `getProperties { host, token }` lists the `light.*` entities (`GET /api/states`), `identify { host, token, entityId }` flashes one (`flash: "short"`) |
 | `zigbee2mqtt` | network | MQTT | `zigbee2mqtt/<lamp>/set`; lamps switched off on shutdown; discovery: the bridge's retained device list |
 | `adalight` | serial | System.IO.Ports | Ada, AWA (Fletcher checksum, white calibration, RGBW by ICE), LightBerry APA102; "auto" port, ESP/Pico handshake and goodbye |
 | `skydimo`, `sp616e` | serial | System.IO.Ports | |
@@ -634,6 +641,14 @@ address; afterwards loopback only again.
 - The web UI is advertised as `<host>:<port>._backbloom-http._tcp.local` only while the server
   listens on the network (remote access on, or `--bind` with a network address); a goodbye is sent when it stops.
 - SSDP: one M-SEARCH (C++ message, MX 1) per interface and every answer within 3 s, headers parsed like `SSDPDiscover`.
+- Govee (`MulticastProbe`): the one exception to ephemeral ports. Govee lights answer the LAN API's `scan` at port
+  4002 of the querier's address, not at the query's port, so for the 2 s of a search one socket per multicast-capable
+  interface address is bound to `<address>:4002` (exclusively; an address where another program holds 4002 is
+  skipped) and the scan to 239.255.255.250:4001 goes out from that socket. The answers are then replies to our own
+  query from the light's address, which Windows Firewall lets in like the other searches' answers. Still to be
+  confirmed on a real network before release: whether Windows treats an answer to the fixed port as such a reply (a
+  firewall prompt or a missing answer would show it); if not, the search needs an inbound rule for UDP 4002 on private
+  networks, set by the installer.
 - Serial ports: HidSharp's serial device list (friendly name, USB ids from the Windows device path) plus
   `SerialPort.GetPortNames()`; HID devices: HidSharp with the top-level usage page/usage.
 
@@ -654,6 +669,43 @@ Deliberate differences from the C++ drivers:
 6. The LAN HTTPS client accepts unvalidated certificates only for private, link-local and `.local` hosts (C++
    ignored TLS errors for every host).
 7. Discovery results carry `value` / `name` for every driver (the C++ shapes are kept alongside).
+
+## Guided hardware setup
+
+The backend of [docs/guided-setup.md](../docs/guided-setup.md) (which has the protocol): the `hardware` command
+(`Backbloom.Server/Rpc/Commands/HardwareCommand.cs`, admins only) over these parts:
+
+| Part | Where | Does |
+|---|---|---|
+| Monitor sizes | `IDisplayList` (Engine/Platform), `WindowsDisplayList` (Platform.Windows), `Edid` | the active monitors from `QueryDisplayConfig` and their size from the EDID Windows keeps under `HKLM\SYSTEM\CurrentControlSet\Enum\DISPLAY` (opened read-only): the first detailed timing descriptor's millimeters, else the basic size in centimeters, swapped for a monitor turned to portrait; null when unknown. Elsewhere `NoDisplayList` |
+| Improv Wi-Fi | `ImprovProtocol`, `ImprovClient`, `UsbBoards` (Devices/Setup) | the Improv serial protocol v1 (packets `IMPROV`, version, type, length, data, checksum = low byte of the sum; state, error, RPC command and result packets; current state, device info, scanned networks, Wi-Fi settings) over `ISerialPort`. `UsbBoards` opens only likely ESP ports no configured device uses, one at a time, at 115200 baud with DTR and RTS off, and closes them again |
+| WLED setup | `WledSetup`, `WledStrips` (Devices/Setup) | `/json/info` and `/json/cfg` read and mapped to the protocol's shape, `POST /json/cfg` (outputs, name, Wi-Fi in `nw.ins`, the limit both as `hw.led.maxpwr` and split over the outputs' `maxpwr` by LED count, each at least its share of the 100 mA WLED 0.15 keeps for the ESP, so WLED 0.14, 0.15 and 0.16 each enforce it), a restart when WLED needs one, the checks with `seg.i` on `/json/state` (other segments off; state saved on the first without the segments' bounds, restored on `off`, forgotten 30 min after the last check; White at full brightness only when the tested output itself is limited); a write the board applies without a restart returns once `/json/info` reports the new LED count, plus 500 ms (WLED rebuilds its outputs black a moment later, wiping a check lit before that); written outputs turn WLED's "turn on at boot" off (`def.on`); a write that makes an output shorter turns every LED black first (the LEDs past its new end would keep their colors; the state is saved for `off` like a check's); `IdentifyAsync` (`wled-identify`: three dim white flashes of the whole board, then its state back); the probe saves the board's state for `off` before it starts, dark (the found strips start dark), and its LED and boot settings (`def`) for `keep: false`; `keep: true` only forgets them (the found strips are written first, and a write with fewer or shorter outputs turns every LED black first); before 0.15 an ESP32 gets at most 8 test outputs; finding the strips (`ProbeStartAsync` / `ProbeEndAsync`, `WledPins`: the LED settings saved in memory, one WS281x output per candidate pin of the chip's round (2000 LEDs over the candidates, 60 to 300 each), without the pins used by buttons, IR, relay, I2C or SPI, the limit kept, restart and wait, the first 20 LEDs of every candidate lit dim white, the rest black; restored or forgotten at the end, kept 30 min after the last step); `WledHosts`: any host name, but only addresses of private, link-local and unique-local networks (4.3.2.1 while this computer is on a WLED access point); the strip presets and WLED's type and color order numbers (API values from WLED's const.h, no WLED code) |
+| Pairing | `NanoleafDriver.PairAsync`, `PhilipsHueDriver.CreateAreaAsync`, `HomeAssistantDriver.GetPropertiesAsync` / `IdentifyAsync` | Nanoleaf tokens (`POST /api/v1/new`), Hue entertainment areas (API v2 `entertainment_configuration`), Home Assistant's lights and a flash, through `leddevice getProperties` / `identify` |
+| Govee | `GoveeDriver`, `MulticastProbe` | see the driver table and Discovery |
+| Board search | `BoardFinder` (Devices/Setup) | `hardware find`: USB (Improv), the network (mDNS `_wled._tcp` + `/json/info`) and the boards' hotspots (a Wi-Fi scan for "WLED…" networks) in parallel, merged into one entry per board; `connect-wifi`: Improv over USB, or a short visit to the board's hotspot (temporary profile, "wled1234" then open, `nw.ins` to 4.3.2.1, always back to the PC's network in `finally`), then the board found at home by its MAC; `hardware-progress-update` events. Each board carries what tells it apart (the port and its Windows name, Improv's firmware, version, chip and device name; the mDNS host name, MAC and LED count; a hotspot's signal); `wifi.savedPassword` and `useSavedPassword` use the key Windows keeps for the current network (`WlanGetProfile` plaintext key) for that call only, never returned, logged or stored |
+| This PC's Wi-Fi | `IWifi`, `NoWifi` (Devices/Setup), `WindowsWifi` (Platform.Windows) | wlanapi.dll (`LibraryImport`, TerraFX has no WLAN API): the current connection, a scan, a temporary per-user profile ("Backbloom setup …", manual, never overwriting) to join a hotspot, back to the previous profile and deletion of the temporary profiles only. Windows 11 24H2+ refuses the scan and the current connection without location access (`ERROR_ACCESS_DENIED`, reported as `blocked: "location"`) and shows a one-time location prompt per app the first time; joining and leaving aren't affected. The test host registers `NoWifi`; tests use `FakeWifi` |
+
+Wi-Fi passwords go only to the board: they aren't logged (the log names the network), stored or echoed. The steps
+that talk to a board run on their own over a WebSocket (the reply comes when they're done, other requests of the
+connection go on) with their own time limits; a connection's `wled-*` steps run one after the other in the order
+they came (an `off` right after a check never overtakes it); the USB steps share one lock, so two requests never open a
+port at once, and so do the WLED writes and checks; one hotspot visit at a time (a second is refused), only to a
+network whose name starts with "WLED", with WLED's password when the scan saw one and open when it saw none. The setup's
+HTTP client never follows redirects (every address it contacts passes `WledHosts`). `wled-write`, `wled-test` (but
+`off`), `wled-identify`, `wled-probe-start` and `wled-probe-end` with `keep: false` refuse a board a connected (or connecting) WLED, DDP,
+E1.31 or Art-Net device of the layout sends to (by its `host`, names resolved, falling back to their last address;
+also when a connected device's host has no known address), and a board in realtime mode.
+Errors name the host only ("Couldn't reach <host>"), never socket details. Tests run against fakes only
+(`tests/Shared`: `FakeImprovBoard` on a fake serial port, `FakeWledBoard` in process or over HTTP on 127.0.0.1 (the
+setup's address policy gets a test-only allowance for loopback), a fake Govee light on loopback, fake discovery and
+monitor lists; `Ctx.Discovery` in the device tests always has a fake multicast probe).
+
+To verify on real hardware before release: that opening the port with DTR and RTS off doesn't reset common boards
+(CP210x, CH340 and the ESP32-S2/S3/C3's own USB), WLED's Improv answers and Wi-Fi join over USB, the write and restart
+policy on WLED 0.14 and 0.15 (per-output and global limiter fields), the checks' `seg.i` and the state restore, the
+hotspot visit (joining WLED-AP with a temporary profile, the way back with and without location access, the board found
+at home by its MAC), the location prompt on Windows 11 24H2,
+Nanoleaf pairing, Hue area creation, and Govee's rate limit and discovery through Windows Firewall.
 
 ## Desktop shell (port step 6c)
 
@@ -709,22 +761,42 @@ closed, nothing is sent; capture, mapping and the preview keep running, the prot
 The gate starts before the engine, so a held start never opens a controller. The startup effect waits for the
 release and runs then, as if the app had started at that moment.
 
-**First-run setup** (UI, `ui/src/pages/welcome`). Shown instead of the app until `firstRunCompleted`; three steps:
+**First-run setup** (UI, `ui/src/pages/welcome`). Shown instead of the app until `firstRunCompleted`; five steps (What
+each light does only once there are lights):
 
 1. Welcome: what Backbloom does; after an import, what came over from HyperHDR (the device, the number of LEDs, the
    screen sync, color and effect settings), on a new install what to check before starting. While HyperHDR runs, two
    sentences say that Backbloom waits and takes over by itself when it quits. The technical summary (monitor, frame
    rate, startup effects, the imported database's path) shows only with expert tools on.
-2. Your lights: the devices of the layout (the test device of a new install, `file`, is not listed), or "No device
-   yet" with Add device: the same dialog as on Devices (`AddDeviceDialog`, with the network search and its
-   explanation). The first real device replaces the test device. Devices added here are layout edits, saved on the
-   Layout page.
-3. Turn on: "Your lights stay as they are until you turn them on here", the unchecked Start with Windows box and Turn
-   on lights (`setup start`; while HyperHDR runs it takes over once it quits). The app then opens on Devices when there
-   is still no real device, on Layout while no layout is saved (or the setup added a device), else on Home.
+2. Your lights: the hub every board and set of room lights comes back to. Everything added so far (one row per device
+   with its strips or lights; the test device of a new install, `file`, is not listed; no addresses unless expert tools
+   are on) and Add more with the three ways of Add device (LED strips on a WLED board, Room lights, Another kind of
+   device; see [docs/guided-setup.md](../docs/guided-setup.md)), each opening that flow of the same dialog as on Devices
+   (`AddDeviceDialog`, with the network search and its explanation); with nothing added yet, "What do you have?" with
+   the same three. LED strips on a WLED board is "Set up a WLED board": one Search, the Wi-Fi for a new board, the power
+   supply, finding the strips, each strip's type and checks. The first real device replaces the test device. Every
+   strip and light starts with the screen's average (its route isn't known yet).
+3. What each light does: the room as Layout draws it in its live colors (the preview runs while the output is held),
+   the light being chosen picked out, and the monitor's size from `hardware screens` (the room's screen takes it while
+   it still has the default size); a row per strip or light with Screen average, Screen edge, or Effect or color (the
+   layout's roles; the rest is on Layout), each choice saved to the layout at once. Screen edge for a strip on a WLED
+   board first traces it (the user draws its route from the board, the LEDs are spread along it, and the board
+   lights those on the corners with `wled-test` `points` to check them). Skip — use the defaults puts the paths as added back.
+4. Feel and games: Home's Mood and Intensity presets (the same control, saved at once), and optionally Add a running
+   game (saved with the layout). Game mode's Intensity starts at the settings' default (Intense); Skip — use the
+   defaults sets Natural (a new install) and leaves Intensity as it is.
+5. Turn on: "Your lights stay as they are until you turn them on here", the unchecked Start with Windows box and Turn
+   on lights: the layout is saved first (unless it has a problem that blocks saving), then `setup start` (while
+   HyperHDR runs it takes over once it quits). The app then opens on Devices when there is still no real device, on
+   Layout when the layout couldn't be saved, else on Home.
 
 "Look around first" opens the app without turning the lights on: a banner says they are waiting and offers Turn on
 lights, and Home shows "Waiting — turn on your lights to start" (or "Waiting for HyperHDR to quit").
+
+**No lights yet.** Until a real device exists, Home and Devices show "No lights yet" with one primary Add your lights
+(the same Add device dialog) instead of controls that do nothing; that is also where "Look around first" and the
+setup's Skip lead. The test device (`file`, colors go nowhere) is listed on Devices only with expert tools on, and its
+status is never "Sending colors" in green ("Test device: the colors go nowhere").
 
 **Network access** (`Backbloom.App/RemoteAccess`, setting `network.remoteAccess`, default off, also for imports). Off:
 Kestrel listens on 127.0.0.1 only and nothing is advertised. On: an endpoint per IPv4 interface address
@@ -947,6 +1019,7 @@ Compatible with the C++ backend for what the UI uses (`ui/src/api/rpcApi.ts`): r
 | `setup` getstate, start, autostart, acknowledge (+ `setup-update`) | new (see [First run, HyperHDR and network access](#first-run-hyperhdr-and-network-access)) |
 | `profile` getstate, select, programs (+ `profile-update`, `serverinfo.profile`) | new (see [LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)) |
 | `mode` getstate, set (+ `mode-update`, `serverinfo.mode`) | new (see [LED controllers and the layout](#led-controllers-and-the-layout-port-step-6b)) |
+| `hardware` screens, usb-scan, usb-networks, usb-wifi, wled-read, wled-write, wled-wifi, wled-test | new (see [Guided hardware setup](#guided-hardware-setup)) |
 | `image`, imagestream | not yet ("Command not implemented") |
 
 Deliberate differences from the C++ backend (its bug backlog):

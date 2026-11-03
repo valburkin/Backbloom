@@ -180,8 +180,10 @@ export function Segmented<T extends string>({
 }) {
   return (
     <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap rounded-lg border border-line-input bg-bg/60 p-0.5">
-      {options.map((o) => {
+      {options.map((o, index) => {
         const active = o.value === value;
+        // nothing chosen yet: the first option is the Tab stop
+        const tabStop = active || (index === 0 && !options.some((x) => x.value === value));
         return (
           <button
             key={o.value}
@@ -200,7 +202,7 @@ export function Segmented<T extends string>({
                 onChange(options[(i - 1 + options.length) % options.length].value);
               }
             }}
-            tabIndex={active ? 0 : -1}
+            tabIndex={tabStop ? 0 : -1}
             className={cx(
               'rounded-md font-medium transition-colors',
               size === 'sm' ? 'px-2.5 h-7 text-xs' : 'px-3 h-8 text-[13px]',
@@ -421,6 +423,7 @@ export function Dialog({
   children,
   footer,
   wide,
+  closeOnBackdrop = true,
 }: {
   open: boolean;
   title: string;
@@ -428,6 +431,8 @@ export function Dialog({
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  /** A click beside the dialog closes it (false for a wizard: a stray click mustn't lose its steps; X and Esc still call onClose). */
+  closeOnBackdrop?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -467,7 +472,7 @@ export function Dialog({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(e) => closeOnBackdrop && e.target === e.currentTarget && onClose()}>
       <div
         ref={ref}
         role="dialog"

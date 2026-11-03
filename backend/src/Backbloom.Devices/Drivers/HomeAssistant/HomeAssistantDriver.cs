@@ -89,6 +89,8 @@ public sealed partial class HomeAssistantDriver : ILedDriver
         (config, context) => new HomeAssistantDriver(HomeAssistantOptions.FromConfig(config), context))
     {
         Discover = DiscoverAsync,
+        GetProperties = GetPropertiesAsync,
+        Identify = IdentifyAsync,
     };
 
     public string Type => TypeName;
@@ -109,6 +111,87 @@ public sealed partial class HomeAssistantDriver : ILedDriver
         }
 
         return list;
+    }
+
+    /// <summary>
+    /// <c>{ host, token }</c>: the server's light entities from <c>GET /api/states</c>,
+    /// <c>{ lights: [{ id, name }] }</c> (the entity id and its friendly name, sorted by name), or <c>{ error }</c> when
+    /// the address or token is missing, the token is refused or the server can't be reached.
+    /// </summary>
+    public static async Task<JsonObject> GetPropertiesAsync(DeviceRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var p = request.Parameters;
+        var host = DeviceConfig.GetString(p, "host").Trim();
+        var token = DeviceConfig.GetString(p, "token").Trim();
+        if (host.Length == 0 || token.Length == 0)
+        {
+            return new JsonObject { ["error"] = "The Home Assistant address and a long-lived access token are needed" };
+        }
+
+        RestReply reply;
+        try
+        {
+            var (rest, root) = Api(request.Context, host, token);
+            reply = await rest.GetAsync(new Uri(root, "/api/states"), request.CancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TimeoutException or UriFormatException)
+        {
+            return new JsonObject { ["error"] = $"Couldn't reach Home Assistant at {host}" };
+        }
+
+        if (reply.Status is 401 or 403)
+        {
+            return new JsonObject { ["error"] = $"Home Assistant refused the access token (HTTP {reply.Status}): create a long-lived access token in your Home Assistant profile" };
+        }
+
+        if (!reply.IsSuccess || reply.Body is not JsonArray states)
+        {
+            return new JsonObject { ["error"] = $"Unexpected answer from Home Assistant at {host} (HTTP {reply.Status})" };
+        }
+
+        var lights = new JsonArray();
+        foreach (var (id, name) in states.OfType<JsonObject>()
+            .Select(s => (Id: DeviceConfig.GetString(s, "entity_id"), Name: (s["attributes"] as JsonObject) is { } a ? DeviceConfig.GetString(a, "friendly_name") : string.Empty))
+            .Where(l => l.Id.StartsWith("light.", StringComparison.Ordinal))
+            .Select(l => (l.Id, Name: l.Name.Length > 0 ? l.Name : l.Id))
+            .OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(l => l.Id, StringComparer.Ordinal))
+        {
+            lights.Add((JsonNode)new JsonObject { ["id"] = id, ["name"] = name });
+        }
+
+        return new JsonObject { ["lights"] = lights };
+    }
+
+    /// <summary><c>{ host, token, entityId }</c>: a short flash of one light (<c>light.turn_on</c> with <c>flash: "short"</c>).</summary>
+    public static async Task IdentifyAsync(DeviceRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var p = request.Parameters;
+        var entity = DeviceConfig.GetString(p, "entityId").Trim();
+        var host = DeviceConfig.GetString(p, "host").Trim();
+        var token = DeviceConfig.GetString(p, "token").Trim();
+        if (host.Length == 0 || token.Length == 0 || !entity.StartsWith("light.", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("host, token and entityId (a light.* entity) are required");
+        }
+
+        var (rest, root) = Api(request.Context, host, token);
+        var body = new JsonObject { ["entity_id"] = entity, ["flash"] = "short" };
+        var reply = await rest.PostAsync(new Uri(root, "/api/services/light/turn_on"), body.ToJsonString(LampColor.QtJson), request.CancellationToken);
+        if (!reply.IsSuccess)
+        {
+            throw new IOException($"Home Assistant answered HTTP {reply.Status}");
+        }
+    }
+
+    // The REST client with the token and the API base, as the driver uses them.
+    private static (JsonRest Client, Uri Root) Api(DriverContext context, string host, string token)
+    {
+        var root = new HomeAssistantOptions(host, token, []).BaseUri;
+        var http = root.Scheme == Uri.UriSchemeHttps ? context.LanHttps : context.Http;
+        return (new JsonRest(http, new Dictionary<string, string> { ["Authorization"] = $"Bearer {token}" }), root);
     }
 
     /// <summary>The <c>light.turn_on</c> body for one lamp and color (keys sorted, as QJsonDocument writes them).</summary>

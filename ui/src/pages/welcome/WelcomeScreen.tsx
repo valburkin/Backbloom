@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Cpu, Loader2, Plus, Power } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Loader2, Power } from 'lucide-react';
 import { Button, cx } from '../../components/ui';
 import { Advanced } from '../../components/form';
 import { Logo } from '../../components/Logo';
@@ -7,26 +7,49 @@ import { useConnection } from '../../app/connection';
 import { useConfig } from '../../app/config';
 import { useEditor } from '../../app/editor';
 import { useExpertTools } from '../../app/expert';
+import { useToast } from '../../app/toast';
 import { hrefFor } from '../../app/router';
-import type { Controller } from '../../layout';
+import { defaultRoom, validateLayout, type Controller, type LayoutSpec, type PathPoint } from '../../layout';
 import type { BackendConfig, ServerInfo, SetupState } from '../../api/types';
+import { saveBlockers, saveLayout } from '../../api/layoutService';
+import { useLedFrame } from '../../live/hooks';
 import { AddDeviceDialog } from '../devices/AddDeviceDialog';
+import { SetupChoices, type AddStart } from '../../setup/SetupChoices';
+import { YourLights } from '../../setup/YourLights';
+import { pathWithRole, roleRows, type RoleRow, type SimpleRole } from '../../setup/roles';
+import { TraceStrip, type TraceFrame } from '../../setup/TraceStrip';
+import { applyGameIntensity, applyMood, detectGameIntensity, detectMood, type GameIntensityId, type MoodId } from '../../settings/intensity';
 import { isTestDevice } from '../devices/drivers';
+import { addGame } from '../GamesPage';
 import { OtherAppNotice } from './OtherAppNotice';
-import { deviceLine, importedItems, welcomeSummary } from './summary';
+import { FeelStepBody, RolesStepBody, type FeelProps } from './ReadySteps';
+import { addedThisSession, fittedScreen, monitorText, shownSteps, sizedMonitor, stepAfter, STEPS, type Step } from './ready';
+import { importedItems, welcomeSummary } from './summary';
 
-/** The setup's steps: welcome, the lights' device, turn them on. */
-export const STEPS = ['Welcome', 'Your lights', 'Turn on'] as const;
-export type Step = 0 | 1 | 2;
+export { STEPS, type Step } from './ready';
+
+/** The brightness a new install's lights start at when they are turned on (Home's Brightness, `scaleOutput`). */
+export const FIRST_BRIGHTNESS = 0.2;
+
+/** The brightness to set when the lights are turned on: a new install still at full gets {@link FIRST_BRIGHTNESS}. */
+export function firstBrightness(importedFrom: string | null | undefined, current: number | undefined): number | null {
+  return !importedFrom && (current ?? 1) >= 0.999 ? FIRST_BRIGHTNESS : null;
+}
 
 /** Where "Turn on lights" leads: add a device, place the strips, or Home when everything is set up. */
 export type NextPage = 'devices' | 'layout' | 'home';
 
-/** Devices: add one when there is none (or only the test device); Layout: until a layout is saved; else Home. */
-export function nextPage(controllers: readonly Controller[], layoutSaved: boolean, unsaved: boolean): NextPage {
+/**
+ * Devices: add one when there is none (or only the test device); Layout when the layout can't be saved as it is;
+ * else Home (Turn on saves the layout first).
+ */
+export function nextPage(controllers: readonly Controller[], canSave: boolean): NextPage {
   if (!controllers.some((c) => !isTestDevice(c))) return 'devices';
-  return !layoutSaved || unsaved ? 'layout' : 'home';
+  return canSave ? 'home' : 'layout';
 }
+
+/** The trace of a strip, shown in What each light does instead of its rows (see TraceStrip). */
+export type TraceView = Parameters<TraceFrame>[0];
 
 export interface WelcomeViewProps {
   setup: SetupState;
@@ -36,7 +59,10 @@ export interface WelcomeViewProps {
   onStep(step: Step): void;
   /** The layout's devices (the test device of a new install included); null while loading. */
   devices: readonly Controller[] | null;
-  onAddDevice(): void;
+  /** The layout, for Your lights and What each light does (default: just the devices). */
+  spec?: LayoutSpec | null;
+  /** Opens Add device: its choice, or one of its flows. */
+  onAddDevice(start?: AddStart): void;
   next: NextPage;
   /** Expert tools are on: show the technical details. */
   expert: boolean;
@@ -48,24 +74,40 @@ export interface WelcomeViewProps {
   onLookAround(): void;
   /** HyperHDR quit while the setup was open. */
   otherAppQuit: boolean;
+  /** What each light does: the monitor in words, null while unknown. */
+  monitor?: string | null;
+  /** The live LED colors for the room picture. */
+  frame?: readonly number[] | null;
+  /** The light picked out in the room picture. */
+  selected?: string | null;
+  onSelect?(stripId: string): void;
+  onRole?(row: RoleRow, role: SimpleRole): void;
+  onTrace?(row: RoleRow): void;
+  /** A strip being traced: shown instead of What each light does, with its own buttons. */
+  trace?: TraceView | null;
+  /** Feel and games; null while the settings load. */
+  feel?: FeelProps | null;
+  /** "Skip — use the defaults" of What each light does and Feel and games. */
+  onSkip?(step: Step): void;
 }
 
-function StepDots({ step }: { step: Step }) {
+function StepDots({ step, shown }: { step: Step; shown: readonly Step[] }) {
+  const at = shown.indexOf(step);
   return (
-    <ol className="flex items-center gap-2 text-xs text-ink-faint" aria-label={`Step ${step + 1} of ${STEPS.length}`}>
-      {STEPS.map((label, i) => (
-        <li key={label} className="flex items-center gap-2" aria-current={i === step ? 'step' : undefined}>
+    <ol className="flex items-center gap-2 text-xs text-ink-faint" aria-label={`Step ${at + 1} of ${shown.length}`}>
+      {shown.map((s, i) => (
+        <li key={s} className="flex items-center gap-2" aria-current={i === at ? 'step' : undefined}>
           <span
             className={cx(
               'flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold',
-              i < step ? 'bg-accent/20 text-accent-strong' : i === step ? 'bg-accent text-accent-ink' : 'bg-surface-3 text-ink-muted',
+              i < at ? 'bg-accent/20 text-accent-strong' : i === at ? 'bg-accent text-accent-ink' : 'bg-surface-3 text-ink-muted',
             )}
             aria-hidden
           >
-            {i < step ? <Check size={12} /> : i + 1}
+            {i < at ? <Check size={12} /> : i + 1}
           </span>
-          <span className={cx('hidden sm:inline', i === step && 'font-medium text-ink')}>{label}</span>
-          {i < STEPS.length - 1 && <span className="h-px w-5 bg-line-strong" aria-hidden />}
+          {i === at && <span className="hidden font-medium text-ink sm:inline">{STEPS[s]}</span>}
+          {i < shown.length - 1 && <span className="h-px w-4 bg-line-strong" aria-hidden />}
         </li>
       ))}
     </ol>
@@ -174,48 +216,76 @@ function Loading() {
   );
 }
 
+/** The layout to show: the editor's, else one with just the devices. */
+function specOf(p: WelcomeViewProps): LayoutSpec | null {
+  if (p.spec) return p.spec;
+  return p.devices ? { version: 1, room: defaultRoom(), controllers: [...p.devices], strips: [] } : null;
+}
+
+/** Your lights: what is added so far, and the ways to add more (the hub each board and room lights come back to). */
 function LightsStep(p: WelcomeViewProps) {
-  const real = p.devices?.filter((c) => !isTestDevice(c)) ?? [];
+  const spec = specOf(p);
+  const real = spec?.controllers.filter((c) => !isTestDevice(c)) ?? [];
   return (
     <>
-      <Heading title="Your lights">The device your LED strips are plugged into, such as a WLED controller.</Heading>
-      {!p.devices ? (
+      <Heading title="Your lights">
+        {real.length ? 'Everything you added so far. More strips on another board, or room lights? Add them now, or go on.' : 'Your LED strips and room lights, and how Backbloom reaches them.'}
+      </Heading>
+      {!spec ? (
         <Loading />
       ) : real.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-line-strong px-6 py-8 text-center">
-          <Cpu size={28} className="text-ink-faint" aria-hidden />
-          <div>
-            <p className="text-sm font-medium">No device yet</p>
-            <p className="mt-1 max-w-sm text-[13px] text-ink-muted">Add the device your strips are plugged into. Backbloom can search your network for WLED.</p>
-          </div>
-          <Button variant="primary" icon={<Plus size={16} />} onClick={p.onAddDevice}>
-            Add device
-          </Button>
-        </div>
+        <section aria-labelledby="welcome-add" className="space-y-3">
+          <h2 id="welcome-add" className="text-sm font-semibold">
+            What do you have?
+          </h2>
+          <SetupChoices onPick={(kind) => p.onAddDevice(kind)} />
+        </section>
       ) : (
-        <div className="space-y-3">
-          <ul className="divide-y divide-line border-y border-line">
-            {real.map((c) => {
-              const leds = c.outputs.reduce((n, o) => n + o.length, 0);
-              return (
-                <li key={c.id} className="flex items-center gap-3 py-3">
-                  <Cpu size={20} className="shrink-0 text-ink-faint" aria-hidden />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{deviceLine(c)}</p>
-                    <p className="text-xs text-ink-faint">
-                      {leds} LED{leds === 1 ? '' : 's'}
-                      {c.outputs.length > 1 ? ` on ${c.outputs.length} outputs` : ''}
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-          <Button size="sm" icon={<Plus size={15} />} onClick={p.onAddDevice}>
-            Add another device
-          </Button>
-        </div>
+        <YourLights spec={spec} withAddress={p.expert} onAdd={(kind) => p.onAddDevice(kind)} />
       )}
+    </>
+  );
+}
+
+function RolesStep(p: WelcomeViewProps) {
+  const spec = specOf(p);
+  if (p.trace)
+    return (
+      <>
+        <Heading title={p.trace.title}>{p.trace.intro}</Heading>
+        {p.trace.children}
+      </>
+    );
+  const rows = spec ? roleRows(spec) : [];
+  return (
+    <>
+      <Heading title="What each light does">
+        Every light starts with the screen’s average color, soft and right whichever way it runs. Pick Screen edge to make a strip follow the part of the
+        screen next to it: you show Backbloom where it runs. Each choice shows in the picture at once; more choices on Layout.
+      </Heading>
+      {spec ? (
+        <RolesStepBody
+          spec={spec}
+          rows={rows}
+          frame={p.frame ?? null}
+          monitor={p.monitor ?? null}
+          selected={p.selected ?? rows[0]?.stripId ?? null}
+          onSelect={(id) => p.onSelect?.(id)}
+          onRole={(r, role) => p.onRole?.(r, role)}
+          onTrace={(r) => p.onTrace?.(r)}
+        />
+      ) : (
+        <Loading />
+      )}
+    </>
+  );
+}
+
+function FeelStep(p: WelcomeViewProps) {
+  return (
+    <>
+      <Heading title="Feel and games">How your lights feel in each mode. You can change these on Home any time.</Heading>
+      {p.feel ? <FeelStepBody {...p.feel} /> : <Loading />}
     </>
   );
 }
@@ -262,10 +332,53 @@ function StartStep(p: WelcomeViewProps) {
   );
 }
 
+const SKIP = 'Skip — use the defaults';
+
+/** The footer's buttons for a step: what goes on (one primary), and a way past it. */
+function StepActions(p: WelcomeViewProps & { hasLights: boolean }) {
+  const { step, hasLights } = p;
+  if (step === 2 && p.trace) return <>{p.trace.actions}</>;
+  const next = () => p.onStep(stepAfter(step, hasLights));
+  const primary = (label: string, onClick = next) => (
+    <Button variant="primary" onClick={onClick}>
+      {label} <ArrowRight size={16} />
+    </Button>
+  );
+  switch (step) {
+    case 1:
+      return !p.devices || hasLights ? (
+        primary('Next')
+      ) : (
+        <Button variant="secondary" onClick={next}>
+          Skip for now <ArrowRight size={16} />
+        </Button>
+      );
+    case 2:
+    case 3:
+      return (
+        <>
+          <Button variant="ghost" onClick={() => p.onSkip?.(step)}>
+            {SKIP}
+          </Button>
+          {primary('Next')}
+        </>
+      );
+    case 4:
+      return (
+        <Button variant="primary" icon={p.starting ? <Loader2 size={16} className="animate-spin" /> : <Power size={16} />} disabled={p.starting} onClick={p.onStart}>
+          Turn on lights
+        </Button>
+      );
+    default:
+      return primary('Next');
+  }
+}
+
 /** The first-run setup as a pure view (see {@link WelcomeScreen}). */
 export function WelcomeView(p: WelcomeViewProps) {
   const { step } = p;
-  const noDevice = step === 1 && !!p.devices && !p.devices.some((c) => !isTestDevice(c));
+  const hasLights = !!p.devices && p.devices.some((c) => !isTestDevice(c));
+  const shown = shownSteps(hasLights);
   // focus moves to the title of each new step (not the first), so screen readers announce it
   const firstStep = useRef(step);
   const moved = useRef(false);
@@ -275,19 +388,21 @@ export function WelcomeView(p: WelcomeViewProps) {
   }, [step]);
   return (
     <div className="flex h-full justify-center overflow-y-auto p-4 sm:p-8">
-      <main aria-labelledby="welcome-title" className="my-auto flex w-full max-w-xl flex-col gap-5 rounded-2xl border border-line bg-surface p-6 shadow-2xl sm:p-8">
+      <main aria-labelledby="welcome-title" className="my-auto flex w-full max-w-2xl flex-col gap-5 rounded-2xl border border-line bg-surface p-6 shadow-2xl sm:p-8">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <span className="flex items-center gap-2.5">
             <Logo size={28} />
             <span className="text-[15px] font-semibold tracking-tight">Backbloom</span>
           </span>
-          <StepDots step={step} />
+          <StepDots step={step} shown={shown} />
         </header>
 
         <div className="min-h-[12rem] space-y-5">
           {step === 0 && <WelcomeStep {...p} />}
           {step === 1 && <LightsStep {...p} />}
-          {step === 2 && <StartStep {...p} />}
+          {step === 2 && <RolesStep {...p} />}
+          {step === 3 && <FeelStep {...p} />}
+          {step === 4 && <StartStep {...p} />}
         </div>
 
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
@@ -295,25 +410,12 @@ export function WelcomeView(p: WelcomeViewProps) {
             Look around first
           </Button>
           <div className="flex flex-wrap gap-2">
-            {step > 0 && (
-              <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => p.onStep((step - 1) as Step)}>
+            {step > 0 && !p.trace && (
+              <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => p.onStep(stepAfter(step, hasLights, -1))}>
                 Back
               </Button>
             )}
-            {step < 2 ? (
-              <Button variant={noDevice ? 'secondary' : 'primary'} onClick={() => p.onStep((step + 1) as Step)}>
-                {noDevice ? 'Skip for now' : 'Next'} <ArrowRight size={16} />
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                icon={p.starting ? <Loader2 size={16} className="animate-spin" /> : <Power size={16} />}
-                disabled={p.starting}
-                onClick={p.onStart}
-              >
-                Turn on lights
-              </Button>
-            )}
+            <StepActions {...p} hasLights={hasLights} />
           </div>
         </footer>
       </main>
@@ -322,32 +424,187 @@ export function WelcomeView(p: WelcomeViewProps) {
 }
 
 /**
+ * Saves layouts one after the other, the newest one waiting (choices made quickly in a row save once more at the end,
+ * never out of order), without a message unless it fails; a layout that can't be saved as it is waits for Turn on.
+ */
+function useLayoutSaver() {
+  const { api } = useConnection();
+  const { markSaved } = useEditor();
+  const toast = useToast();
+  const queue = useRef<{ running: Promise<void> | null; next: LayoutSpec | null }>({ running: null, next: null });
+  const save = (spec: LayoutSpec): Promise<void> => {
+    const q = queue.current;
+    q.next = spec;
+    if (q.running) return q.running;
+    q.running = (async () => {
+      while (q.next) {
+        const s = q.next;
+        q.next = null;
+        if (saveBlockers(s, validateLayout(s).filter((i) => i.severity === 'error').length).length) continue;
+        try {
+          await saveLayout(api, s);
+          markSaved(s);
+        } catch (e) {
+          toast('bad', 'Couldn’t save the layout', e instanceof Error ? e.message : String(e));
+        }
+      }
+    })().finally(() => {
+      q.running = null;
+    });
+    return q.running;
+  };
+  return { save, idle: () => queue.current.running ?? Promise.resolve() };
+}
+
+/**
  * Shown instead of the app until the lights were turned on once (a new install or a HyperHDR import): welcome, the
- * device, turn on. Then the app opens where setup goes on (see {@link nextPage}).
+ * lights (Your lights, where each board and room lights come back to), What each light does (each choice saved at
+ * once, so the room picture shows it), Feel and games, turn on. Turn on saves the layout first (unless it can't be
+ * saved as it is); then the app opens where setup goes on (see {@link nextPage}).
  */
 export function WelcomeScreen({ onLookAround }: { onLookAround(): void }) {
   const { setup, serverInfo, api, applySetup } = useConnection();
   const { config } = useConfig();
-  const { state, load, dirty } = useEditor();
+  const { state, dispatch, load, dirty, blockers, save } = useEditor();
   const expert = useExpertTools();
+  const toast = useToast();
   const [step, setStep] = useState<Step>(0);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<AddStart | null>(null);
   const [autostart, setAutostart] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sawOtherApp, setSawOtherApp] = useState(false);
+  const [monitor, setMonitor] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [tracing, setTracing] = useState<RoleRow | null>(null);
+  const [feelBusy, setFeelBusy] = useState(false);
+  const saver = useLayoutSaver();
+  // live colors for What each light does: the layout as saved, so each choice shows
+  const frame = useLedFrame(step === 2 && !tracing);
+  const specRef = useRef(state.spec);
+  specRef.current = state.spec;
+  const screensAsked = useRef(false);
+  /** The strips' paths as added (every light the screen's average), what Skip on What each light does goes back to. */
+  const defaults = useRef<Map<string, PathPoint[]> | null>(null);
+  /** The devices the layout had when it loaded: the setup saves by itself only once it added others. */
+  const loaded = useRef<ReadonlySet<string> | null>(null);
+  const loadPrograms = useCallback(() => api.runningPrograms(), [api]);
   if (!setup) return null;
   if (setup.otherApp && !sawOtherApp) setSawOtherApp(true);
 
   const devices = load.status === 'ready' || load.status === 'error' ? state.spec.controllers : null;
-  const next = devices ? nextPage(devices, load.source === 'saved', dirty) : 'home';
+  if (devices && !loaded.current) loaded.current = new Set(devices.map((c) => c.id));
+  const addedHere = (spec: LayoutSpec) => addedThisSession(loaded.current, spec.controllers);
+  const hasLights = !!devices?.some((c) => !isTestDevice(c));
+  const next = devices ? nextPage(devices, blockers.length === 0) : 'home';
+
+  const setConfig = async (partial: BackendConfig, what: string) => {
+    setFeelBusy(true);
+    try {
+      await api.setConfig(partial);
+    } catch (e) {
+      toast('bad', `Couldn’t change the ${what}`, e instanceof Error ? e.message : String(e));
+    } finally {
+      setFeelBusy(false);
+    }
+  };
+
+  /** The layout with one strip's path changed, put into the editor and saved at once (the room picture shows it). */
+  const setPath = (stripId: string, path: PathPoint[]) => {
+    dispatch({ type: 'updateStrip', stripId, patch: { path } });
+    void saver.save({ ...state.spec, strips: state.spec.strips.map((x) => (x.id === stripId ? { ...x, path } : x)) });
+  };
+
+  const goTo = (s: Step) => {
+    setTracing(null);
+    if (s === 2 && !screensAsked.current) {
+      screensAsked.current = true;
+      api
+        .screens()
+        .then((screens) => {
+          const m = sizedMonitor(screens);
+          setMonitor(m ? monitorText(m) : null);
+          const fitted = m && fittedScreen(specRef.current.room, m);
+          if (fitted) {
+            dispatch({ type: 'updateRoom', patch: { screen: fitted } });
+            if (addedHere(specRef.current)) void saver.save({ ...specRef.current, room: { ...specRef.current.room, screen: fitted } });
+          }
+        })
+        .catch(() => undefined);
+    }
+    if (s === 2) {
+      if (!defaults.current) defaults.current = new Map(state.spec.strips.map((x) => [x.id, x.path]));
+      // the room picture's live colors come from the saved layout: save what Your lights added this time (an imported
+      // layout is saved only once the user changes something here, or at Turn on)
+      if (addedHere(state.spec) && (dirty || load.source !== 'saved')) void saver.save(state.spec);
+    }
+    setStep(s);
+  };
+
+  const skip = (s: Step) => {
+    if (s === 2) {
+      let spec = state.spec;
+      for (const strip of state.spec.strips) {
+        const path = defaults.current?.get(strip.id);
+        if (!path || path === strip.path) continue;
+        dispatch({ type: 'updateStrip', stripId: strip.id, patch: { path } });
+        spec = { ...spec, strips: spec.strips.map((x) => (x.id === strip.id ? { ...x, path } : x)) };
+      }
+      if (spec !== state.spec) void saver.save(spec);
+    }
+    if (s === 3 && config) {
+      // a new install's Mood default: Natural (an imported install keeps its colors); Game mode keeps the settings'
+      // own Intensity (Intense)
+      if (!setup.importedFrom && detectMood(config) !== 'natural') void setConfig(applyMood(config, 'natural'), 'mood');
+    }
+    goTo(stepAfter(s, hasLights));
+  };
+
+  const role = (row: RoleRow, r: SimpleRole) => {
+    const strip = state.spec.strips.find((x) => x.id === row.stripId);
+    if (!strip) return;
+    setSelected(strip.id);
+    // Screen edge needs the way the strip runs: a strip on a WLED board is traced first (Cancel keeps what it shows)
+    if (r === 'screen' && row.trace) return setTracing(row);
+    const effects = (serverInfo?.effects ?? []).map((e) => e.name);
+    setPath(strip.id, pathWithRole(strip, row.segments, r, effects));
+  };
+
+  const games = (state.spec.profiles ?? []).filter((x) => x.game);
+  const feel: FeelProps | null = config
+    ? {
+        mood: detectMood(config),
+        intensity: detectGameIntensity(config),
+        disabled: feelBusy,
+        onMood: (id: MoodId) => void setConfig(applyMood(config, id), 'mood'),
+        onIntensity: (id: GameIntensityId) => void setConfig(applyGameIntensity(config, id), 'intensity'),
+        games,
+        loadPrograms,
+        onAddGame: (exe, title) => {
+          // saved with the layout when the lights are turned on
+          const change = addGame(state.spec, exe, title);
+          if (change?.action) dispatch(change.action);
+          else if (change) toast('info', change.message);
+        },
+      }
+    : null;
 
   const start = async () => {
     setStarting(true);
     setError(null);
     try {
+      await saver.idle();
+      let target = next;
+      // the lights use the saved layout: save what the setup added and chose (Layout stays open for more)
+      if (hasLights && (dirty || load.source !== 'saved')) {
+        const saved = blockers.length === 0 && (await save());
+        if (!saved) target = 'layout';
+      }
+      // a new install starts at a comfortable brightness (full is far too bright in a room); Home's slider changes it
+      const brightness = firstBrightness(setup.importedFrom, serverInfo?.adjustment?.[0]?.scaleOutput);
+      if (brightness !== null) await api.adjust({ scaleOutput: brightness });
       const done = await api.startLighting(setup.autostart.available ? autostart : undefined);
-      window.location.hash = hrefFor(next);
+      window.location.hash = hrefFor(target);
       applySetup(done);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -356,27 +613,59 @@ export function WelcomeScreen({ onLookAround }: { onLookAround(): void }) {
     }
   };
 
+  const traced = tracing && state.spec.strips.find((x) => x.id === tracing.stripId);
+  const view = (trace: TraceView | null) => (
+    <WelcomeView
+      setup={setup}
+      config={config}
+      serverInfo={serverInfo}
+      step={step}
+      onStep={goTo}
+      devices={devices}
+      spec={devices ? state.spec : null}
+      onAddDevice={(s) => setAdding(s ?? 'choose')}
+      next={next}
+      expert={expert}
+      starting={starting}
+      error={error}
+      autostart={autostart}
+      onAutostart={setAutostart}
+      onStart={() => void start()}
+      onLookAround={onLookAround}
+      otherAppQuit={sawOtherApp && !setup.otherApp}
+      monitor={monitor}
+      frame={frame}
+      selected={selected}
+      onSelect={setSelected}
+      onRole={role}
+      onTrace={(r) => setTracing(r)}
+      trace={trace}
+      feel={feel}
+      onSkip={skip}
+    />
+  );
+
   return (
     <>
-      <WelcomeView
-        setup={setup}
-        config={config}
-        serverInfo={serverInfo}
-        step={step}
-        onStep={setStep}
-        devices={devices}
-        onAddDevice={() => setAdding(true)}
-        next={next}
-        expert={expert}
-        starting={starting}
-        error={error}
-        autostart={autostart}
-        onAutostart={setAutostart}
-        onStart={() => void start()}
-        onLookAround={onLookAround}
-        otherAppQuit={sawOtherApp && !setup.otherApp}
-      />
-      <AddDeviceDialog open={adding} onClose={() => setAdding(false)} onAdded={() => setAdding(false)} />
+      {step === 2 && tracing?.trace && traced ? (
+        <TraceStrip
+          key={traced.id}
+          frame={view}
+          room={state.spec.room}
+          name={traced.name}
+          host={tracing.trace.host}
+          output={tracing.trace.output}
+          leds={tracing.trace.leds}
+          onCancel={() => setTracing(null)}
+          onDone={(path) => {
+            setTracing(null);
+            setPath(traced.id, path);
+          }}
+        />
+      ) : (
+        view(null)
+      )}
+      <AddDeviceDialog open={adding !== null} start={adding ?? 'choose'} onClose={() => setAdding(null)} onAdded={() => setAdding(null)} />
     </>
   );
 }

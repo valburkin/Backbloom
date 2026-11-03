@@ -12,6 +12,16 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ### Added
 
+- **Set up new LED strips without the board's web page**: Add device → LED strips on a WLED board. One Search finds
+  the board over USB, on its own Wi-Fi or on your network, and puts it on your Wi-Fi (with the password this PC knows,
+  if you like). Then Backbloom finds which connection each strip is on by lighting them one at a time, asks the strip
+  type and the power supply (and keeps the brightness within it), and walks you through the last LED, the colors and
+  the power at the far end. A planner shows where to cut and join a strip around a monitor or TV.
+- **Room lights in the same place**: Govee lights on your network, and Philips Hue, Nanoleaf and Home Assistant lights,
+  found and added from Add device → Room lights.
+- **A first-run setup that ends ready to use**: after your lights, say what each one does (every light follows the
+  screen's average colors until you choose; Screen edge lets you draw the strip's route and checks it on the strip),
+  pick the feel and add your games. New lights start at 20% brightness.
 - **Live colors on the Layout page**: in Customize, show every LED in the color it lights your room right now,
   instead of the rainbow that marks what each LED follows.
 - **`--capture-image <file>`** (for developers): a still picture as the frame source instead of the screen, so
@@ -47,6 +57,9 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ### Changed
 
+- **WLED power limits by version**: Backbloom reads a WLED board's current limit the way its WLED version enforces it
+  (0.15 limits each output on its own), so the performance recording no longer reports a strip as limited when it isn't, or the
+  other way round.
 - **A fresh look**: the app now matches the Backbloom website, with new fonts, the pink-to-cyan Backbloom colors on
   the main buttons, switches and the brightness slider, sliders that fill up to their handle, and a soft glow at the
   top of every page. On Home the glow takes the colors your lights show right now.

@@ -137,7 +137,7 @@ public sealed partial class WledDriver : ITelemetryDriver
         if (info is not null)
         {
             udpPort = ReadInfo(info, ledCount);
-            await ReadConfigAsync(cancellationToken);
+            await ReadConfigAsync(ReadString((info["info"] as JsonObject)?["ver"]), cancellationToken);
             _polledBrightness = null;
             (telemetry, _) = ReadTelemetry(info, polled: false);
             if (_options.RestoreOriginalState && info["state"] is JsonObject state)
@@ -273,14 +273,14 @@ public sealed partial class WledDriver : ITelemetryDriver
 
     // The power limiter settings and LED current from /json/cfg, once per connection (/json/si can't tell whether the
     // limiter is in use). Any failure only leaves them unknown.
-    private async Task ReadConfigAsync(CancellationToken cancellationToken)
+    private async Task ReadConfigAsync(string? version, CancellationToken cancellationToken)
     {
         WledConfig config = default;
         try
         {
             if (await GetJsonAsync(new Uri(BaseUri, "json/cfg"), cancellationToken) is { } cfg)
             {
-                config = WledConfig.Read(cfg);
+                config = WledConfig.Read(cfg, version);
             }
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is not OutOfMemoryException)

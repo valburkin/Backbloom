@@ -45,17 +45,24 @@ export function createBackend(): Backend {
     // ?mock=auth: another device, which signs in; ?mock=welcome: a new install's setup (only the test device);
     // ?mock=welcome-imported: the setup after importing HyperHDR settings; ?mock=hyperhdr: the same while HyperHDR runs;
     // ?mock=imported: no layout saved yet, only the LED positions (as after importing HyperHDR settings);
-    // ?mock=offline: a device can't be reached; ?mock=game: in Game mode
+    // ?mock=offline: a device can't be reached; ?mock=game: in Game mode; ?mock=nousb: no new WLED board on USB;
+    // ?mock=welcome-hotspot: a new install with only a new board's hotspot nearby; ?mock=location: Windows hides nearby
+    // Wi-Fi networks; ?mock=noboards: no new board anywhere;
+    // ?mock=existing: the owner's board on the network, not in the layout yet (Add it as it is)
     const mode = new URLSearchParams(loc.search).get('mock');
-    const firstRun = mode === 'welcome' || mode === 'welcome-imported' || mode === 'hyperhdr';
+    const firstRun = mode === 'welcome' || mode === 'welcome-hotspot' || mode === 'welcome-imported' || mode === 'hyperhdr';
     return new MockBackend({
       requireAuth: mode === 'auth',
       firstRun,
-      fresh: mode === 'welcome',
+      fresh: mode === 'welcome' || mode === 'welcome-hotspot',
       otherApp: mode === 'hyperhdr',
       offline: mode === 'offline',
       imported: mode === 'imported',
-      demoLayout: !firstRun && mode !== 'imported',
+      demoLayout: !firstRun && mode !== 'imported' && mode !== 'existing',
+      existingBoard: mode === 'existing' || undefined,
+      usb: mode !== 'nousb' && mode !== 'welcome-hotspot' && mode !== 'noboards',
+      hotspot: mode !== 'noboards',
+      locationBlocked: mode === 'location',
       config: mode === 'game' ? { modes: { mode: 'game' } } : undefined,
     });
   }

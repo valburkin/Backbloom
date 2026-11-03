@@ -30,6 +30,8 @@ export function isUsbDevice(type: string, ledDevices: ServerInfo['ledDevices']):
 export function deviceStatus(c: ControllerInfo, usb = false): DeviceStatus {
   const s = (text: string, tone: DeviceStatus['tone'], problem = false, live = false): DeviceStatus => ({ text, tone, problem, live });
   if (!c.enabled) return s('Switched off', 'neutral');
+  // the test device of a new install writes the colors nowhere: never "Sending colors" in green
+  if (c.type === 'file') return s('Test device: the colors go nowhere', 'neutral');
   if (!c.running) return c.status ? s(`Can’t be used: ${c.status.replace(/\.$/, '')}`, 'bad', true) : s('Not sending', 'neutral');
   switch (c.state) {
     case 'ready':

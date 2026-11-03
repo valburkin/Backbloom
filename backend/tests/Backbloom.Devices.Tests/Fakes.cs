@@ -185,6 +185,28 @@ internal sealed class FakeProbe(params UdpProbeReply[] replies) : IUdpProbe
     }
 }
 
+/// <summary>Records multicast (Govee) probes and answers them from a callback (nothing by default).</summary>
+internal sealed class FakeMulticast(Func<byte[], IPEndPoint, IReadOnlyList<UdpProbeReply>>? answer) : IMulticastProbe
+{
+    public FakeMulticast()
+        : this((Func<byte[], IPEndPoint, IReadOnlyList<UdpProbeReply>>?)null)
+    {
+    }
+
+    public FakeMulticast(params UdpProbeReply[] replies)
+        : this((_, _) => replies)
+    {
+    }
+
+    public List<(byte[] Request, IPEndPoint Group, int LocalPort)> Probes { get; } = [];
+
+    public Task<IReadOnlyList<UdpProbeReply>> ProbeAsync(byte[] request, IPEndPoint group, int localPort, TimeSpan duration, CancellationToken cancellationToken)
+    {
+        Probes.Add((request, group, localPort));
+        return Task.FromResult(answer?.Invoke(request, group) ?? []);
+    }
+}
+
 /// <summary>Records publishes and delivers messages to subscribers.</summary>
 internal sealed class FakeMqtt : IMqttConnection
 {
@@ -274,7 +296,11 @@ internal static class Ctx
 
     public static DiscoveryServices Discovery(
         IMdnsBrowser? mdns = null, ISsdpSearcher? ssdp = null, ISerialPortEnumerator? serial = null, IHidEnumerator? hid = null, IUdpProbe? probe = null) =>
-        new(mdns ?? new FakeMdns(), ssdp ?? new FakeSsdp(), serial ?? new FakeSerialEnumerator(), hid ?? new FakeHidEnumerator(), probe ?? new FakeProbe());
+        new(mdns ?? new FakeMdns(), ssdp ?? new FakeSsdp(), serial ?? new FakeSerialEnumerator(), hid ?? new FakeHidEnumerator(), probe ?? new FakeProbe())
+        {
+            // never the real one: it would bind port 4002 on the network interfaces
+            Multicast = new FakeMulticast(),
+        };
 
     public static JsonObject Json(string json) => JsonNode.Parse(json)!.AsObject();
 

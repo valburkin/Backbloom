@@ -1,15 +1,20 @@
-import { useState, type FormEvent } from 'react';
-import { ArrowRight, CheckCircle2, Loader2, ScanSearch } from 'lucide-react';
-import { controllerFromWledConfig, type Controller, type LayoutSpec } from '../../layout';
-import { Button, buttonClass, Dialog, Segmented, Stepper } from '../../components/ui';
+import { useRef, useState, type FormEvent } from 'react';
+import { ArrowLeft, CheckCircle2, Loader2, ScanSearch } from 'lucide-react';
+import { controllerFromWledConfig, type Controller } from '../../layout';
+import { Button, Dialog, Segmented, Stepper } from '../../components/ui';
 import { Input, Select } from '../../components/form';
 import { useConnection } from '../../app/connection';
 import { useEditor } from '../../app/editor';
-import { useExpertTools } from '../../app/expert';
 import { hrefFor } from '../../app/router';
 import type { DiscoveredDevice } from '../../api/types';
 import { FoundDevices, newDriverSettings, useDeviceSearch, useDeviceTypes, useDriverSchemas } from './DriverForm';
-import { addedAddresses, discoveryTarget, driverName, isLampDevice, isTestDevice, lampCount, ledCountLabel } from './drivers';
+import { addedAddresses, discoveryTarget, driverName, isLampDevice, lampCount, ledCountLabel } from './drivers';
+import { useAddToLayout } from '../../setup/useAddToLayout';
+import { SetupChoices, type AddStart } from '../../setup/SetupChoices';
+import { SetUpBoard } from '../../setup/SetUpBoard';
+import { AddLights } from '../../setup/AddLights';
+import { YourLights } from '../../setup/YourLights';
+import { useExpertTools } from '../../app/expert';
 
 export function errorText(e: unknown, host: string): string {
   if (e instanceof DOMException && e.name === 'AbortError') return `${host} didn’t answer in time.`;
@@ -28,39 +33,6 @@ export async function fetchController(fetchCfg: (h: string, s?: AbortSignal) => 
   }
 }
 
-function uniqueId(spec: LayoutSpec, wanted: string): string {
-  const taken = new Set(spec.controllers.map((c) => c.id));
-  const base = wanted || 'controller';
-  if (!taken.has(base)) return base;
-  let n = 2;
-  while (taken.has(`${base}-${n}`)) n++;
-  return `${base}-${n}`;
-}
-
-/**
- * Adds a device and one strip per output, so the new LEDs show up on the Layout page right away. The first real
- * device replaces the test device of a fresh install (unless expert tools are on: then it may be wanted).
- */
-function useAddController() {
-  const { state, dispatch } = useEditor();
-  const expert = useExpertTools();
-  return (controller: Controller) => {
-    const replaced = !expert && state.spec.controllers.length > 0 && state.spec.controllers.every(isTestDevice) ? state.spec.controllers : [];
-    replaced.forEach((c) => dispatch({ type: 'removeController', controllerId: c.id }));
-    const remaining = { ...state.spec, controllers: state.spec.controllers.filter((c) => !replaced.includes(c)) };
-    const id = uniqueId(remaining, controller.id);
-    dispatch({ type: 'addController', controller: { ...controller, id } });
-    controller.outputs.forEach((o, i) =>
-      dispatch({
-        type: 'addStrip',
-        controllerId: id,
-        output: o.index,
-        name: controller.outputs.length > 1 ? `${controller.name} ${i + 1}` : controller.name,
-      }),
-    );
-  };
-}
-
 /** The setting the Add dialog asks for: the address (or USB port) of a device type, if it has one. */
 function addressKey(type: string, group: string | undefined, schema: { properties?: Record<string, unknown> } | undefined): string | null {
   if (type === 'file') return null;
@@ -72,15 +44,100 @@ function addressKey(type: string, group: string | undefined, schema: { propertie
 type AddMode = 'wled' | 'other';
 
 /**
- * Adds a device to the layout (unsaved until the layout is saved): WLED by its address or a network search, or any
- * other device type. Without `onAdded` it ends with "Device added" and a link to the Layout page; with it, it closes
- * and calls `onAdded` (the first-run setup goes on by itself).
+ * Add device: what to add first (a new WLED strip, room lights, or a device that is set up already), then that flow.
+ * Everything goes into the layout (unsaved until the layout is saved). Without `onAdded` each flow comes back to Your
+ * lights (everything added, three ways to add more, Done back to the page); with it, it closes and calls `onAdded`
+ * (the first-run setup shows its own Your lights). `start` opens one of the flows directly.
  */
-export function AddDeviceDialog({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded?: (name: string) => void }) {
+export function AddDeviceDialog({
+  open,
+  onClose,
+  onAdded,
+  start = 'choose',
+}: {
+  open: boolean;
+  onClose: () => void;
+  onAdded?: (name: string) => void;
+  start?: AddStart;
+}) {
+  // closed, the flows unmount: each opening starts afresh at `start`
+  return open ? <AddDeviceFlows onClose={onClose} onAdded={onAdded} start={start} /> : null;
+}
+
+type FlowView = AddStart | 'hub';
+
+function AddDeviceFlows({ onClose, onAdded, start }: { onClose: () => void; onAdded?: (name: string) => void; start: AddStart }) {
+  const { state } = useEditor();
+  const expert = useExpertTools();
+  const [view, setView] = useState<FlowView>(start);
+  /** Where a flow's Back goes: the choice, or Your lights once something was added; none for a flow opened directly. */
+  const [home, setHome] = useState<FlowView | null>(start === 'choose' ? 'choose' : null);
+  const [names, setNames] = useState<string[]>([]);
+  // the devices there before, so Your lights can mark the new ones
+  const before = useRef(new Set(state.spec.controllers.map((c) => c.id)));
+  const back = home ? () => setView(home) : undefined;
+  const added = (name: string) => {
+    if (onAdded) return onAdded(name);
+    setNames((n) => [...n, name]);
+    setHome('hub');
+    setView('hub');
+  };
+  switch (view) {
+    case 'wled-new':
+    case 'wled-resume':
+      // only Continue setting up your board goes on with the setup left before; the plain choice starts afresh
+      return <SetUpBoard resume={view === 'wled-resume'} onClose={onClose} onAdded={added} onBack={back} />;
+    case 'lights':
+      return <AddLights onClose={onClose} onAdded={added} onBack={back} />;
+    case 'existing':
+      return <ExistingDeviceDialog open onClose={onClose} onAdded={added} onBack={back} />;
+    case 'hub': {
+      const fresh = new Set(state.spec.controllers.filter((c) => !before.current.has(c.id)).map((c) => c.id));
+      return (
+        <Dialog
+          open
+          title="Your lights"
+          onClose={onClose}
+          footer={
+            <Button variant="primary" onClick={onClose}>
+              Done
+            </Button>
+          }
+        >
+          <div className="space-y-4">
+            <p className="flex items-start gap-2.5 text-sm">
+              <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-ok" aria-hidden />
+              <span>
+                Added to your setup: <span className="font-medium">{names.join(', ')}</span>.{' '}
+                <a className="text-accent-strong underline-offset-2 hover:underline" href={hrefFor('layout')} onClick={onClose}>
+                  Check them on Layout
+                </a>
+                , then save.
+              </span>
+            </p>
+            <YourLights spec={state.spec} fresh={fresh} withAddress={expert} onAdd={setView} />
+          </div>
+        </Dialog>
+      );
+    }
+    default:
+      return (
+        <Dialog open title="Add device" onClose={onClose}>
+          <SetupChoices onPick={setView} />
+        </Dialog>
+      );
+  }
+}
+
+/**
+ * A device that is set up already: WLED by its address or a network search, or any other device type.
+ */
+function ExistingDeviceDialog({ open, onClose, onAdded, onBack }: { open: boolean; onClose: () => void; onAdded: (name: string) => void; onBack?: () => void }) {
   const { backend } = useConnection();
   const { state } = useEditor();
   const schemas = useDriverSchemas();
-  const add = useAddController();
+  const addDevices = useAddToLayout();
+  const add = (c: Controller) => addDevices([{ controller: c }]);
   const search = useDeviceSearch();
   const [mode, setMode] = useState<AddMode>('wled');
   const [host, setHost] = useState('');
@@ -91,7 +148,6 @@ export function AddDeviceDialog({ open, onClose, onAdded }: { open: boolean; onC
   const [error, setError] = useState<string | null>(null);
   const [found, setFound] = useState<Controller | null>(null);
   const [results, setResults] = useState<DiscoveredDevice[] | null>(null);
-  const [added, setAdded] = useState<string | null>(null);
   const options = useDeviceTypes().filter((o) => o.value !== 'wled');
   const searchType = mode === 'wled' ? 'wled' : type;
   const group = mode === 'wled' ? 'Network' : options.find((o) => o.value === type)?.group;
@@ -109,17 +165,14 @@ export function AddDeviceDialog({ open, onClose, onAdded }: { open: boolean; onC
     setFound(null);
     setResults(null);
     setBusy(false);
-    setAdded(null);
   };
   const close = () => {
     reset();
     onClose();
   };
   const done = (label: string) => {
-    if (onAdded) {
-      reset();
-      onAdded(label);
-    } else setAdded(label);
+    reset();
+    onAdded(label);
   };
   const finish = (c: Controller) => {
     add(c);
@@ -163,37 +216,6 @@ export function AddDeviceDialog({ open, onClose, onAdded }: { open: boolean; onC
     setResults(null);
   };
 
-  if (added)
-    return (
-      <Dialog
-        open={open}
-        title="Device added"
-        onClose={close}
-        footer={
-          <>
-            <Button variant="ghost" onClick={close}>
-              Done
-            </Button>
-            <a
-              href={hrefFor('layout')}
-              onClick={close}
-              className={buttonClass('primary')}
-            >
-              Next: place your strips <ArrowRight size={15} />
-            </a>
-          </>
-        }
-      >
-        <p className="flex items-start gap-2.5 text-sm">
-          <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-ok" />
-          <span>
-            <span className="font-medium">{added}</span> is in your setup. Next, show Backbloom where its strips are on the Layout page, then save.
-            {lamps && mode === 'other' && <span className="mt-1 block text-ink-muted">Add its lamps in its connection settings here on Devices.</span>}
-          </span>
-        </p>
-      </Dialog>
-    );
-
   const searchButton = canSearch && (
     <Button
       className="shrink-0 whitespace-nowrap"
@@ -208,10 +230,15 @@ export function AddDeviceDialog({ open, onClose, onAdded }: { open: boolean; onC
   return (
     <Dialog
       open={open}
-      title="Add device"
+      title="Add a device that’s set up"
       onClose={close}
       footer={
         <>
+          {onBack ? (
+            <Button variant="ghost" className="mr-auto" icon={<ArrowLeft size={16} />} onClick={onBack}>
+              Back
+            </Button>
+          ) : null}
           <Button variant="ghost" onClick={close}>
             Cancel
           </Button>

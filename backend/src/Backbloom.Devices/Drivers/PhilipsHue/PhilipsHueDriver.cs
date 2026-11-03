@@ -153,8 +153,10 @@ public sealed partial class PhilipsHueDriver : IFloatColorDriver
     }
 
     /// <summary>
-    /// <c>{host, user, filter}</c>: the bridge resource <c>/api/&lt;user&gt;/&lt;filter&gt;</c>. With <c>pair: true</c>
-    /// (and the bridge's link button pressed) it creates a username and client key instead.
+    /// <c>{host, user, filter}</c>: the bridge resource <c>/api/&lt;user&gt;/&lt;filter&gt;</c>, or with a filter
+    /// starting with <c>/clip/v2</c> that API v2 resource (https, the user as application key). With <c>pair: true</c>
+    /// (and the bridge's link button pressed) it creates a username and client key instead. With
+    /// <c>createArea: { name, lights }</c> it creates an entertainment area (see <see cref="CreateAreaAsync"/>).
     /// </summary>
     public static async Task<JsonObject> GetPropertiesAsync(DeviceRequest request)
     {
@@ -166,14 +168,120 @@ public sealed partial class PhilipsHueDriver : IFloatColorDriver
             return [];
         }
 
+        // pairing and areas report what went wrong in properties.error, for the user as it is
         if (DeviceConfig.GetBool(p, "pair", false))
         {
-            return await HueBridge.PairAsync(host, request.Context, request.CancellationToken);
+            try
+            {
+                return await HueBridge.PairAsync(host, request.Context, request.CancellationToken);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TimeoutException or UriFormatException)
+            {
+                return new JsonObject { ["error"] = $"Couldn't reach the Hue bridge at {host}" };
+            }
         }
 
-        var bridge = new HueBridge(host, DeviceConfig.GetString(p, "user"), false, request.Context);
-        var reply = await bridge.GetRawAsync(DeviceConfig.GetString(p, "filter"), request.CancellationToken);
+        var filter = DeviceConfig.GetString(p, "filter");
+        var v2 = filter.StartsWith("/clip/v2", StringComparison.Ordinal);
+        var bridge = new HueBridge(host, DeviceConfig.GetString(p, "user"), v2 || p["createArea"] is not null, request.Context);
+        if (p["createArea"] is { } area)
+        {
+            try
+            {
+                return new JsonObject { ["id"] = await CreateAreaAsync(bridge, area as JsonObject ?? throw new InvalidOperationException("createArea must be { name, lights }"), request.CancellationToken) };
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or HueApiException)
+            {
+                return new JsonObject { ["error"] = ex.Message };
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TimeoutException)
+            {
+                return new JsonObject { ["error"] = $"Couldn't reach the Hue bridge at {host}" };
+            }
+        }
+
+        var reply = await bridge.GetRawAsync(filter, request.CancellationToken);
         return reply.Body as JsonObject ?? [];
+    }
+
+    /// <summary>
+    /// Creates an entertainment area (API v2 <c>entertainment_configuration</c>, type "screen") from
+    /// <c>{ name, lights: [id | { id, x?, y?, z? }] }</c> and returns its id. A light is named by its v2 light id, its
+    /// entertainment service id or its v1 number ("3" or "/lights/3"); lights without a position are spread from left
+    /// (x -1) to right (x 1) at the screen's height, so the Hue app's area editor can move them later.
+    /// </summary>
+    public static async Task<string> CreateAreaAsync(HueBridge bridge, JsonObject area, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(bridge);
+        ArgumentNullException.ThrowIfNull(area);
+        var name = DeviceConfig.GetString(area, "name").Trim();
+        if (name.Length is 0 or > 32)
+        {
+            throw new InvalidOperationException("createArea.name must have 1 to 32 characters");
+        }
+
+        var requested = area["lights"] as JsonArray ?? [];
+        if (requested.Count == 0)
+        {
+            throw new InvalidOperationException("createArea.lights needs at least one light");
+        }
+
+        var services = (await bridge.GetV2Async("/clip/v2/resource/entertainment", cancellationToken)).OfType<JsonObject>().ToList();
+        var lights = (await bridge.GetV2Async("/clip/v2/resource/light", cancellationToken)).OfType<JsonObject>().ToList();
+        var locations = new JsonArray();
+        for (var i = 0; i < requested.Count; i++)
+        {
+            var item = requested[i];
+            var spec = item as JsonObject;
+            var id = (spec?["id"] ?? item) is JsonValue v ? (v.TryGetValue(out string? s) ? s : v.ToJsonString()) : string.Empty;
+            var service = EntertainmentServiceOf(id, services, lights) ??
+                throw new InvalidOperationException($"The bridge has no entertainment light \"{id}\" (only lights that support Hue Entertainment can be in an area)");
+            var x = requested.Count == 1 ? 0.0 : -1.0 + (2.0 * i / (requested.Count - 1));
+            locations.Add((JsonNode)new JsonObject
+            {
+                ["service"] = new JsonObject { ["rid"] = service, ["rtype"] = "entertainment" },
+                ["positions"] = new JsonArray(new JsonObject
+                {
+                    ["x"] = spec is null ? x : DeviceConfig.GetDouble(spec, "x", x),
+                    ["y"] = spec is null ? 0.0 : DeviceConfig.GetDouble(spec, "y", 0.0),
+                    ["z"] = spec is null ? 0.0 : DeviceConfig.GetDouble(spec, "z", 0.0),
+                }),
+            });
+        }
+
+        var body = new JsonObject
+        {
+            ["type"] = "entertainment_configuration",
+            ["metadata"] = new JsonObject { ["name"] = name },
+            ["configuration_type"] = "screen",
+            ["locations"] = new JsonObject { ["service_locations"] = locations },
+        };
+        var created = HueBridge.CheckV2(await bridge.PostRawAsync("/clip/v2/resource/entertainment_configuration", body.ToJsonString(), cancellationToken));
+        return created.OfType<JsonObject>().Select(d => DeviceConfig.GetString(d, "rid")).FirstOrDefault(r => r.Length > 0) ??
+            throw new HueApiException("The bridge created no entertainment area");
+    }
+
+    // An entertainment service (renderer) by its own id, a light's v2 id or a v1 light number.
+    private static string? EntertainmentServiceOf(string id, List<JsonObject> services, List<JsonObject> lights)
+    {
+        var renderers = services.Where(s => DeviceConfig.GetBool(s, "renderer", true)).ToList();
+        if (renderers.FirstOrDefault(s => DeviceConfig.GetString(s, "id") == id) is { } direct)
+        {
+            return DeviceConfig.GetString(direct, "id");
+        }
+
+        var v1 = id.StartsWith("/lights/", StringComparison.Ordinal) ? id : $"/lights/{id}";
+        var light = lights.FirstOrDefault(l => DeviceConfig.GetString(l, "id") == id || DeviceConfig.GetString(l, "id_v1") == v1);
+        if (light is null)
+        {
+            return null;
+        }
+
+        var lightId = DeviceConfig.GetString(light, "id");
+        var device = (light["owner"] as JsonObject) is { } owner ? DeviceConfig.GetString(owner, "rid") : string.Empty;
+        var match = renderers.FirstOrDefault(s => (s["renderer_reference"] as JsonObject) is { } r && DeviceConfig.GetString(r, "rid") == lightId) ??
+            renderers.FirstOrDefault(s => device.Length > 0 && (s["owner"] as JsonObject) is { } o && DeviceConfig.GetString(o, "rid") == device);
+        return match is null ? null : DeviceConfig.GetString(match, "id");
     }
 
     /// <summary><c>{host, user, lightId}</c>: the light's "select" alert (one blink).</summary>

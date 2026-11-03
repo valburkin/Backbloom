@@ -63,6 +63,27 @@ public sealed class HueBridge
 
     public async Task<RestReply> GetRawAsync(string route, CancellationToken cancellationToken) => await _rest.GetAsync(Resource(route), cancellationToken);
 
+    public async Task<RestReply> PostRawAsync(string route, string body, CancellationToken cancellationToken) => await _rest.PostAsync(Resource(route), body, cancellationToken);
+
+    /// <summary>
+    /// The <c>data</c> of a v2 resource (<c>/clip/v2/resource/...</c>); throws <see cref="HueApiException"/> with the
+    /// bridge's error description when it answers with an error.
+    /// </summary>
+    public async Task<JsonArray> GetV2Async(string route, CancellationToken cancellationToken) => CheckV2(await GetRawAsync(route, cancellationToken));
+
+    /// <summary>A v2 error reply (<c>errors: [{ description }]</c>, or an HTTP error) as an exception; else the reply's <c>data</c>.</summary>
+    public static JsonArray CheckV2(RestReply reply)
+    {
+        ArgumentNullException.ThrowIfNull(reply);
+        var errors = (reply.Body?["errors"] as JsonArray ?? []).OfType<JsonObject>().Select(e => DeviceConfig.GetString(e, "description")).Where(d => d.Length > 0).ToList();
+        if (!reply.IsSuccess || errors.Count > 0)
+        {
+            throw new HueApiException(errors.Count > 0 ? string.Join("; ", errors) : $"The bridge answered HTTP {reply.Status}");
+        }
+
+        return reply.Body?["data"] as JsonArray ?? [];
+    }
+
     /// <summary>PUT (the C++ "post" helper sends PUT requests).</summary>
     public async Task<JsonNode?> PutAsync(string route, string body, bool suppressError, CancellationToken cancellationToken) =>
         Check((await _rest.PutAsync(Resource(route), body, cancellationToken)).Body, suppressError);

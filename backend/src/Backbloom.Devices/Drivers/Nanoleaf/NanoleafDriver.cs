@@ -157,6 +157,11 @@ public sealed partial class NanoleafDriver : ILedDriver
         }
     }
 
+    /// <summary>
+    /// <c>{host, token, filter}</c>: the OpenAPI resource <c>/api/v1/&lt;token&gt;/&lt;filter&gt;</c>. With <c>pair: true</c>
+    /// (the controller's power button held for 5-7 s, so it is in pairing mode for 30 s) it creates a token instead:
+    /// <c>{ token }</c>, or <c>{ error }</c> when the controller refuses (not in pairing mode).
+    /// </summary>
     public static async Task<JsonObject> GetPropertiesAsync(DeviceRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -165,6 +170,11 @@ public sealed partial class NanoleafDriver : ILedDriver
         if (host.Length == 0)
         {
             return [];
+        }
+
+        if (DeviceConfig.GetBool(p, "pair", false))
+        {
+            return await PairAsync(host, request.Context, request.CancellationToken);
         }
 
         var reply = await new JsonRest(request.Context.Http).GetAsync(ApiUri(host, DeviceConfig.GetString(p, "token"), DeviceConfig.GetString(p, "filter")), request.CancellationToken);
@@ -245,6 +255,35 @@ public sealed partial class NanoleafDriver : ILedDriver
     public void Dispose() => _udp.Dispose();
 
     public static string OnOffRequest(bool on) => on ? """{"on":{"value":true}}""" : """{"on":{"value":false}}""";
+
+    /// <summary>POST <c>/api/v1/new</c>: the controller answers with an <c>auth_token</c> while it is in pairing mode, else 403.</summary>
+    public static async Task<JsonObject> PairAsync(string host, DriverContext context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var (h, port) = DeviceConfig.SplitHostPort(host);
+        var uri = new Uri(string.Create(CultureInfo.InvariantCulture, $"http://{DeviceConfig.UrlHost(h)}:{port ?? ApiPort}/api/v1/new"));
+        RestReply reply;
+        try
+        {
+            reply = await new JsonRest(context.Http).PostAsync(uri, string.Empty, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TimeoutException)
+        {
+            return new JsonObject { ["error"] = $"Couldn't reach the Nanoleaf controller at {host}" };
+        }
+
+        if (reply.IsSuccess && reply.Body is JsonObject body && DeviceConfig.GetString(body, "auth_token") is { Length: > 0 } token)
+        {
+            return new JsonObject { ["token"] = token };
+        }
+
+        return new JsonObject
+        {
+            ["error"] = reply.Status == 403
+                ? "The Nanoleaf controller isn't in pairing mode: hold its power button for 5-7 seconds until the lights flash, then try again within 30 seconds"
+                : $"Unexpected answer from the Nanoleaf controller (HTTP {reply.Status})",
+        };
+    }
 
     private static Uri ApiUri(string host, string token, string path)
     {

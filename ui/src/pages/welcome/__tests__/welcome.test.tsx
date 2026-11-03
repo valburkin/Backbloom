@@ -10,7 +10,7 @@ import { qrPath } from '../../../components/QrCode';
 import { DiscoveryDialog } from '../../devices/DriverForm';
 import { RemoteAccessAddresses, RemoteAccessDialog } from '../../settings/RemoteAccess';
 import { deviceLine, driverTarget, importedItems, monitorName, welcomeSummary } from '../summary';
-import { nextPage, WelcomeView, type WelcomeViewProps } from '../WelcomeScreen';
+import { FIRST_BRIGHTNESS, firstBrightness, nextPage, WelcomeView, type WelcomeViewProps } from '../WelcomeScreen';
 import type { Controller } from '../../../layout';
 import { addedAddresses } from '../../devices/drivers';
 import { FoundDevices } from '../../devices/DriverForm';
@@ -103,7 +103,7 @@ describe('setup', () => {
   it('welcomes and says what came over from HyperHDR, without technical details', () => {
     const html = view();
     expect(html).toContain('Welcome to Backbloom');
-    expect(html).toContain('Step 1 of 3');
+    expect(html).toContain('Step 1 of 5');
     expect(html).toContain('Copied from HyperHDR');
     expect(html).toContain('Your device: Desk (WLED at wled-desk.local)');
     expect(html).toContain('168 LEDs and where they are');
@@ -132,21 +132,43 @@ describe('setup', () => {
   it('confirms the device, or asks to add one instead of the test device', () => {
     const found = view({ step: 1 });
     expect(found).toContain('Your lights');
-    expect(found).toContain('Desk (WLED at wled-desk.local)');
-    expect(found).toContain('168 LEDs on 2 outputs');
-    expect(found).toContain('Add another device');
+    expect(found).toContain('Desk (WLED)');
+    expect(found).not.toContain('wled-desk.local');
+    expect(view({ step: 1, expert: true })).toContain('Desk (WLED at wled-desk.local)');
+    expect(found).toContain('168 LEDs');
+    // the hub: what is added, three ways to add more, one primary to go on
+    expect(found).toContain('Add more');
+    expect(found).toContain('LED strips on a WLED board');
+    expect(found).toContain('Room lights');
+    expect(found).toContain('Another kind of device');
+    expect(found.match(/bg-brand text-accent-ink font-semibold/g)).toHaveLength(1);
     expect(found).toMatch(/>Next/);
 
     const none = view({ step: 1, devices: [testDevice] });
-    expect(none).toContain('No device yet');
-    expect(none).toContain('>Add device<');
+    // the ways to add lights right here: a new WLED strip, room lights, or a device that is set up already
+    expect(none).toContain('What do you have?');
+    expect(none).toContain('LED strips on a WLED board');
+    expect(none).toContain('Room lights');
+    expect(none).toContain('Another kind of device');
     expect(none).toContain('Skip for now');
     expect(none).not.toContain('/dev/null');
     expect(view({ step: 1, devices: null })).toContain('Looking at your setup');
   });
 
+  it('asks what each light does, and shows a trace with its own buttons instead', () => {
+    const roles = view({ step: 2 });
+    expect(roles).toContain('What each light does');
+    expect(roles).toContain('Skip — use the defaults');
+    expect(roles.match(/bg-brand text-accent-ink font-semibold/g)).toHaveLength(1);
+    const trace = view({ step: 2, trace: { title: 'Trace your strip', intro: 'LED 1 is bright.', children: <p>drawing</p>, actions: <button type="button">Use this route</button> } });
+    expect(trace).toContain('Trace your strip');
+    expect(trace).toContain('Use this route');
+    expect(trace).not.toContain('Skip — use the defaults');
+    expect(trace).not.toContain('>Back<');
+  });
+
   it('turns the lights on, with Start with Windows off by default', () => {
-    const html = view({ step: 2 });
+    const html = view({ step: 4 });
     expect(html).toContain('Turn on your lights');
     expect(html).toContain('Your lights stay as they are until you turn them on here.');
     expect(html).toContain('Then show Backbloom where your strips are');
@@ -154,27 +176,37 @@ describe('setup', () => {
     expect(html).toContain('Start with Windows');
     expect(html).toContain('Off unless you check it. You can change it later in Settings or from the tray icon.');
     expect(html).not.toMatch(/type="checkbox"[^>]*checked/);
-    expect(view({ step: 2, setup: { ...setup, autostart: { available: false, enabled: false } } })).not.toContain('Start with Windows');
+    expect(view({ step: 4, setup: { ...setup, autostart: { available: false, enabled: false } } })).not.toContain('Start with Windows');
   });
 
   it('can turn on while HyperHDR runs: Backbloom takes over when it quits', () => {
-    const html = view({ step: 2, setup: { ...setup, otherApp: { name: 'HyperHDR', executable: 'hyperhdr.exe' } } });
+    const html = view({ step: 4, setup: { ...setup, otherApp: { name: 'HyperHDR', executable: 'hyperhdr.exe' } } });
     expect(html).toContain('HyperHDR still runs');
     expect(html).not.toMatch(/<button[^>]* disabled=""[^>]*>(<[^>]*>)*Turn on lights/);
   });
 
   it('goes on where setup isn’t finished', () => {
-    expect(nextPage([testDevice], false, false)).toBe('devices');
-    expect(nextPage([], true, false)).toBe('devices');
-    expect(nextPage([wled], false, false)).toBe('layout');
-    expect(nextPage([wled], true, true)).toBe('layout');
-    expect(nextPage([wled, testDevice], true, false)).toBe('home');
+    expect(nextPage([testDevice], true)).toBe('devices');
+    expect(nextPage([], true)).toBe('devices');
+    // Turn on saves the layout: Home, unless it can't be saved as it is
+    expect(nextPage([wled], false)).toBe('layout');
+    expect(nextPage([wled, testDevice], true)).toBe('home');
   });
 
   it('lists what was imported in plain words', () => {
     expect(importedItems([wled], 168)).toEqual(['Your device: Desk (WLED at wled-desk.local)', '168 LEDs and where they are', 'Your screen sync, color and effect settings']);
     expect(importedItems([testDevice], 0)).toEqual(['Your screen sync, color and effect settings']);
     expect(deviceLine({ ...wled, name: 'LED controller' })).toBe('WLED at wled-desk.local');
+  });
+});
+
+describe('first brightness', () => {
+  it('starts a new install at 20%, unless the brightness was changed or the settings were imported', () => {
+    expect(FIRST_BRIGHTNESS).toBe(0.2);
+    expect(firstBrightness(null, undefined)).toBe(0.2);
+    expect(firstBrightness(null, 1)).toBe(0.2);
+    expect(firstBrightness(null, 0.6)).toBeNull();
+    expect(firstBrightness('C:\\HyperHDR', 1)).toBeNull();
   });
 });
 

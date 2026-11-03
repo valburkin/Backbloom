@@ -1,4 +1,5 @@
 import { BackendEvents } from './emitter';
+import { MockHardware } from './mockHardware';
 import type { MockFixtures } from './mockData';
 import { UI_PRIORITY } from './rpcApi';
 import {
@@ -47,6 +48,22 @@ export interface MockOptions {
   autostart?: boolean;
   /** Start with the owner's layout saved (placed in the room) instead of only the imported LED positions. */
   demoLayout?: boolean;
+  /** A new WLED board is plugged in over USB (default true; `?mock=nousb`: none, for the WLED-AP fallback). */
+  usb?: boolean;
+  /** How long the new board takes to restart, ms (default 4000). */
+  restartMs?: number;
+  /** The new board's clock (tests step it instead of waiting for a restart). */
+  now?: () => number;
+  /** A new board opens its hotspot nearby (default true). */
+  hotspot?: boolean;
+  /** The owner's board is on the network (default: with the demo layout). */
+  existingBoard?: boolean;
+  /** Windows keeps nearby Wi-Fi networks from Backbloom (`?mock=location`). */
+  locationBlocked?: boolean;
+  /** How long each step of a hotspot join takes, ms (tests: 0). */
+  stepMs?: number;
+  /** How long a board takes to apply LED settings without a restart (default 700 ms; tests: 0). */
+  applyMs?: number;
 }
 
 /** Where the demo pretends to be reachable once remote access is on. */
@@ -136,6 +153,8 @@ export class MockBackend implements Backend {
   readonly blinkStops: Array<{ controller?: string }> = [];
   /** The LED held lit (the mock has no timeout), or null. */
   heldBlink: { controller: string; blinkIndex: number } | null = null;
+  /** The new WLED board and the room lights (`hardware`, room-light searches and pairing). */
+  readonly hardware: MockHardware;
 
   constructor(options: MockOptions = {}) {
     this.latencyMs = options.latencyMs ?? 60;
@@ -145,6 +164,25 @@ export class MockBackend implements Backend {
     this.demoLayout = options.demoLayout ?? false;
     this.fresh = !!options.firstRun && !!options.fresh;
     this.offline = options.offline ?? false;
+    this.hardware = new MockHardware({
+      usb: options.usb,
+      hotspot: options.hotspot,
+      existing: options.existingBoard ?? options.demoLayout ?? false,
+      // not in the layout: another host than the imported device's
+      existingHost: options.demoLayout ? undefined : 'wled-desk.local',
+      locationBlocked: options.locationBlocked,
+      restartMs: options.restartMs,
+      stepMs: options.stepMs,
+      applyMs: options.applyMs,
+      now: options.now,
+      emit: (command, data) => this.emit(command, data),
+      // like the backend: a board a running device of the layout streams to refuses writes and tests
+      streamedBy: (host) => {
+        const on = !!this.components.get('ALL') && !!this.components.get('LEDDEVICE') && !this.setup.outputHeld;
+        const c = (this.config.layout as LayoutSpec | undefined)?.controllers?.find((x) => x.enabled !== false && (x.host === host || x.device?.host === host));
+        return on && c ? c.name : null;
+      },
+    });
     this.setup = {
       firstRunCompleted: !options.firstRun,
       outputHeld: !!options.firstRun || !!options.otherApp,
@@ -318,6 +356,9 @@ export class MockBackend implements Backend {
         return ok(this.profileCommand(subcommand, params, fail, needAdmin));
       case 'mode':
         return ok(this.modeCommand(subcommand, params, fail));
+      case 'hardware':
+        needAdmin();
+        return ok(await this.hardware.handle(subcommand, params, fail));
       case 'setup':        // only this computer and devices that signed in (which are admins here)
         needAdmin();
         return ok(this.setupCommand(subcommand, params, fail));
@@ -541,8 +582,11 @@ export class MockBackend implements Backend {
           console.info(`[mock] blink LED ${local} of ${controller.name}${hold ? ' (held)' : ''}`);
           return { controller: controller.id, blinkIndex: local, hold };
         }
+        this.hardware.identify(type, (params.params ?? {}) as Record<string, unknown>);
         return undefined;
       case 'discover': {
+        const lights = this.hardware.discover(type);
+        if (lights) return { ledDeviceType: type, devices: lights };
         const serial = ['adalight', 'sp616e', 'skydimo', 'synclight'].includes(type);
         const devices = serial
           ? [
@@ -553,12 +597,13 @@ export class MockBackend implements Backend {
             ? [
                 { value: MOCK_WLED_HOST, name: `192.168.1.40 (${MOCK_WLED_HOST})` },
                 { value: 'wled-shelf.local', name: '192.168.1.57 (wled-shelf.local)' },
+                ...this.hardware.wledOnNetwork(),
               ]
             : [];
         return { ledDeviceType: type, devices };
       }
       case 'getProperties':
-        return { properties: {} };
+        return { properties: this.hardware.properties(type, (params.params ?? {}) as Record<string, unknown>) ?? {} };
       default:
         return fail('Unknown or missing subcommand');
     }
@@ -649,8 +694,11 @@ export class MockBackend implements Backend {
   private serverInfo(): ServerInfo {
     const fx = this.fx!;
     const color = this.config.color as { channelAdjustment?: unknown[]; imageToLedMappingType?: string };
+    const available = fx.serverInfo.ledDevices?.available ?? [];
     return {
       ...clone(fx.serverInfo),
+      // the Govee device type is newer than the fixture
+      ledDevices: { available: available.some((d) => d.name === 'govee') ? clone(available) : [...clone(available), { name: 'govee', group: 'leds_group_2_network' }] },
       components: [...this.components].map(([name, enabled]) => ({ name, enabled })),
       priorities: this.priorities(),
       priorities_autoselect: this.autoSelect,
@@ -734,7 +782,8 @@ export class MockBackend implements Backend {
         const leds = (this.config.leds ?? []) as Array<{ hmin: number; hmax: number; vmin: number; vmax: number }>;
         const scale = Math.min(1, Number(this.activeAdjustment().scaleOutput ?? 1));
         const t = Date.now() - started;
-        const on = this.components.get('ALL') && this.components.get('LEDDEVICE') && !this.setup.outputHeld;
+        // like the backend: the preview keeps running while the output is held (the first-run setup shows it)
+        const on = this.components.get('ALL') && this.components.get('LEDDEVICE');
         const out: number[] = [];
         leds.forEach((r, i) => {
           const x = (r.hmin + r.hmax) / 2;

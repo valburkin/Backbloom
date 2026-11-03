@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Backbloom.Devices;
+using Backbloom.Devices.Setup;
 using Backbloom.Discovery;
 using Backbloom.Discovery.Mdns;
 using Backbloom.Discovery.Ssdp;
@@ -10,9 +11,11 @@ using Backbloom.Mqtt;
 
 namespace Backbloom.App;
 
-/// <summary>The LED drivers and what they share: HTTP clients, discovery, the MQTT connection.</summary>
+/// <summary>The LED drivers and what they share: HTTP clients, discovery, the MQTT connection; the guided setup's USB and WLED clients.</summary>
 internal static class DeviceRegistration
 {
+    private const string SetupKey = "setup";
+
     public static IServiceCollection AddDevices(this IServiceCollection services)
     {
         services.AddSingleton(_ => new DriverRegistry().RegisterAll());
@@ -29,6 +32,16 @@ internal static class DeviceRegistration
             Mqtt = sp.GetRequiredService<MqttConnection>(),
         });
         services.AddSingleton<DeviceTools>();
+        // the guided setup checks every address it contacts (WledHosts): its client never follows a redirect elsewhere
+        services.AddKeyedSingleton(SetupKey, (sp, _) => new DriverContext(
+            sp.GetRequiredService<ILoggerFactory>(),
+            new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, PooledConnectionLifetime = TimeSpan.FromMinutes(5) }))
+        {
+            Discovery = sp.GetRequiredService<DiscoveryServices>(),
+        });
+        services.AddSingleton(sp => new UsbBoards(sp.GetRequiredKeyedService<DriverContext>(SetupKey)));
+        services.AddSingleton(sp => new WledSetup(sp.GetRequiredKeyedService<DriverContext>(SetupKey)));
+        services.AddSingleton(sp => new BoardFinder(sp.GetRequiredKeyedService<DriverContext>(SetupKey), sp.GetRequiredService<UsbBoards>(), sp.GetRequiredService<WledSetup>(), sp.GetRequiredService<IWifi>()));
         return services;
     }
 

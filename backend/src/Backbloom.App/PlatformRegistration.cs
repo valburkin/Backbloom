@@ -1,11 +1,12 @@
 using System.Runtime.Versioning;
 using Microsoft.Extensions.DependencyInjection;
+using Backbloom.Devices.Setup;
 using Backbloom.Engine.Platform;
 using Backbloom.Platform.Windows;
 
 namespace Backbloom.App;
 
-/// <summary>Registers the platform's clock, system and GPU metrics, process list and program list (portable fallbacks elsewhere).</summary>
+/// <summary>Registers the platform's clock, system and GPU metrics, process list, program list, monitor list and Wi-Fi (portable fallbacks elsewhere).</summary>
 internal static class PlatformRegistration
 {
     /// <summary>
@@ -28,6 +29,8 @@ internal static class PlatformRegistration
             services.AddSingleton<IGpuMetrics, NoGpuMetrics>();
             services.AddSingleton<IProcessList, PortableProcessList>();
             services.AddSingleton<IProgramList, PortableProgramList>();
+            services.AddSingleton<IDisplayList, NoDisplayList>();
+            services.AddSingleton<IWifi, NoWifi>();
         }
 
         return services;
@@ -42,5 +45,7 @@ internal static class PlatformRegistration
         services.AddSingleton<IGpuMetrics, WindowsGpuMetrics>();
         services.AddSingleton<IProcessList, WindowsProcessList>();
         services.AddSingleton<IProgramList, WindowsProgramList>();
+        services.AddSingleton<IDisplayList, WindowsDisplayList>();
+        services.AddSingleton<IWifi, WindowsWifi>();
     }
 }

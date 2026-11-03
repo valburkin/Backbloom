@@ -1,0 +1,62 @@
+{
+  "type": "object",
+  "required": true,
+  "properties": {
+    "brightness": {
+      "type": "integer",
+      "title": "edt_conf_color_brightness_title",
+      "default": 100,
+      "minimum": 1,
+      "maximum": 100,
+      "append": "%",
+      "access": "advanced",
+      "propertyOrder": 1
+    },
+    "updateInterval": {
+      "type": "integer",
+      "title": "edt_dev_spec_goveeUpdateInterval_title",
+      "default": 100,
+      "minimum": 50,
+      "maximum": 2000,
+      "append": "ms",
+      "access": "expert",
+      "propertyOrder": 2
+    },
+    "lamps": {
+      "type": "array",
+      "title": "edt_dev_spec_lights_title",
+      "items": {
+        "type": "object",
+        "title": "edt_dev_spec_lights_itemtitle",
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "edt_dev_spec_lights_name"
+          },
+          "ipAddress": {
+            "type": "string",
+            "title": "edt_conf_net_ip_itemtitle",
+            "default": ""
+          },
+          "deviceId": {
+            "type": "string",
+            "title": "edt_dev_spec_goveeDeviceId_title",
+            "default": ""
+          },
+          "sku": {
+            "type": "string",
+            "title": "edt_dev_spec_goveeModel_title",
+            "default": ""
+          }
+        },
+        "required": [
+          "name",
+          "ipAddress"
+        ]
+      },
+      "default": [],
+      "propertyOrder": 3
+    }
+  },
+  "additionalProperties": true
+}

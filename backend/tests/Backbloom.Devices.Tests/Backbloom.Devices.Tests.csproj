@@ -7,4 +7,10 @@
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="MQTTnet.Server" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\FakeImprovBoard.cs" Link="Shared\FakeImprovBoard.cs" />
+    <Compile Include="..\Shared\FakeWledBoard.cs" Link="Shared\FakeWledBoard.cs" />
+    <Compile Include="..\Shared\FakeWifi.cs" Link="Shared\FakeWifi.cs" />
+  </ItemGroup>
 </Project>

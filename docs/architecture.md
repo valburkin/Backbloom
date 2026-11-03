@@ -35,9 +35,9 @@ while a search runs (see [backend/README.md](../backend/README.md#first-run-hype
 | Layer | Projects | Contents |
 |---|---|---|
 | 1 | `Backbloom.Core`, `Backbloom.Settings`, `Backbloom.Discovery`, `Backbloom.Mqtt` | Pure logic (layout, mapping, color, smoothing, priorities, effects, music analysis); settings schemas, SQLite store, HyperHDR import; mDNS/SSDP; the MQTT connection. No references to each other. |
-| 2 | `Backbloom.Capture`, `Backbloom.Audio`, `Backbloom.Devices`; `Backbloom.Capture.Windows`, `Backbloom.Audio.Windows` | Frame and sound source abstractions; LED drivers and their lifecycle; the Windows implementations (TerraFX interop). |
+| 2 | `Backbloom.Capture`, `Backbloom.Audio`, `Backbloom.Devices`; `Backbloom.Capture.Windows`, `Backbloom.Audio.Windows` | Frame and sound source abstractions; LED drivers and their lifecycle, the guided setup's Improv and WLED clients; the Windows implementations (TerraFX interop). |
 | 3 | `Backbloom.Engine` | Orchestration: frame loop, component switches, sources, controllers, effects, preview feed. |
-| 4 | `Backbloom.Server`, `Backbloom.Shell`; `Backbloom.Platform.Windows` | Kestrel JSON-RPC + UI files + MQTT integration; tray menu, window placement, power policy, single instance; Windows tray, WebView2 window, autostart, power and session events. |
+| 4 | `Backbloom.Server`, `Backbloom.Shell`; `Backbloom.Platform.Windows` | Kestrel JSON-RPC + UI files + MQTT integration; tray menu, window placement, power policy, single instance; Windows tray, WebView2 window, autostart, power and session events, monitor sizes, Wi-Fi (wlanapi) for the guided setup. |
 | 5 | `Backbloom.App` | Composition root (the only place that creates services), command line, logging, installer hooks and updates. |
 
 A project may only reference projects of lower layers. Platform code lives only in `*.Windows` projects behind

@@ -105,6 +105,9 @@ internal sealed class TestServer : IAsyncDisposable
             (options, services) =>
             {
                 services.AddSingleton<IProcessList>(new FakeProcessList());
+
+                // no test may scan or switch this PC's Wi-Fi
+                services.AddSingleton<Backbloom.Devices.Setup.IWifi>(new Backbloom.Devices.Setup.NoWifi());
                 services.AddSingleton<IStartupFilter, PeerFilter>();
                 configure?.Invoke(options, services);
             });

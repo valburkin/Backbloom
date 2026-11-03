@@ -27,7 +27,8 @@ setting on (Settings → Remote access) it also listens on the computer's networ
 { "command": "components-update", "data": { ... } }
 ```
 
-`tan` is echoed so clients can match replies. Requests of one connection run in order.
+`tan` is echoed so clients can match replies. Requests of one connection run in order, except the `hardware`
+subcommands that talk to a board: over a WebSocket they reply when the board is done and the next requests don't wait.
 
 ## Authorization
 
@@ -69,6 +70,7 @@ needed only from another device; this computer can set a new one without it, als
 | `setup` `getstate` / `start` / `autostart` / `acknowledge` | first-run setup: whether the lights were turned on once, HyperHDR running, what was imported, autostart, remote access addresses, whether a password is set (`passwordSet`); `start` ends the first-run hold (admin) |
 | `profile` `getstate` / `select` / `programs` | the layout's profiles at runtime (see below) |
 | `mode` `getstate` / `set` | Ambient or Game mode (see below) |
+| `hardware` `find` / `connect-wifi` / `wled-identify` / `wled-probe-start` / `wled-probe-end` / `screens` / `usb-scan` / `usb-networks` / `usb-wifi` / `wled-read` / `wled-write` / `wled-wifi` / `wled-test` | admins: the guided hardware setup (one search for boards on USB, the network and their hotspots, putting a board on Wi-Fi with `hardware-progress-update` events, monitor sizes, Improv Wi-Fi over USB, setting up a WLED board and its checks); see [guided-setup.md](guided-setup.md#protocol-hardware) |
 
 ### Finding an LED (`leddevice identify`, `ledDeviceType: "blink"`)
 
@@ -124,7 +126,7 @@ and `dismissedGame` the name of the running game whose Game mode was turned off 
 Events: `components-update`, `priorities-update`, `adjustment-update`, `settings-update`, `leds-update`,
 `imageToLedMapping-update`, `performance-update`, `token-update`, `instance-update`, `sessions-update`,
 `controllers-update`, `capture-update` (screen capture started or stopped, monitor HDR mode and tone mapping),
-`setup-update` (the `setup` state), `profile-update` (the active profile), `mode-update` (Ambient or Game), `sound-update` (`serverinfo.sound` when the
+`setup-update` (the `setup` state), `profile-update` (the active profile), `mode-update` (Ambient or Game), `hardware-progress-update` (the steps of `hardware connect-wifi`, to the asking connection only), `sound-update` (`serverinfo.sound` when the
 sound capture starts, stops, fails or recovers), `logging-update`, and the LED color stream.
 
 Differences from HyperHDR (rejected invalid settings, persisted `adjustment`, restore without restart, and others)

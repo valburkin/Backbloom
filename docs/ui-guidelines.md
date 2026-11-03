@@ -58,8 +58,10 @@ One term per concept, in the UI, docs, toasts and backend messages that reach th
 |---|---|---|
 | The whole setup | lights | lighting, output |
 | One LED | LED, numbered from 1 everywhere | pixel, LED position, LED #0 |
+| What a COB strip lights as one (one chip's run of tiny LEDs) | lit group ("lights in groups of LEDs"; one LED to Backbloom) | segment, pixel |
 | A physical strip | strip | segment |
 | Hardware that receives colors | device | controller, LED controller, driver |
+| The WLED electronics while Set up a WLED board finds it and its strips are set up | board (it becomes a device when added) | controller, ESP, chip |
 | Its protocol choice | device type; its settings: connection settings | driver, LED driver settings |
 | A pin/port on a device | output (WLED's word) | bus |
 | What the lights show (Ambient's Home) | Show | Mode (that is Ambient / Game) |
@@ -73,6 +75,8 @@ One term per concept, in the UI, docs, toasts and backend messages that reach th
 | Rates | fps (screen frames), per second (LED updates) | Hz |
 | Durations | seconds (0.35 s) | ms |
 | A corner of a drawn strip | bend | point |
+| The way a strip runs, from its first LED to its last | route (“Trace your strip”, “Use this route”); its turns: corners | path, wiring order, bends (that is Layout's word for a drawn strip) |
+| A pin of a WLED board while Find your strips looks for the strips | connection (“Light the next connection”) | pin, GPIO, candidate |
 | A piece between bends | part | section |
 | LEDs matched to bends | matched | pinned |
 | LEDs off on purpose | turned-off LEDs | dark parts |
@@ -110,3 +114,15 @@ One term per concept, in the UI, docs, toasts and backend messages that reach th
 - Settings pages are at most `max-w-3xl` wide; short inputs (numbers, ports, selects with short options) use
   `max-w-xs`.
 - Touch targets at least 44 px on touch screens (`pointer-coarse:`).
+
+### Setup wizards
+
+The guided setup's flows (Set up a WLED board, Add lights; `ui/src/setup`) share a few patterns:
+
+- A wizard is a `Dialog` with `closeOnBackdrop={false}`: a stray click beside it mustn't lose a pairing or a board
+  that is half set up. Its close button and Esc still close it (Set up a WLED board asks first).
+- Its steps show as `StepDots` (`ui/src/setup/parts.tsx`): numbered dots with labels, the current one highlighted, the
+  done ones checked. One primary button per step, in the footer; Back on the left.
+- A choice of ways to go on (what to add, Add it as it is or Set it up again) is a list of `OptionButton`s: an
+  icon, a title and one line of text, a whole row to click.
+- What the board is doing is said in the step (`Busy`, "The board restarts…"), and Back is off while it runs.

@@ -22,6 +22,7 @@ export const DRIVER_NAMES: Record<string, string> = {
   lifx: 'LIFX',
   nanoleaf: 'Nanoleaf',
   wiz: 'WiZ',
+  govee: 'Govee',
   yeelight: 'Yeelight',
   adalight: 'Adalight / HyperSerial',
   sp616e: 'SP616E',
@@ -81,6 +82,7 @@ const LAMP_LISTS: Record<string, string> = {
   zigbee2mqtt: 'lamps',
   lifx: 'lamps',
   wiz: 'lamps',
+  govee: 'lamps',
   yeelight: 'lights',
 };
 
@@ -90,6 +92,14 @@ export function lampCount(device: Record<string, unknown> | undefined): number |
   if (!list) return null;
   const lamps = device?.[list];
   return Math.max(1, Array.isArray(lamps) ? lamps.length : 0);
+}
+
+/** A lamp device's lamp list (empty when it has none yet), or null for other device types. */
+export function lampList(device: Record<string, unknown> | undefined): unknown[] | null {
+  const list = LAMP_LISTS[String(device?.type ?? '')];
+  if (!list) return null;
+  const lamps = device?.[list];
+  return Array.isArray(lamps) ? lamps : [];
 }
 
 /** Whether a device type's number of LEDs comes from its lamp list. */

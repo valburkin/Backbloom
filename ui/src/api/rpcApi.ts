@@ -5,15 +5,25 @@ import type {
   ChannelAdjustment,
   DiscoveredDevice,
   EffectPreviews,
+  HomeAssistantLight,
+  HueBridgeState,
+  ConnectedBoard,
+  ProbeCandidate,
+  FindResult,
   LightMode,
   ModeState,
   RunningProgram,
+  ScreenInfo,
   ServerInfo,
   SettingsSchema,
   SetupState,
   SysInfo,
   TokenInfo,
+  WledChange,
+  WledState,
+  WledTest,
 } from './types';
+import { RpcError } from './types';
 
 /** Events the UI subscribes to via `serverinfo`. settings-update is only delivered to admin sessions. */
 export const SUBSCRIPTIONS = [
@@ -278,5 +288,125 @@ export class RpcApi {
     return Array.isArray(res.devices)
       ? res.devices.filter((d): d is DiscoveredDevice => !!d && typeof d === 'object' && typeof (d as DiscoveredDevice).value === 'string')
       : [];
+  }
+
+  /** A driver tool's answer about one device (`leddevice getProperties`); an `error` in it rejects. */
+  async deviceProperties<T = Record<string, unknown>>(ledDeviceType: string, params: Record<string, unknown>, timeoutMs = 15000): Promise<T> {
+    const res = info<{ properties?: unknown }>(await this.backend.call('leddevice', 'getProperties', { ledDeviceType, params }, { timeoutMs }));
+    const properties = (res.properties && typeof res.properties === 'object' ? res.properties : {}) as Record<string, unknown>;
+    if (typeof properties.error === 'string' && properties.error) throw new RpcError(properties.error, 'leddevice-getProperties');
+    return properties as T;
+  }
+
+  /** Makes one light of a room-light driver signal itself (blink, flash), with the driver's own parameters. */
+  async identifyLight(ledDeviceType: string, params: Record<string, unknown>): Promise<void> {
+    await this.backend.call('leddevice', 'identify', { ledDeviceType, params }, { timeoutMs: 10000 });
+  }
+
+  /** Pairs with a Hue bridge whose button was just pressed: the app's user name and client key on it. */
+  async huePair(host: string): Promise<{ username: string; clientkey: string }> {
+    const p = await this.deviceProperties<{ username?: unknown; clientkey?: unknown }>('philipshue', { host, pair: true });
+    if (typeof p.username !== 'string' || !p.username) throw new RpcError('The bridge didn’t answer with a user name.', 'leddevice-getProperties');
+    return { username: p.username, clientkey: typeof p.clientkey === 'string' ? p.clientkey : '' };
+  }
+
+  /** Creates an entertainment area on a Hue bridge from lights (their ids); resolves with the new area's id. */
+  async hueCreateArea(host: string, user: string, name: string, lights: string[]): Promise<string> {
+    const p = await this.deviceProperties<{ id?: unknown }>('philipshue', { host, user, createArea: { name, lights } });
+    if (p.id === undefined || p.id === null || p.id === '') throw new RpcError('The bridge didn’t create the area.', 'leddevice-getProperties');
+    return String(p.id);
+  }
+
+  /** A paired Hue bridge's entertainment areas, lights and their entertainment services (API v2). */
+  async hueBridge(host: string, user: string): Promise<HueBridgeState> {
+    const read = async (resource: string) => {
+      const r = await this.deviceProperties<{ data?: unknown; errors?: Array<{ description?: string }> }>('philipshue', { host, user, filter: `/clip/v2/resource/${resource}` });
+      if (!Array.isArray(r.data) && r.errors?.length) throw new RpcError(r.errors[0].description || 'The bridge refused the request.', 'leddevice-getProperties');
+      return Array.isArray(r.data) ? r.data : [];
+    };
+    const [configurations, lights, services] = await Promise.all([read('entertainment_configuration'), read('light'), read('entertainment')]);
+    return { configurations, lights, services } as HueBridgeState;
+  }
+
+  /** Pairs with a Nanoleaf whose power button was just held: its access token. */
+  async nanoleafPair(host: string): Promise<string> {
+    const p = await this.deviceProperties<{ token?: unknown }>('nanoleaf', { host, pair: true });
+    if (typeof p.token !== 'string' || !p.token) throw new RpcError('The Nanoleaf didn’t answer with a token.', 'leddevice-getProperties');
+    return p.token;
+  }
+
+  /** The lights a Home Assistant server offers, signed in with a long-lived access token. */
+  async homeAssistantLights(host: string, token: string): Promise<HomeAssistantLight[]> {
+    const lights = (await this.deviceProperties<{ lights?: unknown }>('home_assistant', { host, token })).lights;
+    return Array.isArray(lights) ? lights.filter((l): l is HomeAssistantLight => !!l && typeof (l as HomeAssistantLight).id === 'string') : [];
+  }
+
+  // ---- hardware: setting up new boards (see docs/guided-setup.md) ----
+
+  private async hardware<T>(subcommand: string, params?: Record<string, unknown>, timeoutMs = 15000): Promise<T> {
+    return info<T>(await this.backend.call('hardware', subcommand, params, { timeoutMs }));
+  }
+
+  /** Every WLED board this PC can find: on USB, on the home network, and new boards' hotspots (takes several seconds). */
+  async findBoards(): Promise<FindResult> {
+    const r = await this.hardware<Partial<FindResult>>('find', undefined, 60000);
+    return {
+      boards: Array.isArray(r.boards) ? r.boards : [],
+      wifi: { adapter: r.wifi?.adapter ?? null, currentSsid: r.wifi?.currentSsid ?? null, blocked: r.wifi?.blocked ?? null, savedPassword: r.wifi?.savedPassword === true },
+      usbSilent: Array.isArray(r.usbSilent) ? r.usbSilent : [],
+    };
+  }
+
+  /**
+   * Puts a found board on the home Wi-Fi: over USB, or from its hotspot (this PC joins it for a moment and comes back:
+   * up to a minute, `hardware-progress-update` events to this connection on the way).
+   */
+  async connectWifi(id: string, ssid: string, password: string | { useSavedPassword: true }): Promise<ConnectedBoard> {
+    const secret = typeof password === 'string' ? { password } : { useSavedPassword: true };
+    return this.hardware<ConnectedBoard>('connect-wifi', { id, ssid, ...secret }, 120000);
+  }
+
+  /** Flashes a WLED board's lights three times ("which one is it?"). */
+  async wledIdentify(host: string): Promise<void> {
+    await this.hardware('wled-identify', { host }, 15000);
+  }
+
+  /**
+   * Finding the strips: temporary outputs on the likely pins (round 1: the common ones, round 2: the others), 60–300
+   * LEDs each, the first 20 lit white and dim, the rest black; the board restarts (up to ~15 s).
+   */
+  async wledProbeStart(host: string, round: 1 | 2): Promise<ProbeCandidate[]> {
+    const c = (await this.hardware<{ candidates?: unknown }>('wled-probe-start', { host, round }, 60000)).candidates;
+    return Array.isArray(c) ? (c as ProbeCandidate[]) : [];
+  }
+
+  /** Ends finding the strips: `keep` the outputs written since, else back to the board's outputs from before. */
+  async wledProbeEnd(host: string, keep: boolean): Promise<void> {
+    await this.hardware('wled-probe-end', { host, keep }, 60000);
+  }
+
+  /** The monitors and their sizes from EDID. */
+  async screens(): Promise<ScreenInfo[]> {
+    const s = (await this.hardware<{ screens?: unknown }>('screens')).screens;
+    return Array.isArray(s) ? (s as ScreenInfo[]) : [];
+  }
+
+  async wledRead(host: string): Promise<WledState> {
+    return this.hardware<WledState>('wled-read', { host }, 8000);
+  }
+
+  /** Changes a WLED board's settings; `restarting` while it restarts to apply them (poll wledRead). */
+  async wledWrite(host: string, change: WledChange): Promise<boolean> {
+    return (await this.hardware<{ restarting?: unknown }>('wled-write', { host, ...change }, 15000)).restarting === true;
+  }
+
+
+  /**
+   * Lights a check on one output of the board: `first`, `range` (the first `count` LEDs dim, the last bright),
+   * `color`, `white` (full brightness at the board's limit), `points` (the output dim, the LEDs in `leds` bright, counted
+   * from 1, at most 64) or `off` (the board's state from before the first check).
+   */
+  async wledTest(host: string, test: WledTest): Promise<void> {
+    await this.hardware('wled-test', { host, ...test }, 15000);
   }
 }

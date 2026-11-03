@@ -220,20 +220,25 @@ public sealed class WledTests
             http.Requests.Where(r => r.Method == HttpMethod.Get).Select(r => new Uri(r.Uri).AbsolutePath));
     }
 
+    // the shapes of 0.14 (global LED current), 0.15 (only the outputs' own limits) and 0.16 / main (global limit first)
     [Theory]
-    [InlineData("""{ "hw": { "led": { "maxpwr": 0, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 0 } ] } } }""", false, null)]
-    [InlineData("""{ "hw": { "led": { "maxpwr": 2000, "ins": [ { "len": 10, "ledma": 0, "maxpwr": 0 } ] } } }""", false, null)]
-    [InlineData("""{ "hw": { "led": { "maxpwr": 2000, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 0 } ] } } }""", true, 2000)]
-    [InlineData("""{ "hw": { "led": { "maxpwr": 0, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 900 }, { "len": 5, "ledma": 0, "maxpwr": 700 } ] } } }""", true, 900)]
-    [InlineData("""{ "hw": "not an object" }""", false, null)]
-    [InlineData("""{ "hw": { "led": { "maxpwr": 850, "ledma": 55, "ins": [ { "len": 10 } ] } } }""", true, 850)]
-    [InlineData("""{ "hw": { "led": { "maxpwr": 100, "ledma": 55, "ins": [ { "len": 10 } ] } } }""", false, null)]
-    public void Config_TheLimiterIsInUse_AsWledDecidesIt(string cfg, bool inUse, int? limit)
+    [InlineData("0.16.0-alpha", """{ "hw": { "led": { "maxpwr": 0, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 0 } ] } } }""", false, null)]
+    [InlineData("0.16.0-alpha", """{ "hw": { "led": { "maxpwr": 2000, "ins": [ { "len": 10, "ledma": 0, "maxpwr": 0 } ] } } }""", false, null)]
+    [InlineData("0.16.0-alpha", """{ "hw": { "led": { "maxpwr": 2000, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 0 } ] } } }""", true, 2000)]
+    [InlineData("0.16.0-alpha", """{ "hw": { "led": { "maxpwr": 0, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 900 }, { "len": 5, "ledma": 0, "maxpwr": 700 } ] } } }""", true, 900)]
+    [InlineData("0.15.1", """{ "hw": { "led": { "maxpwr": 2000, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 0 } ] } } }""", false, null)]
+    [InlineData("0.15.0-b3", """{ "hw": { "led": { "maxpwr": 2000, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 1200 }, { "len": 10, "ledma": 55, "maxpwr": 800 } ] } } }""", true, 2000)]
+    [InlineData("0.15.1", """{ "hw": { "led": { "maxpwr": 0, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 40 }, { "len": 10, "ledma": 55, "maxpwr": 900 } ] } } }""", true, 900)]
+    [InlineData(null, """{ "hw": { "led": { "maxpwr": 2000, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 0 } ] } } }""", false, null)]
+    [InlineData(null, """{ "hw": { "led": { "maxpwr": 2000, "ins": [ { "len": 10, "ledma": 55, "maxpwr": 1700 } ] } } }""", true, 1700)]
+    [InlineData("0.15.1", """{ "hw": "not an object" }""", false, null)]
+    [InlineData("0.14.4", """{ "hw": { "led": { "maxpwr": 850, "ledma": 55, "ins": [ { "len": 10 } ] } } }""", true, 850)]
+    [InlineData("0.14.4", """{ "hw": { "led": { "maxpwr": 100, "ledma": 55, "ins": [ { "len": 10 } ] } } }""", false, null)]
+    public void Config_TheLimiterIsInUse_AsWledDecidesIt(string? version, string cfg, bool inUse, int? limit)
     {
-        var config = WledConfig.Read(JsonNode.Parse(cfg)!.AsObject());
+        var config = WledConfig.Read(JsonNode.Parse(cfg)!.AsObject(), version);
         Assert.Equal((inUse, limit), (config.LimiterInUse, config.PowerLimitMilliamps));
     }
-
     [Fact]
     public void Temperature_PrefersASensorOverTheChip_AndSkipsErrors()
     {

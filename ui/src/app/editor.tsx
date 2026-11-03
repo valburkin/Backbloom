@@ -26,9 +26,12 @@ export interface EditorContextValue {
   saving: boolean;
   /**
    * Saves the layout; `done` replaces the usual “Layout saved” message. `spec` saves that layout instead of the
-   * current one: the result of an edit dispatched just now, which the state doesn't have yet.
+   * current one: the result of an edit dispatched just now, which the state doesn't have yet. Resolves to whether it
+   * was saved.
    */
-  save(done?: string, spec?: LayoutSpec): Promise<void>;
+  save(done?: string, spec?: LayoutSpec): Promise<boolean>;
+  /** `spec` was saved by other means (the first-run setup's quiet saves): it is the saved layout now. */
+  markSaved(spec: LayoutSpec): void;
 }
 
 const Ctx = createContext<EditorContextValue | null>(null);
@@ -93,9 +96,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   );
 
   const save = useCallback(async (done?: string, next?: LayoutSpec) => {
-    if (saving) return;
-    if (conn.auth !== 'admin') return;
-    if (blockers.length) return;
+    if (saving) return false;
+    if (conn.auth !== 'admin') return false;
+    if (blockers.length) return false;
     setSaving(true);
     const spec = next ?? state.spec;
     try {
@@ -111,8 +114,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           'LED positions saved',
           'Your lights use the new layout, but this version of Backbloom can’t store the layout itself yet, so editing it later starts from the LED positions.',
         );
+      return true;
     } catch (e) {
       toast('bad', 'Couldn’t save the layout', errorText(e));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -128,6 +133,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [dirty]);
 
+  const markSaved = useCallback((spec: LayoutSpec) => {
+    dispatch({ type: 'markSaved', spec });
+    setLoad((l) => ({ ...l, source: 'saved', note: undefined }));
+  }, []);
+
   const value: EditorContextValue = {
     state,
     dispatch,
@@ -139,6 +149,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     blockers,
     saving,
     save,
+    markSaved,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

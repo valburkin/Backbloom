@@ -2,6 +2,7 @@ using Backbloom.Devices.Drivers.ArtNet;
 using Backbloom.Devices.Drivers.Ddp;
 using Backbloom.Devices.Drivers.E131;
 using Backbloom.Devices.Drivers.File;
+using Backbloom.Devices.Drivers.Govee;
 using Backbloom.Devices.Drivers.Hid;
 using Backbloom.Devices.Drivers.HomeAssistant;
 using Backbloom.Devices.Drivers.Lifx;
@@ -29,6 +30,7 @@ public static class BuiltinDrivers
         registry.Register(NanoleafDriver.Descriptor);
         registry.Register(LifxDriver.Descriptor);
         registry.Register(WizDriver.Descriptor);
+        registry.Register(GoveeDriver.Descriptor);
         registry.Register(YeelightDriver.Descriptor);
         registry.Register(HomeAssistantDriver.Descriptor);
         registry.Register(Zigbee2MqttDriver.Descriptor);

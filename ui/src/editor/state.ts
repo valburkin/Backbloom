@@ -186,10 +186,13 @@ export function nextStripId(spec: LayoutSpec): string {
   return nextId('strip', spec.strips.map((s) => s.id));
 }
 
-/** Shape for a strip added without one: around the screen first, then the ceiling, then behind the furniture. */
-function defaultShape(spec: LayoutSpec): ShapeId {
+/**
+ * Shape for a strip added without one, the layout having `strips` already: around the screen first, then the ceiling,
+ * then behind the furniture.
+ */
+export function defaultShape(strips: number): ShapeId {
   const order: ShapeId[] = ['around-screen', 'ceiling-front', 'behind-furniture', 'line'];
-  return order[Math.min(spec.strips.length, order.length - 1)];
+  return order[Math.min(strips, order.length - 1)];
 }
 
 // ---- reducer ----
@@ -245,7 +248,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         : freeOutput(spec, action.controllerId);
       // a new strip fills its output, so it starts out without a count warning
       const length = spec.controllers.find((c) => c.id === target.controllerId)?.outputs.find((o) => o.index === target.output)?.length;
-      const path = action.path ?? shapePath(spec.room, action.shape ?? defaultShape(spec));
+      const path = action.path ?? shapePath(spec.room, action.shape ?? defaultShape(spec.strips.length));
       const strip: Strip = {
         id,
         name: action.name ?? `Strip ${spec.strips.length + 1}`,

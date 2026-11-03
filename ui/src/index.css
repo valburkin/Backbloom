@@ -268,3 +268,24 @@ input[type="number"].no-spin::-webkit-outer-spin-button {
   background: #fff;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
 }
+
+/* Printing a strip plan (ui/src/setup/parts.tsx, PrintArea): only #bb-print, dark on white. */
+#bb-print {
+  display: none;
+}
+@media print {
+  body > :not(#bb-print) {
+    display: none !important;
+  }
+  #bb-print {
+    display: block;
+    color: #000;
+    background: #fff;
+    font-size: 11pt;
+  }
+  html,
+  body {
+    background: #fff;
+    height: auto;
+  }
+}

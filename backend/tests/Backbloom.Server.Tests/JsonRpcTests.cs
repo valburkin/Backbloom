@@ -383,7 +383,7 @@ public sealed class JsonRpcTests
         Assert.Equal("SYSTEMGRABBER", info["priorities"]![0]!["componentId"]!.GetValue<string>());
         Assert.True(info["priorities"]![0]!["visible"]!.GetValue<bool>());
         Assert.Equal(
-            ["ddp", "home_assistant", "lifx", "nanoleaf", "philipshue", "udpartnet", "udpe131", "wiz", "wled", "yeelight", "zigbee2mqtt", "adalight", "skydimo", "sp616e", "file", "synclight"],
+            ["ddp", "govee", "home_assistant", "lifx", "nanoleaf", "philipshue", "udpartnet", "udpe131", "wiz", "wled", "yeelight", "zigbee2mqtt", "adalight", "skydimo", "sp616e", "file", "synclight"],
             info["ledDevices"]!["available"]!.AsArray().Select(d => d!["name"]!.GetValue<string>()));
         Assert.Equal("advanced", info["imageToLedMappingType"]!.GetValue<string>());
         Assert.Single(info["leds"]!.AsArray());

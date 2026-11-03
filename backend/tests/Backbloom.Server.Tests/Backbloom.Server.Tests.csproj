@@ -13,5 +13,8 @@
 
   <ItemGroup>
     <Compile Include="..\Shared\FakeProcessList.cs" Link="Shared\FakeProcessList.cs" />
+    <Compile Include="..\Shared\FakeImprovBoard.cs" Link="Shared\FakeImprovBoard.cs" />
+    <Compile Include="..\Shared\FakeWledBoard.cs" Link="Shared\FakeWledBoard.cs" />
+    <Compile Include="..\Shared\FakeWifi.cs" Link="Shared\FakeWifi.cs" />
   </ItemGroup>
 </Project>

@@ -300,6 +300,57 @@ public sealed class DiscoveryTests
         Assert.Equal("hello", Encoding.UTF8.GetString(Assert.Single(replies).Data));
     }
 
+    /// <summary>
+    /// A fake Govee light on loopback: the scan goes out from the fixed reply port, and the light answers to that port
+    /// of the sender's address (not to where the query came from, which is the same here).
+    /// </summary>
+    [Fact]
+    public async Task MulticastProbe_SendsFromTheFixedPortAndCollectsAnswersThere()
+    {
+        // a free port for the fixed reply port; another process may take it before the probe binds it (then the probe
+        // skips the address and hears nothing): a few attempts with new ports
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await ProbeOnceAsync();
+                return;
+            }
+            catch (Exception) when (attempt < 3)
+            {
+            }
+        }
+    }
+
+    private static async Task ProbeOnceAsync()
+    {
+        using var light = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        light.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        var scanPort = ((IPEndPoint)light.LocalEndPoint!).Port;
+        int replyPort;
+        using (var free = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
+        {
+            free.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+            replyPort = ((IPEndPoint)free.LocalEndPoint!).Port;
+        }
+
+        var from = new TaskCompletionSource<IPEndPoint>();
+        _ = Task.Run(async () =>
+        {
+            var buffer = new byte[256];
+            var r = await light.ReceiveFromAsync(buffer, SocketFlags.None, new IPEndPoint(IPAddress.Any, 0));
+            var sender = (IPEndPoint)r.RemoteEndPoint;
+            from.SetResult(sender);
+            await light.SendToAsync("""{"msg":{"cmd":"scan","data":{"ip":"127.0.0.1"}}}"""u8.ToArray(), SocketFlags.None, new IPEndPoint(sender.Address, replyPort));
+        }, TestContext.Current.CancellationToken);
+
+        var probe = new MulticastProbe(() => [IPAddress.Loopback]);
+        var replies = await probe.ProbeAsync("scan"u8.ToArray(), new IPEndPoint(IPAddress.Loopback, scanPort), replyPort, TimeSpan.FromMilliseconds(500), TestContext.Current.CancellationToken);
+
+        Assert.Equal(new IPEndPoint(IPAddress.Loopback, replyPort), await from.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+        Assert.Contains("\"cmd\":\"scan\"", Encoding.UTF8.GetString(Assert.Single(replies).Data), StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(@"\\?\USB#VID_1A86&PID_7523#5&2b0e3a2&0&3#{86e0d1e0-8089-11d0-9ce4-08003e301f73}", 0x1a86, 0x7523)]
     [InlineData(@"\\?\FTDIBUS#VID_0403+PID_6001+A50285BIA#0000#{86e0d1e0-8089-11d0-9ce4-08003e301f73}", 0x0403, 0x6001)]

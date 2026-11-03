@@ -49,11 +49,12 @@ function effectText(section: unknown, withDuration: boolean): string {
 }
 
 /** A device in one line for people: "Desk (WLED at wled-desk.local)", or "WLED at wled-desk.local" when unnamed. */
-export function deviceLine(c: Controller): string {
+/** `withAddress`: where it is reached (an IP, a port), for expert tools and imports; plain users see the name and type. */
+export function deviceLine(c: Controller, withAddress = true): string {
   const type = String(c.device?.type ?? c.kind);
   const kind = driverName(type);
   const address = addressOf(c);
-  const what = address ? `${kind} at ${address}` : kind;
+  const what = address && withAddress ? `${kind} at ${address}` : kind;
   return c.name && c.name !== kind && c.name !== 'LED controller' ? `${c.name} (${what})` : what;
 }
 

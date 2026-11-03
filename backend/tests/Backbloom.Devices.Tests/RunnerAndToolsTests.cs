@@ -58,7 +58,7 @@ public sealed class RunnerAndToolsTests
         Assert.Equal("""{"ledDeviceType":"nope","devices":[]}""", (await tools.DiscoverAsync("nope", null, CancellationToken.None)).ToJsonString());
         Assert.Equal("""{"properties":{}}""", (await tools.GetPropertiesAsync("file", null, CancellationToken.None)).ToJsonString());
         Assert.False(await tools.IdentifyAsync("file", null, CancellationToken.None));
-        Assert.Equal(16, registry.Drivers.Count);
+        Assert.Equal(17, registry.Drivers.Count);
         Assert.All(registry.Drivers, d => Assert.Equal("object", d.Schema["type"]!.GetValue<string>()));
     }
 

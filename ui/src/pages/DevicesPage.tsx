@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Cpu, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { stripLedCount, type Controller } from '../layout';
-import { Badge, Button, Card, EmptyState, IconButton, StatusDot } from '../components/ui';
+import { Badge, Button, Card, IconButton, StatusDot } from '../components/ui';
 import { Advanced, Switch } from '../components/form';
 import { PageFrame } from '../components/PageFrame';
 import { SaveBar } from '../components/SaveBar';
@@ -13,7 +13,12 @@ import type { ControllerInfo } from '../api/types';
 import { deviceStatus, isUsbDevice } from '../control/health';
 import { connectionSchema, DriverForm, useDriverSchemas } from './devices/DriverForm';
 import { AddDeviceDialog, errorText, fetchController } from './devices/AddDeviceDialog';
-import { addressOf, driverName, isLampDevice, lampCount, ledCountLabel } from './devices/drivers';
+import { NoLights, shownDevices } from '../setup/NoLights';
+import { useExpertTools } from '../app/expert';
+import { addressOf, driverName, isLampDevice, lampCount, lampList, ledCountLabel } from './devices/drivers';
+import { isPerLampDevice, lampListChange } from './devices/lamps';
+import { placePath } from '../setup/lights';
+import { withRole } from '../setup/roles';
 
 /** The device's state in the words Home uses too (control/health.ts). */
 function ControllerStatus({ info, usb }: { info: ControllerInfo | undefined; usb: boolean }) {
@@ -177,13 +182,25 @@ function ControllerCard({ controller }: { controller: Controller }) {
               saved={saved}
               dirty={dirty}
               onChange={(device) => {
-                // a lamp device has one LED per lamp: the output follows the lamp list
+                // a lamp device has one LED per lamp: the outputs follow the lamp list
+                const coalesce = `ctrl-device-${controller.id}`;
+                const before = lampList(controller.device);
+                const after = lampList(device);
+                if (before && after && isPerLampDevice(controller) && before.length !== after.length) {
+                  // one output and strip per lamp (as Add lights makes them): each strip stays with its lamp
+                  const change = lampListChange(controller, state.spec.strips, before, after);
+                  change.removeStrips.forEach((stripId) => dispatch({ type: 'removeStrip', stripId, coalesce }));
+                  update({ device, outputs: change.outputs }, coalesce);
+                  change.moveStrips.forEach(({ stripId, output }) => dispatch({ type: 'updateStrip', stripId, patch: { output }, coalesce }));
+                  const nth = state.spec.strips.filter((s) => s.controllerId === controller.id).length;
+                  change.addStrips.forEach(({ output, name }, k) =>
+                    dispatch({ type: 'addStrip', controllerId: controller.id, output, name, path: withRole(placePath(state.spec.room, 'behind', nth + k), 'soft'), coalesce }),
+                  );
+                  return;
+                }
                 const n = lampCount(device);
                 const out = controller.outputs[0];
-                update(
-                  n !== null && controller.outputs.length === 1 && out.length !== n ? { device, outputs: [{ ...out, length: n }] } : { device },
-                  `ctrl-device-${controller.id}`,
-                );
+                update(n !== null && controller.outputs.length === 1 && out.length !== n ? { device, outputs: [{ ...out, length: n }] } : { device }, coalesce);
               }}
             />
           </Advanced>
@@ -194,25 +211,28 @@ function ControllerCard({ controller }: { controller: Controller }) {
 }
 
 export function DevicesPage() {
-  const { state } = useEditor();
+  const { state, load } = useEditor();
+  const expert = useExpertTools();
   const [adding, setAdding] = useState(false);
-  const controllers = state.spec.controllers;
+  // the test device of a new install (colors go nowhere) only with expert tools on
+  const controllers = shownDevices(state.spec.controllers, expert);
+  const loaded = load.status === 'ready' || load.status === 'error';
   return (
     <PageFrame title="Devices" subtitle="The hardware your LED strips are plugged into. All devices show the same picture, in sync." actions={<SaveBar />}>
-      <div className="flex items-end justify-between gap-3">
-        <p className="text-[13px] text-ink-muted">Changes here are saved with the Save button at the top.</p>
-        <Button icon={<Plus size={16} />} onClick={() => setAdding(true)}>
-          Add device
-        </Button>
-      </div>
-      {controllers.length === 0 ? (
-        <Card>
-          <EmptyState icon={<Cpu size={28} />} title="No devices yet">
-            Add the device your LED strips are plugged into: a WLED controller, or any other supported device.
-          </EmptyState>
-        </Card>
+      {!loaded ? null : controllers.length === 0 ? (
+        <NoLights onAdd={() => setAdding(true)} />
       ) : (
-        controllers.map((c) => <ControllerCard key={c.id} controller={c} />)
+        <>
+          <div className="flex items-end justify-between gap-3">
+            <p className="text-sm text-ink-muted">Changes here are saved with the Save button at the top.</p>
+            <Button icon={<Plus size={16} />} onClick={() => setAdding(true)}>
+              Add device
+            </Button>
+          </div>
+          {controllers.map((c) => (
+            <ControllerCard key={c.id} controller={c} />
+          ))}
+        </>
       )}
       <AddDeviceDialog open={adding} onClose={() => setAdding(false)} />
     </PageFrame>

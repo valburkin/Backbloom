@@ -27,6 +27,8 @@ import { PresetPicker } from '../control/PresetPicker';
 import { applyGameIntensity, applyMood, detectGameIntensity, detectMood, GAME_PRESETS, MOOD_PRESETS } from '../settings/intensity';
 import { ModeSwitch } from '../control/ModeSwitch';
 import { ModeBadge } from '../components/ModeBadge';
+import { NoLights, hasRealDevice } from '../setup/NoLights';
+import { AddDeviceDialog } from './devices/AddDeviceDialog';
 
 import type { Rgb } from '../color/color';
 
@@ -555,9 +557,13 @@ function TroubleshooterLink() {
 
 export function HomePage() {
   const { serverInfo, sysInfo, backend } = useConnection();
-  const { state } = useEditor();
+  const { state, load } = useEditor();
+  const expert = useExpertTools();
+  const [adding, setAdding] = useState(false);
   const ledTotal = state.spec.strips.reduce((n, s) => n + stripLedCount(s), 0);
   const host = sysInfo?.system?.hostName ?? serverInfo?.hostname;
+  // a new install has only the test device (colors go nowhere): one way on instead of controls that do nothing
+  const noLights = !expert && (load.status === 'ready' || load.status === 'error') && !hasRealDevice(state.spec.controllers);
 
   return (
     <div className="scroll-thin h-full overflow-y-auto">
@@ -573,7 +579,12 @@ export function HomePage() {
           </>
         }
       />
-      <div className="mx-auto grid max-w-6xl gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+      {noLights && (
+        <div className="mx-auto max-w-3xl p-4 sm:p-6">
+          <NoLights onAdd={() => setAdding(true)} />
+        </div>
+      )}
+      <div className={cx('mx-auto grid max-w-6xl gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]', noLights && 'hidden')}>
         <div className="space-y-4">
           <LightsCard />
           <DeviceHealth />
@@ -618,6 +629,8 @@ export function HomePage() {
           </Expert>
         </div>
       </div>
+      {/* outside No lights yet: adding the first device hides that, and the dialog goes on with Your lights */}
+      <AddDeviceDialog open={adding} onClose={() => setAdding(false)} />
     </div>
   );
 }
