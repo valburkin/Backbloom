@@ -12,11 +12,12 @@ public enum LightMode
 
 /// <summary>
 /// What Game mode changes (the <c>game</c> section): the transition time and its spring, the saturation and color brightness
-/// gains (the UI's Intensity) and the capture rate, and no minimum glow. While Game mode is on these replace the
-/// matching values of <c>smoothing</c>, <c>color.channelAdjustment[0]</c> and <c>systemGrabber</c>; those sections stay
-/// as saved.
+/// gains (the UI's Intensity), the capture rate, the brightness once it was set in Game mode, and no minimum glow. While
+/// Game mode is on these replace the matching values of <c>smoothing</c>, <c>color.channelAdjustment[0]</c> and
+/// <c>systemGrabber</c>; those sections stay as saved.
 /// </summary>
-public sealed record GameTuning(int TimeMs, int Stiffness, int Damping, double SaturationGain, double LuminanceGain, int FramesPerSecond)
+/// <param name="ScaleOutput">Home's Brightness in Game mode (<c>scaleOutput</c>); null: Ambient's.</param>
+public sealed record GameTuning(int TimeMs, int Stiffness, int Damping, double SaturationGain, double LuminanceGain, int FramesPerSecond, double? ScaleOutput = null)
 {
     public const string SectionName = "game";
 
@@ -42,7 +43,8 @@ public sealed record GameTuning(int TimeMs, int Stiffness, int Damping, double S
             Int(o, "damping", Default.Damping),
             Number(o, "saturationGain", Default.SaturationGain),
             Number(o, "luminanceGain", Default.LuminanceGain),
-            Int(o, "fps", Default.FramesPerSecond));
+            Int(o, "fps", Default.FramesPerSecond),
+            o?["scaleOutput"] is JsonValue scale && scale.TryGetValue(out double s) ? s : null);
     }
 
     /// <summary>A copy of the <c>smoothing</c> section with Game mode's transition time and spring, smoothing on.</summary>
@@ -58,8 +60,8 @@ public sealed record GameTuning(int TimeMs, int Stiffness, int Damping, double S
     }
 
     /// <summary>
-    /// A copy of the <c>color</c> section whose first channel adjustment has Game mode's gains and no minimum glow
-    /// (<c>backlightThreshold</c> 0: dark scenes stay dark while playing).
+    /// A copy of the <c>color</c> section whose first channel adjustment has Game mode's gains, its brightness when set,
+    /// and no minimum glow (<c>backlightThreshold</c> 0: dark scenes stay dark while playing).
     /// </summary>
     public JsonObject ApplyToColor(JsonNode? color)
     {
@@ -83,6 +85,11 @@ public sealed record GameTuning(int TimeMs, int Stiffness, int Damping, double S
         first["saturationGain"] = SaturationGain;
         first["backlightThreshold"] = 0.0;
         first["luminanceGain"] = LuminanceGain;
+        if (ScaleOutput is { } scale)
+        {
+            first["scaleOutput"] = scale;
+        }
+
         return result;
     }
 

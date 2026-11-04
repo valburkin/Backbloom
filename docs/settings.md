@@ -74,9 +74,9 @@ the program in `%LOCALAPPDATA%\BackbloomApp`, separate from the data, so uninsta
   make a section play something of its own, whatever the rest of the lights show: its LEDs leave the screen mapping
   and form a zone with every other section of the same role, across strips and controllers. A zone's effect runs as
   if the zone were the screen (each LED where `auto` would put it), so it flows across strips; it goes through the
-  color settings like any effect, a color zone doesn't (like a static color). Zones keep the lights on when nothing
-  else shows (the other LEDs are black then), and pause while the lights are off or held. An effect that doesn't exist
-  leaves its zone dark.
+  color settings like any effect, a color zone doesn't (like a static color), except the brightness and the power
+  limit. Zones keep the lights on when nothing else shows (the other LEDs are black then), and pause while the lights
+  are off or held. An effect that doesn't exist leaves its zone dark.
 - `profiles` (optional): other roles for the sections while a program runs, e.g.
   `{ id: "witcher", name: "Witcher 3", apps: ["witcher3.exe"], sections: { "ceiling": [{ kind: "color", color: [0, 40, 80] }, null] } }`:
   per strip id, one entry per section (`null` = auto); strips not listed keep the layout's sections, gaps can't be

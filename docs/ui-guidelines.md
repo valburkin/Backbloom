@@ -114,6 +114,8 @@ One term per concept, in the UI, docs, toasts and backend messages that reach th
 - Settings pages are at most `max-w-3xl` wide; short inputs (numbers, ports, selects with short options) use
   `max-w-xs`.
 - Touch targets at least 44 px on touch screens (`pointer-coarse:`).
+- A list that opens from a button is a `Menu` (`ui/src/components/Menu.tsx`), not an absolutely positioned box: it's
+  drawn over the page, so scrolling panels don't clip it, and it handles outside clicks, Escape and arrow keys.
 
 ### Setup wizards
 

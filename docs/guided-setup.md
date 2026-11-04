@@ -74,7 +74,7 @@ Each step can be passed by:
 
 Without lights (Your lights skipped) the setup goes from Your lights to Feel and games. Turn on lights saves the
 layout first, unless something blocks saving it. On a new install (not imported) whose Brightness is still at 100%, it
-sets Brightness to 20% (full is far too bright in a room); Home's slider changes it.
+sets Brightness to 60% (about a third of the light; full is far too bright in a room); Home's slider changes it.
 
 **No lights yet.** A new install has only the test device (`file`, which writes the colors nowhere). Without expert
 tools it is never shown: Home and Devices show "No lights yet" with one primary **Add your lights** until a real

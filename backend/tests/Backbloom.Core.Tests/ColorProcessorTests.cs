@@ -270,12 +270,55 @@ public sealed class ColorProcessorTests
     }
 
     [Fact]
-    public void Process_DisabledOnlyEncodes()
+    public void Process_WithoutColorSettings_SkipsThem()
     {
-        var colors = new[] { new Vector3(0.214f) };
-        new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.1f }, enabled: false).Process(colors);
+        var colors = new[] { new Vector3(0.214f), Vector3.Zero };
+        var adjustment = new ColorAdjustment
+        {
+            Temperature = TemperaturePreset.Warm,
+            ClassicConfig = true,
+            Red = new Rgb8(200, 0, 0),
+            Gamma = 2.0f,
+            LuminanceGain = 0.5f,
+            SaturationGain = 0.5f,
+            BacklightThreshold = 0.1f,
+        };
+        new ColorProcessor(adjustment, colorSettings: false).Process(colors);
 
         AssertClose(new Vector3(0.5f), colors[0], 0.002f);
+        AssertClose(Vector3.Zero, colors[1], 1e-6f);
+    }
+
+    [Fact]
+    public void Process_WithoutColorSettings_KeepsBrightnessAndPowerLimit()
+    {
+        var scaled = new[] { new Vector3(0.428f) };
+        new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.5f }, colorSettings: false).Process(scaled);
+        AssertClose(new Vector3(0.5f), scaled[0], 0.002f);
+
+        var limited = new[] { Vector3.One };
+        new ColorProcessor(new ColorAdjustment { PowerLimit = 0.5f }, colorSettings: false).Process(limited);
+        AssertClose(new Vector3(0.5f), limited[0], 1e-6f);
+    }
+
+    [Fact]
+    public void OutputShare_IsWhatTheBrightnessLeavesOfWhite_WithTheGamma()
+    {
+        Assert.Equal(1.0f, new ColorProcessor(ColorAdjustment.Default).OutputShare, 1e-6f);
+        Assert.Equal(0.5f, new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.214f, Gamma = 1.0f }).OutputShare, 0.002f);
+        Assert.Equal(MathF.Pow(0.5f, 1.5f), new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.214f, Gamma = 1.5f }).OutputShare, 0.002f);
+        Assert.Equal(1.0f, new ColorProcessor(new ColorAdjustment { ScaleOutput = 1.8f }).OutputShare, 1e-6f);
+
+        // static colors skip the gamma; Game's color brightness above 1 lifts the share, below 1 doesn't lower it
+        Assert.Equal(0.5f, new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.214f, Gamma = 1.5f }, colorSettings: false).OutputShare, 0.002f);
+        Assert.Equal(MathF.Pow(0.5f, 1.5f) * 1.2f, new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.214f, LuminanceGain = 1.2f }).OutputShare, 0.003f);
+        Assert.Equal(1.0f, new ColorProcessor(new ColorAdjustment { LuminanceGain = 0.9f }).OutputShare, 1e-6f);
+
+        // white through the processor comes out at that share
+        var white = new[] { Vector3.One };
+        var processor = new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.3f, BacklightThreshold = 0 });
+        processor.Process(white);
+        Assert.Equal(processor.OutputShare, white[0].X, 0.003f);
     }
 
     [Fact]

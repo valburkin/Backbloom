@@ -1,12 +1,14 @@
 using System.Numerics;
 using Microsoft.Extensions.Logging;
+using Backbloom.Core.Color;
 using Backbloom.Core.Smoothing;
 using Backbloom.Engine.Platform;
 
 namespace Backbloom.Engine;
 
 /// <summary>
-/// The end of the pipeline: smoothing, the anti-flicker filter, the live preview feed and the controllers.
+/// The end of the pipeline: smoothing, the anti-flicker filter, the strips' brightness, the controllers' power limits
+/// (<see cref="PowerBudget"/>), the live preview feed and the controllers.
 /// Without smoothing, every processed frame goes straight out on the frame loop thread. With smoothing, the frame loop
 /// only hands its colors to the <see cref="Smoother"/> and the output thread ticks at the smoothing update frequency
 /// (absolute deadlines on the injected <see cref="IClock"/>), so the controllers are refreshed at that rate whatever
@@ -31,6 +33,8 @@ public sealed partial class OutputStage : IDisposable
     private Vector3[] _tickColors = [];
     private Vector3[] _emitColors = [];
     private volatile float[]? _gains;
+    private volatile float _share = 1.0f;
+    private volatile float _minimalBacklight;
     private volatile bool _antiFlicker;
     private volatile bool _stopping;
     private bool _outputEnabled = true;
@@ -108,6 +112,7 @@ public sealed partial class OutputStage : IDisposable
     /// </summary>
     public void SetLedGains(float[]? gains) => _gains = gains;
 
+
     /// <summary>Switches smoothing on or off (the <c>SMOOTHING</c> component).</summary>
     public void SetSmoothingEnabled(bool enabled)
     {
@@ -167,8 +172,15 @@ public sealed partial class OutputStage : IDisposable
     /// A processed frame (nonlinear colors 0..1). Called from the frame loop; does not allocate.
     /// </summary>
     /// <param name="minimalBacklight">The color settings' minimal brightness, which the interpolators keep.</param>
-    public void Submit(ReadOnlySpan<Vector3> colors, float minimalBacklight)
+    /// <param name="share">
+    /// The share of the full output the brightness leaves in this frame (<see cref="ColorProcessor.OutputShare"/>): the
+    /// controllers' power limits are lowered with it (<see cref="PowerBudget"/>); 1 leaves them as they are. With
+    /// smoothing, the ticks use the latest frame's.
+    /// </param>
+    public void Submit(ReadOnlySpan<Vector3> colors, float minimalBacklight, float share = 1.0f)
     {
+        _share = float.IsFinite(share) ? Math.Clamp(share, 0.0f, 1.0f) : 1.0f;
+        _minimalBacklight = minimalBacklight;
         bool direct;
         lock (_lock)
         {
@@ -251,7 +263,7 @@ public sealed partial class OutputStage : IDisposable
                 }
             }
 
-            _devices.Submit(_emitColors);
+            _devices.Submit(_emitColors, _share, _minimalBacklight);
             _feed.Publish(_emitColors);
         }
     }

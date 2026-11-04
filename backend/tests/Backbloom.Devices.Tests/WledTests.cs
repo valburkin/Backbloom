@@ -166,7 +166,7 @@ public sealed class WledTests
                             "u": { "Temperature": [0, " Sensor Error!"], "Internal temperature": [51.62, "°C"] } } }
                 """),
             ("GET", "/json/cfg") => FakeHttpHandler.Json("""
-                { "hw": { "led": { "maxpwr": 0, "ins": [ { "len": 2, "ledma": 55, "maxpwr": 1000 }, { "len": 1, "ledma": 255, "maxpwr": 500 } ] } },
+                { "hw": { "led": { "maxpwr": 0, "ins": [ { "type": 22, "start": 0, "len": 2, "ledma": 55, "maxpwr": 1000 }, { "type": 22, "start": 2, "len": 1, "ledma": 255, "maxpwr": 500 } ] } },
                   "if": { "live": { "maxbri": true } } }
                 """),
             ("GET", "/json/si") => FakeHttpHandler.Json(polls.Count > 1 ? polls.Dequeue() : polls.Peek()),
@@ -180,14 +180,18 @@ public sealed class WledTests
 
         await driver.OpenAsync(3, TestContext.Current.CancellationToken);
         var first = driver.Telemetry!;
+
+        // 0.15: each output limited on its own (limit - its share of the ESP's 120 mA - 1 mA per LED); the brightness is
+        // the one Backbloom just set (brightnessMaxLevel)
+        Assert.Equal("938: 0+2 at 55 | 439: 2+1 at 12 brightest", Describe(first.PowerGroups));
         Assert.Equal(
             new ControllerTelemetry(time.GetUtcNow())
             {
-                PowerMilliamps = 1500, PowerLimitMilliamps = 1500, MilliampsPerLed = 40.7, Brightness = 128, ForceMaxBrightness = true, On = true,
+                PowerMilliamps = 1500, PowerLimitMilliamps = 1500, MilliampsPerLed = 40.7, Brightness = 255, ForceMaxBrightness = true, On = true,
                 FramesPerSecond = 42, LedCount = 3, SignalPercent = 90, Rssi = -55, WifiChannel = 6, FreeMemoryBytes = 150000, UptimeSeconds = 3600,
                 TemperatureCelsius = 51.6, TemperatureSource = "Internal temperature", TemperatureIsChip = true, Firmware = "0.15.0",
             },
-            first);
+            first with { PowerGroups = null });
 
         time.Advance(WledDriver.TelemetryInterval);
         Wait.Until(() => driver.Telemetry != first);
@@ -215,8 +219,9 @@ public sealed class WledTests
         time.Advance(WledDriver.TelemetryInterval * 3);
         Thread.Sleep(100);
         Assert.Equal(requests, http.Requests.Count);
+        // the power settings are read again after the restart, with each try to set the realtime state again
         Assert.Equal(
-            ["/json", "/json/cfg", "/json/si", "/json/si", "/json/si"],
+            ["/json", "/json/cfg", "/json/si", "/json/si", "/json/cfg", "/json/si", "/json/cfg"],
             http.Requests.Where(r => r.Method == HttpMethod.Get).Select(r => new Uri(r.Uri).AbsolutePath));
     }
 
@@ -238,6 +243,34 @@ public sealed class WledTests
     {
         var config = WledConfig.Read(JsonNode.Parse(cfg)!.AsObject(), version);
         Assert.Equal((inUse, limit), (config.LimiterInUse, config.PowerLimitMilliamps));
+    }
+
+    private static string Describe(IReadOnlyList<PowerGroup>? groups) => string.Join(" | ", (groups ?? []).Select(g =>
+        $"{g.BudgetMilliamps}: " + string.Join(", ", g.Ranges.Select(r => $"{r.Start}+{r.Length} at {r.MilliampsPerLed}{(r.BrightestChannel ? " brightest" : "")}"))));
+
+    // the groups WLED's limiter holds to a budget, by version; outputs it doesn't limit, or with a white channel, are left out
+    [Theory]
+    [InlineData("0.15.1", """[ { "type": 22, "start": 0, "len": 50, "ledma": 55, "maxpwr": 400 }, { "type": 22, "start": 50, "len": 300, "ledma": 55, "maxpwr": 0 } ]""", 0, "290: 0+50 at 55")]
+    [InlineData("0.15.1", """[ { "type": 22, "start": 0, "len": 10, "ledma": 255, "maxpwr": 900 } ]""", 0, "770: 0+10 at 12 brightest")]
+    [InlineData("0.15.1", """[ { "type": 30, "start": 0, "len": 10, "ledma": 55, "maxpwr": 900 }, { "type": 22, "start": 10, "len": 10, "ledma": 55, "maxpwr": 900 } ]""", 0, "830: 10+10 at 55")]
+    [InlineData("0.15.1", """[ { "type": 22, "start": 0, "len": 100, "ledma": 55, "maxpwr": 150 } ]""", 0, "")]
+    [InlineData("0.16.0", """[ { "type": 22, "start": 0, "len": 100, "ledma": 60, "maxpwr": 0 }, { "type": 51, "start": 100, "len": 68, "ledma": 30, "maxpwr": 0 } ]""", 5313, "5025: 0+100 at 60, 100+68 at 30")]
+    [InlineData("0.16.0", """[ { "type": 22, "start": 0, "len": 100, "ledma": 60, "maxpwr": 0 }, { "type": 30, "start": 100, "len": 68, "ledma": 60, "maxpwr": 0 } ]""", 5313, "")]
+    [InlineData("0.16.0", """[ { "type": 22, "start": 0, "len": 100, "ledma": 60, "maxpwr": 2000 } ]""", 0, "1780: 0+100 at 60")]
+    [InlineData("0.16.0", """[ { "type": 22, "start": 0, "len": 150, "ledma": 55, "maxpwr": 1000 }, { "type": 22, "start": 150, "len": 10, "ledma": 55, "maxpwr": 0 }, { "type": 22, "start": 160, "len": 10, "ledma": 55, "maxpwr": 0 }, { "type": 22, "start": 170, "len": 10, "ledma": 55, "maxpwr": 0 } ]""", 0, "730: 0+150 at 55")]
+    [InlineData("0.15.1", """[ { "type": 22, "start": 0, "len": 150, "ledma": 55, "maxpwr": 1000 }, { "type": 22, "start": 150, "len": 10, "ledma": 55, "maxpwr": 0 }, { "type": 22, "start": 160, "len": 10, "ledma": 55, "maxpwr": 0 }, { "type": 22, "start": 170, "len": 10, "ledma": 55, "maxpwr": 0 } ]""", 0, "820: 0+150 at 55")]
+    [InlineData(null, """[ { "type": 22, "start": 0, "len": 100, "ledma": 60, "maxpwr": 2000 } ]""", 2000, "")]
+    public void Config_ReadsTheGroupsTheLimiterHoldsToABudget(string? version, string outputs, int global, string groups)
+    {
+        var cfg = JsonNode.Parse($$"""{ "hw": { "led": { "maxpwr": {{global}}, "ins": {{outputs}} } } }""")!.AsObject();
+        Assert.Equal(groups, Describe(WledConfig.Read(cfg, version).Groups));
+    }
+
+    [Fact]
+    public void Config_OldVersions_HoldEveryOutputToTheGlobalLimit()
+    {
+        var cfg = JsonNode.Parse("""{ "hw": { "led": { "maxpwr": 850, "ledma": 255, "ins": [ { "type": 22, "start": 0, "len": 10 }, { "type": 22, "start": 10, "len": 5 } ] } } }""")!.AsObject();
+        Assert.Equal("715: 0+10 at 12 brightest, 10+5 at 12 brightest", Describe(WledConfig.Read(cfg, "0.14.4").Groups));
     }
     [Fact]
     public void Temperature_PrefersASensorOverTheChip_AndSkipsErrors()

@@ -29,8 +29,9 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 - **Ambient and Game mode**: two apps in one, switched at the top of the sidebar. Ambient is for movies, music and
   everyday use, with screen sync, music, effects and colors. Game is made for playing: the lights follow the game on
   your screen, react faster with richer colors, dark scenes stay dark, and the screen is read more often. Its
-  Intensity (Subtle, Vivid or Intense) is its own, so your everyday settings stay as they are, and an effect, music or
-  color you had on comes back when you switch to Ambient.
+  Intensity (Subtle, Vivid or Intense) and its brightness are its own (it starts at Ambient's brightness until you
+  change it while playing), so your everyday settings stay as they are, and an effect, music or color you had on
+  comes back when you switch to Ambient.
   Add your games on Game mode's Games page and Game mode turns on by itself while one runs, and off when it quits.
 - **Room layout**: place your LED strips where they really are, on a drawing of your room unfolded around the screen
   (walls, ceiling and floor, with your desk and monitor or TV). Pick a ready-made shape or draw a strip yourself, drag
@@ -119,6 +120,11 @@ release note (the landing page in `site/` isn't part of a release and has no ent
   (turn the screen on or off from Home).
 - Music could look selected on Home while the lights still showed the screen.
 - Hint text and input borders were too faint to read comfortably.
+- The brightness slider did nothing in Color mode (and for color zones), and the power limit didn't apply to them.
+- **The brightness slider changed little above the middle**: it now follows how bright the lights look, so the whole
+  range makes a difference (the middle gives about a quarter of the full light). With a power supply smaller than full
+  white needs, 100% is the brightest the supply allows, and bright scenes still dim all along the slider instead of
+  staying at the supply's limit.
 
 ## 0.1.0 – 2026-10-20
 

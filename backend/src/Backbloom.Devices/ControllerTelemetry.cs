@@ -19,6 +19,12 @@ public sealed record ControllerTelemetry(DateTimeOffset ReadAt)
     /// <summary>The current of one LED at full white the controller assumes (WLED's "LED current", averaged over its outputs).</summary>
     public double? MilliampsPerLed { get; init; }
 
+    /// <summary>
+    /// The LEDs the controller's power limiter holds to a budget, as it estimates them (see <see cref="PowerGroup"/>);
+    /// null or empty when Backbloom can't tell (no limiter, an unknown firmware version, LEDs with a white channel).
+    /// </summary>
+    public IReadOnlyList<PowerGroup>? PowerGroups { get; init; }
+
     /// <summary>The controller's own brightness, 0..255, applied on top of the colors it receives (unless <see cref="ForceMaxBrightness"/>).</summary>
     public int? Brightness { get; init; }
 
@@ -78,3 +84,18 @@ public sealed record ControllerTelemetry(DateTimeOffset ReadAt)
 
     public string? Firmware { get; init; }
 }
+
+/// <summary>
+/// LEDs a controller's power limiter holds to one budget: it dims them together once its estimate of their current
+/// exceeds <paramref name="BudgetMilliamps"/>. The estimate of an LED is its current at full white times the share of
+/// full white it shows: the mean of its channels, or its brightest channel (<see cref="PowerRange.BrightestChannel"/>),
+/// scaled by the controller's own brightness (<see cref="ControllerTelemetry.Brightness"/>).
+/// </summary>
+/// <param name="BudgetMilliamps">What the limited LEDs may draw (the limit minus the controller's own share and the LEDs' current at rest).</param>
+/// <param name="Ranges">The limited LEDs, by the controller's LED index (index 0 is the first LED Backbloom sends).</param>
+public sealed record PowerGroup(int BudgetMilliamps, IReadOnlyList<PowerRange> Ranges);
+
+/// <summary>LEDs of a <see cref="PowerGroup"/> that draw the same current.</summary>
+/// <param name="MilliampsPerLed">The current of one LED at full white.</param>
+/// <param name="BrightestChannel">The estimate follows the brightest channel, not the mean of the channels (WLED's WS2815 model).</param>
+public readonly record struct PowerRange(int Start, int Length, double MilliampsPerLed, bool BrightestChannel);

@@ -146,7 +146,7 @@ public sealed partial class DeviceManager : IDisposable
     /// Hands a processed frame to every controller: each gets its slice (LEDs the frame doesn't reach are black).
     /// Called from the frame loop or the smoothing thread; does not allocate.
     /// </summary>
-    public void Submit(ReadOnlySpan<Vector3> colors)
+    internal void Submit(ReadOnlySpan<Vector3> colors)
     {
         foreach (var slot in _slots)
         {
@@ -155,6 +155,27 @@ public sealed partial class DeviceManager : IDisposable
                 var start = Math.Min(slot.Start, colors.Length);
                 runner.Submit(colors.Slice(start, Math.Min(slot.LedCount, colors.Length - start)));
             }
+        }
+    }
+
+    /// <summary>
+    /// <see cref="Submit(ReadOnlySpan{Vector3})"/>, each controller's slice first held within its power limits times
+    /// <paramref name="share"/> (<see cref="PowerBudget"/>; in place, so the caller sees what was sent). One pass over one
+    /// set of controllers, so a reconfiguration can't come between the limit and the send. Does not allocate.
+    /// </summary>
+    internal void Submit(Span<Vector3> colors, float share, float minimalBacklight)
+    {
+        foreach (var slot in _slots)
+        {
+            if (slot.Runner is not { } runner)
+            {
+                continue;
+            }
+
+            var start = Math.Min(slot.Start, colors.Length);
+            var slice = colors.Slice(start, Math.Min(slot.LedCount, colors.Length - start));
+            PowerBudget.Limit(slice, runner.Telemetry, share, minimalBacklight);
+            runner.Submit(slice);
         }
     }
 

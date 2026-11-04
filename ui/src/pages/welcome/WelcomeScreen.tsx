@@ -19,6 +19,7 @@ import { YourLights } from '../../setup/YourLights';
 import { pathWithRole, roleRows, type RoleRow, type SimpleRole } from '../../setup/roles';
 import { TraceStrip, type TraceFrame } from '../../setup/TraceStrip';
 import { applyGameIntensity, applyMood, detectGameIntensity, detectMood, type GameIntensityId, type MoodId } from '../../settings/intensity';
+import { scaleForBrightness } from '../../settings/brightness';
 import { isTestDevice } from '../devices/drivers';
 import { addGame } from '../GamesPage';
 import { OtherAppNotice } from './OtherAppNotice';
@@ -28,8 +29,11 @@ import { importedItems, welcomeSummary } from './summary';
 
 export { STEPS, type Step } from './ready';
 
-/** The brightness a new install's lights start at when they are turned on (Home's Brightness, `scaleOutput`). */
-export const FIRST_BRIGHTNESS = 0.2;
+/**
+ * The `scaleOutput` a new install's lights start at when they are turned on: Home's Brightness at 60% (about a third
+ * of the full light with the default contrast, as the 0.2 it used before).
+ */
+export const FIRST_BRIGHTNESS = scaleForBrightness(0.6);
 
 /** The brightness to set when the lights are turned on: a new install still at full gets {@link FIRST_BRIGHTNESS}. */
 export function firstBrightness(importedFrom: string | null | undefined, current: number | undefined): number | null {

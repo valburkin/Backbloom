@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppWindow, Eye, EyeOff, Gamepad2, Loader2, Plus, Trash2, X } from 'lucide-react';
 import type { LayoutSpec } from '../../layout';
+import { Menu } from '../../components/Menu';
 import { Button, buttonClass, CHOICE_ACTIVE, cx, IconButton } from '../../components/ui';
 import type { EditorAction } from '../../editor/state';
 import { nextProfileId } from '../../editor/state';
@@ -229,18 +230,16 @@ export function ProgramPicker({
     load()
       .then((p) => live && setPrograms(p))
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
-    const onDown = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
-    document.addEventListener('mousedown', onDown);
     return () => {
       live = false;
-      document.removeEventListener('mousedown', onDown);
     };
   }, [open, load]);
   const shown = programs?.filter((p) => !taken.includes(p.exe.toLowerCase()));
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref}>
       <button
         type="button"
+        aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={
@@ -252,7 +251,7 @@ export function ProgramPicker({
         <AppWindow size={primary ? 16 : 13} /> {label}
       </button>
       {open && (
-        <div role="menu" className={cx('scroll-thin absolute z-30 max-h-72 w-72 overflow-y-auto rounded-xl border border-line-strong bg-surface p-1.5 shadow-2xl', primary ? 'left-0 top-11' : 'right-0 top-9')}>
+        <Menu anchor={ref} align={primary ? 'left' : 'right'} maxHeight={288} onClose={() => setOpen(false)}>
           {error ? (
             <p className="p-2 text-xs text-bad">Couldn’t list the apps: {error}</p>
           ) : !shown ? (
@@ -278,7 +277,7 @@ export function ProgramPicker({
               </button>
             ))
           )}
-        </div>
+        </Menu>
       )}
     </div>
   );

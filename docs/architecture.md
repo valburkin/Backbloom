@@ -14,6 +14,7 @@ frame source (DXGI screen capture | effect | static color | synthetic test patte
   -> zones (parts of strips playing their own effect or color, written into their LEDs)
   -> smoothing (optional, own thread and rate)
   -> anti-flicker filter
+  -> strip brightness, then each controller's power limits times the brightness (PowerBudget)
   -> every enabled controller (LED device runner, one thread each) and the UI's live preview
 ```
 

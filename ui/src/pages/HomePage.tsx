@@ -25,6 +25,7 @@ import { useExpertTools } from '../app/expert';
 import { useStartMusic } from '../control/music';
 import { PresetPicker } from '../control/PresetPicker';
 import { applyGameIntensity, applyMood, detectGameIntensity, detectMood, GAME_PRESETS, MOOD_PRESETS } from '../settings/intensity';
+import { brightnessForScale, gameScale, scaleForBrightness, withGameScale } from '../settings/brightness';
 import { ModeSwitch } from '../control/ModeSwitch';
 import { ModeBadge } from '../components/ModeBadge';
 import { NoLights, hasRealDevice } from '../setup/NoLights';
@@ -161,18 +162,29 @@ function LightsCard() {
 }
 
 /**
- * Brightness 0–100% (`scaleOutput`, the same value as everywhere). A value boosted above 100% (Colors, expert) is
- * shown as it is; it only changes when the slider is moved.
+ * Brightness 0–100%: `scaleOutput` along the curve in settings/brightness.ts (at 50% the lights give about a quarter
+ * of their full output), the current mode's own (Game uses Ambient's until it is moved in Game mode). A value boosted
+ * above 100% (Colors, expert) is shown as it is; it only changes when the slider is moved.
  */
 function Brightness() {
   const { serverInfo, api, auth } = useConnection();
-  const stored = serverInfo?.adjustment?.[0]?.scaleOutput ?? 1;
+  const { config } = useConfig();
+  const game = serverInfo?.mode?.mode === 'game';
+  const ambient = serverInfo?.adjustment?.[0]?.scaleOutput ?? 1;
+  // Game mode keeps Ambient's contrast
+  const gamma = serverInfo?.adjustment?.[0]?.gamma;
+  const stored = brightnessForScale((game ? gameScale(config) : undefined) ?? ambient, gamma);
   const [dragging, setDragging] = useState<number | null>(null);
-  // The `adjustment` command applies the value and stores it (it needs a signed-in session).
-  const send = useThrottled((v: number) => void api.adjust({ scaleOutput: v }).catch(() => undefined), 100);
+  // Ambient: the `adjustment` command applies the value and stores it; Game: its `game` section. Both need a signed-in
+  // session.
+  const send = useThrottled((v: number) => {
+    const scaleOutput = scaleForBrightness(v, gamma);
+    const saved = game && config ? api.setConfig(withGameScale(config, scaleOutput)) : api.adjust({ scaleOutput });
+    void saved.catch(() => undefined);
+  }, 100);
   const releaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canEdit = auth === 'admin';
-  // Show the dragged value until the backend's adjustment-update has caught up.
+  // Show the dragged value until the backend's update has caught up.
   const release = () => {
     if (releaseTimer.current) clearTimeout(releaseTimer.current);
     releaseTimer.current = setTimeout(() => setDragging(null), 600);
@@ -191,7 +203,7 @@ function Brightness() {
           <Sun size={16} className="text-ink-faint" /> Brightness
         </label>
         <span className="text-sm tabular-nums text-ink-muted">
-          {Math.round(value * 100)}%{value > 1.005 && <span className="text-ink-faint"> (boosted)</span>}
+          {Math.round(Math.min(1, value) * 100)}%{value > 1.005 && <span className="text-ink-faint"> (boosted)</span>}
         </span>
       </div>
       <input
@@ -202,8 +214,8 @@ function Brightness() {
         step={0.01}
         value={Math.min(1, value)}
         disabled={!canEdit}
-        aria-valuetext={`${Math.round(value * 100)}%`}
-        style={rangeFill(value, 0, 1)}
+        aria-valuetext={`${Math.round(Math.min(1, value) * 100)}%${value > 1.005 ? ' (boosted)' : ''}`}
+        style={rangeFill(Math.min(1, value), 0, 1)}
         className="range-lg w-full"
         onChange={(e) => {
           const v = Number(e.target.value);
@@ -212,7 +224,7 @@ function Brightness() {
           release();
         }}
       />
-      <p className="mt-1.5 text-xs text-ink-faint">{canEdit ? 'Saved automatically.' : 'Sign in to change the brightness.'}</p>
+      <p className="mt-1.5 text-xs text-ink-faint">{canEdit ? (game ? 'Game mode keeps its own brightness. Saved automatically.' : 'Saved automatically.') : 'Sign in to change the brightness.'}</p>
     </div>
   );
 }

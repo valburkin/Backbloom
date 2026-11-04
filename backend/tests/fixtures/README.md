@@ -68,3 +68,7 @@ other value is still the C++ output.
    fixtures' springs) is integrated exactly as before; the other smoothing fixtures are unchanged. Covered by
    `SmootherTests.StiffSpring_ApproachesWithoutOscillating` and
    `SmootherTests.HybridBrightnessLimit_HoldsPerTick_WhenATickTakesSeveralSteps`.
+5. **The brightness applies to static colors** (no fixture affected). HyperHDR switched the color processing off for
+   static colors (`COLOR`), so the output scale (Home's brightness) didn't change them. Now a `ColorProcessor` without the
+   color settings still applies the output scale and the power limit; the other color settings stay skipped. Covered
+   by `ColorProcessorTests.Process_WithoutColorSettings_KeepsBrightnessAndPowerLimit`.

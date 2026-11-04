@@ -2,7 +2,7 @@
   "type": "object",
   "title": "Game mode",
   "required": true,
-  "comment": "What Game mode changes (new in Backbloom): its values replace the matching ones of smoothing, color.channelAdjustment[0] and systemGrabber while Game mode is on, without saving them there (Engine/GameTuning). Defaults: the Intense preset of the UI (ui/src/settings/intensity.ts) and its spring (springFor(150)), 60 fps.",
+  "comment": "What Game mode changes (new in Backbloom): its values replace the matching ones of smoothing, color.channelAdjustment[0] and systemGrabber while Game mode is on, without saving them there (Engine/GameTuning). Defaults: the Intense preset of the UI (ui/src/settings/intensity.ts) and its spring (springFor(150)), 60 fps. scaleOutput (Home's Brightness in Game mode) is optional: without it Game mode uses Ambient's.",
   "properties": {
     "time_ms": {
       "type": "integer",
@@ -45,6 +45,11 @@
       "maximum": 120,
       "default": 60,
       "required": true
+    },
+    "scaleOutput": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 2.0
     }
   },
   "additionalProperties": false

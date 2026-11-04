@@ -109,8 +109,9 @@ null (the layout as saved); `manual` is true for a profile chosen with `select`,
 Ambient (the lights as the settings say) or Game: while Game mode is on, only the screen is shown (colors, pictures,
 effects and music stay in the priority list, active but not visible, and show again in Ambient), and the values of the
 `game` section replace the transition time and spring (`smoothing.time_ms`, `stiffness`, `damping`, with smoothing on),
-the saturation and color brightness gains (`color.channelAdjustment[0]`, whose minimum glow `backlightThreshold` is 0)
-and raise the capture rate to at least
+the saturation and color brightness gains (`color.channelAdjustment[0]`, whose minimum glow `backlightThreshold` is 0),
+the brightness once `game.scaleOutput` is set (`scaleOutput`; without it Game mode uses Ambient's), and raise the
+capture rate to at least
 `game.fps`, without changing those sections. The mode chosen in the app is saved as `modes.mode`; a game's profile turns Game mode on while it runs.
 `serverinfo.mode` is `{ mode, saved, gameProfile, dismissedGame }`: `mode` the one that applies, `saved` the chosen
 one (both `"ambient"` or `"game"`), `gameProfile` the name of the game's profile that turned Game mode on, else null,
@@ -121,7 +122,7 @@ and `dismissedGame` the name of the running game whose Game mode was turned off 
 | `getstate` | | `{ mode }` |
 | `set` | `{ mode: "ambient" \| "game" }` | saves the chosen mode; `ambient` while a game's profile has Game mode on also turns it off until another profile (or none) runs, and `game` while that game still runs only turns it back on (the saved mode stays). Replies `{ mode }`. API access is enough |
 
-`mode-update` pushes `{ mode }` whenever it changes, in the order of the changes. Game mode's Intensity is set with `setconfig` on `game`.
+`mode-update` pushes `{ mode }` whenever it changes, in the order of the changes. Game mode's Intensity and brightness are set with `setconfig` on `game` (`adjustment` sets Ambient's brightness).
 
 Events: `components-update`, `priorities-update`, `adjustment-update`, `settings-update`, `leds-update`,
 `imageToLedMapping-update`, `performance-update`, `token-update`, `instance-update`, `sessions-update`,

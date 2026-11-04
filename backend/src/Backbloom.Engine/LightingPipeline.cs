@@ -13,11 +13,11 @@ namespace Backbloom.Engine;
 
 /// <summary>Everything the frame loop needs from the settings, swapped as one immutable snapshot.</summary>
 /// <param name="Processor">The color settings, for the screen and effects.</param>
-/// <param name="Passthrough">Static colors skip the color settings (HyperHDR disabled processing for COLOR).</param>
+/// <param name="Passthrough">Static colors skip the color settings except the brightness and the power limit (HyperHDR disabled processing for COLOR).</param>
 public sealed record PipelineConfig(LedMappingOptions Mapping, ColorProcessor Processor, ColorProcessor Passthrough)
 {
     public PipelineConfig(LedMappingOptions mapping, ColorProcessor processor)
-        : this(mapping, processor, new ColorProcessor(processor.Adjustment, enabled: false))
+        : this(mapping, processor, new ColorProcessor(processor.Adjustment, colorSettings: false))
     {
     }
 }
@@ -233,7 +233,7 @@ public sealed partial class LightingPipeline : IDisposable
             _screen?.FrameCaptured();
             _screenAverage.Apply(config.Mapping.Layout, colors, _clock.NowMilliseconds);
             config.Processor.Process(colors);
-            Submit(colors, config.Processor.MinimalBacklight, zones, config, stepping);
+            Submit(colors, config.Processor, zones, config, stepping);
         }
         else if (visible.Renderer is { } renderer && _components.IsOn(Component.All))
         {
@@ -250,7 +250,7 @@ public sealed partial class LightingPipeline : IDisposable
             }
 
             config.Processor.Process(colors);
-            Submit(colors, config.Processor.MinimalBacklight, zones, config, stepping);
+            Submit(colors, config.Processor, zones, config, stepping);
             ProbeScreen(ref frame, colors, config, s_probeBudget);
         }
         else if (!ReferenceEquals(visible, _rendered) || !ReferenceEquals(config, _renderedConfig) || _refresh)
@@ -262,7 +262,7 @@ public sealed partial class LightingPipeline : IDisposable
             var lut = Srgb.U8ToLinear16;
             colors.AsSpan().Fill(new Vector3(lut[visible.Color.R] / 65535.0f, lut[visible.Color.G] / 65535.0f, lut[visible.Color.B] / 65535.0f));
             config.Passthrough.Process(colors);
-            Submit(colors, config.Passthrough.MinimalBacklight, zones, config, stepping);
+            Submit(colors, config.Passthrough, zones, config, stepping);
         }
         else
         {
@@ -282,13 +282,15 @@ public sealed partial class LightingPipeline : IDisposable
         return true;
     }
 
-    // Hands a processed frame to the output; with zones, a copy with the zones' colors in their LEDs (stepped first
-    // when due), kept so that zone steps can send it again.
-    private void Submit(Vector3[] colors, float minimalBacklight, ZoneLayer zones, PipelineConfig config, bool stepping)
+    // Hands a frame processed by `processor` to the output (its minimum glow, and its share of the output for the power
+    // limits); with zones, a copy with the zones' colors in their LEDs (stepped first when due), kept so that zone steps
+    // can send it again (with the larger share of the color settings and of static colors: zones use both).
+    private void Submit(Vector3[] colors, ColorProcessor processor, ZoneLayer zones, PipelineConfig config, bool stepping)
     {
+        var minimalBacklight = processor.MinimalBacklight;
         if (zones.Count == 0)
         {
-            _output.Submit(colors, minimalBacklight);
+            _output.Submit(colors, minimalBacklight, processor.OutputShare);
             return;
         }
 
@@ -305,8 +307,10 @@ public sealed partial class LightingPipeline : IDisposable
         }
 
         zones.Compose(_composed, config);
-        _output.Submit(_composed, minimalBacklight);
+        _output.Submit(_composed, minimalBacklight, ZonesShare(config));
     }
+
+    private static float ZonesShare(PipelineConfig config) => MathF.Max(config.Processor.OutputShare, config.Passthrough.OutputShare);
 
     // Steps the zone effects that are due; when one changed, the last frame goes out again with their new colors (black
     // where nothing was drawn yet).
@@ -324,7 +328,7 @@ public sealed partial class LightingPipeline : IDisposable
         }
 
         zones.Compose(_composed, config);
-        _output.Submit(_composed, _composedBacklight);
+        _output.Submit(_composed, _composedBacklight, ZonesShare(config));
     }
 
     // Nothing new from the visible source while zone effects run: step them when due, else probe an inactive screen or

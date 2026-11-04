@@ -38,6 +38,37 @@ internal sealed class SlowDriver : ILedDriver
     }
 }
 
+/// <summary>A controller that reports a power limiter over its first two LEDs.</summary>
+internal sealed class LimitedDriver : ITelemetryDriver
+{
+    public const string TypeName = "limited";
+
+    public static DriverDescriptor Descriptor { get; } = new(
+        TypeName, "leds_group_5_debug", JsonNode.Parse("""{ "type": "object", "properties": {} }""")!.AsObject(), (_, _) => new LimitedDriver());
+
+    public string Type => TypeName;
+
+    public RetryPolicy RetryPolicy => RetryPolicy.None;
+
+    public string? Status => null;
+
+    // full white on both LEDs would need 120 mA
+    public ControllerTelemetry? Telemetry { get; } = new(DateTimeOffset.UnixEpoch)
+    {
+        PowerGroups = [new PowerGroup(60, [new PowerRange(0, 2, 60, false)])],
+    };
+
+    public ValueTask OpenAsync(int ledCount, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+    public bool Write(ReadOnlySpan<byte> colors) => true;
+
+    public ValueTask CloseAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+    public void Dispose()
+    {
+    }
+}
+
 public sealed class MultiControllerTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"backbloom-multi-{Guid.NewGuid():N}");
@@ -62,6 +93,7 @@ public sealed class MultiControllerTests : IDisposable
     {
         var registry = new DriverRegistry().RegisterAll();
         registry.Register(SlowDriver.Descriptor);
+        registry.Register(LimitedDriver.Descriptor);
         return registry;
     }
 
@@ -286,5 +318,25 @@ public sealed class MultiControllerTests : IDisposable
         Assert.Equal([DeviceState.Ready, DeviceState.Off], devices.Devices.Select(d => d.State));
         devices.SetEnabled(false);
         WaitUntil(() => devices.Devices.All(d => d.State == DeviceState.Off));
+    }
+    [Fact]
+    public void EachController_IsHeldToItsOwnPowerLimits_TheOthersAreLeftAlone()
+    {
+        using var devices = Devices(Registry());
+        var none = JsonNode.Parse("""{ "type": "file", "output": "/dev/null" }""")!.AsObject();
+        devices.Configure(
+        [
+            new ControllerDevice("plain", "Plain", none, 2),
+            new ControllerDevice("limited", "Limited", JsonNode.Parse("""{ "type": "limited" }""")!.AsObject(), 3),
+        ]);
+        var colors = Enumerable.Repeat(Vector3.One, 5).ToArray();
+
+        devices.Submit(colors, 1.0f, 0.0f);
+
+        // the limited controller's first two LEDs share its budget; its third and the other controller stay
+        Assert.Equal([Vector3.One, Vector3.One], colors[..2]);
+        Assert.Equal(PowerBudget.Margin * 60 / 120, colors[2].X, 0.001f);
+        Assert.Equal(colors[2], colors[3]);
+        Assert.Equal(Vector3.One, colors[4]);
     }
 }

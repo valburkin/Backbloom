@@ -19,7 +19,7 @@ public sealed class ColorProcessor
     private const float GainEpsilon = 1e-5f;
     private const float DefaultMinimalBacklight = 0.0039f;
 
-    private readonly bool _enabled;
+    private readonly bool _colorSettings;
 
     private readonly bool _hasTemperature;
     private readonly Vector3 _temperature;
@@ -46,11 +46,16 @@ public sealed class ColorProcessor
     private readonly bool _hasPowerLimit;
     private readonly float _powerLimit;
 
-    public ColorProcessor(ColorAdjustment adjustment, bool enabled = true)
+    /// <param name="adjustment">The color settings.</param>
+    /// <param name="colorSettings">
+    /// False for static colors: only the output scale (the brightness) and the power limit apply. Deliberate deviation
+    /// from HyperHDR, which disabled all processing for them, so the brightness didn't change a static color.
+    /// </param>
+    public ColorProcessor(ColorAdjustment adjustment, bool colorSettings = true)
     {
         ArgumentNullException.ThrowIfNull(adjustment);
         Adjustment = adjustment;
-        _enabled = enabled;
+        _colorSettings = colorSettings;
 
         // setTemperature
         (_hasTemperature, _temperature) = adjustment.Temperature switch
@@ -122,6 +127,11 @@ public sealed class ColorProcessor
         // setPowerLimit
         _powerLimit = Math.Clamp(adjustment.PowerLimit, 0.0f, 1.0f);
         _hasPowerLimit = _powerLimit != 1.0f;
+
+        // Backbloom: the share of the full output the output scale leaves for white (see OutputShare)
+        var encoded = Srgb.ToNonlinear(new Vector3(Math.Min(_scaleOutput, 1.0f))).X;
+        var gamma = _gammaLut is null ? encoded : MathF.Pow(encoded, adjustment.Gamma);
+        OutputShare = !colorSettings ? encoded : Math.Min(1.0f, gamma * (_hasGain ? Math.Max(1.0f, _luminanceGain) : 1.0f));
     }
 
     private enum CalibrationMode
@@ -143,18 +153,29 @@ public sealed class ColorProcessor
     public float MinimalBacklight => _hasBacklight ? _minimalBacklight : 0.0f;
 
     /// <summary>
+    /// The share of the full output the output scale (Home's Brightness) leaves for white, at most 1: the sRGB-encoded
+    /// scale, with the color settings the user gamma applied and a luminance gain above 1 (Game's color brightness) on
+    /// top. A gain below 1 isn't counted, so at full brightness the share stays 1.
+    /// </summary>
+    public float OutputShare { get; }
+
+    /// <summary>
     /// Processes colors in place: input is linear light 0..1, output is nonlinear 0..1 ready to be quantized.
-    /// Port of <c>InfiniteProcessing::applyyAllProcessingSteps</c>.
+    /// Port of <c>InfiniteProcessing::applyyAllProcessingSteps</c>; without the color settings (static colors) only the
+    /// output scale and the power limit apply.
     /// </summary>
     public void Process(Span<Vector3> colors)
     {
-        if (!_enabled)
+        if (!_colorSettings)
         {
             for (var i = 0; i < colors.Length; i++)
             {
-                colors[i] = Srgb.ToNonlinear(colors[i]);
+                var color = colors[i];
+                ApplyScaleOutput(ref color);
+                colors[i] = Srgb.ToNonlinear(color);
             }
 
+            ApplyPowerLimit(colors);
             return;
         }
 

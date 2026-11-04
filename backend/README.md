@@ -290,7 +290,8 @@ lowest priority number among the active sources is visible, unless one was selec
 "nothing" (black, and the controllers are switched off, as HyperHDR did; the `LEDDEVICE` switch keeps the user's
 choice). The screen registers at `systemControl.systemInstancePriority` (245) while `ALL` and `SYSTEMGRABBER` are on.
 `color` registers a static color (priority 1..253, optional `duration` ms, origin `<origin>@<peer>`); static colors
-skip the color settings as in HyperHDR, are drawn once per change and then smoothed. `clear` takes -1 (all colors and
+skip the color settings as in HyperHDR except the brightness (`scaleOutput`) and the power limit, are drawn once per
+change and then smoothed. `clear` takes -1 (all colors and
 effects) or 1..253, `clearall` = -1. `serverinfo.priorities` lists the visible source first with `priority`,
 `componentId`, `origin`, `owner`, `active`, `visible`, `duration_ms` and, for colors, `value: { RGB, HSL }`;
 `priorities_autoselect` and `activeLedColor` as in HyperHDR. Effects implement `ILightSource` (render linear LED colors
@@ -366,7 +367,8 @@ Backbloom asks for, before the controller's own brightness and power limit, and 
 Nanoleaf, WiZ, Yeelight, Home Assistant, Zigbee2MQTT) and the file driver.
 
 Drivers whose controller reports about itself implement `ITelemetryDriver`. The WLED driver (checked against WLED's
-json.cpp, cfg.cpp and bus_manager.cpp, v16) reads `GET /json/cfg` once per connection for the power limiter: the global
+json.cpp, cfg.cpp and bus_manager.cpp, v16) reads `GET /json/cfg` on connecting, after a restart and every 6th
+reading (about once a minute, as it steers the output: see Power limits below) for the power limiter: the global
 limit `hw.led.maxpwr`, each output's limit `hw.led.ins[].maxpwr` and LED current `ins[].ledma`, read by the
 controller's version (`info.ver`, `WledConfig`): 0.16 and the development branch (`initializeABL`) use a global limit
 with an output that has an LED current, or without a global one, the outputs that have both (then the limit is their
@@ -925,7 +927,7 @@ profile.
 **Ambient and Game mode.** The `modes` section (new, `Schemas/modes.json`) holds the mode chosen in the app (`mode`:
 `ambient` or `game`), the `game` section (new, `Schemas/game.json`) what Game mode changes (`time_ms`, `stiffness`,
 `damping`, `saturationGain`, `luminanceGain`, `fps`; the defaults are the UI's Intense preset, `springFor(150)`, and
-60 fps). Two sections, so that saving Game's values can't overwrite a mode chosen meanwhile. `ModeMonitor` (Engine)
+60 fps; and the optional `scaleOutput`, Home's Brightness in Game mode, which replaces Ambient's once it is set). Two sections, so that saving Game's values can't overwrite a mode chosen meanwhile. `ModeMonitor` (Engine)
 decides which mode applies: the saved one, except Game while the active profile is a game's (`game: true`); `set`
 Ambient while such a profile runs keeps Ambient until another profile (or none) runs, and `set` Game while it still runs
 only turns Game mode back on (`dismissedGame` says which game it is off for). Changes are announced under its lock, in
@@ -966,6 +968,25 @@ only drops its own frames (`MultiControllerTests`: a driver whose writes take 30
 `Submit`). Strip brightness is a per-LED gain applied after smoothing and the anti-flicker filter (`OutputStage`;
 null when every strip is at 100 %), so the preview shows it too. Each runner measures the time from `Submit` until the
 driver had written the frame (`FrameStats` latency).
+
+Power limits (`PowerBudget`, in `DeviceManager.Submit`, after the strip brightness, before the preview): WLED's
+limiter cuts everything above its limit, so with a power supply smaller than full white needs, the top of Home's slider
+changed nothing on bright scenes. Now each group of LEDs a controller's limiter holds to a budget
+(`ControllerTelemetry.PowerGroups`; WLED: `WledConfig.ReadGroups`, by version: 0.14 every output under the global
+limit, 0.15 each limited output on its own, 0.16 the outputs with an LED current under a global limit, else as 0.15;
+budget = limit - the ESP's 120 mA, the most WLED reserves (per output: its share over all outputs on 0.15, over the
+limited ones on 0.16) - 1 mA per LED at rest) is held at 93 % of its budget times
+the brightness's share of the output (`ColorProcessor.OutputShare`: the sRGB-encoded scale, for the screen and effects
+with the user gamma and a color brightness gain above 1, at most 1; handed over with each frame,
+`OutputStage.Submit`), but never below the current the minimum glow needs.
+An LED's estimate is WLED's: its LED current at full white times the mean of its channels (the brightest channel for
+WS2815) times the controller's own brightness (unless "force max brightness"). At 100 % the lights give what the supply
+allows (dark scenes their full light, as before); every lower value dims bright scenes too. 93 % keeps WLED's limiter
+out and its reading under the diagnostics' 95 % warning. LEDs outside a group (outputs WLED doesn't limit, LEDs beyond
+Backbloom's) aren't touched; a group with a white channel or an unknown bus type, a used-up budget or an unknown
+firmware version is left to WLED. WLED's limiter stays the safety net, and steps in where its view differs from
+Backbloom's: a frame of more than 489 LEDs shown packet by packet, an LED map or segment grouping on the controller,
+LEDs it has beyond Backbloom's. Controllers without power groups aren't limited.
 
 **Protocol** (additions; old single-controller clients keep working):
 

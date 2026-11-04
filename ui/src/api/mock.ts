@@ -763,6 +763,12 @@ export class MockBackend implements Backend {
     return (this.config.color as { channelAdjustment: Array<Record<string, unknown>> }).channelAdjustment[0];
   }
 
+  /** The brightness shown: Game mode's own, once set, replaces Ambient's (as Engine/GameTuning.cs). */
+  private shownScale(): number {
+    const game = (this.config.game as { scaleOutput?: unknown } | undefined)?.scaleOutput;
+    return Number(this.modeState().mode === 'game' && typeof game === 'number' ? game : (this.activeAdjustment().scaleOutput ?? 1));
+  }
+
   private emitControllers(): void {
     this.emit('controllers-update', { controllers: this.controllers() });
   }
@@ -780,7 +786,7 @@ export class MockBackend implements Backend {
       'leds',
       setInterval(() => {
         const leds = (this.config.leds ?? []) as Array<{ hmin: number; hmax: number; vmin: number; vmax: number }>;
-        const scale = Math.min(1, Number(this.activeAdjustment().scaleOutput ?? 1));
+        const scale = Math.min(1, this.shownScale());
         const t = Date.now() - started;
         // like the backend: the preview keeps running while the output is held (the first-run setup shows it)
         const on = this.components.get('ALL') && this.components.get('LEDDEVICE');

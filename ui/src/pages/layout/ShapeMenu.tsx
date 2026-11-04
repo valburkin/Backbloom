@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { PenLine } from 'lucide-react';
 import { shapePath, shapes, toUnfolded, type Room, type ShapeId } from '../../layout';
+import { Menu } from '../../components/Menu';
 import { cx } from '../../components/ui';
 import { frontFocus, screenRect, surfaceRect, wholeRoom } from './canvasMath';
 
@@ -47,19 +48,6 @@ export function ShapeMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
 
   const pick = (fn: () => void) => () => {
     setOpen(false);
@@ -67,7 +55,7 @@ export function ShapeMenu({
   };
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref}>
       <button
         type="button"
         disabled={disabled}
@@ -83,10 +71,7 @@ export function ShapeMenu({
         {label}
       </button>
       {open && (
-        <div
-          role="menu"
-          className={cx('absolute top-9 z-30 w-72 rounded-xl border border-line-strong bg-surface p-1.5 shadow-2xl', align === 'right' ? 'right-0' : 'left-0')}
-        >
+        <Menu anchor={ref} align={align} onClose={() => setOpen(false)}>
           {shapes(room).map((s) => (
             <button
               key={s.id}
@@ -111,7 +96,7 @@ export function ShapeMenu({
               <span className="block text-xs text-ink-faint">Click where the strip starts and at every bend.</span>
             </span>
           </button>
-        </div>
+        </Menu>
       )}
     </div>
   );

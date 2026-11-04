@@ -201,10 +201,10 @@ describe('setup', () => {
 });
 
 describe('first brightness', () => {
-  it('starts a new install at 20%, unless the brightness was changed or the settings were imported', () => {
-    expect(FIRST_BRIGHTNESS).toBe(0.2);
-    expect(firstBrightness(null, undefined)).toBe(0.2);
-    expect(firstBrightness(null, 1)).toBe(0.2);
+  it('starts a new install at 60% on Home, unless the brightness was changed or the settings were imported', () => {
+    expect(FIRST_BRIGHTNESS).toBeCloseTo(0.22, 2);
+    expect(firstBrightness(null, undefined)).toBe(FIRST_BRIGHTNESS);
+    expect(firstBrightness(null, 1)).toBe(FIRST_BRIGHTNESS);
     expect(firstBrightness(null, 0.6)).toBeNull();
     expect(firstBrightness('C:\\HyperHDR', 1)).toBeNull();
   });

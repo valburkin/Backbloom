@@ -53,6 +53,9 @@ public sealed partial class WledDriver : ITelemetryDriver
     // failed status reads in a row before the log says so (one alone is common on Wi-Fi)
     private const int FailuresToReport = 3;
 
+    // The power settings are read again every this many readings (about once a minute), as they now steer the output.
+    private const int ReadingsPerConfigRead = 6;
+
     private readonly WledOptions _options;
     private readonly HttpClient _http;
     private readonly IDatagramChannel _udp;
@@ -67,6 +70,7 @@ public sealed partial class WledDriver : ITelemetryDriver
     private Task? _poll;
     private volatile ControllerTelemetry? _telemetry;
     private WledConfig _config;
+    private string? _version;
 
     // under _telemetryLock
     private DateTimeOffset? _bootTime;
@@ -127,6 +131,9 @@ public sealed partial class WledDriver : ITelemetryDriver
 
     public async ValueTask OpenAsync(int ledCount, CancellationToken cancellationToken)
     {
+        // a reconnect: the previous connection's readings stop first, so they can't mix with this one's power settings
+        await StopPollingAsync();
+
         // the name is resolved once per connection (by the shared resolver, which falls back to mDNS and the last
         // address) and the API and the stream both use the address, so HttpClient never resolves it itself
         var address = await _resolve(_options.Host, cancellationToken);
@@ -137,7 +144,8 @@ public sealed partial class WledDriver : ITelemetryDriver
         if (info is not null)
         {
             udpPort = ReadInfo(info, ledCount);
-            await ReadConfigAsync(ReadString((info["info"] as JsonObject)?["ver"]), cancellationToken);
+            _version = ReadString((info["info"] as JsonObject)?["ver"]);
+            await ReadConfigAsync(keepOnFailure: false, cancellationToken);
             _polledBrightness = null;
             (telemetry, _) = ReadTelemetry(info, polled: false);
             if (_options.RestoreOriginalState && info["state"] is JsonObject state)
@@ -157,8 +165,8 @@ public sealed partial class WledDriver : ITelemetryDriver
         _udp.Connect(new IPEndPoint(address, udpPort));
         _connected = true;
 
-        // published once connected: a failed open leaves no readings behind
-        _telemetry = telemetry;
+        // published once connected: a failed open leaves no readings behind; the brightness is the one just set
+        _telemetry = _options.OverrideBrightness && telemetry is not null ? telemetry with { Brightness = _options.BrightnessLevel } : telemetry;
         Status = telemetry?.SignalPercent is { } signal ? $"{signal}%" : Status;
         await StopPollingAsync();
         _polling = new CancellationTokenSource();
@@ -219,6 +227,7 @@ public sealed partial class WledDriver : ITelemetryDriver
     {
         var token = polling.Token;
         var failures = 0;
+        var readings = 0;
         var resendPending = false;
         try
         {
@@ -232,6 +241,12 @@ public sealed partial class WledDriver : ITelemetryDriver
                         continue;
                     }
 
+                    // the power settings steer the output (PowerGroups): changes made in the WLED app count soon
+                    if (++readings % ReadingsPerConfigRead == 0)
+                    {
+                        await ReadConfigAsync(keepOnFailure: true, token);
+                    }
+
                     var (telemetry, restarted) = ReadTelemetry(json, polled: true);
                     token.ThrowIfCancellationRequested();
                     _telemetry = telemetry;
@@ -240,7 +255,8 @@ public sealed partial class WledDriver : ITelemetryDriver
                     {
                         // a restart loses the realtime state Backbloom set (on, brightness): set it again, until that
                         // succeeds (a controller that just booted may not answer yet); the brightness it sets is no
-                        // change made elsewhere
+                        // change made elsewhere; its settings may have changed too
+                        await ReadConfigAsync(keepOnFailure: true, token);
                         await PutStateAsync(WledProtocol.OnOffRequest(true, _options.OverrideBrightness, _options.BrightnessLevel, _savedState), token);
                         resendPending = false;
                         lock (_telemetryLock)
@@ -271,24 +287,28 @@ public sealed partial class WledDriver : ITelemetryDriver
         }
     }
 
-    // The power limiter settings and LED current from /json/cfg, once per connection (/json/si can't tell whether the
-    // limiter is in use). Any failure only leaves them unknown.
-    private async Task ReadConfigAsync(string? version, CancellationToken cancellationToken)
+    // The power limiter settings and LED current from /json/cfg, on connecting and every ReadingsPerConfigRead readings
+    // (/json/si can't tell whether the limiter is in use). A failure on connecting leaves them unknown; a later one keeps
+    // the last ones.
+    private async Task ReadConfigAsync(bool keepOnFailure, CancellationToken cancellationToken)
     {
-        WledConfig config = default;
+        WledConfig? config = null;
         try
         {
             if (await GetJsonAsync(new Uri(BaseUri, "json/cfg"), cancellationToken) is { } cfg)
             {
-                config = WledConfig.Read(cfg, version);
+                config = WledConfig.Read(cfg, _version);
             }
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is not OutOfMemoryException)
         {
-            LogNoPowerSettings(_options.Host, ex.Message);
+            if (!keepOnFailure)
+            {
+                LogNoPowerSettings(_options.Host, ex.Message);
+            }
         }
 
-        _config = config;
+        _config = config ?? (keepOnFailure ? _config : default);
     }
 
     // The readings, and whether the controller restarted since the previous one (while connected: it then lost the
@@ -335,6 +355,7 @@ public sealed partial class WledDriver : ITelemetryDriver
                 PowerMilliamps = config.LimiterInUse && ReadInt(leds?["pwr"]) is { } power and > 0 ? power : null,
                 PowerLimitMilliamps = config.LimiterInUse ? config.PowerLimitMilliamps : null,
                 MilliampsPerLed = config.MilliampsPerLed,
+                PowerGroups = config.LimiterInUse ? config.Groups : null,
                 Brightness = brightness,
                 ForceMaxBrightness = config.ForceMaxBrightness,
                 On = ReadBool(state?["on"]),

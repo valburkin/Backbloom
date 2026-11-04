@@ -43,6 +43,20 @@ public sealed class GameTuningTests
     }
 
     [Fact]
+    public void ItsBrightness_ReplacesAmbients_OnceSet()
+    {
+        var color = JsonNode.Parse("""{ "channelAdjustment": [{ "scaleOutput": 0.8 }] }""");
+
+        Assert.Null(GameTuning.Default.ScaleOutput);
+        Assert.Equal(0.8, GameTuning.Default.ApplyToColor(color)["channelAdjustment"]![0]!["scaleOutput"]!.GetValue<double>());
+
+        var game = GameTuning.FromJson(JsonNode.Parse("""{ "scaleOutput": 0.3 }"""));
+        Assert.Equal(0.3, game.ScaleOutput);
+        Assert.Equal(0.3, game.ApplyToColor(color)["channelAdjustment"]![0]!["scaleOutput"]!.GetValue<double>());
+        Assert.Equal(0.8, color!["channelAdjustment"]![0]!["scaleOutput"]!.GetValue<double>());
+    }
+
+    [Fact]
     public void ApplyToCapture_RaisesTheRate_ButKeepsAFasterOne()
     {
         var capture = new CaptureSettings { FramesPerSecond = 30, Device = "auto" };
