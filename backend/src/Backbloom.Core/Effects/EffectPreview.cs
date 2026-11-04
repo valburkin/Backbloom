@@ -63,6 +63,7 @@ public sealed record EffectPreview(int FramesPerSecond, int LedCount, int FrameC
         effect.Init(canvas, Effect.LatchTimeMs);
 
         var ledCount = layout.Count;
+        var firstSame = FirstSameArea(layout);
         var leds = new Rgb8[ledCount];
         var shown = new double[ledCount * 3];
         var smoothed = new double[ledCount * 3];
@@ -103,7 +104,7 @@ public sealed record EffectPreview(int FramesPerSecond, int LedCount, int FrameC
 
                         break;
                     case EffectOutput.Image:
-                        Sample(canvas, layout, shown);
+                        Sample(canvas, layout, firstSame, shown);
                         break;
                 }
 
@@ -133,12 +134,35 @@ public sealed record EffectPreview(int FramesPerSecond, int LedCount, int FrameC
         return new EffectPreview(framesPerSecond, ledCount, frameCount, frames);
     }
 
+    // For each LED, the first LED with the same area (itself when there is none before it): those are sampled once.
+    private static int[] FirstSameArea(LedLayout layout)
+    {
+        var first = new Dictionary<(double, double, double, double, bool), int>();
+        var result = new int[layout.Count];
+        for (var i = 0; i < layout.Count; i++)
+        {
+            var a = layout.Areas[i];
+            result[i] = first.TryAdd((a.HMin, a.HMax, a.VMin, a.VMax, a.Disabled), i) ? i : first[(a.HMin, a.HMax, a.VMin, a.VMax, a.Disabled)];
+        }
+
+        return result;
+    }
+
     // The mean color of each LED's area of the picture (black for a disabled LED).
-    private static void Sample(EffectCanvas canvas, LedLayout layout, double[] colors)
+    private static void Sample(EffectCanvas canvas, LedLayout layout, int[] firstSame, double[] colors)
     {
         int w = canvas.Width, h = canvas.Height;
         for (var led = 0; led < layout.Count; led++)
         {
+            if (firstSame[led] != led)
+            {
+                var same = firstSame[led] * 3;
+                colors[led * 3] = colors[same];
+                colors[(led * 3) + 1] = colors[same + 1];
+                colors[(led * 3) + 2] = colors[same + 2];
+                continue;
+            }
+
             var a = layout.Areas[led];
             double r = 0, g = 0, b = 0;
             var count = 0;

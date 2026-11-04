@@ -67,11 +67,13 @@ the program in `%LOCALAPPDATA%\BackbloomApp`, separate from the data, so uninsta
   point does: `{ kind: "edge", from, to }` repeats a stretch of the screen's outline (positions 0..4 clockwise from the
   top-left corner, one per edge; "Screen edge"), `whole` shows the whole picture ("Screen average"; its color changes more slowly than
   the smoothing settings say, about half a second more, so small changes in the picture don't make it flicker),
-  `{ kind: "area", area }` one area of it, `none` nothing, and `gap` means the strip has no LEDs there (a cut corner, a
-  cable). Without `next` a section repeats the stretch of the outline it faces when the room is seen straight on
+  `{ kind: "area", area }` one area of it (these roles are for the screen: effects and music play along `whole` and
+  `area` LEDs, once around the picture's edge from the middle of the bottom), `none` nothing, and `gap` means the strip
+  has no LEDs there (a cut corner, a cable). Without `next` a section repeats the stretch of the outline it faces when the room is seen straight on
   against the front wall.
 - `{ kind: "effect", effect }` (an effect by its name, music effects included) and `{ kind: "color", color: [r, g, b] }`
-  make a section play something of its own, whatever the rest of the lights show: its LEDs leave the screen mapping
+  make a section play something of its own with the layout (the screen, or nothing else shown; music, an effect or a
+  color picked for every light plays on it too, until the layout shows again): its LEDs leave the screen mapping
   and form a zone with every other section of the same role, across strips and controllers. A zone's effect runs as
   if the zone were the screen (each LED where `auto` would put it), so it flows across strips; it goes through the
   color settings like any effect, a color zone doesn't (like a static color), except the brightness and the power

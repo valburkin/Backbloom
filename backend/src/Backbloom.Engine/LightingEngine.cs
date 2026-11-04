@@ -79,13 +79,14 @@ public sealed partial class LightingEngine : IDisposable
             blackBorderOn: BorderEnabled(settings.GetSection("blackborderdetector")));
         _setup = SetupFrom(settings);
         Layout = LedLayout.FromJson(_setup.AllLeds());
+        EffectLayout = LedLayout.FromJson(_setup.AllEffectLeds());
         Sources = new PriorityManager(clock);
         _output = new OutputStage(devices, LedColors, clock, loggerFactory.CreateLogger<OutputStage>());
         _output.Configure(smoothing);
         SmoothingApplied = smoothing;
         _screen = new ScreenActivity(Sources, clock);
         _pipeline = new LightingPipeline(
-            source, Components, () => Sources.Visible, _output, BuildConfig(settings.GetSection("color"), Layout), loggerFactory.CreateLogger<LightingPipeline>(), _screen, clock);
+            source, Components, () => Sources.Visible, _output, BuildConfig(settings.GetSection("color"), Layout, EffectLayout), loggerFactory.CreateLogger<LightingPipeline>(), _screen, clock);
         _pipeline.ConfigureBorders(BorderOptions());
         _screenPriority = ScreenPriorityFrom(settings.GetSection("systemControl"));
         Sound = sound;
@@ -138,6 +139,12 @@ public sealed partial class LightingEngine : IDisposable
 
     /// <summary>The LEDs of every controller, one controller after the other.</summary>
     public LedLayout Layout { get; private set; }
+
+    /// <summary>
+    /// The LEDs as effects and music are mapped (<see cref="ControllerSetup.AllEffectLeds"/>): a strip's role is about
+    /// the screen, so "Screen average" and area LEDs play the effect along their strip.
+    /// </summary>
+    public LedLayout EffectLayout { get; private set; }
 
     /// <summary>The controllers and their strips, as the settings describe them (compiled for the active profile).</summary>
     public ControllerSetup Setup => _setup;
@@ -233,7 +240,7 @@ public sealed partial class LightingEngine : IDisposable
             _profileId = profileId;
             if (Recompile())
             {
-                _pipeline.Configure(BuildConfig(ColorSection(), Layout));
+                _pipeline.Configure(BuildConfig(ColorSection(), Layout, EffectLayout));
             }
         }
 
@@ -348,19 +355,22 @@ public sealed partial class LightingEngine : IDisposable
     // After Game mode or its values changed. Runs under _applyLock; the smoothing switch keeps its state.
     private void ApplyTuning()
     {
-        _pipeline.Configure(BuildConfig(ColorSection(), Layout));
+        _pipeline.Configure(BuildConfig(ColorSection(), Layout, EffectLayout));
         SmoothingApplied = SmoothingSettings.FromJson(SmoothingSection());
         Components.Set(Component.Smoothing, SmoothingApplied.Enable);
         _output.Configure(SmoothingApplied);
         _pipeline.Refresh();
     }
 
-    private static PipelineConfig BuildConfig(JsonNode? color, LedLayout layout)
+    private static PipelineConfig BuildConfig(JsonNode? color, LedLayout layout, LedLayout effectLayout)
     {
         var adjustment = ColorAdjustment.FromJson((color?["channelAdjustment"] as JsonArray)?.FirstOrDefault());
         var mappingType = LedMappingTypes.Parse(color?["imageToLedMappingType"] is JsonValue t && t.TryGetValue(out string? s) ? s : null);
         var sparse = color?["sparse_processing"] is JsonValue sp && sp.TryGetValue(out bool b) && b;
-        return new PipelineConfig(new LedMappingOptions(layout, mappingType, sparse), new ColorProcessor(adjustment));
+        return new PipelineConfig(new LedMappingOptions(layout, mappingType, sparse), new ColorProcessor(adjustment))
+        {
+            EffectMapping = new LedMappingOptions(effectLayout, mappingType, sparse),
+        };
     }
 
     private static ControllerSetup SetupFrom(ISettingsStore settings, string? profileId = null) =>
@@ -371,10 +381,14 @@ public sealed partial class LightingEngine : IDisposable
             settings.Controllers is [var first, ..] ? first.Name : "LED controller",
             profileId);
 
-    // Per-LED brightness from the strips' brightness, or null when every LED has full brightness.
-    private static float[]? GainsFor(ControllerSetup setup)
+    // Per-LED brightness from the strips' brightness, 0 for LEDs that are off (disabled in the layout, of no group and
+    // no zone: a strip's "off" sections, dark LEDs, outputs no strip uses), so the color settings' minimal backlight and
+    // the smoothing don't leave them glowing; null when every LED has full brightness.
+    private static float[]? GainsFor(ControllerSetup setup, LedLayout layout)
     {
-        if (setup.Controllers.All(c => c.Strips.All(s => s.Brightness >= 1)))
+        var zoned = new HashSet<int>(setup.Zones.SelectMany(z => z.Leds));
+        bool Off(int i) => i < layout.Count && layout.Areas[i] is { Disabled: true, Group: 0 } && !zoned.Contains(i);
+        if (setup.Controllers.All(c => c.Strips.All(s => s.Brightness >= 1)) && !Enumerable.Range(0, setup.LedCount).Any(Off))
         {
             return null;
         }
@@ -393,13 +407,21 @@ public sealed partial class LightingEngine : IDisposable
             start += controller.LedCount;
         }
 
+        for (var i = 0; i < gains.Length; i++)
+        {
+            if (Off(i))
+            {
+                gains[i] = 0;
+            }
+        }
+
         return gains;
     }
 
     private void ApplySetup()
     {
         _devices.Configure([.. _setup.Controllers.Select(c => new ControllerDevice(c.Id, c.Name, c.Device, c.LedCount, c.Enabled))]);
-        _output.SetLedGains(GainsFor(_setup));
+        _output.SetLedGains(GainsFor(_setup, Layout));
         if (_started && !_disposed)
         {
             ApplyZones();
@@ -439,12 +461,15 @@ public sealed partial class LightingEngine : IDisposable
     private bool Recompile()
     {
         var previous = _setup.AllLeds();
+        var previousEffect = _setup.AllEffectLeds();
         _setup = SetupFrom(_settings, _profileId);
         var allLeds = _setup.AllLeds();
-        var changed = !JsonNode.DeepEquals(previous, allLeds);
+        var effectLeds = _setup.AllEffectLeds();
+        var changed = !JsonNode.DeepEquals(previous, allLeds) || !JsonNode.DeepEquals(previousEffect, effectLeds);
         if (changed)
         {
             Layout = LedLayout.FromJson(allLeds);
+            EffectLayout = LedLayout.FromJson(effectLeds);
         }
 
         ApplySetup();
@@ -582,7 +607,7 @@ public sealed partial class LightingEngine : IDisposable
 
             if (change.Contains("layout") || change.Contains("leds") || change.Contains("color"))
             {
-                _pipeline.Configure(BuildConfig(ColorSection(), Layout));
+                _pipeline.Configure(BuildConfig(ColorSection(), Layout, EffectLayout));
             }
 
             if (change.Contains("smoothing"))

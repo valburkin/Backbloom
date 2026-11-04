@@ -3,13 +3,15 @@ using Backbloom.Core.Effects;
 using Backbloom.Core.Layout;
 using Backbloom.Engine;
 using Backbloom.Settings;
+using Backbloom.Settings.Layout;
 
 namespace Backbloom.Server.Rpc;
 
 /// <summary>
 /// <c>effects</c> (new in Backbloom): <c>previews</c> returns a few looping seconds of an effect (<c>name</c>) or of
 /// every effect on the user's LEDs, for the UI's effect cards: <c>{ fps, ledCount, standard, previews: [{ name,
-/// frames }] }</c>, <c>frames</c> the RGB bytes of each frame in base64, LEDs in the order of <c>leds</c>. Without
+/// frames }] }</c>, <c>frames</c> the RGB bytes of each frame in base64, LEDs in the order of <c>leds</c>, mapped as
+/// effects play (<see cref="ControllerSetup.AllEffectLeds"/>: "Screen average" LEDs play the effect along their strip). Without
 /// enabled LEDs the previews use <see cref="EffectPreview.StandardFrame"/> (<c>standard</c> true). Rendered on simulated
 /// time (music effects hear a built-in loop), so the lights and the sound capture aren't involved; kept until the LED
 /// layout changes.
@@ -41,7 +43,8 @@ public sealed class EffectsCommand(ISettingsStore settings) : IRpcCommand
             return ValueTask.CompletedTask;
         }
 
-        var leds = settings.GetSection("leds");
+        // mapped as the effects play: a strip's role is about the screen (ControllerSetup.AllEffectLeds)
+        var leds = ControllerSetup.FromSettings(settings.GetSection("layout"), settings.GetSection("leds"), settings.GetSection("device"), string.Empty).AllEffectLeds();
         var layout = LedLayout.FromJson(leds);
         var standard = !layout.Areas.Any(a => !a.Disabled);
         if (standard)
@@ -52,7 +55,7 @@ public sealed class EffectsCommand(ISettingsStore settings) : IRpcCommand
         var previews = new JsonArray();
         lock (_lock)
         {
-            var key = standard ? string.Empty : leds!.ToJsonString();
+            var key = standard ? string.Empty : leds.ToJsonString();
             if (key != _layoutKey)
             {
                 _frames.Clear();

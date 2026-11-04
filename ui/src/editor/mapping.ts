@@ -120,6 +120,11 @@ export function setStripShows(path: readonly PathPoint[], section: Section | und
 }
 
 /** A short name for what a part does, for labels on the canvas and the strip list (null for the screen edge). */
+/** True for the sections that follow the Show (the screen next to it, its average, one area of it). */
+export function followsShow(section: Section | undefined): boolean {
+  return !section || section.kind === 'edge' || section.kind === 'whole' || section.kind === 'area';
+}
+
 export function roleLabel(section: Section): string | null {
   switch (section.kind) {
     case 'whole':

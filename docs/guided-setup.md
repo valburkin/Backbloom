@@ -42,8 +42,9 @@ Each step can be passed by:
    inches (60 × 34 cm)"; the room's screen takes that size while it still has the default one, standing where it
    stood). Below it one row per strip or room light, a strip along several places being one light, described by them
    ("Monitor and desk · Behind the monitor and along the desk"; parts of one strip with different roles are a Layout
-   thing), with Screen average (the default), Screen edge or Effect or color (the layout's default effect; which one,
-   Off and the like are on Layout). Each choice is saved to the layout at once (the devices are in it already), so the
+   thing), with Screen average (the default), Screen edge or Its own effect or color (the layout's default effect;
+   which one, Off and the like are on Layout), and a line saying that music, an effect or a color picked on Home plays
+   on all the lights. Each choice is saved to the layout at once (the devices are in it already), so the
    picture's live colors show it right away; Turn on saves again. Opening the step saves the layout only when the
    setup added devices itself (an imported layout stays as it was until the user changes something or turns the lights
    on). **Skip — use the defaults** puts back the paths as

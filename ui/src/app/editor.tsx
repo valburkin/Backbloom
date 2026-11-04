@@ -29,7 +29,8 @@ export interface EditorContextValue {
    * current one: the result of an edit dispatched just now, which the state doesn't have yet. Resolves to whether it
    * was saved.
    */
-  save(done?: string, spec?: LayoutSpec): Promise<boolean>;
+  /** Saves the layout (`quiet`: without the toast, for Customize, which saves every change at once). */
+  save(done?: string, spec?: LayoutSpec, options?: { quiet?: boolean }): Promise<boolean>;
   /** `spec` was saved by other means (the first-run setup's quiet saves): it is the saved layout now. */
   markSaved(spec: LayoutSpec): void;
 }
@@ -95,7 +96,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     [state.spec, issues],
   );
 
-  const save = useCallback(async (done?: string, next?: LayoutSpec) => {
+  const save = useCallback(async (done?: string, next?: LayoutSpec, options?: { quiet?: boolean }) => {
     if (saving) return false;
     if (conn.auth !== 'admin') return false;
     if (blockers.length) return false;
@@ -105,7 +106,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       const res = await saveLayout(conn.api, spec);
       dispatch({ type: 'markSaved', spec });
       setLoad((l) => ({ ...l, source: 'saved', note: undefined }));
-      if (done) toast('ok', done);
+      if (options?.quiet && res.layoutPersisted) {
+        /* Customize: the change shows on the lights */
+      } else if (done) toast('ok', done);
       else if (res.layoutPersisted)
         toast('ok', `Layout saved – ${res.ledCount} LEDs${res.controllers > 1 ? ` on ${res.controllers} devices` : ''}.`);
       else

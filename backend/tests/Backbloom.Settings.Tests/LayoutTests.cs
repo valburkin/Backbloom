@@ -233,6 +233,38 @@ public sealed class LayoutTests : IDisposable
     }
 
     [Fact]
+    public void ForEffects_ScreenAverageLedsGoOnceAroundThePicture_AndEdgeLedsStayWhereTheyAre()
+    {
+        // along the top edge: effects see the LEDs where the screen does
+        var edge = LayoutSpecification.Compile(Single(count: 4));
+        Assert.True(JsonNode.DeepEquals(edge.AllLeds(), edge.AllEffectLeds()));
+
+        // the whole picture, the second LED dark: the screen averages it all; effects go clockwise around the picture's
+        // edge from the middle of the bottom, LED k of 4 at (k + 0.5) / 4 of the way (bottom left, top right and bottom right
+        // corners, each half an edge wide on either side)
+        var spec = Single(count: 4);
+        var strip = spec["strips"]![0]!.AsObject();
+        strip["dark"] = JsonNode.Parse("""[{ "start": 1, "count": 1 }]""");
+        strip["path"]![0]!["next"] = JsonNode.Parse("""{ "kind": "whole" }""");
+        var setup = LayoutSpecification.Compile(spec);
+        Assert.Equal(
+            """[{"hmin":0,"hmax":1,"vmin":0,"vmax":1,"group":0},{"hmin":0.5,"hmax":0.5,"vmin":0.5,"vmax":0.5,"group":0,"disabled":true},""" +
+            """{"hmin":0,"hmax":1,"vmin":0,"vmax":1,"group":0},{"hmin":0,"hmax":1,"vmin":0,"vmax":1,"group":0}]""",
+            setup.AllLeds().ToJsonString());
+        Assert.Equal(
+            """[{"hmin":0,"hmax":0.0567,"vmin":0.5,"vmax":1,"group":0},{"hmin":0.5,"hmax":0.5,"vmin":0.5,"vmax":0.5,"group":0,"disabled":true},""" +
+            """{"hmin":0.9433,"hmax":1,"vmin":0,"vmax":0.5,"group":0},{"hmin":0.5,"hmax":1,"vmin":0.9,"vmax":1,"group":0}]""",
+            setup.AllEffectLeds().ToJsonString());
+
+        // its own effect: the screen doesn't sample it; music or an effect for every light plays on it where it faces
+        strip.Remove("dark");
+        strip["path"]![0]!["next"] = JsonNode.Parse("""{ "kind": "effect", "effect": "Candle" }""");
+        var zone = LayoutSpecification.Compile(spec);
+        Assert.All(zone.AllLeds(), r => Assert.True(r!["disabled"]!.GetValue<bool>()));
+        Assert.True(JsonNode.DeepEquals(edge.AllLeds(), zone.AllEffectLeds()));
+    }
+
+    [Fact]
     public void CompileStrip_SpreadsTheLedsOverTheSectionsWithLeds_AndEachRepeatsItsStretch()
     {
         var spec = Single(count: 4);

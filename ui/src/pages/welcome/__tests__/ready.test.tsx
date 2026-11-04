@@ -89,7 +89,7 @@ describe('What each light does', () => {
     expect(html).toContain('Your screen: DELL U2723QE');
     expect(html.match(/role="radiogroup"/g)).toHaveLength(4);
     expect(html).toContain('Screen edge');
-    expect(html).toContain('Effect or color');
+    expect(html).toContain('Its own effect or color');
     expect(html.match(/aria-checked="true"[^>]*>Screen average/g)).toHaveLength(4);
     expect(html).toContain('Behind the monitor');
     expect(html).not.toContain('Trace its route');

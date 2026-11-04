@@ -83,6 +83,7 @@ export function RolesStepBody(p: RolesProps) {
           );
         })}
       </ul>
+      <p className="text-xs text-ink-faint">Music, an effect or a color picked on Home plays on all your lights.</p>
     </div>
   );
 }

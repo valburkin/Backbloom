@@ -167,6 +167,10 @@ public sealed class EffectTests
         var frame = preview.Frames.AsSpan(0, 15).ToArray();
         Assert.Equal(frame[0..3], frame[9..12]);
         Assert.Equal(frame[3..6], frame[6..9]);
+
+        // LEDs with the same area are sampled once: the same frames as each area on its own
+        var single = EffectPreview.Render(EffectCatalog.Find("Rainbow swirl")!, new Backbloom.Core.Layout.LedLayout([Top(0, 0.1), Top(0.9, 1)]));
+        Assert.Equal(single.Frames.AsSpan(0, 6).ToArray(), frame[0..6]);
         Assert.NotEqual(frame[0..3], frame[3..6]);
         Assert.Equal(new byte[3], frame[12..15]);
     }

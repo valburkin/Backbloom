@@ -104,11 +104,20 @@ describe('layout editor rendering', () => {
       expect(place).toContain('Plugged into');
       expect(place).not.toContain('What it shows');
       const customize = renderToStaticMarkup(<CustomizeEditor spec={spec} strip={strip} issues={issues} dispatch={noop} effects={['Candle']} onRoles={noop} />);
-      expect(customize).toContain('Screen average');
+      // following the Show, with what it takes from the screen with Screen sync (not for a strip whose parts differ)
+      expect(customize).toContain('Follows the Show');
+      expect(customize).toContain('Its own effect');
+      expect(customize.includes('With Screen sync')).toBe(strip === spec.strips[0]);
+      expect(customize).not.toContain('Choosing here switches them back to your layout.');
       expect(customize).toContain('Brightness');
       expect(customize).toContain('More options');
       expect(customize).not.toContain('Number of LEDs');
     }
+    // While music shows: what it plays now, and that choosing brings the layout back (the last choice wins).
+    const music = renderToStaticMarkup(<CustomizeEditor spec={spec} strip={spec.strips[0]} issues={issues} dispatch={noop} effects={['Candle']} showing="music" onRoles={noop} />);
+    expect(music).toContain('Plays what your lights show — music now');
+    expect(music).toContain('Your lights play music on every strip now. Choosing here switches them back to your layout.');
+    expect(music).toContain('until you pick one for all your lights');
     // Turned-off LEDs count as a changed value of More options.
     const plain = { ...sectioned, depth: undefined, blend: undefined };
     expect(renderToStaticMarkup(<CustomizeEditor spec={spec} strip={plain} issues={issues} dispatch={noop} effects={['Candle']} onRoles={noop} />)).toMatch(/\((<!-- -->)?1(<!-- -->)? changed\)/);

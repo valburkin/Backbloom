@@ -245,6 +245,47 @@ public sealed class MultiControllerTests : IDisposable
     }
 
     [Fact]
+    public void LedsThatAreOff_StayBlack_WithAMinimalBacklight()
+    {
+        var registry = Registry();
+        var store = Store(registry);
+        var color = store.GetSection("color")!.AsObject();
+        color["channelAdjustment"]![0]!["backlightThreshold"] = 0.2;
+        Assert.True(store.Update(new JsonObject { ["layout"] = JsonNode.Parse(Layout()), ["color"] = color.DeepClone() }).Success);
+
+        // a black screen: the lit LEDs keep the minimal glow, the shelf's dark LEDs get nothing
+        using (var engine = new LightingEngine(store, new SolidSource(0, 0, 0), Devices(registry), new SystemClock(), NullLoggerFactory.Instance))
+        {
+            engine.Start();
+            WaitUntil(() => engine.Devices.All(d => d.Stats.Written > 5));
+            var preview = new byte[204 * 3];
+            Assert.Equal(204 * 3, engine.LedColors.CopyLatest(preview));
+            Assert.True(preview[0] > 0);
+            Assert.True(preview[198 * 3] > 0);
+            Assert.All(Enumerable.Range(202 * 3, 6), i => Assert.Equal(0, preview[i]));
+        }
+
+        var shelf = System.IO.File.ReadAllLines(Path.Combine(_dir, "shelf.txt")).Select(Leds).Where(l => l.Count > 0).ToList();
+        Assert.Contains(shelf, l => l.Take(4).All(c => c.R > 0));
+        Assert.All(shelf, l => Assert.All(l.Skip(4), c => Assert.Equal((0, 0, 0), c)));
+    }
+
+    [Fact]
+    public void Effects_PlayAlongScreenAverageStrips_TheScreenAveragesThem()
+    {
+        var registry = Registry();
+        var store = Store(registry);
+        Assert.True(store.Update(new JsonObject { ["layout"] = JsonNode.Parse(Layout()) }).Success);
+        using var engine = new LightingEngine(store, new SolidSource(0, 0, 0), Devices(registry), new SystemClock(), NullLoggerFactory.Instance);
+
+        // the shelf's 4 lit LEDs show the whole picture on the screen, and go around its edge for effects
+        Assert.Equal([198, 199, 200, 201], engine.Layout.WholeScreenLeds);
+        Assert.Empty(engine.EffectLayout.WholeScreenLeds);
+        Assert.Equal(engine.Layout.Areas[..198], engine.EffectLayout.Areas[..198]);
+        Assert.Equal(engine.Layout.Areas[202..], engine.EffectLayout.Areas[202..]);
+    }
+
+    [Fact]
     public void ASlowController_NeverDelaysTheOthersOrTheFrameLoop()
     {
         var registry = Registry();

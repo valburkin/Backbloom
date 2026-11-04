@@ -28,7 +28,7 @@ export type SimpleRole = 'screen' | 'whole' | 'own';
 export const SIMPLE_ROLES: ReadonlyArray<{ id: SimpleRole; label: string; description: string }> = [
   { id: 'whole', label: 'Screen average', description: 'A soft color from the whole screen, calm at the edge of your view.' },
   { id: 'screen', label: 'Screen edge', description: 'Follows the part of the screen next to it.' },
-  { id: 'own', label: 'Effect or color', description: 'Its own effect or color, whatever the screen shows: pick it on Layout.' },
+  { id: 'own', label: 'Its own effect or color', description: 'Its own effect or color: pick it on Layout.' },
 ];
 
 /** A section's simple role, or null for one the setup doesn't offer (Off). */

@@ -26,6 +26,7 @@ import type { EditorAction, Selection } from '../../editor/state';
 import { buttonClass, cx } from '../../components/ui';
 import { Scenery } from './Scenery';
 import { RoleChooser } from './RoleChooser';
+import type { Mode } from '../../control/modes';
 import { insertPoint, removePoint as withoutPoint, setSection } from '../../editor/sections';
 import { unpinPoint } from '../../editor/strips';
 import { ledColor, mappingJoints, moveJoint, roleLabel, stationColor, type MappingEnd } from '../../editor/mapping';
@@ -71,9 +72,11 @@ interface Props {
   /** A part can be made a gap (not while a profile is edited: gaps belong to the strip). Default: unless rolesOnly. */
   allowGaps?: boolean;
   /** What a strip's sections do changed (`path` carries them); the page saves it to the layout or the profile. */
-  onRoles(stripId: string, path: PathPoint[], coalesce?: string): void;
+  onRoles(stripId: string, path: PathPoint[], coalesce?: string, targets?: number[]): void;
   /** The LEDs' live colors (a flat [r, g, b, ...] list in the engine's order): every strip is drawn lit with them. */
   liveColors?: ArrayLike<number> | null;
+  /** What the lights show now (null: unknown), for the role chooser of a part. */
+  showing?: Mode | null;
 }
 
 /** Pixels within which points snap. */
@@ -339,7 +342,7 @@ function ledFill(role: Section | undefined, screen: string): string {
 
 // ---- the canvas ----
 
-export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found, matching, effects, rolesOnly = false, showMapping = true, allowGaps, onRoles, liveColors }: Props) {
+export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found, matching, effects, rolesOnly = false, showMapping = true, allowGaps, onRoles, liveColors, showing }: Props) {
   const ranges = useMemo(() => stripLedRanges(spec), [spec]);
   const gaps = allowGaps ?? !rolesOnly;
   const { room } = spec;
@@ -900,7 +903,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
         return (
           <div
             className="absolute z-10 flex -translate-x-1/2 items-start gap-1 rounded-xl border border-line-strong bg-surface/95 p-1 text-xs shadow-xl backdrop-blur"
-            style={{ left: Math.min(Math.max(left, 220), w - 220), top: top < 110 ? top + 24 : top - (own?.kind === 'effect' || own?.kind === 'color' ? 92 : 52) }}
+            style={{ left: Math.min(Math.max(left, 220), w - 220), top: top < 110 ? top + 24 : top - (own?.kind === 'none' || own?.kind === 'gap' ? 52 : 92) }}
             onPointerDown={(e) => e.stopPropagation()}
           >
             <RoleChooser
@@ -908,7 +911,8 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
               effects={effects}
               withGap={gaps}
               compact
-              onChange={(section) => onRoles(selected.id, setSection(selected.path, i, section))}
+              showing={showing}
+              onChange={(section) => onRoles(selected.id, setSection(selected.path, i, section), undefined, [i])}
             />
             <button
               type="button"

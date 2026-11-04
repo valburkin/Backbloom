@@ -58,6 +58,14 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ### Changed
 
+- **Your last choice wins**: music, an effect or a color picked on Home or Effects & Music now plays on every strip,
+  also on strips with their own effect or color, which looked like the choice didn't apply. Choosing what a strip
+  shows in Layout → Customize brings your layout back (Screen sync) and changes only that strip: the others keep
+  playing the music, effect or color as their own (with Undo).
+- **Customize applies at once**: changes there are saved and shown right away, without Save (Place keeps it).
+- **Clearer choices for what a strip shows** (Layout → Customize): a strip either **follows the Show** (what your lights
+  show now, named on its card) or has **its own effect**, **its own color**, or is **off**. Screen edge and Screen
+  average are a setting of following the Show, used with Screen sync.
 - **WLED power limits by version**: Backbloom reads a WLED board's current limit the way its WLED version enforces it
   (0.15 limits each output on its own), so the performance recording no longer reports a strip as limited when it isn't, or the
   other way round.
@@ -105,6 +113,11 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ### Fixed
 
+- **Effects and music now play on every strip**: a strip set to Screen average showed one flat color during effects
+  and music (the average of the whole effect). Its role is for the screen now; effects run along it like on the
+  others, and the effect previews show that.
+- **Strip parts set to Off stayed dimly lit**: they are fully off now, whatever the color settings' minimum brightness.
+- **Effect previews load faster** with Screen average lights.
 - **Screen average lights flickered between colors** (e.g. yellow and green) in some scenes, most of all in Game mode:
   their color now changes more gently, while the lights along the screen edges stay as quick as before.
 - Finding an LED did nothing while the lights were off or nothing was shown.

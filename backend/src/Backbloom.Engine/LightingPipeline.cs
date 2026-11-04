@@ -12,13 +12,26 @@ using Backbloom.Engine.Platform;
 namespace Backbloom.Engine;
 
 /// <summary>Everything the frame loop needs from the settings, swapped as one immutable snapshot.</summary>
+/// <param name="Mapping">How the screen is mapped to the LEDs.</param>
 /// <param name="Processor">The color settings, for the screen and effects.</param>
 /// <param name="Passthrough">Static colors skip the color settings except the brightness and the power limit (HyperHDR disabled processing for COLOR).</param>
 public sealed record PipelineConfig(LedMappingOptions Mapping, ColorProcessor Processor, ColorProcessor Passthrough)
 {
+    private readonly LedMappingOptions? _effectMapping;
+
     public PipelineConfig(LedMappingOptions mapping, ColorProcessor processor)
         : this(mapping, processor, new ColorProcessor(processor.Adjustment, colorSettings: false))
     {
+    }
+
+    /// <summary>
+    /// How effects and music are mapped to the same LEDs (the strips' roles are about the screen; see
+    /// <c>ControllerConfig.EffectLeds</c>); <see cref="Mapping"/> when not set.
+    /// </summary>
+    public LedMappingOptions EffectMapping
+    {
+        get => _effectMapping ?? Mapping;
+        init => _effectMapping = value;
     }
 }
 
@@ -29,12 +42,13 @@ public sealed record PipelineConfig(LedMappingOptions Mapping, ColorProcessor Pr
 /// per frame (buffers are only resized when the LED count, frame size or border changes).
 /// </summary>
 /// <remarks>
-/// Zone effects step between the loop's other work without waiting: with every frame of the visible source, while an
-/// effect waits for its next step (it returns early when a zone step is due), and while nothing new comes (a static
-/// color, no source, a screen without frames), when the loop wakes for the zones' next step and sends the last frame
-/// again with the zones' new colors. A screen capture isn't cut short for them (that would skip capture frames), so
-/// while the screen shows, zones take a step with each captured frame (catching up on missed steps). They pause while
-/// the output is off or held.
+/// Zones play only while the user's layout shows (<see cref="ShowsLayout"/>: the screen, or no source); music, an
+/// effect or a color picked for every light plays on their LEDs too, and their effects pause meanwhile. Zone effects
+/// step between the loop's other work without waiting: with every frame of the screen, and while nothing new comes (no
+/// source, a screen without frames), when the loop wakes for the zones' next step and sends the last frame again with
+/// the zones' new colors. A screen capture isn't cut short for them (that would skip capture frames), so while the
+/// screen shows, zones take a step with each captured frame (catching up on missed steps). They pause while the output
+/// is off or held.
 /// </remarks>
 public sealed partial class LightingPipeline : IDisposable
 {
@@ -125,7 +139,7 @@ public sealed partial class LightingPipeline : IDisposable
         Wake();
     }
 
-    /// <summary>The zones played over every frame.</summary>
+    /// <summary>The zones played over the frames while the user's layout shows (<see cref="ShowsLayout"/>).</summary>
     public ZoneLayer Zones => _zones;
 
     /// <summary>Plays these zones from the next frame on (the last frame is sent again with them).</summary>
@@ -213,10 +227,11 @@ public sealed partial class LightingPipeline : IDisposable
             colors = new Vector3[ledCount];
         }
 
-        // zone effects pause while the output is off or held
-        var zones = _zones;
-        var stepping = zones.HasEffects && _components.OutputActive;
+        // zones play with the user's layout (the screen, or nothing else shown), not over music, an effect or a color
+        // the user picked for every light; their effects pause then, and while the output is off or held
         var visible = _visible();
+        var zones = ShowsLayout(visible) ? _zones : ZoneLayer.Empty;
+        var stepping = zones.HasEffects && _components.OutputActive;
         if (visible.Component == SourceComponent.SystemGrabber && _components.CaptureActive)
         {
             if (!Capture(ref frame, colors, config, cancellationToken))
@@ -238,7 +253,7 @@ public sealed partial class LightingPipeline : IDisposable
         else if (visible.Renderer is { } renderer && _components.IsOn(Component.All))
         {
             var wakeAt = stepping ? zones.NextDue : long.MaxValue;
-            if (!renderer.TryRender(config.Mapping, colors, wakeAt, RenderToken()) || !ReferenceEquals(visible, _visible()))
+            if (!renderer.TryRender(config.EffectMapping, colors, wakeAt, RenderToken()) || !ReferenceEquals(visible, _visible()))
             {
                 // nothing new, a zone step is due, or another source became visible meanwhile (its frame comes next)
                 if (stepping)
@@ -281,6 +296,13 @@ public sealed partial class LightingPipeline : IDisposable
         Interlocked.Increment(ref _frameCount);
         return true;
     }
+
+    /// <summary>
+    /// True while the user's layout shows: the screen (also while it delivers no frames), or no source at all. Music,
+    /// an effect or a color then play on every LED, the zones' too (mapped with <see cref="PipelineConfig.EffectMapping"/>).
+    /// </summary>
+    internal static bool ShowsLayout(VisibleSource visible) =>
+        visible.Component == SourceComponent.SystemGrabber || !visible.HasSource;
 
     // Hands a frame processed by `processor` to the output (its minimum glow, and its share of the output for the power
     // limits); with zones, a copy with the zones' colors in their LEDs (stepped first when due), kept so that zone steps

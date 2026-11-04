@@ -13,6 +13,13 @@ public sealed record StripRange(string Id, string Name, int Start, int Length, d
 public sealed record ControllerConfig(string Id, string Name, bool Enabled, JsonObject Device, JsonArray Leds, IReadOnlyList<StripRange> Strips)
 {
     public int LedCount => Leds.Count;
+
+    /// <summary>
+    /// The sampling areas effects and music are mapped with, as many as <see cref="Leds"/>; null: the same. A strip's
+    /// role is about the screen: "Screen average" and area LEDs play the effect along the strip instead, and the LEDs of
+    /// a zone (which plays only with the user's layout) the stretch of the screen's outline they face.
+    /// </summary>
+    public JsonArray? EffectLeds { get; init; }
 }
 
 /// <summary>
@@ -71,6 +78,22 @@ public sealed record ControllerSetup(IReadOnlyList<ControllerConfig> Controllers
         foreach (var controller in Controllers)
         {
             foreach (var led in controller.Leds)
+            {
+                all.Add(led?.DeepClone());
+            }
+        }
+
+        return all;
+    }
+
+    /// <summary>Every controller's LEDs for effects and music (<see cref="ControllerConfig.EffectLeds"/>), one after the other.</summary>
+    public JsonArray AllEffectLeds()
+    {
+        var all = new JsonArray();
+        foreach (var controller in Controllers)
+        {
+            var leds = controller.EffectLeds is { } effect && effect.Count == controller.Leds.Count ? effect : controller.Leds;
+            foreach (var led in leds)
             {
                 all.Add(led?.DeepClone());
             }

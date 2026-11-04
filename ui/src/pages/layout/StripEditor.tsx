@@ -7,6 +7,7 @@ import type { EditorAction } from '../../editor/state';
 import { DENSITIES, ledsForLength, pinUnevenness, unpinned } from '../../editor/strips';
 import { hasAdjustedMapping, setStripShows, stripShows } from '../../editor/mapping';
 import { RoleChooser } from './RoleChooser';
+import type { Mode } from '../../control/modes';
 import { ShapeMenu } from './ShapeMenu';
 
 function IssueLine({ issue }: { issue: LayoutIssue }) {
@@ -245,6 +246,7 @@ export function CustomizeEditor({
   dispatch,
   effects,
   profileName,
+  showing,
   onRoles,
 }: {
   spec: LayoutSpec;
@@ -256,6 +258,8 @@ export function CustomizeEditor({
   effects: readonly string[];
   /** Editing this profile: only what the strip shows can change (the rest is shared by every profile). */
   profileName?: string;
+  /** What the lights show now (null: unknown). */
+  showing?: Mode | null;
   /** What the strip's sections do changed (`path` carries them in its points' `next`). */
   onRoles(path: Strip['path']): void;
 }) {
@@ -280,6 +284,7 @@ export function CustomizeEditor({
             value={shows.shows === 'screen' ? undefined : (shows.section ?? (shows.shows === 'custom' ? undefined : ({ kind: shows.shows } as Section)))}
             custom={shows.shows === 'custom'}
             effects={effects}
+            showing={showing}
             onChange={(section) => onRoles(setStripShows(strip.path, section))}
           />
           {hasAdjustedMapping(strip) && (

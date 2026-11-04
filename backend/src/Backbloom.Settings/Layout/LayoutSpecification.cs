@@ -44,6 +44,9 @@ public static class LayoutSpecification
     private const double MinHalf = 0.01;
     private const double MaxHalf = 0.5;
 
+    // Where an effect's loop around the picture starts and ends: the middle of the bottom edge (outline position).
+    private const double EffectLoopStart = 2.5;
+
     // validate.ts
     private const double RoomMin = 0.5;
     private const double RoomMax = 50;
@@ -167,6 +170,7 @@ public static class LayoutSpecification
             var outputs = Outputs(controller);
             var size = outputs.Count == 0 ? 0 : outputs.Max(o => o.Start + o.Length);
             var leds = new JsonObject?[size];
+            var effectLeds = new JsonObject?[size];
             var ranges = new List<StripRange>();
             foreach (var strip in strips.Where(s => String(s["controllerId"]) == id))
             {
@@ -178,10 +182,12 @@ public static class LayoutSpecification
 
                 var output = outputs[found];
                 var rects = CompileStrip(strip, room, zone: false);
+                var effectRects = CompileStrip(strip, room, zone: false, effects: true);
                 var n = Math.Min(rects.Count, output.Length);
                 for (var i = 0; i < n; i++)
                 {
                     leds[output.Start + i] = rects[i];
+                    effectLeds[output.Start + i] = effectRects[i];
                 }
 
                 AddZoneLeds(strip, room, offset + output.Start, output.Length, zones, zoneByRole);
@@ -190,19 +196,16 @@ public static class LayoutSpecification
                 ranges.Add(new StripRange(stripId, String(strip["name"]) ?? stripId, output.Start, output.Length, brightness));
             }
 
-            var array = new JsonArray();
-            foreach (var led in leds)
-            {
-                array.Add((JsonNode)(led ?? DisabledRect()));
-            }
-
             result.Add(new ControllerConfig(
                 id,
                 String(controller["name"]) ?? id,
                 controller["enabled"] is not JsonValue e || !e.TryGetValue(out bool enabled) || enabled,
                 controller["device"] as JsonObject is { } device ? device.DeepClone().AsObject() : [],
-                array,
-                [.. ranges.OrderBy(r => r.Start)]));
+                ToArray(leds),
+                [.. ranges.OrderBy(r => r.Start)])
+            {
+                EffectLeds = ToArray(effectLeds),
+            });
             offset += size;
         }
 
@@ -211,6 +214,17 @@ public static class LayoutSpecification
             Zones = [.. zones.Select(z => new LayoutZone(z.Role, z.Leds, z.Rects))],
             ProfileId = ReferenceEquals(applied, spec) ? null : profileId,
         };
+
+        static JsonArray ToArray(JsonObject?[] rects)
+        {
+            var array = new JsonArray();
+            foreach (var led in rects)
+            {
+                array.Add((JsonNode)(led ?? DisabledRect()));
+            }
+
+            return array;
+        }
     }
 
     /// <summary>The profiles of a layout in list order (each with an id; programs that aren't names are left out).</summary>
@@ -296,7 +310,11 @@ public static class LayoutSpecification
         return CompileStrip(strip, ParseRoom(room), zone);
     }
 
-    private static List<JsonObject> CompileStrip(JsonObject strip, Room room, bool zone)
+    // With `effects` (the rects music, an effect or a color the user picked for every light are mapped with): whole and
+    // area LEDs instead play the effect along the strip, each run of them once around the picture's edge from the middle
+    // of the bottom (see EffectLoopRects), and LEDs of a zone get the rect 'auto' would give them (zones play only with
+    // the user's layout); a strip's role is about the screen.
+    private static List<JsonObject> CompileStrip(JsonObject strip, Room room, bool zone, bool effects = false)
     {
         var n = StripLedCount(strip);
         var rects = new List<JsonObject>(n);
@@ -327,6 +345,8 @@ public static class LayoutSpecification
             perPiece[led.Piece]++;
         }
 
+        var loop = effects && !zone ? EffectLoopRects(room, path, leds, blend, depth, side) : null;
+
         for (var k = 0; k < n; k++)
         {
             var led = leds[k];
@@ -337,15 +357,24 @@ public static class LayoutSpecification
             }
 
             var section = SectionAt(room, path, led.Piece);
-            if (section.IsZone != zone)
+
+            // effects play on the LEDs of a zone too (a zone plays only with the user's layout): as 'auto' maps them
+            var zoneForEffects = effects && section.IsZone;
+            if (section.IsZone != zone && !zoneForEffects)
             {
                 rects.Add(DisabledRect());
                 continue;
             }
 
-            if (zone)
+            if (zone || zoneForEffects)
             {
                 section = AutoSection(room, path[led.Piece], path[Math.Min(path.Count - 1, led.Piece + 1)]);
+            }
+
+            if (loop?[k] is { } looped)
+            {
+                rects.Add(looped);
+                continue;
             }
 
             switch (section.Kind)
@@ -366,6 +395,42 @@ public static class LayoutSpecification
                     rects.Add(DisabledRect());
                     break;
             }
+        }
+
+        return rects;
+    }
+
+    // For effects: each run of consecutive whole or area LEDs on a strip (dark ones count, so the spacing stays even)
+    // goes once around the picture's edge, clockwise from the middle of the bottom back to it, as an edge section
+    // would; null for the other LEDs. The music effects are drawn from the bottom (bass) up both sides to the top
+    // (treble), so a strip shows them from one end to the other.
+    private static JsonObject?[] EffectLoopRects(Room room, List<PathPoint> path, List<PlacedLed> leds, double blend, double depth, double side)
+    {
+        var n = leds.Count;
+        var rects = new JsonObject?[n];
+        var k = 0;
+        while (k < n)
+        {
+            if (SectionAt(room, path, leds[k].Piece).Kind is not (SectionKind.Whole or SectionKind.Area))
+            {
+                k++;
+                continue;
+            }
+
+            var end = k;
+            while (end < n && SectionAt(room, path, leds[end].Piece).Kind is SectionKind.Whole or SectionKind.Area)
+            {
+                end++;
+            }
+
+            var length = end - k;
+            var half = Math.Min(MaxHalf, Math.Max(MinHalf, blend * 4.0 / length / 2));
+            for (var i = 0; i < length; i++)
+            {
+                rects[k + i] = EdgeRect(EffectLoopStart + (4.0 * (i + 0.5) / length), half, depth, side);
+            }
+
+            k = end;
         }
 
         return rects;

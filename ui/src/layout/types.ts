@@ -53,7 +53,7 @@ export type Rgb = [number, number, number];
  * - `area`: every LED shows the average of one area of the picture.
  * - `none`: the LEDs stay dark.
  * - `effect`: the LEDs play an effect (by its name in the effect catalog, music effects included) on their own,
- *   whatever the rest of the lights show. Every section with the same effect shares one running effect, laid out as
+ *   while the layout shows (music, an effect or a color picked for every light plays on them too). Every section with the same effect shares one running effect, laid out as
  *   if it were the screen (each LED where 'auto' would put it), so it flows across strips.
  * - `color`: the LEDs show one color on their own.
  * - `gap`: there are no LEDs here (a cut and spliced corner, a cable around something); LEDs are spread over the

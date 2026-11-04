@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { stripLedCount, type LayoutIssue, type LayoutSpec, type Section, type ShapeId, type Strip } from '../../layout';
-import { roleLabel, stripShows } from '../../editor/mapping';
+import { followsShow, roleLabel, stripShows } from '../../editor/mapping';
+import { SCREEN_ROLES, screenRoleOf } from './RoleChooser';
 import { Badge, Button, cx, IconButton } from '../../components/ui';
 import { stripColor } from '../../editor/colors';
 import type { EditorAction } from '../../editor/state';
@@ -24,6 +25,12 @@ export function CountBadge({ count, length }: { count: number; length: number | 
 }
 
 /** The strips as a list to pick one from; in Place also adding and removing them. */
+/** A strip's role in the list: what it follows with Screen sync when it follows the Show, else what it does. */
+function stripRoleLabel(section: Section | undefined): string {
+  if (followsShow(section)) return `Follows the Show · ${section?.kind === 'area' ? 'One area' : SCREEN_ROLES.find((r) => r.value === screenRoleOf(section))!.label}`;
+  return roleLabel(section!) ?? '';
+}
+
 export function StripPanel({
   spec,
   selectedId,
@@ -78,7 +85,7 @@ export function StripPanel({
           const errors = issues.filter((x) => x.stripId === strip.id && x.severity === 'error').length;
           const color = stripColor(i);
           const { shows, section } = stripShows(spec.room, strip);
-          const role = shows === 'screen' ? null : shows === 'custom' ? 'Mixed' : roleLabel(section ?? ({ kind: shows } as Section));
+          const role = shows === 'custom' ? 'Mixed' : stripRoleLabel(shows === 'screen' ? undefined : (section ?? ({ kind: shows } as Section)));
           return (
             <li key={strip.id}>
               <div
@@ -111,7 +118,7 @@ export function StripPanel({
                   )}
                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                     {customize ? (
-                      <span className="text-xs text-ink-faint">{role ?? 'Screen edge'}</span>
+                      <span className="truncate text-xs text-ink-faint">{role}</span>
                     ) : (
                       <>
                         <CountBadge count={count} length={outputOf(spec, strip)?.length} />

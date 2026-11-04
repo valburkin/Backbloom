@@ -107,8 +107,8 @@ public sealed partial class OutputStage : IDisposable
     }
 
     /// <summary>
-    /// Brightness per LED (the strips' <c>brightness</c>), applied to everything sent to the controllers and the live
-    /// preview after smoothing; null: full brightness. Used only while its length matches the frames.
+    /// Brightness per LED (the strips' <c>brightness</c>, 0 for LEDs that are off), applied to everything sent to the
+    /// controllers and the live preview after smoothing and the minimal backlight; null: full brightness. Used only while its length matches the frames.
     /// </summary>
     public void SetLedGains(float[]? gains) => _gains = gains;
 

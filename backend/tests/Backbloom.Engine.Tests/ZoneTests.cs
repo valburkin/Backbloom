@@ -154,20 +154,27 @@ public sealed class ZoneTests : IDisposable
     }
 
     [Fact]
-    public void Zones_KeepTheirPace_WhileAnEffectShows()
+    public void AnEffectForEveryLight_PlaysOnTheZonesToo_WhichPauseUntilTheLayoutShowsAgain()
     {
         var engine = Engine(Store(), new SolidSource(0, 255, 0));
         engine.Start();
-        Assert.Equal(EffectStart.Started, engine.RunEffect("Candle", 50, -1, "test"));
         var swirl = engine.Zones.Effects["Rainbow swirl"];
-        WaitUntil(() => swirl.NextStepAt > 0);
+        WaitUntil(() => Preview(engine) is { Length: 22 } p && p.Skip(10).Take(6).All(IsRed) && swirl.NextStepAt > 0);
 
-        // the candle steps every 100 ms; the swirl zone every 56 ms in between
-        var start = swirl.NextStepAt;
-        Thread.Sleep(1000);
-        Assert.InRange(swirl.NextStepAt - start, 800, 1200);
-        Assert.DoesNotContain(Preview(engine).Take(10), IsGreen);
-        Assert.All(Preview(engine).Skip(10).Take(6), c => Assert.True(IsRed(c)));
+        // a color for every light: the zones' LEDs take it too, and their effect stops stepping
+        engine.SetColor(50, new Rgb8(0, 0, 255), -1, "test");
+        WaitUntil(() => Preview(engine) is { Length: 22 } p && p.All(c => c.B > 250 && c.R < 5 && c.G < 5));
+        var paused = swirl.NextStepAt;
+        Thread.Sleep(200);
+        Assert.Equal(paused, swirl.NextStepAt);
+
+        // an effect: it plays on the zones' LEDs (mapped as 'auto' maps them), not their own color
+        Assert.Equal(EffectStart.Started, engine.RunEffect("Candle", 50, -1, "test"));
+        WaitUntil(() => Preview(engine) is { Length: 22 } p && !p.Skip(10).Take(6).Any(IsRed) && p.Skip(10).Any(c => !IsBlack(c)));
+
+        // the screen again: the zones play
+        Assert.True(engine.Clear(50));
+        WaitUntil(() => Preview(engine) is { Length: 22 } p && p.Take(10).All(IsGreen) && p.Skip(10).Take(6).All(IsRed) && swirl.NextStepAt != paused);
     }
 
     [Fact]

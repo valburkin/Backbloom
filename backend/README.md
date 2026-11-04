@@ -464,16 +464,24 @@ Every effect has a one-sentence `Description` for the UI and a `DisplayName` for
 (MULTI COLOR)" is shown as "Stereo"; names stay the ids stored in settings).
 
 **Previews** (`EffectPreview`, `effects previews` command). For the effect cards the UI gets a few looping seconds of an
-effect on the user's own LEDs (the `leds` list of every controller, so strips anywhere, like one behind the desk and one
-on the ceiling, show what they would do), 15 frames a second: 6 s for effects, 4 s for music effects. They are rendered
+effect on the user's own LEDs (every controller's LEDs as effects map them, `ControllerSetup.AllEffectLeds`, so
+strips anywhere, like one behind the desk and one on the ceiling, show what they would do), 15 frames a second: 6 s for effects, 4 s for music effects. They are rendered
 on simulated time, not on the lights: the effect steps at the times it asks for, each LED takes the mean of its area of
-the picture (or its own color from effects that set LED colors; disabled LEDs stay dark), effects with their own
+the picture (or its own color from effects that set LED colors; disabled LEDs stay dark; LEDs with the same area are
+sampled once), effects with their own
 smoothing are followed roughly, and music effects hear `SyntheticMusic` (a two-bar 120 BPM loop: kick, hi-hat, bass,
 chords and an arpeggio, bass-heavy in the first bar and brighter in the second), one loop to learn the levels and one
 recorded, so the preview loops seamlessly. The UI asks for each effect as its card comes into view; previews are kept
 until the layout changes. Without enabled LEDs they use `EffectPreview.StandardFrame` (16 LEDs along the top and
 bottom, 9 per side). The UI draws them, and the live preview, on the layout as the Layout page does (each LED where it is
 in the room, the walls and ceiling folded out around the front wall).
+
+**Effects play on every strip.** A strip's role is about the screen, so effects and music have their own mapping
+(`ControllerConfig.EffectLeds`, `PipelineConfig.EffectMapping`, `LightingEngine.EffectLayout`): Screen edge LEDs keep
+their area, and each run of "Screen average" or area LEDs on a strip goes once around the picture's edge, clockwise from
+the middle of the bottom back to it, as an edge section would (the whole picture's average of a spectrum or a ripple is
+one flat color). LEDs of a zone get the rect 'auto' would give them (zones pause while music, an effect or a color
+shows); off and dark LEDs stay off. Layouts without a `layout` setting (`leds` only) use `leds` for effects too.
 
 **Music effects need sound capture.** Without it they would freeze on their last picture (HyperHDR ran them anyway).
 `EffectEngine.Run` refuses one while `SoundCapture.CanCapture` is false (`EffectStart.NoSound`; the `effect` command
@@ -780,7 +788,7 @@ each light does only once there are lights):
    strip and light starts with the screen's average (its route isn't known yet).
 3. What each light does: the room as Layout draws it in its live colors (the preview runs while the output is held),
    the light being chosen picked out, and the monitor's size from `hardware screens` (the room's screen takes it while
-   it still has the default size); a row per strip or light with Screen average, Screen edge, or Effect or color (the
+   it still has the default size); a row per strip or light with Screen average, Screen edge, or Its own effect or color (the
    layout's roles; the rest is on Layout), each choice saved to the layout at once. Screen edge for a strip on a WLED
    board first traces it (the user draws its route from the board, the LEDs are spread along it, and the board
    lights those on the corners with `wled-test` `points` to check them). Skip — use the defaults puts the paths as added back.
@@ -864,7 +872,8 @@ round. `whole` LEDs show the whole picture (averaged once for all of them, and s
 `ScreenAverageFilter` before the color settings: an exponential filter with a 500 ms time constant, because a
 whole-screen average is a pale color whose hue swings with small changes in the picture and the saturation gain makes
 the swings visible), `area` LEDs one area, `none` LEDs stay off, as do LEDs in `dark`.
-`effect` and `color` LEDs play something of their own (a zone, see below), whatever the rest of the lights show.
+`effect` and `color` LEDs play something of their own (a zone, see below) while the user's layout shows (the screen,
+or nothing else); music, an effect or a color the user picks for every light plays on them too.
 
 `Backbloom.Settings/Layout`: `LayoutSpecification.Normalize` validates it (rejecting with `layout.<path>` errors, like
 every setting) and fills in each controller's `device`; `Compile` turns it into one sampling area per LED per
@@ -893,7 +902,10 @@ them) and form zones (`ControllerSetup.Zones`, `compileZones`): one per distinct
 color) across strips and controllers, with each LED's index among all controllers' LEDs and the rect `auto` would
 give it (`CompileStrip(strip, room, zone: true)`), so an effect's picture flows across the zone as if it were the
 screen. Dark LEDs and LEDs past their output aren't in a zone. Checked against `ui-multi-controller.zones.json`
-(indices exactly, rects within 1e-4). The engine plays them over every frame (`ZoneLayer`):
+(indices exactly, rects within 1e-4). The engine plays them over the screen's frames and while nothing shows
+(`ZoneLayer`, `LightingPipeline.ShowsLayout`); while music, an effect or a color shows (the user picked it for every
+light: the last choice wins, and the UI's Customize brings the layout back) they pause and their LEDs play it, mapped
+with `PipelineConfig.EffectMapping` (where 'auto' would put them):
 
 - an `effect` zone runs its own `EffectSource`, mapped with the zone's rects (with the user's mapping type) or, for
   effects that set LED colors, with one color per zone LED; a music effect opens the sound capture like a visible one
@@ -966,7 +978,9 @@ follows controllers 0..N-1 (`Submit` hands each runner a `ReadOnlySpan` slice; n
 every frame from the same thread, and each runner sends on its own thread, so a slow, unreachable or retrying controller
 only drops its own frames (`MultiControllerTests`: a driver whose writes take 300 ms doesn't delay the others or
 `Submit`). Strip brightness is a per-LED gain applied after smoothing and the anti-flicker filter (`OutputStage`;
-null when every strip is at 100 %), so the preview shows it too. Each runner measures the time from `Submit` until the
+null when every strip is at 100 % and no LED is off), so the preview shows it too. LEDs that are off (disabled in the
+layout, of no group and no zone: "off" sections, dark LEDs, outputs no strip uses) get the gain 0, so the color
+settings' minimal backlight and the smoothing, which keep every LED at least that bright, don't leave them glowing. Each runner measures the time from `Submit` until the
 driver had written the frame (`FrameStats` latency).
 
 Power limits (`PowerBudget`, in `DeviceManager.Submit`, after the strip brightness, before the preview): WLED's

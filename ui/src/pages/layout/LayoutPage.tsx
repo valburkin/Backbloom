@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Crosshair, Info, Loader2, MonitorPlay, RotateCcw, X } from 'lucide-react';
-import { applyProfile, withStripSections, type LayoutIssue, type PathPoint, type Room, type ShapeId } from '../../layout';
+import { applyProfile, withStripSections, type LayoutIssue, type LayoutSpec, type PathPoint, type Room, type ShapeId, type ZoneRole } from '../../layout';
 import { Button, Card, IconButton, Segmented } from '../../components/ui';
 import { Expert } from '../../components/form';
 import { PageHeader } from '../../components/PageHeader';
 import { SaveBar } from '../../components/SaveBar';
 import { useConnection } from '../../app/connection';
+import { useToast } from '../../app/toast';
 import { useEditor } from '../../app/editor';
 import { IMPORTED_NOTE } from '../../api/layoutService';
 import { useExpertTools } from '../../app/expert';
@@ -21,6 +22,9 @@ import { TestPattern } from './TestPattern';
 import { IssueSummary } from './IssueSummary';
 import { ProfileIntro, ProfileSettings, ProfileTabs } from './ProfileBar';
 import { PlaceGuide, type GuideState } from './PlaceGuide';
+import { currentSource, effectLabel, type Mode } from '../../control/modes';
+import { useStartMusic } from '../../control/music';
+import { keepPlaying, partChanges, showRole, undoChanges, type PartChange } from './keepShow';
 
 /** Live colors before the first frame: every LED unlit. */
 const NO_COLORS: readonly number[] = [];
@@ -33,7 +37,7 @@ export const HINTS = {
   place: 'Drag the round handles to move the strip. Click a part of it to change what it shows.',
   draw: 'Click where the strip starts (where the cable comes in), then at each bend. Double-click or press Enter to finish.',
   mapping:
-    'Each LED follows the part of the screen next to it (matching colors). Drag the dots on the screen’s edge to adjust. Click a part of the strip to change just that part.',
+    'With Screen sync, each LED follows the part of the screen next to it (matching colors). Drag the dots on the screen’s edge to adjust. Click a part of the strip to change just that part.',
   parts: 'Click a part of the strip to change just that part.',
 } as const;
 
@@ -52,8 +56,9 @@ const memo: {
 
 /** @param openProfile A profile to open for editing (the Games page links to a game's), from `#/layout/profile:<id>`. */
 export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}) {
-  const { state, dispatch, load, reload, issues, validatorError, blockers, dirty } = useEditor();
-  const { backend, serverInfo, api, setup } = useConnection();
+  const { state, dispatch, load, reload, issues, validatorError, blockers, dirty, save, saving } = useEditor();
+  const { backend, serverInfo, api, setup, auth } = useConnection();
+  const toast = useToast();
   const expert = useExpertTools();
   const activeProfile = serverInfo?.profile ?? null;
   const loadPrograms = useCallback(() => api.runningPrograms(), [api]);
@@ -83,6 +88,7 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
   const spec = useMemo(() => (profile ? applyProfile(layout, profile.id) : layout), [layout, profile]);
   const strip = selectedStrip(state) && spec.strips.find((s) => s.id === selection.stripId);
   const place = mode === 'place';
+  const showing = currentSource(serverInfo?.priorities).mode;
   // Customize can show the LEDs' live colors instead of what each one follows (the rainbow).
   const [liveOn, setLiveOn] = useState(false);
   const showLive = liveOn && !place;
@@ -101,10 +107,92 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
   const imported = load.source === 'legacy' && !!setup?.importedFrom;
   const note = imported ? load.note : load.note?.replace(IMPORTED_NOTE, '').trim() || undefined;
 
-  /** What a strip's sections do: into the layout, or into the profile being edited. */
+  // A choice in Customize brings back the layout (Screen sync) while music, an effect or a color plays on every light
+  // (not for a profile, which applies when its program runs), once per change of the Show. It changes only what it's
+  // about: the other parts that follow the Show keep playing it as their own effect or color (keepPlaying), and the
+  // toast's Undo puts back exactly the parts this changed (those still as it left them) and what played.
+  const grabberOn = serverInfo?.components?.find((c) => c.name === 'SYSTEMGRABBER')?.enabled === true;
+  const startMusic = useStartMusic();
+  const switched = useRef<Mode | null>(null);
+  const latest = useRef(layout);
+  latest.current = layout;
+  const playingForAll = showing === 'music' || showing === 'effect' || showing === 'color';
+  useEffect(() => {
+    if (!playingForAll) switched.current = null;
+  }, [playingForAll]);
+
+  const showLayout = useCallback(
+    (role: ZoneRole | null, changes: PartChange[], kept: number) => {
+      const was = showing;
+      void (async () => {
+        try {
+          await api.clear();
+          if (!grabberOn) await api.setComponent('SYSTEMGRABBER', true);
+        } catch (e) {
+          switched.current = null;
+          toast('bad', 'Couldn’t switch to Screen sync', e instanceof Error ? e.message : String(e));
+          return;
+        }
+        const undo = {
+          label: 'Undo',
+          run: () => {
+            const step = `undo-keep-show-${Date.now()}`;
+            for (const [stripId, path] of undoChanges(latest.current, changes)) dispatch({ type: 'updateStrip', stripId, patch: { path }, coalesce: step });
+            if (role?.kind === 'effect') void (was === 'music' ? startMusic(role.effect) : api.runEffect(role.effect)).catch(() => undefined);
+            else if (role?.kind === 'color') void api.setColor(role.color).catch(() => undefined);
+          },
+        };
+        const playing = role?.kind === 'effect' ? effectLabel(role.effect) : 'the color';
+        toast('info', 'Back to your layout', kept > 0 ? `The other strips keep playing ${playing}.` : 'Your lights show your layout again.', undo);
+      })();
+    },
+    [api, dispatch, grabberOn, showing, startMusic, toast],
+  );
+
+  // Customize applies at once: every change there is saved (Place keeps its Save button: a strip being drawn can be
+  // unfinished). Unsaved changes from Place are saved on the way in; the save bar says why when they can't be. A layout
+  // that failed to save isn't tried again until it changes (the save bar's Save retries).
+  const failed = useRef<LayoutSpec | null>(null);
+  useEffect(() => {
+    if (place || !dirty || saving || blockers.length > 0 || auth !== 'admin' || load.status !== 'ready' || failed.current === state.spec) return;
+    const spec = state.spec;
+    const timer = setTimeout(() => {
+      void save(undefined, spec, { quiet: true }).then((ok) => {
+        failed.current = ok ? null : spec;
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [place, dirty, saving, blockers.length, auth, load.status, state.spec, save]);
+
+  /**
+   * What a strip's sections do: into the layout, or into the profile being edited. `targets` are the parts the choice
+   * is about ('all': the whole strip); without it, the parts whose role changed (a dragged mapping dot).
+   */
   const onRoles = useCallback(
-    (stripId: string, path: PathPoint[], coalesce?: string) => {
+    (stripId: string, path: PathPoint[], coalesce?: string, targets?: number[] | 'all') => {
       if (!profile) {
+        const before = layout.strips.find((s) => s.id === stripId);
+        const changed = (i: number) => JSON.stringify(before?.path[i]?.next) !== JSON.stringify(path[i]?.next);
+        if (!path.some((_, i) => changed(i))) return;
+        if (playingForAll && switched.current !== showing) {
+          switched.current = showing;
+          const role = showRole(currentSource(serverInfo?.priorities).source);
+          const targeted = targets === 'all' ? () => true : targets ? (i: number) => targets.includes(i) : changed;
+          const next = new Map<string, PathPoint[]>([[stripId, role ? keepPlaying(path, role, targeted).path : path]]);
+          if (role) {
+            for (const s of layout.strips) {
+              if (s.id === stripId) continue;
+              const other = keepPlaying(s.path, role);
+              if (other.parts.length) next.set(s.id, other.path);
+            }
+          }
+          // one undo step: the choice, and the parts that keep playing the Show
+          const step = `keep-show-${Date.now()}`;
+          for (const [id, p] of next) dispatch({ type: 'updateStrip', stripId: id, patch: { path: p }, coalesce: step });
+          const changes = partChanges(layout.strips, next);
+          showLayout(role, changes, changes.filter((c) => !(c.stripId === stripId && targeted(c.part))).length);
+          return;
+        }
         dispatch({ type: 'updateStrip', stripId, patch: { path }, coalesce });
         return;
       }
@@ -115,7 +203,7 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
         coalesce,
       });
     },
-    [profile, dispatch],
+    [profile, dispatch, showLayout, showing, playingForAll, serverInfo?.priorities, layout.strips],
   );
   const matchStrip = matching ? spec.strips.find((s) => s.id === matching) : undefined;
 
@@ -354,6 +442,7 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
                   rolesOnly={!place}
                   showMapping={!place && !showLive}
                   allowGaps={!profile}
+                  showing={showing}
                   onRoles={onRoles}
                   // Until the first colors arrive, every LED is shown unlit (not the rainbow).
                   liveColors={showLive ? (liveFrame ?? NO_COLORS) : null}
@@ -449,7 +538,8 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
                 dispatch={dispatch}
                 effects={effects}
                 profileName={profile ? profile.name || 'this profile' : undefined}
-                onRoles={(path) => onRoles(strip.id, path)}
+                showing={showing}
+                onRoles={(path) => onRoles(strip.id, path, undefined, 'all')}
               />
             )}
             {!place && profiles.length === 0 && layout.strips.length > 0 && <ProfileIntro spec={layout} dispatch={dispatch} onEdit={editProfile} />}
