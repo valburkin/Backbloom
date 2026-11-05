@@ -1,6 +1,6 @@
 import { stripLedCount } from './compile';
 import { litLength, pathStations, SURFACES, surfaceSize } from './room';
-import type { Area, Controller, ControllerOutput, LayoutIssue, LayoutSpec, Room, Section, Strip } from './types';
+import type { Area, Controller, ControllerOutput, LayoutIssue, LayoutSpec, ProfileLook, Room, Section, Strip } from './types';
 
 /** Room sizes accepted, in meters. */
 export const ROOM_MIN = 0.5;
@@ -175,28 +175,51 @@ function validateStripShape(s: Strip, room: Room | undefined, add: (sev: LayoutI
   }
 }
 
+const LOOK_RANGES: Record<keyof ProfileLook, [number, number]> = {
+  time_ms: [25, 5000],
+  stiffness: [0, 1000],
+  damping: [0, 1000],
+  saturationGain: [0, 10],
+  luminanceGain: [0, 10],
+  backlightThreshold: [0, 1],
+};
+
+/** The Look's values that are whole numbers (as the settings they replace). */
+const LOOK_INTEGERS = new Set<keyof ProfileLook>(['time_ms', 'stiffness', 'damping']);
+
+/** A preset's own Look: every value a number in the range of the setting it replaces (as the backend checks it). */
+function validateLook(look: ProfileLook, label: string, push: (severity: LayoutIssue['severity'], message: string) => void) {
+  if (typeof look !== 'object' || Array.isArray(look)) {
+    push('error', `${label} needs its Look as transition and color values.`);
+    return;
+  }
+  for (const [key, [min, max]] of Object.entries(LOOK_RANGES) as Array<[keyof ProfileLook, [number, number]]>) {
+    const v = look[key];
+    if (!finite(v) || v < min || v > max || (LOOK_INTEGERS.has(key) && !Number.isInteger(v)))
+      push('error', `${label} has a Look with ${key} ${String(v)}; it must be ${LOOK_INTEGERS.has(key) ? 'a whole number ' : ''}between ${min} and ${max}.`);
+  }
+}
+
 function validateProfiles(spec: LayoutSpec, push: (severity: LayoutIssue['severity'], message: string) => void) {
   if (spec.profiles === undefined) return;
   if (!Array.isArray(spec.profiles)) {
-    push('error', 'The profiles must be a list.');
+    push('error', 'The presets must be a list.');
     return;
   }
   const ids = new Set<string>();
   for (const p of spec.profiles) {
-    const label = `Profile “${p?.name || p?.id}”`;
+    const label = `Preset “${p?.name || p?.id}”`;
     if (!p || typeof p.id !== 'string' || !p.id.trim()) {
-      push('error', 'A profile needs an id.');
+      push('error', 'A preset needs an id.');
       continue;
     }
-    if (ids.has(p.id)) push('error', `Two profiles share the id “${p.id}”.`);
+    if (ids.has(p.id)) push('error', `Two presets share the id “${p.id}”.`);
     ids.add(p.id);
-    if (typeof p.name !== 'string' || !p.name.trim()) push('error', `Profile “${p.id}” needs a name.`);
+    if (typeof p.name !== 'string' || !p.name.trim()) push('error', `Preset “${p.id}” needs a name.`);
     if (!Array.isArray(p.apps) || p.apps.some((a) => typeof a !== 'string' || !a.trim())) {
       push('error', `${label} needs its programs as a list of program names.`);
-    } else if (p.apps.length === 0) {
-      push('warning', `${label} has no programs, so it never turns on by itself.`);
     }
-    if (p.game !== undefined && typeof p.game !== 'boolean') push('error', `${label} needs “game” to be true or false.`);
+    if (p.look !== undefined && p.look !== null) validateLook(p.look, label, push);
     if (!p.sections || typeof p.sections !== 'object' || Array.isArray(p.sections)) {
       push('error', `${label} needs what each strip’s parts show.`);
       continue;

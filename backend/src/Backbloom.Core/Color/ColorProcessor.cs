@@ -154,7 +154,7 @@ public sealed class ColorProcessor
 
     /// <summary>
     /// The share of the full output the output scale (Home's Brightness) leaves for white, at most 1: the sRGB-encoded
-    /// scale, with the color settings the user gamma applied and a luminance gain above 1 (Game's color brightness) on
+    /// scale, with the color settings the user gamma applied and a luminance gain above 1 (a Look's color brightness) on
     /// top. A gain below 1 isn't counted, so at full brightness the share stays 1.
     /// </summary>
     public float OutputShare { get; }

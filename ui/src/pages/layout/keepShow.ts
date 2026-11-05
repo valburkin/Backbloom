@@ -1,30 +1,6 @@
-import type { PathPoint, Section, Strip, ZoneRole } from '../../layout';
-import type { PriorityInfo } from '../../api/types';
-import { followsShow } from '../../editor/mapping';
+import type { PathPoint, Section, Strip } from '../../layout';
 
-/**
- * What plays on every light, as a part's own role: the effect or music of an EFFECT source, the color of a COLOR one;
- * null for the screen, nothing, or a source whose effect or color isn't known.
- */
-export function showRole(source: PriorityInfo | null): ZoneRole | null {
-  if (source?.componentId === 'EFFECT' && source.owner) return { kind: 'effect', effect: source.owner };
-  const rgb = source?.componentId === 'COLOR' ? source.value?.RGB : undefined;
-  return rgb ? { kind: 'color', color: [rgb[0], rgb[1], rgb[2]] } : null;
-}
-
-/**
- * The path with every part that follows the Show (not a gap, not one of `except`) playing `role` as its own, so it
- * keeps playing what shows when the layout comes back; `parts` are those parts.
- */
-export function keepPlaying(path: readonly PathPoint[], role: ZoneRole, except: (part: number) => boolean = () => false): { path: PathPoint[]; parts: number[] } {
-  const parts: number[] = [];
-  const next = path.map((p, i) => {
-    if (i === path.length - 1 || p.next?.kind === 'gap' || except(i) || !followsShow(p.next)) return p;
-    parts.push(i);
-    return { ...p, next: role };
-  });
-  return { path: next, parts };
-}
+// The parts a change gave other roles, and undoing exactly those (the Undo of a pick that replaced customized strips).
 
 /** One part a change gave another role: what it was and what it became. */
 export interface PartChange {

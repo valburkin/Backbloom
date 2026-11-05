@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-/** @param badge Next to the title, e.g. the mode on a page that differs between Ambient and Game. */
+/** @param badge Next to the title, e.g. a status. */
 export function PageHeader({ title, badge, subtitle, actions }: { title: string; badge?: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line/60 px-6 py-5">

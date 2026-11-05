@@ -34,8 +34,8 @@ const CALIBRATION: Array<{ key: string; label: string; classic: boolean }> = [
 const CALIBRATION_KEYS = ['classic_config', ...CALIBRATION.map((c) => c.key)];
 
 /**
- * Setup → Calibration: what makes the strips match the screen and the power supply, the same in Ambient and Game
- * (white balance, contrast, per-color calibration, power limit). How the colors feel is the mode's, on Colors.
+ * Setup → Calibration: what makes the strips match the screen and the power supply (white balance, contrast,
+ * per-color calibration, power limit). How the colors feel is the Look's, on Colors.
  */
 export function CalibrationPage() {
   const ps = usePageSettings('calibration', LABELS, true);
@@ -49,7 +49,7 @@ export function CalibrationPage() {
   const calibrationMore = changedKeys(adjSchema, adj, CALIBRATION_KEYS);
 
   return (
-    <PageFrame title="Calibration" subtitle="Make your LEDs match your screen. The same in Ambient and Game." settings={ps} onDiscard={rollback}>
+    <PageFrame title="Calibration" subtitle="Make your LEDs match your screen." settings={ps} onDiscard={rollback}>
       <div id="white-balance">
         <Section title="White balance and contrast" icon={<Thermometer size={18} />} description="Make white and dark scenes on the LEDs match your screen.">
           <Segmented label="Color temperature" value={String(adj.temperatureSetting ?? 'disabled')} options={TEMPERATURES} onChange={setAdj('temperatureSetting')} />

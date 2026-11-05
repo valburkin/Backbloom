@@ -296,7 +296,7 @@ export function CustomizeEditor({
 
         {profileName ? (
           <Group>
-            <p className="text-xs text-ink-faint">Position, LEDs and turned-off LEDs are shared by all profiles. Switch to Everyday to change them.</p>
+            <p className="text-xs text-ink-faint">Position, LEDs and turned-off LEDs are shared by all presets. Switch to Everyday to change them.</p>
           </Group>
         ) : (
           <Group>

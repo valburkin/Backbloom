@@ -10,21 +10,29 @@ export function musicAvailable(serverInfo: ServerInfo | null | undefined): boole
 }
 
 /**
- * Starts a music effect. When sound input is off, it is turned on first (the `soundEffect.enable` setting, stored),
- * with a "Sound input turned on" toast: picking music means the user wants it to listen.
+ * Makes music effects work: when sound input is off, it is turned on (the `soundEffect.enable` setting, stored), with a
+ * "Sound input turned on" toast: picking music means the user wants it to listen.
  */
-export function useStartMusic(): (name: string) => Promise<void> {
+export function useSoundForMusic(): () => Promise<void> {
   const { api, serverInfo } = useConnection();
   const { config } = useConfig();
   const toast = useToast();
+  return useCallback(async () => {
+    if (musicAvailable(serverInfo)) return;
+    await api.setConfig({ soundEffect: { ...(config?.soundEffect as object | undefined), enable: true } });
+    toast('ok', 'Sound input turned on');
+  }, [api, serverInfo, config?.soundEffect, toast]);
+}
+
+/** Starts a music effect (sound input turned on first, useSoundForMusic). */
+export function useStartMusic(): (name: string) => Promise<void> {
+  const { api } = useConnection();
+  const sound = useSoundForMusic();
   return useCallback(
     async (name: string) => {
-      if (!musicAvailable(serverInfo)) {
-        await api.setConfig({ soundEffect: { ...(config?.soundEffect as object | undefined), enable: true } });
-        toast('ok', 'Sound input turned on');
-      }
+      await sound();
       await api.runEffect(name);
     },
-    [api, serverInfo, config?.soundEffect, toast],
+    [api, sound],
   );
 }

@@ -163,35 +163,34 @@ export interface ServerInfo {
   };
   systemGrabbers?: SystemGrabbers;
   imageToLedMappingType?: string;
-  /** The layout's profile whose roles the strips have now, or null (Backbloom addition; also pushed by profile-update). */
+  /** The preset (layout profile) that is on now, or null (Backbloom addition; also pushed by profile-update). */
   profile?: ActiveProfile | null;
-  /** Ambient or Game mode (Backbloom addition; also pushed by mode-update). */
-  mode?: ModeState;
+  /**
+   * The preset turned off with `profile dismiss` while one of its programs runs: it stays off until none of them runs
+   * any more (Backbloom addition; also pushed by profile-update as `dismissed`).
+   */
+  dismissedProfile?: DismissedProfile | null;
   [key: string]: unknown;
 }
 
-/** Ambient: the lights as the settings say. Game: with Game mode’s own intensity and capture rate (the `game` section); only the screen shows. */
-export type LightMode = 'ambient' | 'game';
-
-/** The mode the lights are in (serverinfo.mode). */
-export interface ModeState {
-  mode: LightMode;
-  /** The mode chosen in the app (`modes.mode`). */
-  saved: LightMode;
-  /** The name of the game’s profile that turned Game mode on, else null. */
-  gameProfile: string | null;
-  /** The name of the running game whose Game mode was turned off by choosing Ambient (until it quits), else null. */
-  dismissedGame: string | null;
-}
-
-/** A profile of the layout that runs (serverinfo.profile). */
+/** The preset (layout profile) that is on (serverinfo.profile). */
 export interface ActiveProfile {
   id: string;
   name: string;
-  /** Chosen by hand (setProfile) rather than by a running program. */
+  /** Turned on by hand (`profile select`) rather than by one of its programs. */
   manual: boolean;
-  /** A game’s profile: Game mode is on while it runs. */
-  game?: boolean;
+}
+
+/** A preset turned off while its programs run (serverinfo.dismissedProfile). */
+export interface DismissedProfile {
+  id: string;
+  name: string;
+}
+
+/** `profile getstate`, `select`, `dismiss` and the `profile-update` event. */
+export interface ProfileState {
+  profile: ActiveProfile | null;
+  dismissed: DismissedProfile | null;
 }
 
 /** A running program with a window, for the profile editor's program picker (`runningPrograms`). */

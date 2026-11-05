@@ -1,5 +1,7 @@
-import { defaultRoom, shapePath, type Controller, type LayoutSpec, type Profile, type Room, type ShapeId, type Strip } from '../layout';
+import { defaultRoom, nextProfileId, shapePath, type Controller, type LayoutSpec, type Profile, type Room, type ShapeId, type Strip } from '../layout';
+import { followStrips } from '../control/presets';
 import { carryWithScreen, clampPath, fitMatchedPoints, fitRoom, reverseSections, reverseStrip } from './strips';
+import { mergeTouches, revertTouches, sameValue, touchesOf, type Mirror } from './mirror';
 
 /**
  * Layout editor state. Every spec change goes through `commit`, which pushes the previous spec onto the
@@ -24,6 +26,8 @@ export interface EditorState {
   /** Coalescing bookkeeping for the most recent commit. */
   lastKey: string | null;
   lastAt: number;
+  /** Mirrored changes whose save hasn't ended (`mirror`): what they wrote isn't counted as unsaved edits. */
+  mirrors: Mirror[];
 }
 
 export const HISTORY_LIMIT = 100;
@@ -40,6 +44,7 @@ export function initialEditorState(spec: LayoutSpec = EMPTY_SPEC, saved: LayoutS
     selection: { stripId: spec.strips[0]?.id ?? null, pointIndex: null, sectionIndex: null },
     lastKey: null,
     lastAt: 0,
+    mirrors: [],
   };
 }
 
@@ -71,13 +76,26 @@ export type EditorAction =
   | ({ type: 'removeProfile'; profileId: string } & EditMeta)
   | ({ type: 'addController'; controller: Controller } & EditMeta)
   | ({ type: 'updateController'; controllerId: string; patch: Partial<Omit<Controller, 'id'>> } & EditMeta)
-  | ({ type: 'removeController'; controllerId: string } & EditMeta);
+  | ({ type: 'removeController'; controllerId: string } & EditMeta)
+  /**
+   * A change saved by itself (a pick, a Look: made to the layout saved last and saved at once), mirrored into the edited
+   * layout: `actions` (one undo step; given as a function, made from the edited layout as it is then). What it writes
+   * belongs to mirror `id` (edits with the same id add to it) until `mirrorDone`.
+   */
+  | ({ type: 'mirror'; id: string; actions: EditorAction[] | ((spec: LayoutSpec) => EditorAction[]) } & EditMeta)
+  /**
+   * The save of mirror `id` ended. When it failed, what the mirror wrote goes back to the layout saved last, where the
+   * edited layout still has what it wrote (a later change to the same value stays).
+   */
+  | { type: 'mirrorDone'; id: string; saved: boolean };
 
 // ---- selectors ----
 
+/** The edited layout differs from the saved one; what mirrored changes still being saved wrote doesn't count. */
 export function isDirty(state: EditorState): boolean {
   if (!state.saved) return state.past.length > 0;
-  return JSON.stringify(state.spec) !== JSON.stringify(state.saved);
+  const spec = state.mirrors.length ? revertTouches(state.spec, state.saved, state.mirrors.flatMap((m) => m.touches)) : state.spec;
+  return !sameValue(spec, state.saved);
 }
 
 export const canUndo = (s: EditorState) => s.past.length > 0;
@@ -176,10 +194,7 @@ function freeOutput(spec: LayoutSpec, controllerId: string | undefined): { contr
   return { controllerId: ctrl.id, output: (free ?? ctrl.outputs[0])?.index ?? 0 };
 }
 
-/** The id the next added profile gets. */
-export function nextProfileId(spec: LayoutSpec): string {
-  return nextId('profile', (spec.profiles ?? []).map((p) => p.id));
-}
+export { nextProfileId };
 
 /** The id the next added strip gets. */
 export function nextStripId(spec: LayoutSpec): string {
@@ -203,8 +218,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'load':
       return { ...initialEditorState(action.spec, action.spec), selection: fixSelection(action.spec, state.selection) };
 
-    case 'markSaved':
-      return { ...state, saved: action.spec, lastKey: null };
+    case 'markSaved': {
+      // what a save adds joins the edited layout too: the default presets a layout gets at its first save
+      // (withDefaultPresets), and the strips presets that play one thing everywhere follow (followStrips)
+      const joined = action.spec.profiles !== undefined && spec.profiles === undefined ? { ...spec, profiles: action.spec.profiles } : spec;
+      return { ...state, spec: followStrips(joined, state.saved), saved: action.spec, lastKey: null };
+    }
 
     case 'undo': {
       if (!state.past.length) return state;
@@ -278,10 +297,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'removeProfile': {
       if (!spec.profiles?.some((p) => p.id === action.profileId)) return state;
-      const profiles = spec.profiles.filter((p) => p.id !== action.profileId);
-      if (profiles.length) return commit(state, { ...spec, profiles }, action);
-      const { profiles: _none, ...rest } = spec;
-      return commit(state, rest, action);
+      // an empty list stays: the default presets don't come back
+      return commit(state, { ...spec, profiles: spec.profiles.filter((p) => p.id !== action.profileId) }, action);
     }
 
     case 'updateStrip':
@@ -338,6 +355,27 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         { ...spec, controllers: spec.controllers.map((c) => (c.id === action.controllerId ? { ...c, ...action.patch } : c)) },
         action,
       );
+
+    case 'mirror': {
+      const list = typeof action.actions === 'function' ? action.actions(spec) : action.actions;
+      const next = list.reduce(editorReducer, state).spec;
+      const touches = touchesOf(spec, next);
+      const done = commit(state, next, action);
+      if (!touches.length) return done;
+      const own = state.mirrors.find((m) => m.id === action.id);
+      const mirrors = own
+        ? state.mirrors.map((m) => (m === own ? { ...m, touches: mergeTouches(m.touches, touches) } : m))
+        : [...state.mirrors, { id: action.id, touches }];
+      return { ...done, mirrors };
+    }
+
+    case 'mirrorDone': {
+      const own = state.mirrors.find((m) => m.id === action.id);
+      if (!own) return state;
+      const rest = { ...state, mirrors: state.mirrors.filter((m) => m !== own) };
+      if (action.saved) return rest;
+      return commit(rest, revertTouches(spec, state.saved, own.touches), {});
+    }
 
     case 'removeController': {
       if (!spec.controllers.some((c) => c.id === action.controllerId)) return state;

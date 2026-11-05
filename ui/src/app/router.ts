@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export const ROUTES = ['home', 'games', 'layout', 'devices', 'capture', 'calibration', 'colors', 'effects', 'settings'] as const;
+export const ROUTES = ['home', 'presets', 'layout', 'devices', 'capture', 'calibration', 'colors', 'effects', 'settings'] as const;
 export type Route = (typeof ROUTES)[number];
 
 export interface Location {
@@ -19,7 +19,7 @@ export function parseHash(hash: string): Location {
   return { route, sub: route === r && sub ? sub : null, focus: focus || null };
 }
 
-/** Layout with a profile open for editing (the Games page's “Edit strips”). */
+/** Layout with a preset open for editing (the Presets page's “Edit strips in Layout”). */
 export function hrefForProfile(id: string): string {
   return hrefFor('layout', `profile:${encodeURIComponent(id)}`);
 }

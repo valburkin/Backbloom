@@ -91,12 +91,6 @@ public sealed class Muxer
 
     public bool AutoSelect { get; private set; } = true;
 
-    /// <summary>
-    /// Only the screen is shown (Game mode): colors, pictures and effects stay registered and keep their timeouts, but
-    /// aren't selected until this is turned off again. Not in the C++ code.
-    /// </summary>
-    public bool ScreenOnly { get; private set; }
-
     /// <summary>Every source in priority order, including the "no source" entry.</summary>
     public IReadOnlyCollection<SourceInput> Inputs => _inputs.Values;
 
@@ -195,10 +189,22 @@ public sealed class Muxer
             return MuxerChanges.Priorities | MuxerChanges.Visible;
         }
 
+        return ClearBelow(HighestEffectPriority, nowMs);
+    }
+
+    /// <summary>
+    /// Removes the colors, pictures and effects that clients started: priorities above <see cref="HighestEffectPriority"/>
+    /// (the startup effect) and below <see cref="LowestEffectPriority"/> (the background effect). Not in the C++ code.
+    /// </summary>
+    public MuxerChanges ClearClients(long nowMs) => ClearBelow(HighestEffectPriority + 1, nowMs);
+
+    // Every color, picture and effect from priority `from` up to the background effect's (exclusive).
+    private MuxerChanges ClearBelow(int from, long nowMs)
+    {
         var changes = MuxerChanges.None;
         foreach (var input in _inputs.Values.ToArray())
         {
-            if ((input.Component is SourceComponent.Color or SourceComponent.Effect or SourceComponent.Image) && input.Priority < LowestPriority - 1)
+            if ((input.Component is SourceComponent.Color or SourceComponent.Effect or SourceComponent.Image) && input.Priority >= from && input.Priority < LowestPriority - 1)
             {
                 changes |= Clear(input.Priority, nowMs) ?? MuxerChanges.None;
             }
@@ -245,22 +251,6 @@ public sealed class Muxer
         return true;
     }
 
-    /// <summary>Turns <see cref="ScreenOnly"/> on or off.</summary>
-    public MuxerChanges SetScreenOnly(bool enabled, long nowMs)
-    {
-        if (ScreenOnly == enabled)
-        {
-            return MuxerChanges.None;
-        }
-
-        ScreenOnly = enabled;
-        return Update(nowMs) | MuxerChanges.Priorities;
-    }
-
-    /// <summary>Whether <paramref name="input"/> waits while <see cref="ScreenOnly"/> is on.</summary>
-    private bool Held(SourceInput input) =>
-        ScreenOnly && input.Priority < LowestPriority && input.Component is SourceComponent.Color or SourceComponent.Effect or SourceComponent.Image;
-
     /// <summary>
     /// Drops expired sources and selects the visible one (C++ <c>setCurrentTime</c>).
     /// </summary>
@@ -275,7 +265,7 @@ public sealed class Muxer
             {
                 (expired ??= []).Add(input.Priority);
             }
-            else if (input.TimeoutMs > Inactive && !Held(input))
+            else if (input.TimeoutMs > Inactive)
             {
                 newPriority = Math.Min(newPriority, input.Priority);
             }
@@ -293,12 +283,9 @@ public sealed class Muxer
 
         if (!AutoSelect)
         {
-            if (_inputs.TryGetValue(_manualPriority, out var manual))
+            if (_inputs.ContainsKey(_manualPriority))
             {
-                if (!Held(manual))
-                {
-                    newPriority = _manualPriority;
-                }
+                newPriority = _manualPriority;
             }
             else
             {

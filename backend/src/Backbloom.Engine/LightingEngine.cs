@@ -22,9 +22,9 @@ namespace Backbloom.Engine;
 /// <c>color</c> section and the controllers' LEDs, smoothing from <c>smoothing</c>, black border detection from
 /// <c>blackborderdetector</c>, configures the controllers from <c>layout</c> (or, without one, <c>device</c> +
 /// <c>leds</c>), plays the layout's zones (<see cref="ZoneLayer"/>), registers the screen as a source and applies
-/// component switches. A profile of the layout (<see cref="ApplyProfile"/>) switches the compiled setup, and Game mode
-/// (<see cref="ApplyGameMode"/>) the transitions and color gains (<see cref="GameTuning"/>) and shows only the screen,
-/// without saving anything. The API layer talks to this class only; it never reaches into the pipeline thread.
+/// component switches. A profile of the layout (<see cref="ApplyProfile"/>) switches the compiled setup and, with a
+/// Look, the transitions and color gains (<see cref="LookTuning"/>), without saving anything. The API layer talks to
+/// this class only; it never reaches into the pipeline thread.
 /// </summary>
 public sealed partial class LightingEngine : IDisposable
 {
@@ -51,7 +51,7 @@ public sealed partial class LightingEngine : IDisposable
     private volatile ControllerSetup _setup;
     private ZoneLayer _zones = ZoneLayer.Empty;
     private string? _profileId;
-    private bool _game;
+    private ProfileLook? _look;
     private int _screenPriority;
     private bool _screenRegistered;
     private bool _started;
@@ -101,6 +101,12 @@ public sealed partial class LightingEngine : IDisposable
 
     /// <summary>Raised when the sources or their state changed (<c>priorities-update</c>).</summary>
     public event Action? PrioritiesChanged;
+
+    /// <summary>
+    /// Raised with <see cref="SmoothingApplied"/> after it changed (the saved smoothing or the active profile's Look), under
+    /// the engine's lock so that handlers see the changes in order: handlers must be quick and must not call back.
+    /// </summary>
+    public event Action<SmoothingSettings>? SmoothingAppliedChanged;
 
     /// <summary>Raised with the new <c>color.channelAdjustment</c> array after the color settings changed.</summary>
     public event Action<JsonArray>? AdjustmentChanged;
@@ -157,14 +163,14 @@ public sealed partial class LightingEngine : IDisposable
 
     public LedMappingType MappingType => _pipeline.Config.Mapping.MappingType;
 
-    /// <summary>Whether Game mode's values apply (<see cref="ApplyGameMode"/>).</summary>
-    public bool GameMode => _game;
+    /// <summary>The active profile's Look, applied on top of the saved settings; null: the saved ones apply.</summary>
+    public ProfileLook? Look => _look;
 
     /// <summary>The color settings the screen and effects are processed with now.</summary>
     internal ColorAdjustment Adjustment => _pipeline.Config.Processor.Adjustment;
 
-    /// <summary>The smoothing settings the output runs with now.</summary>
-    internal SmoothingSettings SmoothingApplied { get; private set; }
+    /// <summary>The smoothing settings the output runs with now: the saved ones with the active profile's Look on top.</summary>
+    public SmoothingSettings SmoothingApplied { get; private set; }
 
     /// <summary>Frames processed by the frame loop since start.</summary>
     public long FrameCount => _pipeline.FrameCount;
@@ -225,7 +231,8 @@ public sealed partial class LightingEngine : IDisposable
     /// <summary>
     /// Runs the setup the profile <paramref name="profileId"/> of the layout describes (other roles for the strips'
     /// sections: rects and zones), or the layout as saved (null, or an id the layout doesn't have). Nothing is saved;
-    /// controllers whose driver settings and LED count stay the same keep running (no reconnect). Later layout changes
+    /// controllers whose driver settings and LED count stay the same keep running (no reconnect). The profile's Look
+    /// (<see cref="Look"/>) applies on top of the saved smoothing and color settings while it runs. Later layout changes
     /// are compiled for the same profile.
     /// </summary>
     public void ApplyProfile(string? profileId)
@@ -238,7 +245,12 @@ public sealed partial class LightingEngine : IDisposable
             }
 
             _profileId = profileId;
-            if (Recompile())
+            var rectsChanged = Recompile();
+            if (UpdateLook())
+            {
+                ApplyTuning();
+            }
+            else if (rectsChanged)
             {
                 _pipeline.Configure(BuildConfig(ColorSection(), Layout, EffectLayout));
             }
@@ -248,27 +260,10 @@ public sealed partial class LightingEngine : IDisposable
     }
 
     /// <summary>
-    /// Turns Game mode on or off: while it is on, the <c>game</c> section (<see cref="GameTuning"/>) replaces the transition
-    /// time, the spring and the color gains of the saved settings, and only the screen is shown: colors, effects and music
-    /// wait (<see cref="PriorityManager.SetScreenOnly"/>) and show again when it is turned off. Nothing is saved.
+    /// Removes the colors, pictures and effects that clients started (priorities 1 to 253): what a profile that is turned
+    /// on clears, so that its own strips show. The screen, the background effect (254) and the startup effect (0) stay.
     /// </summary>
-    public void ApplyGameMode(bool on)
-    {
-        lock (_applyLock)
-        {
-            if (_disposed || on == _game)
-            {
-                return;
-            }
-
-            _game = on;
-            ApplyTuning();
-        }
-
-        Sources.SetScreenOnly(on);
-
-        LogGameMode(on);
-    }
+    public void ClearClientSources() => Sources.ClearClients();
 
     /// <summary>Runs an effect (the <c>effect</c> command) for <paramref name="durationMs"/> ms (&lt;= 0: until cleared).</summary>
     /// <returns>False when there is no such effect.</returns>
@@ -345,21 +340,58 @@ public sealed partial class LightingEngine : IDisposable
         _devices.Dispose();
     }
 
-    // The color and smoothing sections as they apply now: with Game mode's values while it is on.
+    // The color and smoothing sections as they apply now: with the active profile's Look on top.
     private JsonNode? ColorSection() =>
-        _game ? GameTuning.FromJson(_settings.GetSection(GameTuning.SectionName)).ApplyToColor(_settings.GetSection("color")) : _settings.GetSection("color");
+        _look is { } look ? LookTuning.ApplyToColor(look, _settings.GetSection("color")) : _settings.GetSection("color");
 
     private JsonNode? SmoothingSection() =>
-        _game ? GameTuning.FromJson(_settings.GetSection(GameTuning.SectionName)).ApplyToSmoothing(_settings.GetSection("smoothing")) : _settings.GetSection("smoothing");
+        _look is { } look ? LookTuning.ApplyToSmoothing(look, _settings.GetSection("smoothing")) : _settings.GetSection("smoothing");
 
-    // After Game mode or its values changed. Runs under _applyLock; the smoothing switch keeps its state.
+    // Reads the active profile's Look from the layout; true when it changed. Runs under _applyLock.
+    private bool UpdateLook()
+    {
+        var look = _setup.ProfileId is { } id
+            ? LayoutSpecification.Profiles(_settings.GetSection("layout") as JsonObject).FirstOrDefault(p => p.Id == id)?.Look
+            : null;
+        if (look == _look)
+        {
+            return false;
+        }
+
+        _look = look;
+        if (look is null)
+        {
+            LogSavedLook();
+        }
+        else
+        {
+            LogLook(look.TimeMs, look.SaturationGain, look.LuminanceGain, look.BacklightThreshold);
+        }
+        return true;
+    }
+
+    // After the Look changed. Runs under _applyLock.
     private void ApplyTuning()
     {
         _pipeline.Configure(BuildConfig(ColorSection(), Layout, EffectLayout));
-        SmoothingApplied = SmoothingSettings.FromJson(SmoothingSection());
-        Components.Set(Component.Smoothing, SmoothingApplied.Enable);
-        _output.Configure(SmoothingApplied);
+        ApplySmoothing();
+    }
+
+    // The smoothing as it applies now; the smoothing switch follows its "enable". Runs under _applyLock.
+    private void ApplySmoothing()
+    {
+        var applied = SmoothingSettings.FromJson(SmoothingSection());
+        Components.Set(Component.Smoothing, applied.Enable);
+        _output.Configure(applied);
         _pipeline.Refresh();
+        if (applied != SmoothingApplied)
+        {
+            SmoothingApplied = applied;
+
+            // Raised under _applyLock, which is fine only because its handler (the capture rate follower: its own lock,
+            // then the store's) ends in the capture source's Configure, which just stores the settings for the next frame.
+            SmoothingAppliedChanged?.Invoke(applied);
+        }
     }
 
     private static PipelineConfig BuildConfig(JsonNode? color, LedLayout layout, LedLayout effectLayout)
@@ -599,29 +631,31 @@ public sealed partial class LightingEngine : IDisposable
 
             var previousType = _pipeline.Config.Mapping.MappingType;
             var controllersChanged = false;
+            var lookChanged = false;
             if (change.Contains("layout") || change.Contains("leds") || change.Contains("device"))
             {
                 Recompile();
                 controllersChanged = true;
+
+                // the active profile's Look was edited (or the profile removed)
+                lookChanged = change.Contains("layout") && UpdateLook();
             }
 
-            if (change.Contains("layout") || change.Contains("leds") || change.Contains("color"))
-            {
-                _pipeline.Configure(BuildConfig(ColorSection(), Layout, EffectLayout));
-            }
-
-            if (change.Contains("smoothing"))
-            {
-                var parsed = SmoothingSettings.FromJson(SmoothingSection());
-                Components.Set(Component.Smoothing, parsed.Enable);
-                _output.Configure(parsed);
-                SmoothingApplied = parsed;
-                _pipeline.Refresh();
-            }
-
-            if (change.Contains(GameTuning.SectionName) && _game)
+            if (lookChanged)
             {
                 ApplyTuning();
+            }
+            else
+            {
+                if (change.Contains("layout") || change.Contains("leds") || change.Contains("color"))
+                {
+                    _pipeline.Configure(BuildConfig(ColorSection(), Layout, EffectLayout));
+                }
+
+                if (change.Contains("smoothing"))
+                {
+                    ApplySmoothing();
+                }
             }
 
             if (change.Sections.TryGetValue("blackborderdetector", out var border))
@@ -687,6 +721,9 @@ public sealed partial class LightingEngine : IDisposable
     [LoggerMessage(Level = LogLevel.Information, Message = "Profile: {Profile}")]
     private partial void LogProfile(string profile);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Game mode: {On}")]
-    private partial void LogGameMode(bool on);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Look of the profile: {TimeMs} ms, saturation {Saturation}, color brightness {Luminance}, minimum glow {Glow}")]
+    private partial void LogLook(int timeMs, double saturation, double luminance, double glow);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Look: as saved")]
+    private partial void LogSavedLook();
 }

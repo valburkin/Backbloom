@@ -103,13 +103,13 @@ describe('What each light does', () => {
   });
 });
 
-describe('Feel and games', () => {
-  it('uses Home’s presets, and adds running games', () => {
-    const html = renderToStaticMarkup(
-      <FeelStepBody mood="natural" intensity="vivid" disabled={false} onMood={noop} onIntensity={noop} games={[]} loadPrograms={async () => []} onAddGame={noop} />,
-    );
-    for (const label of ['Relaxed', 'Natural', 'Rich', 'Subtle', 'Vivid', 'Intense']) expect(html).toContain(`>${label}<`);
-    expect(html.match(/aria-checked="true"/g)).toHaveLength(2);
-    expect(html).toContain('Add a running game');
+describe('Look', () => {
+  it('uses Home’s five Looks, and adds your game to Gaming', () => {
+    const gaming = { id: 'p', name: 'Gaming', apps: ['witcher3.exe'], sections: {} };
+    const html = renderToStaticMarkup(<FeelStepBody look="vivid" disabled={false} onLook={noop} presets={[gaming]} loadPrograms={async () => []} onAddGame={noop} />);
+    for (const label of ['Relaxed', 'Natural', 'Rich', 'Vivid', 'Intense']) expect(html).toContain(`>${label}<`);
+    expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
+    expect(html).toContain('Add your game to Gaming');
+    expect(html).toContain('used while witcher3.exe runs');
   });
 });

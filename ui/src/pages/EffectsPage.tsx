@@ -1,36 +1,28 @@
-import { useMemo, useState } from 'react';
-import { AudioLines, Palette, Play, Search, Sparkles, Square } from 'lucide-react';
-import { Button, Card, cx, Segmented, StatusDot } from '../components/ui';
-import { Advanced, Callout, NumberField, Section, Select, Toggle } from '../components/form';
+import { useMemo, useState, type ReactNode } from 'react';
+import { AudioLines, MonitorPlay, Palette, Play, Search, ScreenShare, SlidersHorizontal, Sparkles, SunMedium } from 'lucide-react';
+import { Badge, ChoiceCard, cx, StatusDot } from '../components/ui';
+import { Callout, Section, Select, Toggle } from '../components/form';
 import { PageFrame } from '../components/PageFrame';
 import { ColorPicker } from '../components/ColorPicker';
-import { LedPreview } from '../components/LedPreview';
 import { EffectThumb } from '../components/EffectThumb';
-import { LiveLayoutLights } from '../components/LayoutLights';
-import { useLayoutView } from '../live/layoutView';
 import type { RpcApi } from '../api/rpcApi';
-import { usePageSettings, type PageSettings } from '../app/config';
+import { usePageSettings } from '../app/config';
 import { useConnection } from '../app/connection';
-import { useAction } from '../app/useAction';
-import { useThrottled } from '../app/useThrottled';
-import { useLedFrame } from '../live/hooks';
-import { currentSource, effectLabel, splitEffects, STOP_HINT } from '../control/modes';
-import { useStartMusic } from '../control/music';
-import { isRgb, type Rgb } from '../color/color';
-import { differsFromDefault, withDefaults } from '../schema/schema';
+import { useEditor } from '../app/editor';
+import { hrefFor } from '../app/router';
+import { effectLabel, splitEffects } from '../control/modes';
+import { PlayingPreview } from '../control/PlayingPreview';
+import { playLabel, type WhatPlays } from '../control/presets';
+import { SetupSwitch } from '../control/SetupSwitch';
+import { isPicked, type MainPick } from '../control/show';
+import { useColorPick, usePick, useSetupInUse } from '../control/usePick';
+import type { Rgb } from '../color/color';
 
 type Obj = Record<string, unknown>;
 
 const LABELS: Record<string, string> = {
-  'foregroundEffect.duration_ms': 'Startup effect duration',
-  'foregroundEffect.effect': 'Startup effect',
-  'backgroundEffect.effect': 'Idle effect',
   'soundEffect.device': 'Listen to',
 };
-
-
-/** The startup effect plays this long when its duration is 0 or -1 (the backend's default). */
-const DEFAULT_STARTUP_MS = 3000;
 
 type GridProps = {
   names: string[];
@@ -87,137 +79,82 @@ function EffectGrid({ names, descriptions, api, layoutKey, running, onPlay, busy
   );
 }
 
-/** The startup or idle effect: on/off, then an effect or a color (and for the startup effect, how long). */
-function SourceEffectForm({
-  title,
-  description,
-  toggle,
-  value,
-  effects,
-  set,
-  withDuration,
-}: {
-  title: string;
-  description: string;
-  toggle: string;
-  value: Obj;
-  effects: string[];
-  set: (key: string, v: unknown) => void;
-  withDuration?: boolean;
-}) {
-  const enabled = value.enable === true;
-  const ms = Number(value.duration_ms ?? DEFAULT_STARTUP_MS);
+const LINK = 'text-accent-strong underline-offset-2 hover:underline';
+
+const SCREEN_PICKS: ReadonlyArray<{ pick: MainPick & { kind: 'edges' | 'average' }; description: string; icon: ReactNode }> = [
+  { pick: { kind: 'edges' }, description: 'Each strip follows the part of the screen next to it', icon: <ScreenShare size={18} /> },
+  { pick: { kind: 'average' }, description: 'The whole screen’s average color, for soft light', icon: <SunMedium size={18} /> },
+];
+
+/** The Screen section: Screen edges or Screen average, the one the setup plays highlighted. */
+function ScreenSection({ plays, onPick, busy }: { plays: WhatPlays; onPick: (p: MainPick) => void; busy: boolean }) {
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="text-xs text-ink-faint">{description}</p>
+    <Section title="Screen" icon={<MonitorPlay size={18} />} description="Your lights follow what’s on your screen.">
+      <div role="radiogroup" aria-label="Screen" className="grid gap-2 sm:grid-cols-2">
+        {SCREEN_PICKS.map(({ pick, description, icon }) => (
+          <ChoiceCard key={pick.kind} active={isPicked(plays, pick)} title={playLabel(pick)} description={description} icon={icon} disabled={busy} onClick={() => onPick(pick)} />
+        ))}
       </div>
-      <Toggle label={toggle} checked={enabled} onChange={(v) => set('enable', v)} />
-      {enabled && (
-        <>
-          <Segmented
-            label={`${title}: effect or color`}
-            value={String(value.type ?? 'effect')}
-            options={[
-              { value: 'effect', label: 'Effect' },
-              { value: 'color', label: 'Color' },
-            ]}
-            onChange={(v) => set('type', v)}
-          />
-          {value.type === 'color' ? (
-            <div className="max-w-sm">
-              <ColorPicker label={`${title} color`} compact value={isRgb(value.color) ? value.color : [255, 138, 0]} onChange={(rgb) => set('color', [...rgb])} />
-            </div>
-          ) : (
-            <Select
-              className="max-w-xs"
-              label="Effect"
-              value={String(value.effect ?? '')}
-              options={effects.map((n) => ({ value: n, label: effectLabel(n) }))}
-              onChange={(v) => set('effect', v)}
-            />
-          )}
-          {withDuration && (
-            <NumberField
-              label="Duration"
-              unit="s"
-              min={0.5}
-              step={0.5}
-              value={(ms > 0 ? ms : DEFAULT_STARTUP_MS) / 1000}
-              onChange={(v) => set('duration_ms', Math.round(v * 1000))}
-              hint="How long it plays when Backbloom starts."
-            />
-          )}
-        </>
-      )}
-    </div>
+    </Section>
   );
 }
 
-/** More options of the Effects section: the startup and idle effects. */
-function StartupAndIdle({ ps, effects }: { ps: PageSettings; effects: string[] }) {
-  const sections = ['foregroundEffect', 'backgroundEffect'] as const;
-  const changedKeys = sections.flatMap((s) => {
-    const schema = ps.schemaOf(s);
-    const value = ps.value<Obj>(s);
-    return Object.entries(schema?.properties ?? {})
-      .filter(([k, f]) => differsFromDefault(f, value[k]))
-      .map(([k]) => [s, k] as const);
-  });
+/** One color on every strip: dragging shows it live, letting go saves it to the setup. */
+function ColorSection({ plays, busy }: { plays: WhatPlays; busy: boolean }) {
+  const { live, commit } = useColorPick();
+  const [color, setColor] = useState<Rgb>([255, 100, 0]);
+  const [dragging, setDragging] = useState(false);
+  const picked = plays.kind === 'color';
+  const shown = picked && !dragging ? plays.color : color;
   return (
-    <Advanced
-      label="Startup and idle effects"
-      changed={changedKeys.length}
-      invalid={ps.issues.some((i) => sections.some((s) => i.path.startsWith(`${s}.`)))}
-      onReset={() => sections.forEach((s) => ps.set(s, withDefaults(ps.schemaOf(s), undefined)))}
+    <Section
+      title="Color"
+      icon={<Palette size={18} />}
+      description="One color on every strip. Drag to try it on your lights; letting go saves it."
+      className={cx(picked && 'ring-1 ring-inset ring-accent/60')}
+      actions={picked ? <Badge tone="accent">Playing</Badge> : undefined}
     >
-      <div className="grid gap-6 md:grid-cols-2">
-        <SourceEffectForm
-          title="Startup effect"
-          description="Plays briefly when Backbloom starts, so you know it’s running."
-          toggle="Play a startup effect"
-          value={ps.value<Obj>('foregroundEffect')}
-          effects={effects}
-          set={(k, v) => ps.setPath('foregroundEffect', [k], v)}
-          withDuration
-        />
-        <SourceEffectForm
-          title="Idle effect"
-          description="Shown when nothing else is, for example while screen sync is off."
-          toggle="Show something when idle"
-          value={ps.value<Obj>('backgroundEffect')}
-          effects={effects}
-          set={(k, v) => ps.setPath('backgroundEffect', [k], v)}
+      <div className={cx(busy && 'pointer-events-none opacity-60')}>
+        <ColorPicker
+          compact
+          wide
+          value={shown}
+          onChange={(rgb) => {
+            setDragging(true);
+            setColor(rgb);
+            live(rgb);
+          }}
+          onCommit={(rgb) => {
+            setColor(rgb);
+            void commit(rgb).finally(() => setDragging(false));
+          }}
         />
       </div>
-    </Advanced>
+    </Section>
   );
 }
 
 export function EffectsPage() {
   const { serverInfo, api, auth } = useConnection();
+  const { state, load } = useEditor();
   const ps = usePageSettings('effects', LABELS, true);
-  const { run, busy } = useAction();
-  const startMusic = useStartMusic();
-  const frame = useLedFrame();
+  const pick = usePick();
+  const { name, plays } = useSetupInUse();
   const [query, setQuery] = useState('');
-  const [color, setColor] = useState<Rgb>([255, 100, 0]);
-  const sendColor = useThrottled((rgb: Rgb) => void api.setColor(rgb).catch(() => undefined), 120);
+  const [picking, setPicking] = useState(false);
   const { music, regular } = splitEffects(serverInfo?.effects);
   const descriptions = useMemo(() => new Map((serverInfo?.effects ?? []).map((e) => [e.name, e.description ?? ''])), [serverInfo?.effects]);
-  const view = useLayoutView(api, auth === 'admin', serverInfo?.leds);
   const layoutKey = useMemo(() => JSON.stringify(serverInfo?.leds ?? []), [serverInfo?.leds]);
-  const { source } = currentSource(serverInfo?.priorities);
-  const running = source?.componentId === 'EFFECT' ? source.owner : undefined;
+  const running = plays.kind === 'effect' ? plays.effect : undefined;
   const q = query.trim().toLowerCase();
   const matches = (n: string) => effectLabel(n).toLowerCase().includes(q);
   const filtered = q ? regular.filter(matches) : regular;
   const filteredMusic = q ? music.filter(matches) : music;
-  const play = (n: string) => void run('play', 'Couldn’t start the effect', () => api.runEffect(n));
-  const playMusic = (n: string) => void run('play', 'Couldn’t start the music effect', () => startMusic(n));
-  const stop = () => void run('stop', 'Couldn’t stop', () => api.clear());
-  const all = [...regular, ...music];
+  const choose = (p: MainPick) => {
+    setPicking(true);
+    void pick(p).finally(() => setPicking(false));
+  };
+  const play = (n: string) => choose({ kind: 'effect', effect: n });
   const sound = ps.value<Obj>('soundEffect');
   const devices =
     serverInfo?.sound?.sound_devices?.map((d) => ({
@@ -227,45 +164,42 @@ export function EffectsPage() {
     })) ??
     (serverInfo?.sound?.sound_available ?? []).map((d) => ({ value: d, label: d }));
   const isAdmin = auth === 'admin';
-  const grid = { descriptions, api, layoutKey, running, busy: busy === 'play', query: query.trim() };
+  const ready = isAdmin && load.status === 'ready';
+  const noStrips = ready && state.spec.strips.length === 0;
+  const busy = picking || !ready || noStrips;
+  const grid = { descriptions, api, layoutKey, running, busy, query: query.trim() };
 
   return (
-    <PageFrame
-      title="Effects & Music"
-      subtitle="Animated scenes, a single color, or lights that dance to your music."
-      settings={isAdmin ? ps : undefined}
-      wide
-      actions={
-        <Button icon={<Square size={14} />} disabled={busy === 'stop'} onClick={stop} title={STOP_HINT}>
-          Stop
-        </Button>
-      }
-    >
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-        <Card className="overflow-hidden">
-          <div className="flex items-center justify-between border-b border-line px-5 py-3 text-[13px]">
-            <span className="font-medium">Preview</span>
-            <span className="text-ink-muted">{running ? effectLabel(running) : source?.componentId === 'COLOR' ? 'Color' : 'No effect running'}</span>
-          </div>
-          <div className="p-4">
-            {view ? <LiveLayoutLights view={view} frame={frame} compact /> : <LedPreview rects={serverInfo?.leds} frame={frame} />}
-          </div>
-        </Card>
-        <Section title="Color" icon={<Palette size={18} />} description="Drag to change the color live.">
-          <ColorPicker
-            value={color}
-            onChange={(rgb) => {
-              setColor(rgb);
-              sendColor(rgb);
-            }}
-          />
-        </Section>
+    <PageFrame title="Effects" subtitle={`What plays in ${name}. Your pick is saved to it.`} settings={isAdmin ? ps : undefined} wide actions={ready ? <SetupSwitch size="sm" /> : undefined}>
+      <div className="z-10 rounded-2xl bg-bg sm:sticky sm:top-0 sm:shadow-[0_12px_24px_-12px_rgba(0,0,0,0.9)]">
+        <PlayingPreview inline maxHeight={150} ignoreOwn />
       </div>
+      {!isAdmin && <Callout>Sign in on this PC to change what your lights play.</Callout>}
+      {noStrips && (
+        <Callout tone="warn">
+          Set up your strips in{' '}
+          <a className={LINK} href={hrefFor('layout')}>
+            Layout
+          </a>{' '}
+          first: what plays is saved per strip.
+        </Callout>
+      )}
+      {plays.kind === 'customized' && (
+        <Callout icon={<SlidersHorizontal size={16} />}>
+          Strips are customized in{' '}
+          <a className={LINK} href={hrefFor('layout')}>
+            Layout
+          </a>
+          ; a pick here replaces that.
+        </Callout>
+      )}
+      <ScreenSection plays={plays} onPick={choose} busy={busy} />
+      <ColorSection plays={plays} busy={busy} />
 
       <Section
         title="Effects"
         icon={<Sparkles size={18} />}
-        description="Click an effect to play it. It keeps running until you stop it or start something else."
+        description={`Pick one to play it across every strip of ${name}.`}
         actions={
           <label className="relative block">
             <span className="sr-only">Search effects</span>
@@ -281,11 +215,10 @@ export function EffectsPage() {
         }
       >
         <EffectGrid names={filtered} {...grid} onPlay={play} />
-        {isAdmin && ps.ready && <StartupAndIdle ps={ps} effects={all} />}
       </Section>
 
       <Section title="Music" icon={<AudioLines size={18} />} description="Effects that react to what this PC plays, or to a microphone.">
-        <EffectGrid names={filteredMusic} {...grid} onPlay={playMusic} />
+        <EffectGrid names={filteredMusic} {...grid} onPlay={play} />
         {serverInfo?.sound?.active === false && sound.enable === true && !ps.dirty && (
           <Callout tone="warn">
             {serverInfo.sound.error ? `The sound device can’t be used: ${serverInfo.sound.error}.` : 'Sound input is on but not running. Check that the device is connected.'}

@@ -68,8 +68,7 @@ needed only from another device; this computer can set a new one without it, als
 | `performance-counters` | CPU, memory, frame and LED rates |
 | `instance` `switchTo` | kept for HyperHDR clients |
 | `setup` `getstate` / `start` / `autostart` / `acknowledge` | first-run setup: whether the lights were turned on once, HyperHDR running, what was imported, autostart, remote access addresses, whether a password is set (`passwordSet`); `start` ends the first-run hold (admin) |
-| `profile` `getstate` / `select` / `programs` | the layout's profiles at runtime (see below) |
-| `mode` `getstate` / `set` | Ambient or Game mode (see below) |
+| `profile` `getstate` / `select` / `dismiss` / `programs` | the layout's profiles (the app's presets) at runtime (see below) |
 | `hardware` `find` / `connect-wifi` / `wled-identify` / `wled-probe-start` / `wled-probe-end` / `screens` / `usb-scan` / `usb-networks` / `usb-wifi` / `wled-read` / `wled-write` / `wled-wifi` / `wled-test` | admins: the guided hardware setup (one search for boards on USB, the network and their hotspots, putting a board on Wi-Fi with `hardware-progress-update` events, monitor sizes, Improv Wi-Fi over USB, setting up a WLED board and its checks); see [guided-setup.md](guided-setup.md#protocol-hardware) |
 
 ### Finding an LED (`leddevice identify`, `ledDeviceType: "blink"`)
@@ -91,43 +90,35 @@ the output being held (before the first-run setup is completed, or while HyperHD
 
 ### Profiles (`profile`)
 
-A layout's `profiles` give its strips other roles while a program runs; the first profile in the list one of whose
-programs runs is active (checked every 2 s). `serverinfo.profile` is the active one, `{ id, name, manual, game }`, or
-null (the layout as saved); `manual` is true for a profile chosen with `select`, `game` for a profile marked as a game's
-(`game: true` in the layout: Game mode is on while it runs, see below).
+A layout's `profiles` (the app's presets) give its strips other roles while they are on, and optionally a Look
+(`look`: `time_ms`, `stiffness`, `damping`, `saturationGain`, `luminanceGain`, `backlightThreshold`), which replaces
+the transition (with smoothing on) and the gains and minimum glow of `color.channelAdjustment[0]` while the profile is
+on, without changing those sections (the brightness `scaleOutput` stays). A profile is on when it was turned on with
+`select`, else the first one in the list one of whose programs (`apps`, may be empty) runs (checked every 2 s), except
+a dismissed one. `serverinfo.profile` is the one that is on, `{ id, name, manual }`, or null (the layout as saved);
+`manual` is true for a profile turned on with `select`. `serverinfo.dismissedProfile` is the profile turned off with
+`dismiss` while its programs still run, `{ id, name }`, or null.
 
 | Subcommand | Params | Reply |
 |---|---|---|
-| `getstate` | | `{ profile }` |
-| `select` | `{ id: string \| null }` | runs that profile whatever programs run, to try it out, until `select` with `id` null (or without it) goes back to choosing by the running programs; nothing is saved, and removing the profile from the layout or a restart goes back too. Replies `{ profile }`; an id the layout doesn't have is an error |
+| `getstate` | | `{ profile, dismissed }` |
+| `select` | `{ id: string \| null }` | turns that profile on whatever programs run (also a dismissed one, which ends its dismissal), until `dismiss`, another `select`, or `select` with `id` null (or without it), which goes back to choosing by the running programs (a dismissal stays), and removing the profile from the layout goes back too. The choice is saved (`presets.selected`, see [settings.md](settings.md#presets)): a restart turns the same profile on again while the layout has it. Replies `{ profile, dismissed }`; an id the layout doesn't have is an error |
+| `dismiss` | | turns the profile that is on off (the UI's **Everyday** sends it until no profile is on): one turned on with `select` goes back to choosing by the programs (and `presets.selected` is cleared); one turned on by its program, and one turned on with `select` while its own program runs, stays off until none of its programs runs any more (the next run turns it on again; a dismissal isn't saved, so a restart ends it too). Another profile whose program runs may then be on. With no profile on it changes nothing. Replies `{ profile, dismissed }` |
 | `programs` | | admins: the programs with a window open, for picking a profile's programs: `{ programs: [{ exe, title }] }`, one per executable (`exe` is what `apps` holds, e.g. `witcher3.exe`), sorted by it |
 
-`profile-update` pushes `{ profile }` whenever the active profile changes.
+`profile-update` pushes `{ profile, dismissed }` whenever either changes (also when a profile is renamed). When a
+profile is turned on (by `select`, `dismiss` handing over to another one, or its program), the colors, pictures and
+effects clients started are cleared (priorities 1 to 253, what `clear` with -1 clears except the startup effect at 0),
+so that the profile's own strips show; the screen and the background effect stay. Changing from `select` to the same
+profile turned on by its program clears nothing.
 
-### Modes (`mode`)
-
-Ambient (the lights as the settings say) or Game: while Game mode is on, only the screen is shown (colors, pictures,
-effects and music stay in the priority list, active but not visible, and show again in Ambient), and the values of the
-`game` section replace the transition time and spring (`smoothing.time_ms`, `stiffness`, `damping`, with smoothing on),
-the saturation and color brightness gains (`color.channelAdjustment[0]`, whose minimum glow `backlightThreshold` is 0),
-the brightness once `game.scaleOutput` is set (`scaleOutput`; without it Game mode uses Ambient's), and raise the
-capture rate to at least
-`game.fps`, without changing those sections. The mode chosen in the app is saved as `modes.mode`; a game's profile turns Game mode on while it runs.
-`serverinfo.mode` is `{ mode, saved, gameProfile, dismissedGame }`: `mode` the one that applies, `saved` the chosen
-one (both `"ambient"` or `"game"`), `gameProfile` the name of the game's profile that turned Game mode on, else null,
-and `dismissedGame` the name of the running game whose Game mode was turned off with `set ambient`, else null.
-
-| Subcommand | Params | Reply |
-|---|---|---|
-| `getstate` | | `{ mode }` |
-| `set` | `{ mode: "ambient" \| "game" }` | saves the chosen mode; `ambient` while a game's profile has Game mode on also turns it off until another profile (or none) runs, and `game` while that game still runs only turns it back on (the saved mode stays). Replies `{ mode }`. API access is enough |
-
-`mode-update` pushes `{ mode }` whenever it changes, in the order of the changes. Game mode's Intensity and brightness are set with `setconfig` on `game` (`adjustment` sets Ambient's brightness).
+The screen is read at least 60 times a second while the smoothing that applies (the saved one, or a profile's Look) is
+on with a transition under 300 ms; otherwise at `systemGrabber.fps`. A faster saved rate always applies.
 
 Events: `components-update`, `priorities-update`, `adjustment-update`, `settings-update`, `leds-update`,
 `imageToLedMapping-update`, `performance-update`, `token-update`, `instance-update`, `sessions-update`,
 `controllers-update`, `capture-update` (screen capture started or stopped, monitor HDR mode and tone mapping),
-`setup-update` (the `setup` state), `profile-update` (the active profile), `mode-update` (Ambient or Game), `hardware-progress-update` (the steps of `hardware connect-wifi`, to the asking connection only), `sound-update` (`serverinfo.sound` when the
+`setup-update` (the `setup` state), `profile-update` (the profile that is on and the dismissed one), `hardware-progress-update` (the steps of `hardware connect-wifi`, to the asking connection only), `sound-update` (`serverinfo.sound` when the
 sound capture starts, stops, fails or recovers), `logging-update`, and the LED color stream.
 
 Differences from HyperHDR (rejected invalid settings, persisted `adjustment`, restore without restart, and others)

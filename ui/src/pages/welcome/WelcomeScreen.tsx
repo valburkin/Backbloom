@@ -9,19 +9,18 @@ import { useEditor } from '../../app/editor';
 import { useExpertTools } from '../../app/expert';
 import { useToast } from '../../app/toast';
 import { hrefFor } from '../../app/router';
-import { defaultRoom, validateLayout, type Controller, type LayoutSpec, type PathPoint } from '../../layout';
+import { defaultRoom, type Controller, type LayoutSpec, type PathPoint } from '../../layout';
 import type { BackendConfig, ServerInfo, SetupState } from '../../api/types';
-import { saveBlockers, saveLayout } from '../../api/layoutService';
 import { useLedFrame } from '../../live/hooks';
 import { AddDeviceDialog } from '../devices/AddDeviceDialog';
 import { SetupChoices, type AddStart } from '../../setup/SetupChoices';
 import { YourLights } from '../../setup/YourLights';
 import { pathWithRole, roleRows, type RoleRow, type SimpleRole } from '../../setup/roles';
 import { TraceStrip, type TraceFrame } from '../../setup/TraceStrip';
-import { applyGameIntensity, applyMood, detectGameIntensity, detectMood, type GameIntensityId, type MoodId } from '../../settings/intensity';
+import { applyLook, detectLook, type LookId } from '../../settings/intensity';
 import { scaleForBrightness } from '../../settings/brightness';
 import { isTestDevice } from '../devices/drivers';
-import { addGame } from '../GamesPage';
+import { addGameToGaming } from '../../control/presets';
 import { OtherAppNotice } from './OtherAppNotice';
 import { FeelStepBody, RolesStepBody, type FeelProps } from './ReadySteps';
 import { addedThisSession, fittedScreen, monitorText, shownSteps, sizedMonitor, stepAfter, STEPS, type Step } from './ready';
@@ -89,9 +88,9 @@ export interface WelcomeViewProps {
   onTrace?(row: RoleRow): void;
   /** A strip being traced: shown instead of What each light does, with its own buttons. */
   trace?: TraceView | null;
-  /** Feel and games; null while the settings load. */
+  /** The Look and a game preset; null while the settings load. */
   feel?: FeelProps | null;
-  /** "Skip — use the defaults" of What each light does and Feel and games. */
+  /** "Skip — use the defaults" of What each light does and Look. */
   onSkip?(step: Step): void;
 }
 
@@ -288,7 +287,7 @@ function RolesStep(p: WelcomeViewProps) {
 function FeelStep(p: WelcomeViewProps) {
   return (
     <>
-      <Heading title="Feel and games">How your lights feel in each mode. You can change these on Home any time.</Heading>
+      <Heading title="Look">How your lights look: calm and soft, or quick and vivid. You can change it on Home any time.</Heading>
       {p.feel ? <FeelStepBody {...p.feel} /> : <Loading />}
     </>
   );
@@ -428,42 +427,18 @@ export function WelcomeView(p: WelcomeViewProps) {
 }
 
 /**
- * Saves layouts one after the other, the newest one waiting (choices made quickly in a row save once more at the end,
- * never out of order), without a message unless it fails; a layout that can't be saved as it is waits for Turn on.
+ * Saves layouts in the editor's one queue (choices made quickly in a row save once more at the end, never out of
+ * order), without a message unless it fails; a layout that can't be saved as it is waits for Turn on.
  */
 function useLayoutSaver() {
-  const { api } = useConnection();
-  const { markSaved } = useEditor();
-  const toast = useToast();
-  const queue = useRef<{ running: Promise<void> | null; next: LayoutSpec | null }>({ running: null, next: null });
-  const save = (spec: LayoutSpec): Promise<void> => {
-    const q = queue.current;
-    q.next = spec;
-    if (q.running) return q.running;
-    q.running = (async () => {
-      while (q.next) {
-        const s = q.next;
-        q.next = null;
-        if (saveBlockers(s, validateLayout(s).filter((i) => i.severity === 'error').length).length) continue;
-        try {
-          await saveLayout(api, s);
-          markSaved(s);
-        } catch (e) {
-          toast('bad', 'Couldn’t save the layout', e instanceof Error ? e.message : String(e));
-        }
-      }
-    })().finally(() => {
-      q.running = null;
-    });
-    return q.running;
-  };
-  return { save, idle: () => queue.current.running ?? Promise.resolve() };
+  const { quietSave, saveIdle } = useEditor();
+  return { save: (spec: LayoutSpec) => quietSave(spec, { quietIfBlocked: true }), idle: saveIdle };
 }
 
 /**
  * Shown instead of the app until the lights were turned on once (a new install or a HyperHDR import): welcome, the
  * lights (Your lights, where each board and room lights come back to), What each light does (each choice saved at
- * once, so the room picture shows it), Feel and games, turn on. Turn on saves the layout first (unless it can't be
+ * once, so the room picture shows it), Look, turn on. Turn on saves the layout first (unless it can't be
  * saved as it is); then the app opens where setup goes on (see {@link nextPage}).
  */
 export function WelcomeScreen({ onLookAround }: { onLookAround(): void }) {
@@ -557,9 +532,8 @@ export function WelcomeScreen({ onLookAround }: { onLookAround(): void }) {
       if (spec !== state.spec) void saver.save(spec);
     }
     if (s === 3 && config) {
-      // a new install's Mood default: Natural (an imported install keeps its colors); Game mode keeps the settings'
-      // own Intensity (Intense)
-      if (!setup.importedFrom && detectMood(config) !== 'natural') void setConfig(applyMood(config, 'natural'), 'mood');
+      // a new install's Look: Natural (an imported install keeps its colors)
+      if (!setup.importedFrom && detectLook(config) !== 'natural') void setConfig(applyLook(config, 'natural'), 'Look');
     }
     goTo(stepAfter(s, hasLights));
   };
@@ -574,20 +548,17 @@ export function WelcomeScreen({ onLookAround }: { onLookAround(): void }) {
     setPath(strip.id, pathWithRole(strip, row.segments, r, effects));
   };
 
-  const games = (state.spec.profiles ?? []).filter((x) => x.game);
   const feel: FeelProps | null = config
     ? {
-        mood: detectMood(config),
-        intensity: detectGameIntensity(config),
+        look: detectLook(config),
         disabled: feelBusy,
-        onMood: (id: MoodId) => void setConfig(applyMood(config, id), 'mood'),
-        onIntensity: (id: GameIntensityId) => void setConfig(applyGameIntensity(config, id), 'intensity'),
-        games,
+        onLook: (id: LookId) => void setConfig(applyLook(config, id), 'Look'),
+        presets: state.spec.profiles ?? [],
         loadPrograms,
-        onAddGame: (exe, title) => {
+        onAddGame: (exe) => {
           // saved with the layout when the lights are turned on
-          const change = addGame(state.spec, exe, title);
-          if (change?.action) dispatch(change.action);
+          const change = addGameToGaming(state.spec, exe, (serverInfo?.effects ?? []).map((e) => e.name));
+          if (change?.actions.length) for (const action of change.actions) dispatch(action);
           else if (change) toast('info', change.message);
         },
       }

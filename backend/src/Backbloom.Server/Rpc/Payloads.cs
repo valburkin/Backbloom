@@ -10,7 +10,7 @@ using Backbloom.Settings;
 namespace Backbloom.Server.Rpc;
 
 /// <summary>Builds the <c>serverinfo</c> and <c>sysinfo</c> payloads and the event bodies that repeat their parts.</summary>
-public sealed class Payloads(LightingEngine engine, ISettingsStore settings, DriverRegistry drivers, ServerOptions options, ProfileMonitor profiles, ModeMonitor modes)
+public sealed class Payloads(LightingEngine engine, ISettingsStore settings, DriverRegistry drivers, ServerOptions options, ProfileMonitor profiles)
 {
     public JsonObject ServerInfo()
     {
@@ -28,8 +28,9 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
         info["components"] = Components();
         info["leds"] = settings.GetSection("leds") ?? new JsonArray();
         info["controllers"] = Controllers();
-        info["profile"] = Profile();
-        info["mode"] = Mode();
+        var profile = profiles.State;
+        info["profile"] = Profile(profile.Profile);
+        info["dismissedProfile"] = Dismissed(profile.Dismissed);
         info["imageToLedMappingType"] = engine.MappingType.ToSettingString();
 
         var available = new JsonArray();
@@ -49,34 +50,29 @@ public sealed class Payloads(LightingEngine engine, ISettingsStore settings, Dri
     }
 
     /// <summary>
-    /// <c>profile</c> (an addition, also the <c>profile-update</c> event): the layout's profile whose roles the strips
-    /// have now, <c>{ id, name, manual, game }</c> (<c>manual</c>: chosen with <c>profile select</c> rather than by a
-    /// running program; <c>game</c>: a game's profile, Game mode is on while it runs), or null.
+    /// <c>profile</c> (an addition): the layout's profile (preset) that is on now, <c>{ id, name, manual }</c>
+    /// (<c>manual</c>: turned on with <c>profile select</c> rather than by a running program), or null.
     /// </summary>
-    public JsonNode? Profile() => Profile(profiles.Current);
-
     public static JsonNode? Profile(ActiveProfile? profile) => profile is null
         ? null
-        : new JsonObject { ["id"] = profile.Id, ["name"] = profile.Name, ["manual"] = profile.Manual, ["game"] = profile.Game };
+        : new JsonObject { ["id"] = profile.Id, ["name"] = profile.Name, ["manual"] = profile.Manual };
 
     /// <summary>
-    /// <c>mode</c> (an addition, also the <c>mode-update</c> event): the mode the lights are in,
-    /// <c>{ mode, saved, gameProfile, dismissedGame }</c>: <c>mode</c> and <c>saved</c> (chosen in the app) are
-    /// <c>"ambient"</c> or <c>"game"</c>; <c>gameProfile</c> is the name of the game's profile that turned Game mode on,
-    /// <c>dismissedGame</c> that of the running game whose Game mode was turned off with Ambient, else null.
+    /// <c>dismissedProfile</c> (an addition): the profile turned off with <c>profile dismiss</c> while its programs still
+    /// run, <c>{ id, name }</c>, or null.
     /// </summary>
-    public JsonObject Mode() => Mode(modes.Current);
+    public static JsonNode? Dismissed(DismissedProfile? dismissed) => dismissed is null
+        ? null
+        : new JsonObject { ["id"] = dismissed.Id, ["name"] = dismissed.Name };
 
-    public static JsonObject Mode(ModeState state)
+    /// <summary>
+    /// The reply of the <c>profile</c> command and the <c>profile-update</c> event: <c>{ profile, dismissed }</c>
+    /// (<see cref="Profile(ActiveProfile?)"/>, <see cref="Dismissed"/>).
+    /// </summary>
+    public static JsonObject ProfileState(ProfileState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return new JsonObject
-        {
-            ["mode"] = GameTuning.ToSettingString(state.Mode),
-            ["saved"] = GameTuning.ToSettingString(state.Saved),
-            ["gameProfile"] = state.GameProfile,
-            ["dismissedGame"] = state.DismissedGame,
-        };
+        return new JsonObject { ["profile"] = Profile(state.Profile), ["dismissed"] = Dismissed(state.Dismissed) };
     }
     /// <summary>
     /// <c>systemGrabbers</c> (also the <c>capture-update</c> event): <c>{ device, modes }</c> as in HyperHDR plus, for

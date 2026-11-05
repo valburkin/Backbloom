@@ -309,7 +309,7 @@ public sealed class ColorProcessorTests
         Assert.Equal(MathF.Pow(0.5f, 1.5f), new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.214f, Gamma = 1.5f }).OutputShare, 0.002f);
         Assert.Equal(1.0f, new ColorProcessor(new ColorAdjustment { ScaleOutput = 1.8f }).OutputShare, 1e-6f);
 
-        // static colors skip the gamma; Game's color brightness above 1 lifts the share, below 1 doesn't lower it
+        // static colors skip the gamma; a Look's color brightness above 1 lifts the share, below 1 doesn't lower it
         Assert.Equal(0.5f, new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.214f, Gamma = 1.5f }, colorSettings: false).OutputShare, 0.002f);
         Assert.Equal(MathF.Pow(0.5f, 1.5f) * 1.2f, new ColorProcessor(new ColorAdjustment { ScaleOutput = 0.214f, LuminanceGain = 1.2f }).OutputShare, 0.003f);
         Assert.Equal(1.0f, new ColorProcessor(new ColorAdjustment { LuminanceGain = 0.9f }).OutputShare, 1e-6f);

@@ -1,4 +1,4 @@
-// The first-run setup's "make it ready" steps (What each light does, Feel and games), the logic without React.
+// The first-run setup's "make it ready" steps (What each light does, Look), the logic without React.
 // docs/guided-setup.md describes them.
 
 import type { ScreenInfo } from '../../api/types';
@@ -8,7 +8,7 @@ import { stripColor } from '../../editor/colors';
 import { stripLedRanges } from '../../live/layoutView';
 
 /** The setup's steps; What each light does only once there are lights. */
-export const STEPS = ['Welcome', 'Your lights', 'What each does', 'Feel', 'Turn on'] as const;
+export const STEPS = ['Welcome', 'Your lights', 'What each does', 'Look', 'Turn on'] as const;
 export type Step = 0 | 1 | 2 | 3 | 4;
 
 /** The steps shown: without lights (the user skipped adding them) nothing to give a role. */

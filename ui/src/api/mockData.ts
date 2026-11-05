@@ -8,7 +8,8 @@ import schema from './__fixtures__/schema.json';
 import serverInfo from './__fixtures__/serverinfo.json';
 import sysInfo from './__fixtures__/sysinfo.json';
 import type { BackendConfig, ServerInfo, SettingsSchema, SysInfo } from './types';
-import { ceilingFront, controllerFromWledConfig, defaultRoom, type DriverSettings, type LayoutSpec } from '../layout';
+import { ceilingFront, controllerFromWledConfig, defaultRoom, type DriverSettings, type LayoutSpec, type Profile } from '../layout';
+import { defaultPresets, GAMING_ID } from '../control/presets';
 
 export const MOCK_FIXTURES = {
   config: config as BackendConfig,
@@ -57,4 +58,13 @@ export function demoLayout(host: string): LayoutSpec {
       { id: 'ceiling', name: 'Ceiling', controllerId: controller.id, output: 1, ledCount: 77, path: ceilingFront(room), depth: 0.25, blend: 5 },
     ],
   };
+}
+
+/**
+ * The demo layout's presets: the defaults a layout gets at its first save (Gaming, Movie, Music, Cozy); with
+ * `?mock=presets` Gaming is used while The Witcher 3 runs (which the mock runs).
+ */
+export function demoPresets(spec: LayoutSpec, withGame: boolean): Profile[] {
+  const effects = (serverInfo as ServerInfo).effects?.map((e) => e.name) ?? [];
+  return defaultPresets(spec, effects).map((p) => (withGame && p.id === GAMING_ID ? { ...p, apps: ['witcher3.exe'] } : p));
 }

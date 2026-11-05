@@ -70,14 +70,15 @@ function tierState(ps: PageSettings, section: string, keys: readonly string[]) {
   };
 }
 
+/** The frame rate the screen is read at, at least, while the Look's transitions are quicker than 0.3 s (the backend decides). */
+const FAST_LOOK_FPS = 60;
+
 export function CapturePage() {
   const ps = usePageSettings('capture', LABELS, true);
   const { serverInfo } = useConnection();
   const expert = useExpertTools();
   const control = ps.value<Obj>('systemControl');
   const grabber = ps.value<Obj>('systemGrabber');
-  // Game mode reads at least its own rate (Colors in Game mode)
-  const gameFps = serverInfo?.mode?.mode === 'game' ? Number(ps.value<Obj>('game').fps ?? 60) : null;
   const border = ps.value<Obj>('blackborderdetector');
   const err = (path: string) => ps.issues.find((i) => i.path === path)?.message;
   const range = (section: string, key: string, fb: { min: number; max: number; step?: number }) => rangeOf(propertyAt(ps.schemaOf(section), key), fb);
@@ -101,7 +102,7 @@ export function CapturePage() {
   const borderExpert = ['borderFrameCnt', 'unknownFrameCnt', 'maxInconsistentCnt', 'blurRemoveCnt'] as const;
 
   return (
-    <PageFrame title="Screen" subtitle="How Backbloom reads your screen, in Ambient and Game." settings={ps}>
+    <PageFrame title="Screen" subtitle="How Backbloom reads your screen." settings={ps}>
       <Section title="Screen" icon={<Monitor size={18} />}>
         <Select
           className="max-w-md"
@@ -126,7 +127,7 @@ export function CapturePage() {
             step={1}
             value={Number(grabber.fps ?? fps.default ?? 30)}
             onChange={set('systemGrabber', 'fps')}
-            hint={`How often the screen is read. 30–60 looks smooth; higher uses more of your PC.${gameFps ? ` While you play, at least ${gameFps} (Colors in Game mode).` : ''}`}
+            hint={`How often the screen is read. 30–60 looks smooth; higher uses more of your PC. While the Look is quick (Vivid, Intense), at least ${FAST_LOOK_FPS}.`}
           />
           <Toggle label="Use the graphics card" hint="Faster, and needed for HDR brightness matching. Recommended." checked={hardware} onChange={set('systemGrabber', 'hardware')} />
           <div id="hdr">

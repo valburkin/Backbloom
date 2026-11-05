@@ -137,12 +137,10 @@ export function ConnectionProvider({ backend, children }: { backend: Backend; ch
         );
       }),
       backend.onEvent('profile-update', (e) => {
-        const d = e.data as { profile?: ServerInfo['profile'] };
-        setServerInfo((si) => (si && d && 'profile' in d ? { ...si, profile: d.profile ?? null } : si));
-      }),
-      backend.onEvent('mode-update', (e) => {
-        const d = e.data as { mode?: ServerInfo['mode'] };
-        setServerInfo((si) => (si && d?.mode ? { ...si, mode: d.mode } : si));
+        const d = e.data as { profile?: ServerInfo['profile']; dismissed?: ServerInfo['dismissedProfile'] };
+        setServerInfo((si) =>
+          si && d && 'profile' in d ? { ...si, profile: d.profile ?? null, dismissedProfile: 'dismissed' in d ? (d.dismissed ?? null) : si.dismissedProfile } : si,
+        );
       }),
       backend.onEvent('adjustment-update', (e) => {
         if (Array.isArray(e.data)) setServerInfo((si) => (si ? { ...si, adjustment: e.data as ChannelAdjustment[] } : si));

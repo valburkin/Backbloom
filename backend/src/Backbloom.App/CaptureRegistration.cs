@@ -10,8 +10,8 @@ namespace Backbloom.App;
 
 /// <summary>
 /// Registers the frame source chosen by <c>--capture</c>: screen capture configured by the <c>systemGrabber</c>
-/// settings (reconfigured on every change of that section, and with Game mode's rate while it is on, see
-/// <see cref="CaptureModeFollower"/>), the synthetic test pattern, or a still picture (<c>--capture-image</c>).
+/// settings (reconfigured on every change of that section, and at least 60 fps while the applied transitions are fast,
+/// see <see cref="CaptureRateFollower"/>), the synthetic test pattern, or a still picture (<c>--capture-image</c>).
 /// </summary>
 internal static partial class CaptureRegistration
 {
@@ -20,7 +20,7 @@ internal static partial class CaptureRegistration
         services.AddSingleton(sp => new LutProvider(
             new LutLocations(options.LutDirectories, options.LutDirectories.Count > 0 ? options.LutDirectories[0] : options.DataDirectory),
             sp.GetRequiredService<ILogger<LutProvider>>()));
-        services.AddSingleton<CaptureModeFollower>();
+        services.AddSingleton<CaptureRateFollower>();
         services.AddSingleton(sp => CreateSource(options, sp));
         return services;
     }
@@ -50,7 +50,7 @@ internal static partial class CaptureRegistration
     private static DxgiScreenSource CreateScreenSource(IServiceProvider services)
     {
         var store = services.GetRequiredService<ISettingsStore>();
-        var follower = services.GetRequiredService<CaptureModeFollower>();
+        var follower = services.GetRequiredService<CaptureRateFollower>();
         var source = new DxgiScreenSource(
             follower.SettingsFrom(store),
             services.GetRequiredService<LutProvider>(),

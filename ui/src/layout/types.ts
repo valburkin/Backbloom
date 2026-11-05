@@ -170,19 +170,35 @@ export interface Controller {
 }
 
 /**
- * A set of different roles for the strips, used while one of its programs runs (e.g. a game). Only what the sections
- * do changes; the strips, their paths and LED counts are the layout's.
+ * A preset's own Look: the transition time with its spring and the color values, applied on top of the saved
+ * `smoothing` (on) and `color.channelAdjustment[0]` while the preset is on, without saving them (ui/src/settings/intensity.ts
+ * has the five Looks).
+ */
+export interface ProfileLook {
+  time_ms: number;
+  stiffness: number;
+  damping: number;
+  saturationGain: number;
+  luminanceGain: number;
+  backlightThreshold: number;
+}
+
+/**
+ * A preset (the UI's word; a profile here): what the strips show while it's on, an optional Look, and the programs
+ * that turn it on while they run. It is turned on by hand (`profile select`) or by one of its programs. Only what the
+ * sections do changes; the strips, their paths and LED counts are the layout's.
  */
 export interface Profile {
   id: string;
   name: string;
   /**
-   * Programs that turn the profile on while they run: executable names such as "witcher3.exe" (case doesn't matter).
-   * When programs of several profiles run, the first profile in the list wins.
+   * Programs that turn the preset on while they run ("Used while running"): executable names such as "witcher3.exe" (case
+   * doesn't matter); may be empty (turned on by hand only). When programs of several presets run, the first in the
+   * list wins.
    */
   apps: string[];
-  /** The programs are games: Game mode is on while the profile runs (the backend’s ModeMonitor). */
-  game?: boolean;
+  /** Its own Look; absent or null: the saved Look stays. */
+  look?: ProfileLook | null;
   /**
    * What the profile changes, per strip id: what each section does (index = the section's index, i.e. the index of
    * the point it starts at; null = 'auto'). Strips not listed, gaps, and lists whose length doesn't match the strip's

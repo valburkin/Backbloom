@@ -160,7 +160,7 @@ export function DriverForm({
   dirty: boolean;
   onChange: (device: DriverSettings) => void;
 }) {
-  const { api, serverInfo } = useConnection();
+  const { api } = useConnection();
   const { config } = useConfig();
   const { run, busy } = useAction();
   const devices = useDeviceSearch();
@@ -192,8 +192,7 @@ export function DriverForm({
         </Button>
       ),
     };
-  // Game mode always smooths
-  if (smoothing.enable === true || serverInfo?.mode?.mode === 'game')
+  if (smoothing.enable === true)
     overrides.refreshTime = {
       hint: (
         <>
@@ -201,7 +200,7 @@ export function DriverForm({
           <a className="text-accent-strong hover:underline" href={hrefFor('colors')}>
             Colors
           </a>{' '}
-          page in Ambient mode), so this value has no effect.
+          page), so this value has no effect.
         </>
       ),
     };

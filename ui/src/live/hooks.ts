@@ -1,8 +1,9 @@
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useConnection } from '../app/connection';
 import type { RpcApi } from '../api/rpcApi';
 import { appendLogs, type LogState } from './logs';
 import { performanceReducer, summarize, type PerformanceSummary } from './performance';
+import { atFullBrightness, outputShare, shownBrighter } from './previewBrightness';
 
 // The LED stream is per connection; several components may want it at once.
 const ledStreamUsers = new WeakMap<RpcApi, number>();
@@ -43,6 +44,20 @@ export function useLedFrame(enabled = true): number[] | null {
   }, [api, backend, live, session]);
 
   return live ? frame : null;
+}
+
+/**
+ * The LED colors for a preview: as at full brightness (Home's Brightness divided out, see previewBrightness.ts), and
+ * whether they were scaled up for that ("Shown at full brightness").
+ */
+export function usePreviewFrame(enabled = true): { frame: number[] | null; brighter: boolean } {
+  const { serverInfo } = useConnection();
+  const raw = useLedFrame(enabled);
+  const lightsOn = serverInfo?.components?.find((c) => c.name === 'ALL')?.enabled !== false;
+  const adjustment = serverInfo?.adjustment?.[0];
+  const share = outputShare(adjustment?.scaleOutput, adjustment?.gamma, lightsOn);
+  const frame = useMemo(() => atFullBrightness(raw, share), [raw, share]);
+  return { frame, brighter: shownBrighter(share) };
 }
 
 /** Live performance numbers (subscribed with the session's other events; one round is requested on mount). */

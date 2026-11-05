@@ -19,10 +19,9 @@ export interface Symptom {
 
 /**
  * The common "my lights look wrong" problems, each with a one-line fix and links to the exact control
- * (`?focus=` opens it, also inside More options). `held`: the lights wait for "Turn on lights"; `expert`: offer the log;
- * `game`: Game mode (its Intensity instead of Ambient's Mood).
+ * (`?focus=` opens it, also inside More options). `held`: the lights wait for "Turn on lights"; `expert`: offer the log.
  */
-export function symptoms({ held, expert, game = false }: { held: boolean; expert: boolean; game?: boolean }): Symptom[] {
+export function symptoms({ held, expert }: { held: boolean; expert: boolean }): Symptom[] {
   return [
     {
       id: 'nothing',
@@ -70,26 +69,21 @@ export function symptoms({ held, expert, game = false }: { held: boolean; expert
     {
       id: 'flicker',
       title: 'Flicker or jumpy colors',
-      fix: game ? 'Pick a calmer Intensity, or a longer reaction time.' : 'Pick a calmer Mood, or make the transitions gentler.',
-      links: game
-        ? [
-            { label: 'Intensity', href: hrefFor('home', null, 'intensity') },
-            { label: 'Reaction time', href: hrefFor('colors', null, 'transitions') },
-          ]
-        : [
-            { label: 'Mood', href: hrefFor('home', null, 'mood') },
-            { label: 'Transitions', href: hrefFor('colors', null, 'transitions') },
-          ],
+      fix: 'Pick a calmer Look, or make the transitions gentler.',
+      links: [
+        { label: 'Look', href: hrefFor('home', null, 'look') },
+        { label: 'Transitions', href: hrefFor('colors', null, 'transitions') },
+      ],
     },
   ];
 }
 
 /** "Lights look wrong?" on Home: symptoms with their fix, each a link to the control. */
-export function TroubleshooterDialog({ open, onClose, held, expert, game }: { open: boolean; onClose(): void; held: boolean; expert: boolean; game?: boolean }) {
+export function TroubleshooterDialog({ open, onClose, held, expert }: { open: boolean; onClose(): void; held: boolean; expert: boolean }) {
   return (
     <Dialog open={open} title="Lights look wrong?" onClose={onClose} wide>
       <ul className="divide-y divide-line">
-        {symptoms({ held, expert, game }).map((s) => (
+        {symptoms({ held, expert }).map((s) => (
           <li key={s.id} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:gap-4">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">{s.title}</p>

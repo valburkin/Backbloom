@@ -125,7 +125,7 @@ describe('layout editor rendering', () => {
     const playing = { ...spec.strips[1], path: spec.strips[1].path.map((p, i) => (i === 0 ? { ...p, next: { kind: 'effect' as const, effect: 'Candle' } } : p)) };
     const html = renderToStaticMarkup(<CustomizeEditor spec={spec} strip={playing} issues={issues} dispatch={noop} effects={['Candle']} profileName="Witcher 3" onRoles={noop} />);
     expect(html).toContain('What it shows in Witcher 3');
-    expect(html).toContain('shared by all profiles');
+    expect(html).toContain('shared by all presets');
     expect(html).not.toContain('Brightness');
   });
 
@@ -135,7 +135,7 @@ describe('layout editor rendering', () => {
     const sentence = renderToStaticMarkup(
       <ProfileSettings spec={withProfile} profileId="p1" dispatch={noop} onEdit={noop} loadPrograms={async () => []} previewing={false} onPreview={noop} />,
     );
-    for (const words of ['turns on when', 'witcher3.exe', 'Add program…', 'Pick from running apps', 'is running', 'Preview', 'Show this profile on your lights now'])
+    for (const words of ['is used while', 'witcher3.exe', 'Add program…', 'Pick from running apps', 'is running', 'Use', 'Switch to this preset now'])
       expect(sentence).toContain(words);
   });
 

@@ -21,18 +21,16 @@ release note (the landing page in `site/` isn't part of a release and has no ent
   found and added from Add device → Room lights.
 - **A first-run setup that ends ready to use**: after your lights, say what each one does (every light follows the
   screen's average colors until you choose; Screen edge lets you draw the strip's route and checks it on the strip),
-  pick the feel and add your games. New lights start at 20% brightness.
+  pick the Look and add your game to the Gaming preset. New lights start at 20% brightness.
 - **Live colors on the Layout page**: in Customize, show every LED in the color it lights your room right now,
   instead of the rainbow that marks what each LED follows.
 - **`--capture-image <file>`** (for developers): a still picture as the frame source instead of the screen, so
   screenshots and demos show known colors.
-- **Ambient and Game mode**: two apps in one, switched at the top of the sidebar. Ambient is for movies, music and
-  everyday use, with screen sync, music, effects and colors. Game is made for playing: the lights follow the game on
-  your screen, react faster with richer colors, dark scenes stay dark, and the screen is read more often. Its
-  Intensity (Subtle, Vivid or Intense) and its brightness are its own (it starts at Ambient's brightness until you
-  change it while playing), so your everyday settings stay as they are, and an effect, music or color you had on
-  comes back when you switch to Ambient.
-  Add your games on Game mode's Games page and Game mode turns on by itself while one runs, and off when it quits.
+- **Presets**: saved setups of what your lights play and how they look. Everyday is your usual one; Gaming, Movie,
+  Music and Cozy come ready-made, and you can add your own. Switch between them on Home or the Presets page: one is
+  always in use, and whatever you change saves to it (it's still in use after a restart). A preset can also be used by
+  itself while a program runs, such as your game, and Everyday comes back when it quits. Each preset can have its
+  own Look and its own setup per strip (Edit strips in Layout).
 - **Room layout**: place your LED strips where they really are, on a drawing of your room unfolded around the screen
   (walls, ceiling and floor, with your desk and monitor or TV). Pick a ready-made shape or draw a strip yourself, drag
   its bends, and mark gaps where a strip is cut or runs around something. Bends snap to the screen and the furniture.
@@ -40,8 +38,6 @@ release note (the landing page in `site/` isn't part of a release and has no ent
   screen each LED shows; drag the dots on the screen's edge to change it.
 - **Roles for strips and parts of them**: besides the screen next to it, a strip or any part of it can show the whole
   screen, play an effect or react to music on its own, glow in one color, or stay off.
-- **Profiles**: other roles for your strips while a game or app runs, switched on by itself when the program starts;
-  pick the program from the ones that are open and try a profile without starting it.
 - **Match with your lights**: light one LED at a time and show where each corner is, so the LEDs land where they really
   are even if the drawing isn't to scale.
 - **Performance recording**: Backbloom notes its CPU and memory use, the frame rate and how each controller keeps up
@@ -58,10 +54,11 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ### Changed
 
-- **Your last choice wins**: music, an effect or a color picked on Home or Effects & Music now plays on every strip,
-  also on strips with their own effect or color, which looked like the choice didn't apply. Choosing what a strip
-  shows in Layout → Customize brings your layout back (Screen sync) and changes only that strip: the others keep
-  playing the music, effect or color as their own (with Undo).
+- **What you pick stays**: Screen edges, Screen average, an effect, music or a color picked on the new **Effects**
+  page is saved to the preset in use and plays on every strip, also after a restart; there's no temporary effect to
+  stop any more. Picking one replaces what you customized per strip in Layout (Off parts stay off; Undo puts it
+  back), and changing a strip in Layout → Customize changes only that strip. The Effects page keeps a live preview
+  in view while you scroll; startup and idle effects moved to Settings → General.
 - **Customize applies at once**: changes there are saved and shown right away, without Save (Place keeps it).
 - **Clearer choices for what a strip shows** (Layout → Customize): a strip either **follows the Show** (what your lights
   show now, named on its card) or has **its own effect**, **its own color**, or is **off**. Screen edge and Screen
@@ -79,13 +76,14 @@ release note (the landing page in `site/` isn't part of a release and has no ent
   the Layout page; drag the strips to where they are and save.
 - The log no longer calls WLED's power limiter an error: it protects the LEDs and the power supply from drawing too
   much.
-- **Mood replaces Intensity in Ambient**: Relaxed, Natural and Rich (before: Subtle, Moderate, High, Intense) on Home
-  set how the room feels, including the speed of the default smoothing style, as does Transitions on the Colors page
-  (before, they only changed the colors). Natural is the default. Colors fine-tunes the same values and says which
-  Mood they match. The other smoothing styles moved under More options.
+- **The Look replaces Intensity**: Relaxed, Natural, Rich, Vivid and Intense (before: Subtle, Moderate, High, Intense)
+  on Home set how fast and how rich the lights are, including the speed of the default smoothing style, as does
+  Transitions on the Colors page (before, they only changed the colors). Natural is the default; Vivid and Intense keep
+  dark scenes dark, and while a Look is that quick the screen is read at least 60 times a second. Colors fine-tunes the
+  Look of the preset in use and says which Look it matches. The other smoothing styles moved under More options.
 - **A simpler app**: everyday settings are in view and the rest is tucked away.
-  - Fewer sections, in two groups: what belongs to the mode (Home, Colors, and Effects & Music or Games) and, at the
-    bottom of the sidebar, what both modes share: Setup (Layout, Devices, Screen and Calibration) and Settings. White
+  - Fewer sections: Home, Effects, Presets and Colors, and at the bottom of the sidebar Setup (Layout, Devices, Screen
+    and Calibration) and Settings. White
     balance, contrast, per-color calibration and the power limit moved to Setup → Calibration. Their names show in the sidebar at
     the default window size.
   - Fine-tuning sits under **More options** at the end of each section; it says how many values you changed and can
@@ -99,8 +97,9 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 - **Adding a device**: search your network for WLED from the Add device dialog instead of typing its address; devices
   you already added are marked. Afterwards Backbloom points you to placing your strips.
 - **Layout has two modes**: Place (where your strips are, with four guided steps when there's no layout yet) and
-  Customize (what each part shows, brightness, profiles). Trying a profile is now called Preview, and Home can stop it.
-- **Home** shows what matters: on/off, what's shown, brightness and Mood (Intensity in Game mode), a warning when a device can't be
+  Customize (what each part shows, brightness, and the strips of each preset).
+- **Home** shows what matters: on/off, brightness, what plays now above a live preview (shown at full brightness, so
+  it stays readable when the lights are dim), the preset in use and its Look, a warning when a device can't be
   reached, and **Lights look wrong?**, which names the usual causes and takes you to the right setting. Brightness is
   set only here now (above 100% is an expert setting on Colors).
 - **Music effects turn on sound input by themselves.**
@@ -118,7 +117,7 @@ release note (the landing page in `site/` isn't part of a release and has no ent
   others, and the effect previews show that.
 - **Strip parts set to Off stayed dimly lit**: they are fully off now, whatever the color settings' minimum brightness.
 - **Effect previews load faster** with Screen average lights.
-- **Screen average lights flickered between colors** (e.g. yellow and green) in some scenes, most of all in Game mode:
+- **Screen average lights flickered between colors** (e.g. yellow and green) in some scenes:
   their color now changes more gently, while the lights along the screen edges stay as quick as before.
 - Finding an LED did nothing while the lights were off or nothing was shown.
 - **WLED lights stayed off after a display change** (a game starting, a resolution or HDR change): Backbloom no longer switches the

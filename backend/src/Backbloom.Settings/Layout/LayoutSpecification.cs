@@ -27,8 +27,10 @@ namespace Backbloom.Settings.Layout;
 /// with an area that isn't inside out, none, effect with a name, color with three whole numbers 0..255, or gap), valid
 /// <c>dark</c>, <c>depth</c>, <c>blend</c> and <c>brightness</c>, names an existing controller and output, one strip
 /// per output, and has at most as many LEDs as its output (fewer: the rest stays dark). <c>profiles</c>, when given,
-/// is a list of profiles with unique non-empty ids, a name, <c>apps</c> as a list of program names, an optional
-/// <c>game</c> flag (true or false: Game mode while the profile runs) and
+/// is a list of profiles with unique non-empty ids, a name, <c>apps</c> as a list of program names (may be empty), an
+/// optional <c>look</c> (null or an object with whole numbers <c>time_ms</c> 25..5000, <c>stiffness</c> and
+/// <c>damping</c> 0..1000, and numbers <c>saturationGain</c> and <c>luminanceGain</c> 0..10 and
+/// <c>backlightThreshold</c> 0..1, the ranges of the <c>smoothing</c> and <c>color</c> schemas) and
 /// <c>sections</c> as an object of lists per strip id whose entries are null or valid sections other than gap (a list
 /// for a strip that isn't there, or of another length, is only a warning in the UI and is ignored when applied).
 /// Properties the backend doesn't use (the UI's <c>kind</c>, <c>host</c>, <c>pin</c>, <c>name</c>, ...) are kept as
@@ -236,13 +238,21 @@ public static class LayoutSpecification
             if (String(profile["id"]) is { Length: > 0 } id)
             {
                 var apps = (profile["apps"] as JsonArray ?? []).Select(String).OfType<string>().Where(a => a.Trim().Length > 0).ToList();
-                var game = profile["game"] is JsonValue g && g.TryGetValue(out bool isGame) && isGame;
-                list.Add(new LayoutProfile(id, String(profile["name"]) ?? id, apps, game));
+                list.Add(new LayoutProfile(id, String(profile["name"]) ?? id, apps, Look(profile["look"])));
             }
         }
 
         return list;
     }
+
+    // A profile's look; null when it has none or it isn't valid (the store validates it).
+    private static ProfileLook? Look(JsonNode? node) =>
+        node is JsonObject o
+        && TryInt(o["time_ms"], out var time) && TryInt(o["stiffness"], out var stiffness) && TryInt(o["damping"], out var damping)
+        && TryNumber(o["saturationGain"], out var saturation) && TryNumber(o["luminanceGain"], out var luminance)
+        && TryNumber(o["backlightThreshold"], out var backlight)
+            ? new ProfileLook(time, stiffness, damping, saturation, luminance, backlight)
+            : null;
 
     /// <summary>
     /// The layout as the profile <paramref name="profileId"/> has it (<c>applyProfile</c> / <c>stripInProfile</c>):
@@ -753,9 +763,9 @@ public static class LayoutSpecification
                 errors.Add(new SettingsError($"{p}.apps", "must be a list of program names (such as \"game.exe\")"));
             }
 
-            if (profile.TryGetPropertyValue("game", out var game) && (game is not JsonValue gv || !gv.TryGetValue(out bool _)))
+            if (profile["look"] is { } look)
             {
-                errors.Add(new SettingsError($"{p}.game", "must be true or false"));
+                ValidateLook(look, $"{p}.look", errors);
             }
 
             if (profile["sections"] is not JsonObject sections)
@@ -789,6 +799,39 @@ public static class LayoutSpecification
                         ValidateSection(list[j], $"{sp}.{j}", errors);
                     }
                 }
+            }
+        }
+    }
+
+    // A profile's look: the ranges of the smoothing and color schemas.
+    private static void ValidateLook(JsonNode look, string path, List<SettingsError> errors)
+    {
+        if (look is not JsonObject o)
+        {
+            errors.Add(new SettingsError(path, "must be an object (time_ms, stiffness, damping, saturationGain, luminanceGain, backlightThreshold) or null"));
+            return;
+        }
+
+        WholeIn("time_ms", 25, 5000);
+        WholeIn("stiffness", 0, 1000);
+        WholeIn("damping", 0, 1000);
+        NumberIn("saturationGain", 0, 10);
+        NumberIn("luminanceGain", 0, 10);
+        NumberIn("backlightThreshold", 0, 1);
+
+        void WholeIn(string name, int min, int max)
+        {
+            if (!TryInt(o[name], out var value) || value < min || value > max)
+            {
+                errors.Add(new SettingsError($"{path}.{name}", Invariant($"must be a whole number from {min} to {max}")));
+            }
+        }
+
+        void NumberIn(string name, double min, double max)
+        {
+            if (!TryNumber(o[name], out var value) || value < min || value > max)
+            {
+                errors.Add(new SettingsError($"{path}.{name}", Invariant($"must be a number from {min} to {max}")));
             }
         }
     }

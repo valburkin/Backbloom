@@ -38,11 +38,12 @@ const spec = (strips: Strip[], controllers: Controller[] = [controller()], room:
 const messages = (s: LayoutSpec) => validateLayout(s).map((i) => `${i.severity}: ${i.message}`);
 
 describe('validateLayout', () => {
-  it('accepts a profile marked as a game, and only true or false for it', () => {
-    const profile = { id: 'p', name: 'Game', apps: ['game.exe'], sections: {} };
-    expect(messages({ ...spec([strip()]), profiles: [{ ...profile, game: true }] })).toEqual([]);
-    expect(messages({ ...spec([strip()]), profiles: [{ ...profile, game: 'yes' as unknown as boolean }] })).toEqual([
-      'error: Profile “Game” needs “game” to be true or false.',
+  it('accepts a preset without programs, with or without its own Look, and checks the Look', () => {
+    const preset = { id: 'p', name: 'Gaming', apps: [], sections: {} };
+    const look = { time_ms: 150, stiffness: 817, damping: 61, saturationGain: 1.5, luminanceGain: 1.2, backlightThreshold: 0 };
+    expect(messages({ ...spec([strip()]), profiles: [preset, { ...preset, id: 'q', look }] })).toEqual([]);
+    expect(messages({ ...spec([strip()]), profiles: [{ ...preset, look: { ...look, time_ms: 0 } }] })).toEqual([
+      'error: Preset “Gaming” has a Look with time_ms 0; it must be a whole number between 25 and 5000.',
     ]);
   });
 

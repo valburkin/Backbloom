@@ -14,10 +14,12 @@ React UI; see [Credits](#credits).
   detection, multi-monitor capture.
 - **Color**: per-channel calibration (primaries or a full 3D LUT), gamma, temperature, brightness and saturation,
   minimal backlight, power limit.
-- **Smoothing**: a soft spring by default, set by one transition time (or the Intensity presets on Home); five more
+- **Smoothing**: a soft spring by default, set by one transition time (or the five Looks on Home); five more
   styles under Advanced, a configurable rate and an anti-flicker filter. See [docs/smoothing.md](docs/smoothing.md).
-- **Effects and music mode**: rainbow swirls, mood blobs, breath, candle, and nine music effects driven by WASAPI
+- **Effects and music**: rainbow swirls, mood blobs, breath, candle, and nine music effects driven by WASAPI
   loopback or a microphone.
+- **Presets**: saved setups (what plays on each strip and a Look), picked by hand or used while a program runs; Gaming,
+  Movie, Music and Cozy to start with.
 - **Desktop app**: tray menu (lights, screen sync, music, effects, colors, pause), window with the UI, start with
   Windows (opt-in), sleep and lock handling, single instance, automatic updates.
 - **Control**: JSON-RPC over WebSocket and HTTP (compatible with HyperHDR clients for the commands the UI uses), MQTT

@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type Dispatch, type ReactNode } from 'react';
 import { validateLayout, type LayoutIssue, type LayoutSpec } from '../layout';
-import { loadLayout, saveBlockers, saveLayout, type LayoutSource, type SaveBlocker } from '../api/layoutService';
+import { loadLayout, saveBlockers, saveLayout, type LayoutSource, type SaveBlocker, type SaveResult } from '../api/layoutService';
 import { editorReducer, initialEditorState, isDirty, type EditorAction, type EditorState } from '../editor/state';
 import { useConnection } from './connection';
 import { useToast } from './toast';
+import { createSaveQueue, type LayoutChange } from './layoutSaver';
 
 export interface LoadInfo {
   status: 'idle' | 'loading' | 'ready' | 'error';
@@ -25,14 +26,22 @@ export interface EditorContextValue {
   blockers: SaveBlocker[];
   saving: boolean;
   /**
-   * Saves the layout; `done` replaces the usual “Layout saved” message. `spec` saves that layout instead of the
-   * current one: the result of an edit dispatched just now, which the state doesn't have yet. Resolves to whether it
-   * was saved.
+   * Saves the layout; `done` replaces the usual “Layout saved” message (`quiet`: no message, for Customize, which
+   * saves every change at once). `spec` saves that layout instead of the current one: the result of an edit dispatched
+   * just now, which the state doesn't have yet. Resolves to whether it was saved.
    */
-  /** Saves the layout (`quiet`: without the toast, for Customize, which saves every change at once). */
   save(done?: string, spec?: LayoutSpec, options?: { quiet?: boolean }): Promise<boolean>;
-  /** `spec` was saved by other means (the first-run setup's quiet saves): it is the saved layout now. */
-  markSaved(spec: LayoutSpec): void;
+  /**
+   * Saves a change without a message (picks, Looks, presets, the first-run setup), in the one queue every layout save
+   * goes through, so saves never overlap or land out of order. A change given as a function is made to the layout saved
+   * last, not to the edited one (which may hold edits that aren't saved, e.g. a strip being drawn); put the same change
+   * into the edited layout too as a mirror (dispatch `mirror`, then `mirrorDone` when this resolves: it isn't counted
+   * as an unsaved edit meanwhile, and goes back when the save fails). A failure is reported as a toast
+   * (`quietIfBlocked`: not when the layout just can't be saved as it is). Resolves to whether it was saved.
+   */
+  quietSave(change: LayoutChange, options?: { quietIfBlocked?: boolean }): Promise<boolean>;
+  /** Resolves once no save is waiting. */
+  saveIdle(): Promise<void>;
 }
 
 const Ctx = createContext<EditorContextValue | null>(null);
@@ -49,6 +58,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [saving, setSaving] = useState(false);
 
   const dirty = isDirty(state);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  /** The layout saved last (or loaded), kept at once (the state has it after the next render). */
+  const savedRef = useRef<LayoutSpec | null>(null);
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
   const loadedSession = useRef(-1);
@@ -62,6 +75,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     loadLayout(conn.api, { admin: conn.auth === 'admin', serverInfo: conn.serverInfo })
       .then((res) => {
         if (seq !== loadSeq.current) return;
+        savedRef.current = res.spec;
         dispatch({ type: 'load', spec: res.spec });
         setLoad({ status: 'ready', source: res.source, note: res.note });
       })
@@ -96,16 +110,41 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     [state.spec, issues],
   );
 
+  const markSaved = useCallback((spec: LayoutSpec) => {
+    savedRef.current = spec;
+    dispatch({ type: 'markSaved', spec });
+    setLoad((l) => ({ ...l, source: 'saved', note: undefined }));
+  }, []);
+
+  const deps = useRef({ conn, toast, markSaved });
+  deps.current = { conn, toast, markSaved };
+  const [queue] = useState(() =>
+    createSaveQueue<SaveResult>({
+      saved: () => savedRef.current ?? stateRef.current.spec,
+      blocked: (spec) => {
+        if (deps.current.conn.auth !== 'admin') return 'Sign in on this PC to change your lights.';
+        return saveBlockers(spec, validateLayout(spec).filter((i) => i.severity === 'error').length)[0]?.message ?? null;
+      },
+      save: async (spec) => {
+        const { conn: c, markSaved: mark } = deps.current;
+        const res = await saveLayout(c.api, spec, (c.serverInfo?.effects ?? []).map((e) => e.name), savedRef.current);
+        mark(res.spec);
+        return res;
+      },
+      report: (title, message) => deps.current.toast('bad', title, message),
+    }),
+  );
+  const quietSave = useCallback((change: LayoutChange, options?: { quietIfBlocked?: boolean }) => queue.save(change, options).then((r) => r !== null), [queue]);
+  const saveIdle = useCallback(() => queue.idle(), [queue]);
+
   const save = useCallback(async (done?: string, next?: LayoutSpec, options?: { quiet?: boolean }) => {
     if (saving) return false;
     if (conn.auth !== 'admin') return false;
     if (blockers.length) return false;
     setSaving(true);
-    const spec = next ?? state.spec;
     try {
-      const res = await saveLayout(conn.api, spec);
-      dispatch({ type: 'markSaved', spec });
-      setLoad((l) => ({ ...l, source: 'saved', note: undefined }));
+      const res = await queue.save(next ?? state.spec);
+      if (!res) return false;
       if (options?.quiet && res.layoutPersisted) {
         /* Customize: the change shows on the lights */
       } else if (done) toast('ok', done);
@@ -118,15 +157,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           'Your lights use the new layout, but this version of Backbloom can’t store the layout itself yet, so editing it later starts from the LED positions.',
         );
       return true;
-    } catch (e) {
-      toast('bad', 'Couldn’t save the layout', errorText(e));
-      return false;
     } finally {
       setSaving(false);
     }
-  }, [saving, conn, blockers.length, state.spec, toast]);
+  }, [saving, conn.auth, blockers.length, state.spec, toast, queue]);
 
-  // Warn before leaving with unsaved changes.
+  // Warn before leaving with unsaved changes (mirrored changes being saved don't count: isDirty).
   useEffect(() => {
     if (!dirty) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -135,11 +171,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [dirty]);
-
-  const markSaved = useCallback((spec: LayoutSpec) => {
-    dispatch({ type: 'markSaved', spec });
-    setLoad((l) => ({ ...l, source: 'saved', note: undefined }));
-  }, []);
 
   const value: EditorContextValue = {
     state,
@@ -152,7 +183,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     blockers,
     saving,
     save,
-    markSaved,
+    quietSave,
+    saveIdle,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

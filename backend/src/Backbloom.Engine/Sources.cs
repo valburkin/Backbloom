@@ -219,8 +219,8 @@ public sealed class PriorityManager : IDisposable
         return selected;
     }
 
-    /// <summary>Shows only the screen (Game mode); colors, pictures and effects wait (<see cref="Muxer.ScreenOnly"/>).</summary>
-    public void SetScreenOnly(bool enabled) => Change(now => _muxer.SetScreenOnly(enabled, now));
+    /// <summary>Removes the colors, pictures and effects clients started (<see cref="Muxer.ClearClients"/>).</summary>
+    public void ClearClients() => Change(now => _muxer.ClearClients(now));
 
     /// <summary>Switches automatic source selection on or off (<c>sourceselect auto</c>).</summary>
     public bool SetAutoSelect(bool enabled)

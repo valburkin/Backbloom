@@ -9,6 +9,7 @@ import {
   type LayoutSpec,
   type LedRect,
 } from '../layout';
+import { followStrips, withDefaultPresets } from '../control/presets';
 import type { RpcApi } from './rpcApi';
 import type { ServerInfo } from './types';
 
@@ -161,6 +162,8 @@ export function saveBlockers(spec: LayoutSpec, errorCount: number): SaveBlocker[
 }
 
 export interface SaveResult {
+  /** The layout as it was saved: with the default presets when it never had presets, presets following the strips. */
+  spec: LayoutSpec;
   /** LEDs of all controllers together. */
   ledCount: number;
   controllers: number;
@@ -171,11 +174,14 @@ export interface SaveResult {
 /**
  * Save the layout: one `layout` setting with every controller (driver settings included) and strip; the backend
  * compiles it and feeds each controller its LEDs. `leds` (every controller's LEDs, one after the other) goes along
- * for backends that don't compile layouts; the Backbloom service derives it from the layout itself.
- * Only called from an explicit user action.
+ * for backends that don't compile layouts; the Backbloom service derives it from the layout itself. Every layout save
+ * goes through here, so a layout with strips that never had presets gets the default ones here (`effects`: the effect
+ * catalog, for the Music preset), and presets that play one thing everywhere get the strips added or reshaped since
+ * `previous` (the layout saved last; followStrips). The result's `spec` is what was saved (pass it to markSaved).
  */
-export async function saveLayout(api: RpcApi, spec: LayoutSpec): Promise<SaveResult> {
-  if (spec.controllers.length === 0) throw new Error('The layout has no controller.');
+export async function saveLayout(api: RpcApi, input: LayoutSpec, effects: readonly string[] = [], previous?: LayoutSpec | null): Promise<SaveResult> {
+  if (input.controllers.length === 0) throw new Error('The layout has no controller.');
+  const spec = followStrips(withDefaultPresets(input, effects), previous);
   const leds = compileLayout(spec).flatMap((c) => c.leds);
   await api.setConfig({ layout: spec, leds });
   let layoutPersisted = true;
@@ -184,5 +190,5 @@ export async function saveLayout(api: RpcApi, spec: LayoutSpec): Promise<SaveRes
   } catch {
     /* verification is best-effort */
   }
-  return { ledCount: leds.length, controllers: spec.controllers.length, layoutPersisted };
+  return { spec, ledCount: leds.length, controllers: spec.controllers.length, layoutPersisted };
 }

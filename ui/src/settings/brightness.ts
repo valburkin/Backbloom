@@ -5,10 +5,7 @@
 // quarter at the middle), close to how bright it looks. Static colors skip the contrast, so they come out a little
 // brighter at the same position. The backend's power limits follow each one's share (ColorProcessor.OutputShare).
 //
-// Each mode has its own brightness: Ambient's is `color.channelAdjustment[0].scaleOutput`, Game's the `game` section's
-// `scaleOutput`, which replaces it while Game mode is on (Engine/GameTuning.cs); until it is set, Game uses Ambient's.
-
-import type { BackendConfig } from '../api/types';
+// The brightness is `color.channelAdjustment[0].scaleOutput`, set with the `adjustment` command.
 
 /** sRGB encoding of linear light (values above 1 follow the same curve, for a boosted `scaleOutput`). */
 function encode(linear: number): number {
@@ -34,17 +31,4 @@ export function scaleForBrightness(position: number, gamma?: number): number {
 /** The slider position for a stored `scaleOutput` with the contrast `gamma` (above 1 when boosted on the Colors page). */
 export function brightnessForScale(scale: number, gamma?: number): number {
   return Math.sqrt(Math.pow(encode(Math.max(0, scale)), usable(gamma)));
-}
-
-/** Game mode's own `scaleOutput`, or undefined while it uses Ambient's. */
-export function gameScale(config: BackendConfig | null | undefined): number | undefined {
-  const game = config?.game;
-  const scale = game && typeof game === 'object' ? (game as Record<string, unknown>).scaleOutput : undefined;
-  return typeof scale === 'number' ? scale : undefined;
-}
-
-/** The `game` section with its own `scaleOutput` (the rest as saved). */
-export function withGameScale(config: BackendConfig, scale: number): BackendConfig {
-  const game = config.game && typeof config.game === 'object' ? (config.game as Record<string, unknown>) : {};
-  return { game: { ...game, scaleOutput: scale } };
 }

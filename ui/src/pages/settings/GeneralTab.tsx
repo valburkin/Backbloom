@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Download, HardDrive, LogOut, SlidersHorizontal, Upload, Wifi } from 'lucide-react';
+import { Clapperboard, Download, HardDrive, LogOut, SlidersHorizontal, Upload, Wifi } from 'lucide-react';
 import { Button, Dialog, StatusDot } from '../../components/ui';
 import { Advanced, Callout, Expert, Input, Section, Toggle } from '../../components/form';
 import { useConfig, type PageSettings } from '../../app/config';
@@ -8,6 +8,8 @@ import { useAction } from '../../app/useAction';
 import { setExpertTools, useExpertTools } from '../../app/expert';
 import { useToast } from '../../app/toast';
 import { differsFromDefault, propertyAt } from '../../schema/schema';
+import { splitEffects } from '../../control/modes';
+import { StartupAndIdle } from './StartupIdle';
 
 type Obj = Record<string, unknown>;
 
@@ -30,7 +32,7 @@ function download(name: string, text: string, type = 'application/json') {
 }
 
 export function GeneralTab({ ps }: { ps: PageSettings }) {
-  const { status, backend, remote, sysInfo, logout, api, setup, applySetup } = useConnection();
+  const { status, backend, remote, sysInfo, logout, api, setup, applySetup, serverInfo } = useConnection();
   const { reload } = useConfig();
   const toast = useToast();
   const { run, busy } = useAction();
@@ -121,6 +123,12 @@ export function GeneralTab({ ps }: { ps: PageSettings }) {
           />
         </Advanced>
       </Section>
+
+      {ps.canEdit && (
+        <Section title="Startup and idle" icon={<Clapperboard size={18} />} description="What plays when Backbloom starts, and when nothing else shows.">
+          <StartupAndIdle ps={ps} effects={[...splitEffects(serverInfo?.effects).regular, ...splitEffects(serverInfo?.effects).music]} />
+        </Section>
+      )}
 
       <Section title="Backup" icon={<HardDrive size={18} />} description="Save all settings to a file, or bring them back from one.">
         <div className="flex flex-wrap gap-2">

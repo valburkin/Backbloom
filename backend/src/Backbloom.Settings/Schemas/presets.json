@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "title": "Presets",
+  "required": true,
+  "comment": "New in Backbloom: the layout's profile (the app's preset) chosen by hand with profile select, restored at start while the layout has it. Without selected the running programs choose (Everyday when none runs). Written by Engine/ProfileMonitor.",
+  "properties": {
+    "selected": {
+      "type": "string",
+      "minLength": 1,
+      "propertyOrder": 1
+    }
+  },
+  "additionalProperties": false
+}

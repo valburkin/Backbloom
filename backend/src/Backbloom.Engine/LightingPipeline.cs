@@ -37,16 +37,17 @@ public sealed record PipelineConfig(LedMappingOptions Mapping, ColorProcessor Pr
 
 /// <summary>
 /// The single frame loop: the visible source (screen capture -> black border -> image-to-LED mapping -> the slower
-/// "Screen average" LEDs (<see cref="ScreenAverageFilter"/>), an effect, or a static color) -> color processing -> the zones' colors in their LEDs (<see cref="ZoneLayer"/>) ->
-/// <see cref="OutputStage"/> (smoothing, controllers, live preview). Runs on one dedicated thread and does not allocate
-/// per frame (buffers are only resized when the LED count, frame size or border changes).
+/// "Screen average" LEDs (<see cref="ScreenAverageFilter"/>), an effect, or a static color) -> color processing -> the
+/// zones' colors in their LEDs (<see cref="ZoneLayer"/>) -> <see cref="OutputStage"/> (smoothing, controllers, live
+/// preview). Runs on one dedicated thread and does not allocate per frame (buffers are only resized when the LED count,
+/// frame size or border changes).
 /// </summary>
 /// <remarks>
-/// Zones play only while the user's layout shows (<see cref="ShowsLayout"/>: the screen, or no source); music, an
-/// effect or a color picked for every light plays on their LEDs too, and their effects pause meanwhile. Zone effects
-/// step between the loop's other work without waiting: with every frame of the screen, and while nothing new comes (no
-/// source, a screen without frames), when the loop wakes for the zones' next step and sends the last frame again with
-/// the zones' new colors. A screen capture isn't cut short for them (that would skip capture frames), so while the
+/// Zones play only while the user's layout shows (<see cref="ShowsLayout"/>: the screen, the background effect, or no
+/// source); music, an effect or a color picked for every light plays on their LEDs too, and their effects pause
+/// meanwhile. Zone effects step between the loop's other work without waiting: with every frame of the screen, and
+/// while nothing new comes (no source, a screen without frames), when the loop wakes for the zones' next step and sends
+/// the last frame again with the zones' new colors. A screen capture isn't cut short for them (that would skip capture frames), so while the
 /// screen shows, zones take a step with each captured frame (catching up on missed steps). They pause while the output
 /// is off or held.
 /// </remarks>
@@ -227,7 +228,7 @@ public sealed partial class LightingPipeline : IDisposable
             colors = new Vector3[ledCount];
         }
 
-        // zones play with the user's layout (the screen, or nothing else shown), not over music, an effect or a color
+        // zones play with the user's layout (the screen, the idle effect, or nothing else shown), not over music, an effect or a color
         // the user picked for every light; their effects pause then, and while the output is off or held
         var visible = _visible();
         var zones = ShowsLayout(visible) ? _zones : ZoneLayer.Empty;
@@ -298,11 +299,13 @@ public sealed partial class LightingPipeline : IDisposable
     }
 
     /// <summary>
-    /// True while the user's layout shows: the screen (also while it delivers no frames), or no source at all. Music,
-    /// an effect or a color then play on every LED, the zones' too (mapped with <see cref="PipelineConfig.EffectMapping"/>).
+    /// True while the user's layout shows: the screen (also while it delivers no frames), the background (idle) effect,
+    /// which fills only the LEDs the layout leaves to it (the setup's own effects and colors are what the user picked),
+    /// or no source at all. Otherwise music, an effect or a color from a client play on every LED, the zones' too
+    /// (mapped with <see cref="PipelineConfig.EffectMapping"/>).
     /// </summary>
     internal static bool ShowsLayout(VisibleSource visible) =>
-        visible.Component == SourceComponent.SystemGrabber || !visible.HasSource;
+        visible.Component == SourceComponent.SystemGrabber || visible.Priority == EffectEngine.BackgroundPriority || !visible.HasSource;
 
     // Hands a frame processed by `processor` to the output (its minimum glow, and its share of the output for the power
     // limits); with zones, a copy with the zones' colors in their LEDs (stepped first when due), kept so that zone steps

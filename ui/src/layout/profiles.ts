@@ -34,6 +34,20 @@ export function withStripSections(profile: Profile, stripId: string, path: reado
   return { ...profile, sections: { ...profile.sections, [stripId]: sections } };
 }
 
+/** The id the next added profile gets: "profile-1", "profile-2"… (the first one not taken). */
+export function nextProfileId(spec: Pick<LayoutSpec, 'profiles'>): string {
+  const taken = new Set((spec.profiles ?? []).map((p) => p.id));
+  let n = 1;
+  while (taken.has(`profile-${n}`)) n++;
+  return `profile-${n}`;
+}
+
+/** A program name as profiles store it: the executable's file name, lower case, with ".exe" added when missing. */
+export function programName(text: string): string {
+  const name = text.trim().split(/[\\/]/).pop()?.toLowerCase() ?? '';
+  return !name || name.includes('.') ? name : `${name}.exe`;
+}
+
 /** The first profile (in list order) one of whose programs is in `running` (executable names, any case). */
 export function activeProfile(spec: LayoutSpec, running: readonly string[]): Profile | undefined {
   const set = new Set(running.map((r) => r.toLowerCase()));

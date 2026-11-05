@@ -5,9 +5,6 @@ export type Mode = 'screen' | 'music' | 'effect' | 'color';
 
 const MUSIC_PREFIX = 'Music: ';
 
-/** Tooltip of the Stop buttons (Home, Effects & Music). */
-export const STOP_HINT = 'Stop the effect or color and go back to screen sync';
-
 export function isMusicEffect(name: string): boolean {
   return name.startsWith(MUSIC_PREFIX);
 }

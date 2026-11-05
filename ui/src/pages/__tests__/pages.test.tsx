@@ -12,9 +12,8 @@ import { CapturePage } from '../CapturePage';
 import { ColorsPage } from '../ColorsPage';
 import { CalibrationPage } from '../CalibrationPage';
 import { EffectsPage } from '../EffectsPage';
-import { GamesPage } from '../GamesPage';
+import { PresetsPage } from '../PresetsPage';
 import { SettingsPage } from '../settings/SettingsPage';
-import { ModeSwitch } from '../../control/ModeSwitch';
 
 function render(page: ReactNode): string {
   return renderToStaticMarkup(
@@ -36,22 +35,12 @@ describe('pages render without data', () => {
     ['Screen', <CapturePage />],
     ['Calibration', <CalibrationPage />],
     ['Colors', <ColorsPage />],
-    ['Effects & Music', <EffectsPage />],
-    ['Games', <GamesPage />],
+    ['Effects', <EffectsPage />],
+    ['Presets', <PresetsPage />],
     ...['general', 'remote-access', 'integrations', 'support', 'about'].map((t): [string, ReactNode] => [`Settings/${t}`, <SettingsPage tab={t} onTab={() => {}} />]),
   ];
   it.each(cases)('%s', (name, page) => {
     const html = render(page);
     expect(html).toContain(name.split(/[/ ]/)[0]);
-  });
-});
-
-describe('mode switch', () => {
-  it('offers Ambient and Game, disabled until the server reports the mode', () => {
-    const html = render(<ModeSwitch />);
-    expect(html).toContain('aria-label="Mode"');
-    expect(html).toContain('aria-label="Ambient"');
-    expect(html).toContain('aria-label="Game"');
-    expect(html).toContain('disabled');
   });
 });

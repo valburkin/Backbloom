@@ -158,16 +158,18 @@ public sealed class LayoutTests : IDisposable
     }
 
     [Fact]
-    public void Profiles_MarkedAsAGame_SayIt()
+    public void Profiles_WithALook_HaveIt_AndAProfileWithoutProgramsIsFine()
     {
         var spec = NormalizedSpec();
-        spec["profiles"]![0]!["game"] = true;
-        spec["profiles"]![1]!["game"] = false;
+        spec["profiles"]![0]!["look"] = Parse("""{ "time_ms": 150, "stiffness": 817, "damping": 61, "saturationGain": 1.5, "luminanceGain": 1.2, "backlightThreshold": 0 }""");
+        spec["profiles"]![1]!["look"] = null;
+        spec["profiles"]![1]!["apps"] = new JsonArray();
         Assert.Empty(Errors(spec));
-        Assert.Equal([true, false], LayoutSpecification.Profiles(spec).Select(p => p.Game));
+        Assert.Equal([new ProfileLook(150, 817, 61, 1.5, 1.2, 0), null], LayoutSpecification.Profiles(spec).Select(p => p.Look));
+        Assert.Empty(LayoutSpecification.Profiles(spec)[1].Apps);
 
-        spec["profiles"]![0]!.AsObject().Remove("game");
-        Assert.False(LayoutSpecification.Profiles(spec)[0].Game);
+        spec["profiles"]![0]!.AsObject().Remove("look");
+        Assert.Null(LayoutSpecification.Profiles(spec)[0].Look);
     }
 
     [Fact]
@@ -479,8 +481,15 @@ public sealed class LayoutTests : IDisposable
     [InlineData("""{ "name": null }""", "layout.profiles.0.name")]
     [InlineData("""{ "apps": "witcher3.exe" }""", "layout.profiles.0.apps")]
     [InlineData("""{ "apps": ["witcher3.exe", ""] }""", "layout.profiles.0.apps")]
-    [InlineData("""{ "game": "yes" }""", "layout.profiles.0.game")]
-    [InlineData("""{ "game": null }""", "layout.profiles.0.game")]
+    [InlineData("""{ "look": "intense" }""", "layout.profiles.0.look")]
+    [InlineData("""{ "look": { "stiffness": 817, "damping": 61, "saturationGain": 1.5, "luminanceGain": 1.2, "backlightThreshold": 0 } }""", "layout.profiles.0.look.time_ms")]
+    [InlineData("""{ "look": { "time_ms": 10, "stiffness": 817, "damping": 61, "saturationGain": 1.5, "luminanceGain": 1.2, "backlightThreshold": 0 } }""", "layout.profiles.0.look.time_ms")]
+    [InlineData("""{ "look": { "time_ms": 150.5, "stiffness": 817, "damping": 61, "saturationGain": 1.5, "luminanceGain": 1.2, "backlightThreshold": 0 } }""", "layout.profiles.0.look.time_ms")]
+    [InlineData("""{ "look": { "time_ms": 150, "stiffness": 1001, "damping": 61, "saturationGain": 1.5, "luminanceGain": 1.2, "backlightThreshold": 0 } }""", "layout.profiles.0.look.stiffness")]
+    [InlineData("""{ "look": { "time_ms": 150, "stiffness": 817, "damping": -1, "saturationGain": 1.5, "luminanceGain": 1.2, "backlightThreshold": 0 } }""", "layout.profiles.0.look.damping")]
+    [InlineData("""{ "look": { "time_ms": 150, "stiffness": 817, "damping": 61, "saturationGain": 11, "luminanceGain": 1.2, "backlightThreshold": 0 } }""", "layout.profiles.0.look.saturationGain")]
+    [InlineData("""{ "look": { "time_ms": 150, "stiffness": 817, "damping": 61, "saturationGain": 1.5, "luminanceGain": "1.2", "backlightThreshold": 0 } }""", "layout.profiles.0.look.luminanceGain")]
+    [InlineData("""{ "look": { "time_ms": 150, "stiffness": 817, "damping": 61, "saturationGain": 1.5, "luminanceGain": 1.2, "backlightThreshold": 1.5 } }""", "layout.profiles.0.look.backlightThreshold")]
     [InlineData("""{ "apps": [3] }""", "layout.profiles.0.apps")]
     [InlineData("""{ "sections": [] }""", "layout.profiles.0.sections")]
     [InlineData("""{ "sections": { "ceiling": { "kind": "none" } } }""", "layout.profiles.0.sections.ceiling")]

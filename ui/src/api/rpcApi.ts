@@ -10,8 +10,7 @@ import type {
   ConnectedBoard,
   ProbeCandidate,
   FindResult,
-  LightMode,
-  ModeState,
+  ProfileState,
   RunningProgram,
   ScreenInfo,
   ServerInfo,
@@ -40,7 +39,6 @@ export const SUBSCRIPTIONS = [
   'setup-update',
   'sound-update',
   'profile-update',
-  'mode-update',
 ] as const;
 
 /** Priority and origin the UI uses for colors and effects it starts (the backend's web-UI slot). */
@@ -233,27 +231,28 @@ export class RpcApi {
     return info<SetupState>(await this.backend.call('setup', 'acknowledge', { topic }));
   }
 
-  // ---- modes ----
+  // ---- presets (layout profiles) ----
 
   /**
-   * Saves the mode chosen on Home. Ambient while a game’s profile has Game mode on also turns it off until another
-   * profile runs. Resolves with the mode the lights are in now (`serverinfo.mode`).
-   */
-  async setMode(mode: LightMode): Promise<ModeState | undefined> {
-    return info<{ mode?: ModeState }>(await this.backend.call('mode', 'set', { mode })).mode;
-  }
-
-  // ---- profiles ----
-
-  /**
-   * Runs the layout's profile `id` whatever programs run (to try it out), until called with null: back to choosing by
-   * the running programs. Nothing is saved. Resolves with the profile that runs now (`serverinfo.profile`).
+   * Turns the preset `id` on by hand, whatever programs run, until `dismissProfile`, another `setProfile`, the preset
+   * being removed or a restart; null goes back to the automatic choice by the running programs. Nothing is saved.
+   * Turning one on clears the colors and effects that were started (so its strips show). Resolves with the preset
+   * that is on now (`serverinfo.profile`).
    */
   async setProfile(id: string | null): Promise<ActiveProfile | null> {
-    return info<{ profile?: ActiveProfile | null }>(await this.backend.call('profile', 'select', { id })).profile ?? null;
+    return info<Partial<ProfileState>>(await this.backend.call('profile', 'select', { id })).profile ?? null;
   }
 
-  /** Programs with a window open (one per executable, sorted), for the profile editor's program picker. */
+  /**
+   * Stops using the preset in use (the UI's switch to Everyday): one picked by hand goes back to the automatic choice;
+   * one its program uses stays unused until none of its programs runs any more. Resolves with the state after it.
+   */
+  async dismissProfile(): Promise<ProfileState> {
+    const state = info<Partial<ProfileState>>(await this.backend.call('profile', 'dismiss'));
+    return { profile: state.profile ?? null, dismissed: state.dismissed ?? null };
+  }
+
+  /** Programs with a window open (one per executable, sorted), for the program pickers (Presets, Layout). */
   async runningPrograms(): Promise<RunningProgram[]> {
     const programs = info<{ programs?: unknown }>(await this.backend.call('profile', 'programs')).programs;
     return Array.isArray(programs)

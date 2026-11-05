@@ -6,24 +6,44 @@ features are added.
 
 ## Structure
 
-The app is two apps in one: the Mode switch at the top of the sidebar (under the logo; in Home's header on a phone,
-`ui/src/control/ModeSwitch.tsx`) chooses Ambient or Game. The sidebar has two groups (`MODE_NAV` and `SHARED_NAV` in
-`ui/src/app/nav.tsx`), three sections for the mode and two shared ones at the bottom, no more:
+One app, no modes. The sidebar has two groups (`MAIN_NAV` and `SHARED_NAV` in `ui/src/app/nav.tsx`): four sections
+about what the lights show and how they look, and the hardware and the app at the bottom, no more:
 
-| Section | Ambient | Game | What it's for |
-|---|---|---|---|
-| Home | Home | Home | Ambient: what the lights show right now (on/off, Show: screen, music, effect, color), brightness, Mood, health. Game: on/off, brightness, the game being played, Intensity, health |
-| Colors | Colors | Colors, with Game's own values | Fine-tuning what Home's preset sets. Ambient: saturation, color brightness, minimum glow, transitions. Game: saturation, color brightness, reaction time, screen reads per second (no minimum glow while playing) |
-| Effects & Music / Games | Effects & Music | Games | Ambient: the library of effects and music effects. Game: the games that turn Game mode on while they run |
-| Setup (shared) | Layout, Devices, Screen, Calibration | the same | The hardware: where the strips are, what they're plugged into, how the screen is read, and what makes the LEDs match the screen and the power supply (white balance, contrast, per-color calibration, power limit) |
-| Settings (shared) | General, Remote access, Integrations, About (Support with expert tools) | the same | Everything about the app itself |
+| Section | Pages | What it's for |
+|---|---|---|
+| Home | Home | What the lights show right now: on/off and brightness; Playing now (what the setup in use plays, its name and the live preview; Change leads to Effects, nothing to pick there); the setup switch (Everyday and the presets, always one in use) with the Look of the setup in use; health |
+| Effects | Effects | What the setup in use plays: the setup switch in the header, a live preview that stays in view while scrolling, then Screen (Screen edges, Screen average), Color, Effects and Music, the current pick highlighted |
+| Presets | Presets | The setups: Everyday (what plays and its Look) and the saved presets (what plays, a Look, the programs that use each one) |
+| Colors | Colors | Fine-tuning the Look of the setup in use: saturation, color brightness, minimum glow, transitions |
+| Setup | Layout, Devices, Screen, Calibration | The hardware: where the strips are and what each part shows (Layout → Customize), what they're plugged into, how the screen is read, and what makes the LEDs match the screen and the power supply (white balance, contrast, per-color calibration, power limit) |
+| Settings | General (with the startup and idle effects), Remote access, Integrations, About (Support with expert tools) | Everything about the app itself |
 
-Pages that differ between the modes show the mode next to their title (`ModeBadge`). A page the mode doesn't offer
-leads Home: Effects & Music in Game mode (it shows only the screen, so it offers nothing that starts a color, effect or
-music), Games in Ambient. Games stays open when the mode changes while it is open (a game quits or is removed, or
-Ambient is chosen there). A new feature goes into one of these sections: the mode it serves (game events and room
-reactions go to Game), or Setup when it is about the hardware and the same in both modes. Each setting lives in exactly
-one place; Home may offer a shortcut to a setting, but it is the same control and the same value.
+A new feature goes into one of these sections; Setup when it is about the hardware. Each setting lives in exactly one
+place; Home may offer a shortcut to a setting, but it is the same control and the same value.
+
+**Setups and the Show.** One setup is always in use: Everyday (the layout's own strips with the saved Look) or a
+preset (its strip sections and its Look; none of its own = Everyday's). A preset picked by hand stays in use after a
+restart (the backend keeps it in the `presets` settings; the UI only sends `profile select`). What a setup plays, the Show (Screen edges,
+Screen average, an effect, music or a color), is stored only in its strip sections, so nothing the user picks is
+temporary and nothing is started for a while. A pick on Effects is written into the setup in use (`usePick` in
+`ui/src/control/usePick.ts`, the logic in `control/setup.ts` and `control/show.ts`): every part that isn't Off or a
+gap plays it (an effect's parts form one zone, so it flows across all strips), replacing what the strips were
+customized with (a toast with Undo then), and the layout is saved at once. A pick never switches to another setup.
+What plays is read back from the sections; a mix is "Customized in Layout". Two exceptions show something for a
+while: dragging the color picker (the color is sent live, then saved when the drag ends) and a source another app
+started (Playing now says so, with **Back to <setup>**). The Look on Home and the Look values on Colors save to the
+setup in use too ("Changes save to Gaming"); the other Colors settings are the same for every preset, and Colors says
+so. Picks and Looks change the layout as saved last (and the edited one the same way, a mirror: `editor/mirror.ts`),
+so Layout edits that aren't saved yet neither block them nor get saved with them. While a mirror is saved it doesn't
+count as an unsaved Layout edit; a failed save puts what it wrote back to the layout saved last, value by value, where
+nothing changed it since. Every layout save goes through the editor's one queue (`quietSave` in `app/editor.tsx`,
+`app/layoutSaver.ts`); changes saved together are made one at a time, so one that can't be made fails alone. A layout
+that never had presets gets Gaming, Movie, Music and Cozy at its first save with strips (`withDefaultPresets` in
+`control/presets.ts`, applied in `saveLayout`); deleting them leaves an empty list. A preset that plays one thing on
+all its parts follows the strips: each save gives strips added or reshaped since the last one its pick
+(`followStrips`; a list a pick wrote for a strip while it was still being drawn doesn't make the preset customized);
+presets customized in Layout keep their lists. The previews show the colors as at full brightness
+(`live/previewBrightness.ts`), with "Shown at full brightness" below 100%.
 
 To send the user to one control (Home's "Lights look wrong?" troubleshooter does), link with a focus:
 `hrefFor('capture', null, 'crop')` is `#/capture?focus=crop`. The page scrolls to the element with that id (else the
@@ -34,7 +54,7 @@ when moving it (`ui/src/control/Troubleshooter.tsx`).
 ## Setting tiers
 
 Every setting has a tier. Prefer them in this order: **automate** (the app decides) > **preset** (one choice sets
-several values, like Mood and Intensity) > **advanced** > **essential**. A preset lives in one place (Home); the
+several values, like the Look) > **advanced** > **essential**. A preset lives in one place (Home); the
 page that fine-tunes its values says which preset they match.
 
 | Tier | Shown | Use for |
@@ -64,12 +84,12 @@ One term per concept, in the UI, docs, toasts and backend messages that reach th
 | The WLED electronics while Set up a WLED board finds it and its strips are set up | board (it becomes a device when added) | controller, ESP, chip |
 | Its protocol choice | device type; its settings: connection settings | driver, LED driver settings |
 | A pin/port on a device | output (WLED's word) | bus |
-| What the lights show (Ambient's Home) | Show | Mode (that is Ambient / Game) |
-| Ambient or Game | Mode: Ambient mode, Game mode | gaming mode, ambient lighting |
-| A profile for a game | game (Games page: “Your games”, “Add a running game”) | game profile type, “It’s a game” |
+| What the lights show | Show; its choices: Screen edges, Screen average, an effect, music, a color (“Playing now”, “What plays”) | Mode, Ambient / Game mode, Now showing |
+| Where a change goes | “Changes save to Gaming” (the setup in use), “Your pick is saved to it” | temporary, Stop |
+| A saved setup: what plays, a Look, programs that use it while they run | Preset (“Used while running”, “Use”, “In use”) | profile, game, scene |
+| The setup without a preset (the layout's own strips, the saved Look) | Everyday (“Use Everyday”) | default, no preset, off |
+| How the lights look (the five presets on Home) | Look: Relaxed, Natural, Rich, Vivid, Intense | Mood, Intensity, style |
 | Lights follow the screen | Screen sync | screen capture, mirror, grabber |
-| How the room feels (Ambient's preset) | Mood: Relaxed, Natural, Rich | intensity, style, profile |
-| How punchy the lights are while playing (Game's preset) | Intensity: Subtle, Vivid, Intense | mood, level |
 | Lights react to sound | Music (what's shown), sound input (the setting) | sound capture |
 | How gently colors change | transitions | smoothing, smoothness |
 | Rates | fps (screen frames), per second (LED updates) | Hz |
@@ -80,7 +100,7 @@ One term per concept, in the UI, docs, toasts and backend messages that reach th
 | A piece between bends | part | section |
 | LEDs matched to bends | matched | pinned |
 | LEDs off on purpose | turned-off LEDs | dark parts |
-| Trying a profile | Preview / Stop preview | Try it now, tried |
+| Switching between Everyday and the presets | Use; one is always in use, so never “turn off” a preset (it hides what comes instead) | Turn on, Turn off, Not now, Preview, activate |
 | Network access | Remote access | listen on the local network |
 | App credential | app key | token |
 | The machine | this PC | this computer |

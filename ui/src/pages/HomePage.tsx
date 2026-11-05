@@ -1,13 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Activity, ArrowRight, Gamepad2, AudioLines, CircleHelp, Cpu, Gauge, Lamp, Loader2, MemoryStick, MonitorSmartphone, Palette, Play, ScreenShare, Sparkles, Square, Sun, TriangleAlert } from 'lucide-react';
-import { Badge, Button, Card, ChoiceCard, cx, rangeFill, StatusDot } from '../components/ui';
-import { Callout, Expert, Select, Switch } from '../components/form';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ArrowRight, Bookmark, CircleHelp, Cpu, Gauge, MemoryStick, MonitorSmartphone, Play, Sliders, Sun, TriangleAlert } from 'lucide-react';
+import { Badge, Button, Card, cx, rangeFill } from '../components/ui';
+import { Expert, Switch } from '../components/form';
 import { PageHeader } from '../components/PageHeader';
-import { ColorPicker } from '../components/ColorPicker';
-import { LedPreview } from '../components/LedPreview';
-import { useAppGlow } from '../app/appGlow';
-import { LiveLayoutLights } from '../components/LayoutLights';
-import { useLayoutView } from '../live/layoutView';
 import { useConnection } from '../app/connection';
 import { useConfig } from '../app/config';
 import { useEditor } from '../app/editor';
@@ -15,85 +10,25 @@ import { useAction } from '../app/useAction';
 import { useThrottled } from '../app/useThrottled';
 import { hrefFor } from '../app/router';
 import { stripLedCount } from '../layout';
-import { useLedFrame, usePerformance } from '../live/hooks';
-import { glowColors } from '../live/ledPreview';
+import { usePerformance } from '../live/hooks';
 import type { ControllerPerformance } from '../live/performance';
-import { currentSource, describeSource, effectLabel, splitEffects, STOP_HINT, type Mode } from '../control/modes';
 import { deviceProblems } from '../control/health';
 import { TroubleshooterDialog } from '../control/Troubleshooter';
 import { useExpertTools } from '../app/expert';
-import { useStartMusic } from '../control/music';
 import { PresetPicker } from '../control/PresetPicker';
-import { applyGameIntensity, applyMood, detectGameIntensity, detectMood, GAME_PRESETS, MOOD_PRESETS } from '../settings/intensity';
-import { brightnessForScale, gameScale, scaleForBrightness, withGameScale } from '../settings/brightness';
-import { ModeSwitch } from '../control/ModeSwitch';
-import { ModeBadge } from '../components/ModeBadge';
+import { PlayingPreview } from '../control/PlayingPreview';
+import { SetupSwitch } from '../control/SetupSwitch';
+import { useLookPick, useSetupInUse } from '../control/usePick';
+import { gamingPreset, playLabel, presetStatus, statusText } from '../control/presets';
+import { lookLabel, setupLook } from '../control/setup';
+import { LOOKS } from '../settings/intensity';
+import { brightnessForScale, scaleForBrightness } from '../settings/brightness';
 import { NoLights, hasRealDevice } from '../setup/NoLights';
 import { AddDeviceDialog } from './devices/AddDeviceDialog';
 
-import type { Rgb } from '../color/color';
-
-const SHOWS: Array<{ id: Mode; label: string; hint: string; icon: ReactNode }> = [
-  { id: 'screen', label: 'Screen sync', hint: 'Follow your screen', icon: <ScreenShare size={20} /> },
-  { id: 'music', label: 'Music', hint: 'React to sound', icon: <AudioLines size={20} /> },
-  { id: 'effect', label: 'Effect', hint: 'Animated scenes', icon: <Sparkles size={20} /> },
-  { id: 'color', label: 'Color', hint: 'One color everywhere', icon: <Palette size={20} /> },
-];
-
 const LINK = 'text-accent-strong underline-offset-2 hover:underline';
 
-/**
- * Game mode's place of the Show card: the lights always follow the screen there, so it says which game runs and leads
- * to the games that turn Game mode on.
- */
-function PlayingCard() {
-  const { serverInfo, api } = useConnection();
-  const { run, busy } = useAction();
-  const { state } = useEditor();
-  const mode = serverInfo?.mode;
-  const playing = mode?.gameProfile;
-  const count = (state.spec.profiles ?? []).filter((p) => p.game).length;
-  const grabberOn = serverInfo?.components?.find((c) => c.name === 'SYSTEMGRABBER')?.enabled !== false;
-  // Game mode shows only the screen: with screen sync paused, nothing lights up
-  const follows = grabberOn ? 'Your lights follow the game.' : 'Screen sync is paused, so your lights stay dark.';
-  const after = mode?.saved === 'game' ? 'You chose Game mode, so it stays on after the game quits.' : 'Ambient comes back when it quits.';
-  return (
-    <Card className="p-5">
-      <div className="flex items-start gap-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent-strong">
-          <Gamepad2 size={22} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold">{playing ? `Playing ${playing}` : 'No game running'}</h2>
-          <p className="mt-0.5 text-[13px] text-ink-muted">
-            {playing
-              ? `${follows} ${after}`
-              : `${grabberOn ? 'Your lights follow your screen, quicker and richer than in Ambient.' : follows} Effects, music and colors wait until you switch back to Ambient.`}
-          </p>
-          {!grabberOn && (
-            <Button
-              size="sm"
-              className="mt-3"
-              icon={<ScreenShare size={14} />}
-              disabled={busy === 'grabber'}
-              onClick={() => void run('grabber', 'Couldn’t turn on screen sync', () => api.setComponent('SYSTEMGRABBER', true))}
-            >
-              Turn on screen sync
-            </Button>
-          )}
-          <p className="mt-3 text-[13px] text-ink-muted">
-            {count ? `Game mode turns on by itself for ${count} game${count === 1 ? '' : 's'}.` : 'Add your games and Game mode turns on by itself when you play.'}{' '}
-            <a className={LINK} href={hrefFor('games')}>
-              {count ? 'Your games' : 'Add games'}
-            </a>
-          </p>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-/** The main card: lights on or off, what they show, and the brightness. */
+/** The main card: lights on or off, and the brightness. */
 function LightsCard() {
   const { serverInfo, api, setup } = useConnection();
   const { run, busy } = useAction();
@@ -101,10 +36,7 @@ function LightsCard() {
   const on = comp('ALL') !== false;
   // switched on, but nothing reaches the LEDs until "Turn on lights" (or while HyperHDR runs)
   const waiting = on && setup?.outputHeld === true;
-  const preview = serverInfo?.profile?.manual ? serverInfo.profile : null;
-  const { source } = currentSource(serverInfo?.priorities);
   const manual = serverInfo?.priorities_autoselect === false;
-  const rgb = source?.componentId === 'COLOR' ? source.value?.RGB : undefined;
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-center gap-5">
@@ -113,43 +45,8 @@ function LightsCard() {
           <p className="text-lg font-semibold">
             {waiting ? (setup?.otherApp ? `Waiting for ${setup.otherApp.name} to quit` : 'Waiting — turn on your lights to start') : on ? 'Lights are on' : 'Lights are off'}
           </p>
-          <p className="text-[13px] text-ink-muted">
-            {on ? (
-              <>
-                {waiting ? 'Will show: ' : 'Showing: '}
-                <span className="text-ink">{describeSource(source)}</span>
-                {rgb && (
-                  <span
-                    className="ml-1.5 inline-block h-3 w-3 rounded-full border border-line-strong align-[-1px]"
-                    style={{ backgroundColor: `rgb(${rgb.join(',')})` }}
-                    title={`RGB ${rgb.join(', ')}`}
-                    aria-hidden
-                  />
-                )}
-                {serverInfo?.profile && (
-                  <>
-                    {' · '}profile <span className="text-ink">{serverInfo.profile.name}</span>
-                    {preview ? ' (preview)' : ''}
-                  </>
-                )}
-              </>
-            ) : (
-              'Your lights are off. Turn them on to light things up again.'
-            )}
-          </p>
+          {!on && <p className="text-[13px] text-ink-muted">Your lights are off. Turn them on to light things up again.</p>}
         </div>
-        {preview && (
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={<Square size={13} />}
-            title="Back to the profile chosen by the running programs"
-            disabled={busy === 'preview'}
-            onClick={() => void run('preview', 'Couldn’t stop the preview', () => api.setProfile(null))}
-          >
-            Stop preview
-          </Button>
-        )}
         {manual && (
           <Button size="sm" variant="secondary" title="Let Backbloom choose what to show" onClick={() => void run('auto', 'Couldn’t switch back to automatic', () => api.selectSource('auto'))}>
             Back to automatic
@@ -163,24 +60,18 @@ function LightsCard() {
 
 /**
  * Brightness 0–100%: `scaleOutput` along the curve in settings/brightness.ts (at 50% the lights give about a quarter
- * of their full output), the current mode's own (Game uses Ambient's until it is moved in Game mode). A value boosted
- * above 100% (Colors, expert) is shown as it is; it only changes when the slider is moved.
+ * of their full output). A value boosted above 100% (Colors, expert) is shown as it is; it only changes when the slider
+ * is moved.
  */
 function Brightness() {
   const { serverInfo, api, auth } = useConnection();
-  const { config } = useConfig();
-  const game = serverInfo?.mode?.mode === 'game';
-  const ambient = serverInfo?.adjustment?.[0]?.scaleOutput ?? 1;
-  // Game mode keeps Ambient's contrast
+  const scale = serverInfo?.adjustment?.[0]?.scaleOutput ?? 1;
   const gamma = serverInfo?.adjustment?.[0]?.gamma;
-  const stored = brightnessForScale((game ? gameScale(config) : undefined) ?? ambient, gamma);
+  const stored = brightnessForScale(scale, gamma);
   const [dragging, setDragging] = useState<number | null>(null);
-  // Ambient: the `adjustment` command applies the value and stores it; Game: its `game` section. Both need a signed-in
-  // session.
+  // the `adjustment` command applies the value and stores it; it needs a signed-in session
   const send = useThrottled((v: number) => {
-    const scaleOutput = scaleForBrightness(v, gamma);
-    const saved = game && config ? api.setConfig(withGameScale(config, scaleOutput)) : api.adjust({ scaleOutput });
-    void saved.catch(() => undefined);
+    void api.adjust({ scaleOutput: scaleForBrightness(v, gamma) }).catch(() => undefined);
   }, 100);
   const releaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canEdit = auth === 'admin';
@@ -224,7 +115,7 @@ function Brightness() {
           release();
         }}
       />
-      <p className="mt-1.5 text-xs text-ink-faint">{canEdit ? (game ? 'Game mode keeps its own brightness. Saved automatically.' : 'Saved automatically.') : 'Sign in to change the brightness.'}</p>
+      <p className="mt-1.5 text-xs text-ink-faint">{canEdit ? 'Saved automatically.' : 'Sign in to change the brightness.'}</p>
     </div>
   );
 }
@@ -260,222 +151,84 @@ function DeviceHealth() {
   );
 }
 
-function ShowCard() {
-  const { serverInfo, api } = useConnection();
-  const { run, busy } = useAction();
-  const startMusic = useStartMusic();
-  const { mode: liveMode, source } = currentSource(serverInfo?.priorities);
-  // The controls shown: what runs, or what was picked last.
-  const [mode, setMode] = useState<Mode>(liveMode ?? 'screen');
-  useEffect(() => {
-    if (liveMode) setMode(liveMode);
-  }, [liveMode]);
-  // Highlighted is only what runs; a pick counts while it starts and until the backend reports it (or 2 s pass).
-  const [pending, setPending] = useState<Mode | null>(null);
-  useEffect(() => {
-    if (pending && liveMode === pending) setPending(null);
-  }, [liveMode, pending]);
-  useEffect(() => {
-    if (!pending) return;
-    const t = setTimeout(() => setPending(null), 2000);
-    return () => clearTimeout(t);
-  }, [pending]);
-  const highlighted = pending ?? liveMode;
-  const { music, regular } = splitEffects(serverInfo?.effects);
-  const running = source?.componentId === 'EFFECT' ? source.owner : undefined;
-  const [effect, setEffect] = useState<string>(() => (running && !music.includes(running) ? running : regular.includes('Rainbow swirl') ? 'Rainbow swirl' : (regular[0] ?? '')));
-  const [song, setSong] = useState<string>(() => (running && music.includes(running) ? running : (music.find((m) => m.includes('MULTI COLOR)')) ?? music[0] ?? '')));
-  const [color, setColor] = useState<Rgb>(() => (source?.value?.RGB as Rgb | undefined) ?? [255, 170, 90]);
-  const sendColor = useThrottled((rgb: Rgb) => void api.setColor(rgb).catch(() => undefined), 120);
-  const grabberOn = serverInfo?.components?.find((c) => c.name === 'SYSTEMGRABBER')?.enabled === true;
-
-  // Picks a show; when it can't start, the card goes back to what actually runs.
-  const start = async (m: Mode) => {
-    const previous = mode;
-    setMode(m);
-    setPending(m);
-    let ok = true;
-    if (m === 'screen')
-      ok = await run('mode', 'Couldn’t switch to screen sync', async () => {
-        await api.clear();
-        if (!grabberOn) await api.setComponent('SYSTEMGRABBER', true);
-      });
-    else if (m === 'effect' && effect) ok = await run('mode', 'Couldn’t start the effect', () => api.runEffect(effect));
-    else if (m === 'music' && song) ok = await run('mode', 'Couldn’t start the music effect', () => startMusic(song));
-    else if (m === 'color') ok = await run('mode', 'Couldn’t set the color', () => api.setColor(color));
-    if (!ok) {
-      setPending(null);
-      setMode(liveMode ?? previous);
-    }
-  };
-
-  return (
-    <Card className="p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">Show</h2>
-        {busy === 'mode' && <Loader2 size={16} className="animate-spin text-ink-faint" />}
-      </div>
-      <div role="radiogroup" aria-label="Show" className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-        {SHOWS.map((s) => (
-          <ChoiceCard key={s.id} active={s.id === highlighted}title={s.label} description={s.hint} icon={s.icon} onClick={() => void start(s.id)} />
-        ))}
-      </div>
-
-      <div className="mt-5">
-        {mode === 'screen' && (
-          <p className="text-[13px] text-ink-muted">
-            {grabberOn ? 'Your lights follow your screen.' : 'Screen sync is paused.'}{' '}
-            <a className={LINK} href={hrefFor('capture')}>
-              Screen settings
-            </a>
-          </p>
-        )}
-        {mode === 'effect' && (
-          <div className="flex flex-wrap items-end gap-3">
-            <Select
-              className="min-w-[16rem] flex-1"
-              label="Effect"
-              value={effect}
-              options={regular.map((n) => ({ value: n, label: effectLabel(n) }))}
-              onChange={(v) => {
-                setEffect(v);
-                void run('mode', 'Couldn’t start the effect', () => api.runEffect(v));
-              }}
-            />
-            <StopButton />
-          </div>
-        )}
-        {mode === 'music' && (
-          <div className="flex flex-wrap items-end gap-3">
-            <Select
-              className="min-w-[16rem] flex-1"
-              label="Music effect"
-              value={song}
-              options={music.map((n) => ({ value: n, label: effectLabel(n) }))}
-              onChange={(v) => {
-                setSong(v);
-                void run('mode', 'Couldn’t start the music effect', () => startMusic(v));
-              }}
-            />
-            <StopButton />
-          </div>
-        )}
-        {mode === 'color' && (
-          <div className="grid gap-4 sm:grid-cols-[minmax(0,22rem)_1fr]">
-            <ColorPicker
-              value={color}
-              onChange={(rgb) => {
-                setColor(rgb);
-                sendColor(rgb);
-              }}
-            />
-            <div className="flex items-start">
-              <StopButton />
-            </div>
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-}
-
-function StopButton() {
-  const { api } = useConnection();
-  const { run, busy } = useAction();
-  return (
-    <Button icon={<Square size={14} />} title={STOP_HINT} disabled={busy === 'stop'} onClick={() => void run('stop', 'Couldn’t stop', () => api.clear())}>
-      Stop
-    </Button>
-  );
-}
-
 /**
- * The mode's presets: Ambient's Mood (the saved smoothing and color) or Game's Intensity (the `game` section). The
- * Colors page fine-tunes the same values.
+ * The setup in use, Everyday or a preset, as one switch (always one in use), the line "Screen edges · Intense · In use
+ * while witcher3.exe runs", and the Look of the setup in use (a preset's own, else the saved one): a pick here saves
+ * to it, as the Colors page's fine-tuning does.
  */
-function PresetCard() {
-  const { api, serverInfo } = useConnection();
+function SetupCard() {
+  const { serverInfo } = useConnection();
   const { config } = useConfig();
-  const { run, busy } = useAction();
-  const game = serverInfo?.mode?.mode === 'game';
-  const custom = (what: string) => (
-    <>
-      You’ve fine-tuned {what} on{' '}
-      <a className={LINK} href={hrefFor('colors')}>
-        Colors
-      </a>
-      . Pick one to start over from it.
-    </>
-  );
-  const header = (title: string, icon: ReactNode, isCustom: boolean) => (
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <h2 className="flex items-center gap-2 text-base font-semibold">
-        {icon} {title}
-      </h2>
-      {isCustom && <Badge>Custom</Badge>}
-    </div>
-  );
-  if (game) {
-    const current = detectGameIntensity(config);
-    return (
-      <div id="intensity">
-        <Card className="p-5">
-          {header('Intensity', <Gauge size={16} className="text-ink-faint" />, current === 'custom')}
-          <PresetPicker
-            label="Intensity"
-            presets={GAME_PRESETS}
-            current={current}
-            disabled={!config || busy === 'preset'}
-            onPick={(id) =>
-              config &&
-              void run('preset', 'Couldn’t change the intensity', () => api.setConfig(applyGameIntensity(config, id)), `Intensity: ${GAME_PRESETS.find((p) => p.id === id)?.label}`)
-            }
-            customHint={custom('Game mode’s colors')}
-          />
-        </Card>
-      </div>
-    );
-  }
-  const current = detectMood(config);
+  const { state, load } = useEditor();
+  const { preset, name, plays } = useSetupInUse();
+  const pickLook = useLookPick();
+  const [picking, setPicking] = useState(false);
+  const presets = state.spec.profiles ?? [];
+  const active = serverInfo?.profile ?? null;
+  const dismissed = serverInfo?.dismissedProfile ?? null;
+  const off = dismissed ? presets.find((p) => p.id === dismissed.id) : undefined;
+  const look = setupLook(config, preset);
+  const lower = (t: string | null) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : null);
+  const status = preset ? lower(statusText(preset, presetStatus(preset.id, active, dismissed))) : off ? `${off.name}: ${lower(statusText(off, 'dismissed'))}` : null;
+  const addGame = preset && preset.id === gamingPreset(state.spec)?.id && preset.apps.length === 0;
   return (
-    <div id="mood">
+    <div id="look">
       <Card className="p-5">
-        {header('Mood', <Lamp size={16} className="text-ink-faint" />, current === 'custom')}
-        <PresetPicker
-          label="Mood"
-          presets={MOOD_PRESETS}
-          current={current}
-          disabled={!config || busy === 'preset'}
-          onPick={(id) =>
-            config && void run('preset', 'Couldn’t change the mood', () => api.setConfig(applyMood(config, id)), `Mood: ${MOOD_PRESETS.find((p) => p.id === id)?.label}`)
-          }
-          customHint={custom('the colors')}
-        />
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-base font-semibold">
+            <Bookmark size={16} className="text-ink-faint" /> Preset
+          </h2>
+          <a className={cx('text-[13px]', LINK)} href={hrefFor('presets')}>
+            {presets.length ? 'All presets' : 'Make a preset'}
+          </a>
+        </div>
+        {load.status === 'ready' && presets.length > 0 && <SetupSwitch />}
+        <p className="mt-3 text-[13px] text-ink-muted">
+          {load.status !== 'ready' && !active ? (
+            'Loading your presets…'
+          ) : (
+            <>
+              <span className="font-medium text-ink">{name}</span>: {[playLabel(plays), lookLabel(look)].filter(Boolean).join(' · ')}
+              {status && <> · {status}</>}.
+              {addGame && (
+                <>
+                  {' '}
+                  <a className={LINK} href={hrefFor('presets')}>
+                    Add your game
+                  </a>
+                </>
+              )}
+            </>
+          )}
+        </p>
+        <div className="mt-4 border-t border-line pt-4">
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <Sliders size={15} className="text-ink-faint" /> Look
+            {look === 'custom' && <Badge>Custom</Badge>}
+          </h3>
+          <PresetPicker
+            label="Look"
+            presets={LOOKS}
+            current={look}
+            disabled={!config || picking || (!!active && !preset)}
+            onPick={(id) => {
+              setPicking(true);
+              void pickLook(id).finally(() => setPicking(false));
+            }}
+            customHint={
+              <>
+                Fine-tuned on{' '}
+                <a className={LINK} href={hrefFor('colors')}>
+                  Colors
+                </a>
+                . Pick one to start over from it.
+              </>
+            }
+          />
+          <p className="mt-1 text-xs text-ink-faint">Changes save to {name}.</p>
+        </div>
       </Card>
     </div>
-  );
-}
-
-function PreviewCard() {
-  const { serverInfo, api, auth } = useConnection();
-  const view = useLayoutView(api, auth === 'admin', serverInfo?.leds);
-  const frame = useLedFrame();
-  useAppGlow(useMemo(() => glowColors(frame, serverInfo?.leds), [frame, serverInfo?.leds]));
-  return (
-    <Card className="overflow-hidden">
-      <div className="flex items-center justify-between border-b border-line px-5 py-3">
-        <h2 className="flex items-center gap-2 text-base font-semibold">
-          <Activity size={16} className="text-ink-faint" /> Live preview
-        </h2>
-        <span className="flex items-center gap-2 text-xs text-ink-faint">
-          <StatusDot tone={frame ? 'ok' : 'neutral'} live />
-          {frame ? 'Live' : 'Waiting for colors…'}
-        </span>
-      </div>
-      <div className="bg-[radial-gradient(ellipse_at_center,#141826_0%,#0b0d13_70%)] p-4">
-        {view ? <LiveLayoutLights view={view} frame={frame} compact /> : <LedPreview rects={serverInfo?.leds} frame={frame} />}
-      </div>
-    </Card>
   );
 }
 
@@ -554,7 +307,7 @@ function ControllerRates({ controllers }: { controllers: ControllerPerformance[]
 
 /** "Lights look wrong?": a small link to the troubleshooter. */
 function TroubleshooterLink() {
-  const { setup, serverInfo } = useConnection();
+  const { setup } = useConnection();
   const expert = useExpertTools();
   const [open, setOpen] = useState(false);
   return (
@@ -562,7 +315,7 @@ function TroubleshooterLink() {
       <Button size="sm" variant="ghost" icon={<CircleHelp size={15} />} onClick={() => setOpen(true)}>
         Lights look wrong?
       </Button>
-      <TroubleshooterDialog open={open} onClose={() => setOpen(false)} held={setup?.outputHeld === true} expert={expert} game={serverInfo?.mode?.mode === 'game'} />
+      <TroubleshooterDialog open={open} onClose={() => setOpen(false)} held={setup?.outputHeld === true} expert={expert} />
     </>
   );
 }
@@ -581,11 +334,9 @@ export function HomePage() {
     <div className="scroll-thin h-full overflow-y-auto">
       <PageHeader
         title="Home"
-        badge={<ModeBadge />}
         subtitle={host ? `Running on ${host}` : undefined}
         actions={
           <>
-            <ModeSwitch className="sm:hidden" />
             <TroubleshooterLink />
             {backend.mode === 'mock' && <Badge tone="accent">Demo data</Badge>}
           </>
@@ -600,22 +351,10 @@ export function HomePage() {
         <div className="space-y-4">
           <LightsCard />
           <DeviceHealth />
-          {serverInfo?.mode?.mode === 'game' ? (
-            <PlayingCard />
-          ) : (
-            <>
-              {serverInfo?.mode?.dismissedGame && (
-                <Callout icon={<Gamepad2 size={16} />}>
-                  Game mode is off for “{serverInfo.mode.dismissedGame}” until it quits. Choose Game to turn it back on.
-                </Callout>
-              )}
-              <ShowCard />
-            </>
-          )}
-          <PreviewCard />
+          <PlayingPreview title="Playing now" change glow />
         </div>
         <div className="space-y-4">
-          <PresetCard />
+          <SetupCard />
           <a href={hrefFor('layout')} className="group block">
             <Card className="flex items-center gap-4 p-5 transition-colors group-hover:border-line-strong">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-3 text-ink-muted">

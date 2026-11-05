@@ -127,6 +127,16 @@ public sealed class ZoneTests : IDisposable
     }
 
     [Fact]
+    public void Zones_PlayOverTheBackgroundEffect_NotOverAClientsEffect()
+    {
+        // the idle effect fills only what the layout leaves to it: a setup playing an effect on its strips keeps showing
+        Assert.True(LightingPipeline.ShowsLayout(new VisibleSource(EffectEngine.BackgroundPriority, SourceComponent.Effect, default, null, 0, 1)));
+        Assert.True(LightingPipeline.ShowsLayout(VisibleSource.None));
+        Assert.False(LightingPipeline.ShowsLayout(new VisibleSource(1, SourceComponent.Effect, default, null, 0, 1)));
+        Assert.False(LightingPipeline.ShowsLayout(new VisibleSource(EffectEngine.ForegroundPriority, SourceComponent.Effect, default, null, 0, 1)));
+    }
+
+    [Fact]
     public void Zones_KeepTheControllersOnAndAnimating_WithoutASource()
     {
         var engine = Engine(Store(), new SolidSource(0, 255, 0));

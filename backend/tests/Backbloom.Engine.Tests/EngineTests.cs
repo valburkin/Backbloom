@@ -405,33 +405,6 @@ public sealed class EngineTests : IDisposable
     }
 
     [Fact]
-    public void Engine_GameModeHasItsOwnBrightness_OnceSet()
-    {
-        var registry = Registry();
-        var store = Store(registry);
-        Assert.True(store.Update(JsonNode.Parse("""{ "leds": [{ "hmin": 0, "hmax": 1, "vmin": 0, "vmax": 1 }] }""")!.AsObject()).Success);
-        using var engine = new LightingEngine(store, new SolidSource(255, 255, 255), Devices(registry), new SystemClock(), NullLoggerFactory.Instance);
-        engine.Start();
-        var preview = new byte[3];
-        WaitUntil(() => engine.LedColors.CopyLatest(preview) == 3 && preview[0] == 255);
-
-        // without its own brightness Game mode uses Ambient's (full: white stays white)
-        engine.ApplyGameMode(true);
-        Thread.Sleep(300);
-        WaitUntil(() => engine.LedColors.CopyLatest(preview) == 3 && preview[0] == 255);
-
-        var game = store.GetSection(GameTuning.SectionName)!.AsObject();
-        game["scaleOutput"] = 0.2;
-        Assert.True(store.Update(new JsonObject { [GameTuning.SectionName] = game.DeepClone() }).Success);
-        WaitUntil(() => engine.LedColors.CopyLatest(preview) == 3 && preview[0] < 200);
-
-        // Ambient keeps its own
-        engine.ApplyGameMode(false);
-        WaitUntil(() => engine.LedColors.CopyLatest(preview) == 3 && preview[0] == 255);
-        Assert.Equal(1.0, store.GetSection("color")!["channelAdjustment"]![0]!["scaleOutput"]!.GetValue<double>());
-    }
-
-    [Fact]
     public void Engine_ComponentsSwitchTheSourceAndTheDevices()
     {
         var registry = Registry();

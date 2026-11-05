@@ -1,30 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppWindow, Eye, EyeOff, Gamepad2, Loader2, Plus, Trash2, X } from 'lucide-react';
-import type { LayoutSpec } from '../../layout';
+import { AppWindow, Loader2, Plus, Power, Trash2, Undo2, X } from 'lucide-react';
+import { EVERYDAY, freeName } from '../../control/presets';
+import { programName, type LayoutSpec } from '../../layout';
 import { Menu } from '../../components/Menu';
 import { Button, buttonClass, CHOICE_ACTIVE, cx, IconButton } from '../../components/ui';
 import type { EditorAction } from '../../editor/state';
 import { nextProfileId } from '../../editor/state';
 
-/** A program name as profiles store it: the executable's file name, lower case, with ".exe" added when missing. */
-export function programName(text: string): string {
-  const name = text.trim().split(/[\\/]/).pop()?.toLowerCase() ?? '';
-  return !name || name.includes('.') ? name : `${name}.exe`;
-}
 
 export const PROFILES_HINT =
-  'Profiles change what strips show while a game or app runs, for example music on the ceiling during one game. A game added on Game mode’s Games page has one too, and also turns on Game mode.';
+  'A preset is a saved setup: what each strip shows while it’s in use, for example music on the ceiling while you play. Pick it on Home or Presets, or have a program use it while it runs. The Presets page also sets its Look.';
 
-/** Adds a profile named "Profile n" and returns its id. */
+/** Adds a preset named "Preset n" (a name no other preset has) and returns its id. */
 function addProfile(spec: LayoutSpec, dispatch: (a: EditorAction) => void): string {
   const id = nextProfileId(spec);
-  dispatch({ type: 'addProfile', profile: { id, name: `Profile ${(spec.profiles?.length ?? 0) + 1}`, apps: [], sections: {} } });
+  dispatch({ type: 'addProfile', profile: { id, name: freeName(spec, `Preset ${(spec.profiles?.length ?? 0) + 1}`), apps: [], sections: {} } });
   return id;
 }
 
 /**
- * The profiles as compact tabs for the toolbar ("Everyday" is the layout itself) with a button to add one. A dot marks
- * the profile the lights use now, when known.
+ * The presets as compact tabs for the toolbar ("Everyday" is the layout itself) with a button to add one. A dot marks
+ * the preset that is on now, when known.
  */
 export function ProfileTabs({
   spec,
@@ -34,15 +30,15 @@ export function ProfileTabs({
   onEdit,
 }: {
   spec: LayoutSpec;
-  /** The profile being edited, or null for Everyday. */
+  /** The preset being edited, or null for Everyday. */
   editing: string | null;
-  /** The profile the lights use now (null: Everyday), when known. */
+  /** The preset that is on now (null: Everyday), when known. */
   active?: string | null;
   dispatch: (a: EditorAction) => void;
   onEdit(profileId: string | null): void;
 }) {
   const profiles = spec.profiles ?? [];
-  const tab = (id: string | null, label: string, game = false) => (
+  const tab = (id: string | null, label: string) => (
     <button
       key={id ?? 'everyday'}
       type="button"
@@ -54,40 +50,39 @@ export function ProfileTabs({
         editing === id ? CHOICE_ACTIVE : 'text-ink-muted hover:text-ink',
       )}
     >
-      {game && <Gamepad2 size={12} className="shrink-0" aria-label="Game" />}
       <span className="truncate">{label}</span>
       {active !== undefined && active === id && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" title="In use now" />}
     </button>
   );
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <div role="tablist" aria-label="Profiles" className="inline-flex min-w-0 flex-wrap rounded-lg border border-line-input bg-bg/60 p-0.5">
+      <div role="tablist" aria-label="Presets" className="inline-flex min-w-0 flex-wrap rounded-lg border border-line-input bg-bg/60 p-0.5">
         {tab(null, 'Everyday')}
-        {profiles.map((p) => tab(p.id, p.name || 'Untitled', p.game === true))}
+        {profiles.map((p) => tab(p.id, p.name || 'Untitled'))}
       </div>
-      <IconButton label="Add a profile" className="h-7 w-7" onClick={() => onEdit(addProfile(spec, dispatch))}>
+      <IconButton label="Add a preset" className="h-7 w-7" onClick={() => onEdit(addProfile(spec, dispatch))}>
         <Plus size={15} />
       </IconButton>
     </div>
   );
 }
 
-/** Where profiles start while there are none: what they are for, and a button to add one. */
+/** Where presets start while there are none: what they are for, and a button to add one. */
 export function ProfileIntro({ spec, dispatch, onEdit }: { spec: LayoutSpec; dispatch: (a: EditorAction) => void; onEdit(profileId: string): void }) {
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold">Profiles</h3>
+      <h3 className="text-sm font-semibold">Presets</h3>
       <p className="text-xs text-ink-faint">{PROFILES_HINT}</p>
       <Button size="sm" icon={<Plus size={14} />} onClick={() => onEdit(addProfile(spec, dispatch))}>
-        Add a profile
+        Add a preset
       </Button>
     </div>
   );
 }
 
 /**
- * The profile being edited, as a sentence: "[name] turns on when [program ×] [Add program…] [Pick from running apps]
- * is running", whether it's a game's (added on the Games page), with Preview (show it on the lights now) and Delete.
+ * The preset being edited, as a sentence: "[name] is used while [program ×] [Add program…] [Pick from running apps]
+ * is running", with Use / Use Everyday (on the lights now) and Delete.
  */
 export function ProfileSettings({
   spec,
@@ -106,9 +101,9 @@ export function ProfileSettings({
   onEdit(profileId: string | null): void;
   /** Programs with a window open now, to pick one from (executable and window title). */
   loadPrograms?: () => Promise<Array<{ exe: string; title: string }>>;
-  /** The lights show this profile because of Preview. */
+  /** The preset is on now. */
   previewing: boolean;
-  /** Why Preview can't run now (unsaved changes), or undefined. */
+  /** Why it can't be turned on now (unsaved changes), or undefined. */
   previewBlocked?: string;
   previewError?: string | null;
   onPreview(on: boolean): void;
@@ -125,15 +120,15 @@ export function ProfileSettings({
   };
 
   return (
-    <section aria-label={`Profile ${profile.name}`} className="space-y-3">
+    <section aria-label={`Preset ${profile.name}`} className="space-y-3">
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-[13px] text-ink-muted">
         <input
-          aria-label="Profile name"
+          aria-label="Preset name"
           value={profile.name}
           onChange={(e) => dispatch({ type: 'updateProfile', profileId: profile.id, patch: { name: e.target.value }, coalesce: `profile-name-${profile.id}` })}
           className="h-8 w-36 rounded-md border border-line-input bg-bg px-2 text-[13px] font-medium text-ink"
         />
-        <span>turns on when</span>
+        <span>is used while</span>
         {profile.apps.map((a) => (
           <span key={a} className="inline-flex h-7 items-center gap-1 rounded-full bg-surface-3 pl-2.5 pr-1 text-xs text-ink">
             {a}
@@ -170,19 +165,17 @@ export function ProfileSettings({
         {loadPrograms && <ProgramPicker load={loadPrograms} taken={profile.apps} onPick={addApp} />}
         <span>is running</span>
       </div>
-      {profile.game && (
-        <p className="flex items-center gap-1.5 text-xs text-ink-faint">
-          <Gamepad2 size={13} aria-hidden /> One of your games: Game mode is on while it runs (Game mode’s Games page). Deleting the profile removes the game too.
-        </p>
-      )}
       <div className="flex flex-wrap items-center gap-2">
         {previewing ? (
-          <Button size="sm" icon={<EyeOff size={14} />} onClick={() => onPreview(false)}>
-            Stop preview
-          </Button>
+          <>
+            <span className="text-[13px] text-ink-muted">In use now.</span>
+            <Button size="sm" icon={<Undo2 size={14} />} title={`Switch back to ${EVERYDAY}, the strips without a preset`} onClick={() => onPreview(false)}>
+              Use {EVERYDAY}
+            </Button>
+          </>
         ) : (
-          <Button size="sm" icon={<Eye size={14} />} disabled={!!previewBlocked} title={previewBlocked ?? 'Show this profile on your lights now'} onClick={() => onPreview(true)}>
-            Preview
+          <Button size="sm" icon={<Power size={14} />} disabled={!!previewBlocked} title={previewBlocked ?? 'Switch to this preset now'} onClick={() => onPreview(true)}>
+            Use
           </Button>
         )}
         <Button
@@ -195,7 +188,7 @@ export function ProfileSettings({
             onEdit(null);
           }}
         >
-          Delete profile
+          Delete preset
         </Button>
       </div>
       {previewError && <p className="text-xs text-bad">{previewError}</p>}
@@ -215,7 +208,7 @@ export function ProgramPicker({
   taken: readonly string[];
   onPick(exe: string, title: string): void;
   label?: string;
-  /** Shown as the page's main button (the Games page) instead of a link-like one. */
+  /** Shown as the page's main button (the Presets page) instead of a link-like one. */
   primary?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -259,7 +252,7 @@ export function ProgramPicker({
               <Loader2 size={13} className="animate-spin" /> Looking…
             </p>
           ) : shown.length === 0 ? (
-            <p className="p-2 text-xs text-ink-muted">No other apps with a window. Start the game first, then pick it here.</p>
+            <p className="p-2 text-xs text-ink-muted">No other apps with a window. Start the program first, then pick it here.</p>
           ) : (
             shown.map((p) => (
               <button

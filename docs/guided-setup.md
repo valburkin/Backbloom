@@ -68,12 +68,14 @@ Each step can be passed by:
      only decides which end is LED 1: the layout has no place for a device's position, so it isn't kept. A strip
      following the screen's edge already offers **Trace its route**. A room light (one LED) gets Screen edge at once;
      a strip on another kind of device too, with a hint to draw where it runs on Layout.
-2. **Feel and games**: Home's Mood (Ambient) and Intensity (Game mode) presets, the same control and values, saved at
-   once; then optionally **Add a running game** (the Games page's picker; saved with the layout). Game mode's
-   Intensity starts at the settings' default (Intense). **Skip — use the defaults** sets Natural (on a new install)
-   and leaves Intensity as it is.
+2. **Look**: Home's five Looks (Relaxed, Natural, Rich, Vivid, Intense), the same control and values, saved at once;
+   then optionally **Add your game to Gaming** (the Presets page's program picker): the picked program goes into the
+   default Gaming preset's programs (Screen edges on every strip, the Intense Look), which is made again when it was
+   deleted (`addGameToGaming` in `ui/src/control/presets.ts`); saved with the layout. The default presets (Gaming,
+   Movie, Music, Cozy) come with the first save of the layout that has strips. **Skip — use the defaults** sets Natural (on a new install; an imported one keeps its
+   colors).
 
-Without lights (Your lights skipped) the setup goes from Your lights to Feel and games. Turn on lights saves the
+Without lights (Your lights skipped) the setup goes from Your lights to Look. Turn on lights saves the
 layout first, unless something blocks saving it. On a new install (not imported) whose Brightness is still at 100%, it
 sets Brightness to 60% (about a third of the light; full is far too bright in a room); Home's slider changes it.
 

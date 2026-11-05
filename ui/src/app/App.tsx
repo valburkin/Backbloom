@@ -14,13 +14,12 @@ import { CapturePage } from '../pages/CapturePage';
 import { ColorsPage } from '../pages/ColorsPage';
 import { CalibrationPage } from '../pages/CalibrationPage';
 import { EffectsPage } from '../pages/EffectsPage';
-import { GamesPage } from '../pages/GamesPage';
+import { PresetsPage } from '../pages/PresetsPage';
 import { SettingsPage } from '../pages/settings/SettingsPage';
 import { WelcomeScreen } from '../pages/welcome/WelcomeScreen';
 import { OtherAppNotice } from '../pages/welcome/OtherAppNotice';
 import { useAction } from './useAction';
-import { ModeSwitch } from '../control/ModeSwitch';
-import { gamesStayOpen, NAV, pageShown, sectionOf, SHARED_NAV, type NavItem } from './nav';
+import { NAV, sectionOf, SHARED_NAV, type NavItem } from './nav';
 
 // The layout editor is the biggest page; it loads when first opened.
 const LayoutPage = lazy(() => import('../pages/layout/LayoutPage').then((m) => ({ default: m.LayoutPage })));
@@ -99,16 +98,7 @@ function Shell() {
     main.current?.focus({ preventScroll: true });
   }, [loc.route]);
   const unsaved = (r: Route) => isPageDirty(drafts[r]) || (layoutDirty && (r === 'layout' || r === 'devices'));
-  const mode = useConnection().serverInfo?.mode?.mode;
-  const nav = NAV[mode ?? 'ambient'];
-  const [gamesOpen, setGamesOpen] = useState(false);
-  const stayOpen = gamesStayOpen(loc.route, mode, gamesOpen);
-  if (stayOpen !== gamesOpen) setGamesOpen(stayOpen);
-  const shown = pageShown(loc.route, mode, stayOpen);
-  useEffect(() => {
-    // replace, so that Back doesn't return to the page that isn't there
-    if (!shown) window.location.replace(hrefFor('home'));
-  }, [shown]);
+  const nav = NAV;
 
   return (
     <div className="flex h-full min-h-0 flex-col sm:flex-row">
@@ -126,7 +116,6 @@ function Shell() {
           <Logo />
           <span className="hidden font-display text-[17px] font-semibold tracking-tight lg:inline">Backbloom</span>
         </div>
-        <ModeSwitch className="mb-5 hidden sm:block" />
         <ul className="flex w-full justify-around gap-1 sm:flex-1 sm:flex-col sm:justify-start">
           {nav.map((n) => {
             const shared = n === SHARED_NAV[0];
@@ -173,7 +162,7 @@ function Shell() {
         <SectionTabs nav={nav} route={loc.route} go={go} unsaved={unsaved} />
         <div className="min-h-0 flex-1">
           {loc.route === 'home' && <HomePage />}
-          {loc.route === 'games' && shown && <GamesPage />}
+          {loc.route === 'presets' && <PresetsPage />}
           {loc.route === 'layout' && (
             <Suspense fallback={null}>
               <LayoutPage openProfile={profileLink(loc.sub)} />
@@ -183,7 +172,7 @@ function Shell() {
           {loc.route === 'capture' && <CapturePage />}
           {loc.route === 'colors' && <ColorsPage />}
           {loc.route === 'calibration' && <CalibrationPage />}
-          {loc.route === 'effects' && shown && <EffectsPage />}
+          {loc.route === 'effects' && <EffectsPage />}
           {loc.route === 'settings' && <SettingsPage tab={loc.sub} onTab={(t) => go('settings', t)} />}
         </div>
       </main>

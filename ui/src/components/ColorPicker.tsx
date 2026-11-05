@@ -19,20 +19,26 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
 /**
  * HSV color picker: saturation/brightness area, hue slider, hex field and swatches. `onChange` fires
- * continuously while dragging; callers throttle what they send to the lights.
+ * continuously while dragging; callers throttle what they send to the lights. `onCommit` fires once the choice is
+ * made: a drag or arrow keys end, a hex code is entered (Enter or leaving the field), a swatch is clicked.
  */
 export function ColorPicker({
   value,
   onChange,
+  onCommit,
   label = 'Color',
   swatches = true,
   compact,
+  wide,
 }: {
   value: Rgb;
   onChange: (rgb: Rgb) => void;
+  onCommit?: (rgb: Rgb) => void;
   label?: string;
   swatches?: boolean;
   compact?: boolean;
+  /** The area on the left, the hue, hex code and swatches beside it (on wide screens). */
+  wide?: boolean;
 }) {
   // Keep hue/saturation while the color is black or gray (they can't be recovered from RGB).
   const [hsv, setHsv] = useState<Hsv>(() => rgbToHsv(value));
@@ -45,11 +51,19 @@ export function ColorPicker({
   }, [value]);
   const [hexDraft, setHexDraft] = useState<string | null>(null);
   const area = useRef<HTMLDivElement>(null);
+  /** A change not committed yet. */
+  const changed = useRef(false);
+  const commit = () => {
+    if (!changed.current) return;
+    changed.current = false;
+    onCommit?.(last.current);
+  };
 
   const emit = (next: Hsv) => {
     setHsv(next);
     const rgb = hsvToRgb(next);
     last.current = rgb;
+    changed.current = true;
     onChange(rgb);
   };
 
@@ -72,7 +86,7 @@ export function ColorPicker({
   const hex = rgbToHex(value);
 
   return (
-    <div className="space-y-3" role="group" aria-label={label}>
+    <div className={cx(wide ? 'grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-x-5' : 'space-y-3')} role="group" aria-label={label}>
       <div
         ref={area}
         role="slider"
@@ -83,6 +97,9 @@ export function ColorPicker({
         aria-valuemin={0}
         aria-valuemax={100}
         onKeyDown={onKey}
+        onKeyUp={commit}
+        onPointerUp={commit}
+        onPointerCancel={commit}
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
           fromPointer(e);
@@ -90,7 +107,7 @@ export function ColorPicker({
         onPointerMove={(e) => {
           if (e.buttons & 1) fromPointer(e);
         }}
-        className={cx('relative w-full cursor-crosshair touch-none rounded-xl', compact ? 'h-32' : 'h-44')}
+        className={cx('relative w-full cursor-crosshair touch-none rounded-xl', compact ? 'h-32' : 'h-44', wide && 'sm:row-span-3')}
         style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${hueColor})` }}
       >
         <span
@@ -107,6 +124,9 @@ export function ColorPicker({
         value={Math.round(hsv.h)}
         aria-label={`${label}: hue`}
         onChange={(e) => emit({ ...hsv, h: Number(e.target.value), s: hsv.s || 1, v: hsv.v || 1 })}
+        onPointerUp={commit}
+        onKeyUp={commit}
+        onBlur={commit}
         className="hue-range w-full"
       />
       <div className="flex items-center gap-2">
@@ -120,11 +140,18 @@ export function ColorPicker({
             const rgb = hexToRgb(e.target.value);
             if (rgb) {
               last.current = rgb;
+              changed.current = true;
               setHsv(rgbToHsv(rgb));
               onChange(rgb);
             }
           }}
-          onBlur={() => setHexDraft(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit();
+          }}
+          onBlur={() => {
+            setHexDraft(null);
+            commit();
+          }}
           className="h-9 w-28 rounded-lg border border-line bg-bg px-2.5 font-mono text-[13px] uppercase text-ink focus:border-accent"
         />
         <span className="text-xs tabular-nums text-ink-faint">
@@ -143,6 +170,8 @@ export function ColorPicker({
                 last.current = s.rgb;
                 setHsv(rgbToHsv(s.rgb));
                 onChange(s.rgb);
+                changed.current = false;
+                onCommit?.(s.rgb);
               }}
               className={cx('h-7 w-7 rounded-full border border-white/10 transition-transform hover:scale-110', rgbToHex(s.rgb) === hex && 'ring-2 ring-white ring-offset-2 ring-offset-surface')}
               style={{ background: rgbToHex(s.rgb) }}

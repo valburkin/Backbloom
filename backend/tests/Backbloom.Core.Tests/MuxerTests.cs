@@ -94,27 +94,24 @@ public sealed class MuxerTests
     }
 
     [Fact]
-    public void ScreenOnly_HoldsColorsAndEffects_UntilTurnedOff()
+    public void ClearClients_KeepsTheScreen_TheStartupAndTheBackgroundEffect()
     {
         var muxer = new Muxer();
         muxer.Register(245, SourceComponent.SystemGrabber, "System", "DirectX11", Rgb8.Black, 0);
         muxer.SetInput(245, Muxer.NoTimeout, 0);
+        muxer.Register(Muxer.HighestEffectPriority, SourceComponent.Effect, "Startup effect", "Rainbow swirl", Rgb8.Black, 0);
+        muxer.SetInput(Muxer.HighestEffectPriority, 3000, 0);
+        muxer.Register(Muxer.LowestEffectPriority, SourceComponent.Effect, "Background effect", "Candle", Rgb8.Black, 0);
+        muxer.SetInput(Muxer.LowestEffectPriority, Muxer.NoTimeout, 0);
         muxer.Register(1, SourceComponent.Color, "UI", null, s_red, 0);
         muxer.SetInput(1, Muxer.NoTimeout, 0);
         muxer.Register(64, SourceComponent.Effect, "UI", "Rainbow swirl", Rgb8.Black, 0);
-        muxer.SetInput(64, 5000, 0);
-        Assert.True(muxer.Select(64, 0, out _));
-        Assert.Equal(64, muxer.CurrentPriority);
+        muxer.SetInput(64, Muxer.NoTimeout, 0);
+        muxer.Register(100, SourceComponent.Image, "Picture", null, Rgb8.Black, 0);
+        muxer.SetInput(100, Muxer.NoTimeout, 0);
 
-        Assert.Equal(MuxerChanges.Priorities | MuxerChanges.Visible, muxer.SetScreenOnly(true, 10));
-        Assert.Equal(245, muxer.CurrentPriority);
-        Assert.Equal(MuxerChanges.None, muxer.SetScreenOnly(true, 10));
-        Assert.False(muxer.AutoSelect);
-
-        // held sources still expire
-        muxer.Update(6000);
-        Assert.False(muxer.Has(64));
-        muxer.SetScreenOnly(false, 6000);
-        Assert.Equal(1, muxer.CurrentPriority);
+        Assert.NotEqual(MuxerChanges.None, muxer.ClearClients(10));
+        Assert.Equal([Muxer.HighestEffectPriority, 245, Muxer.LowestEffectPriority, Muxer.LowestPriority], muxer.Inputs.Select(i => i.Priority).Order());
+        Assert.Equal(MuxerChanges.None, muxer.ClearClients(10));
     }
 }

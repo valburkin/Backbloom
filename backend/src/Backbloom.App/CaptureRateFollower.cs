@@ -1,34 +1,37 @@
 using Backbloom.Capture;
+using Backbloom.Core.Smoothing;
 using Backbloom.Engine;
 using Backbloom.Settings;
 
 namespace Backbloom.App;
 
 /// <summary>
-/// The screen capture's settings as they apply now: <c>systemGrabber</c>, with at least Game mode's rate
-/// (<c>game.fps</c>, <see cref="GameTuning.ApplyTo"/>) while Game mode is on. A separate object because the
-/// <see cref="ModeMonitor"/> depends on the engine, which depends on the capture: the monitor tells this object, which
-/// reconfigures the source, only when the settings that apply differ (each new configuration restarts the capture).
+/// The screen capture's settings as they apply now: <c>systemGrabber</c>, with at least 60 fps while the smoothing that
+/// applies (the saved one with the active profile's Look on top, <see cref="LightingEngine.SmoothingApplied"/>) has fast
+/// transitions (<see cref="LookTuning.CaptureFor"/>). A separate object because the engine depends on the capture: the
+/// engine tells this object (<see cref="SetSmoothing"/>), which reconfigures the source only when the settings that
+/// apply differ (each new configuration restarts the capture).
 /// </summary>
-internal sealed class CaptureModeFollower
+internal sealed class CaptureRateFollower
 {
     private readonly Lock _lock = new();
     private ISettingsStore? _store;
     private Action<CaptureSettings>? _configure;
     private CaptureSettings? _applied;
-    private bool _game;
+    private SmoothingSettings? _smoothing;
 
+    /// <summary>The capture settings that apply now; until the engine reports its smoothing, with the saved one.</summary>
     public CaptureSettings SettingsFrom(ISettingsStore store)
     {
         ArgumentNullException.ThrowIfNull(store);
         var capture = CaptureSettings.FromJson(store.GetSection(CaptureSettings.SectionName));
         lock (_lock)
         {
-            return _game ? GameTuning.FromJson(store.GetSection(GameTuning.SectionName)).ApplyTo(capture) : capture;
+            return LookTuning.CaptureFor(capture, _smoothing ?? SmoothingSettings.FromJson(store.GetSection("smoothing")));
         }
     }
 
-    /// <summary>Reconfigures with <paramref name="configure"/> when the capture or mode settings change.</summary>
+    /// <summary>Reconfigures with <paramref name="configure"/> when the capture settings or the applied smoothing change.</summary>
     public void Follow(ISettingsStore store, Action<CaptureSettings> configure)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -43,23 +46,25 @@ internal sealed class CaptureModeFollower
 
         store.Changed += change =>
         {
-            if (change.Contains(CaptureSettings.SectionName) || change.Contains(GameTuning.SectionName))
+            if (change.Contains(CaptureSettings.SectionName))
             {
                 Reconfigure();
             }
         };
     }
 
-    public void SetGameMode(bool on)
+    /// <summary>The smoothing that applies now (<see cref="LightingEngine.SmoothingAppliedChanged"/>).</summary>
+    public void SetSmoothing(SmoothingSettings smoothing)
     {
+        ArgumentNullException.ThrowIfNull(smoothing);
         lock (_lock)
         {
-            if (_game == on)
+            if (smoothing == _smoothing)
             {
                 return;
             }
 
-            _game = on;
+            _smoothing = smoothing;
         }
 
         Reconfigure();

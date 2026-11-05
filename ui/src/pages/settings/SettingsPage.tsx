@@ -9,6 +9,7 @@ import { RemoteAccessTab } from './RemoteAccess';
 import { IntegrationsTab } from './IntegrationsTab';
 import { LogsTab } from './LogsTab';
 import { AboutTab } from './AboutTab';
+import { STARTUP_LABELS } from './StartupIdle';
 
 export const SETTINGS_LABELS: Record<string, string> = {
   'general.name': 'Name',
@@ -17,10 +18,11 @@ export const SETTINGS_LABELS: Record<string, string> = {
   'mqtt.host': 'Broker address',
   'mqtt.port': 'Broker port',
   'logger.level': 'Log detail',
+  ...STARTUP_LABELS,
 };
 
 /** Stored as soon as they change; network and MQTT settings wait for Save (a half-typed port or address would apply). */
-const AUTO_SAVED = ['general', 'logger'];
+const AUTO_SAVED = ['general', 'logger', 'foregroundEffect', 'backgroundEffect'];
 
 interface Tab {
   id: string;

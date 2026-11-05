@@ -13,8 +13,7 @@ import {
   type ConnectionStatus,
   type ControllerInfo,
   type JsonSchema,
-  type LightMode,
-  type ModeState,
+  type DismissedProfile,
   type PerformanceReport,
   type PriorityInfo,
   type RpcEvent,
@@ -25,7 +24,7 @@ import {
   type SystemGrabbers,
 } from './types';
 import { validate, type Issue } from '../schema/schema';
-import { compileLayout, type DriverSettings, type LayoutSpec } from '../layout';
+import { applyProfile, compileLayout, compileZones, type DriverSettings, type LayoutSpec, type LedRect, type ZoneRole } from '../layout';
 
 export interface MockOptions {
   /** Act like a connection from another device: sign in first (password: MOCK_PASSWORD). Otherwise this computer, no password set. */
@@ -64,6 +63,10 @@ export interface MockOptions {
   stepMs?: number;
   /** How long a board takes to apply LED settings without a restart (default 700 ms; tests: 0). */
   applyMs?: number;
+  /** With the demo layout: Gaming (of the default presets) is used while witcher3.exe runs (`?mock=presets`). */
+  presets?: boolean;
+  /** Programs that run (executable names), for the presets they turn on (`?mock=presets`: witcher3.exe); `setRunning` changes them. */
+  running?: string[];
 }
 
 /** Where the demo pretends to be reachable once remote access is on. */
@@ -128,6 +131,7 @@ export class MockBackend implements Backend {
   private readonly requireAuth: boolean;
   private readonly seed: BackendConfig;
   private readonly demoLayout: boolean;
+  private readonly presets: boolean;
   private readonly fresh: boolean;
   private readonly offline: boolean;
   private fx: MockFixtures | null = null;
@@ -142,11 +146,30 @@ export class MockBackend implements Backend {
   ];
   private timers = new Map<string, ReturnType<typeof setInterval>>();
   private setup: SetupState;
-  /** The profile chosen by hand (profile select); no program ever runs in the mock, so none runs otherwise. */
-  private manualProfile: string | null = null;
-  /** The game's profile whose Game mode was turned off on Home (mode set ambient) until another profile runs. */
-  private dismissedProfile: string | null = null;
+  /**
+   * The preset turned on by hand (profile select), or null: the running programs choose. Like the backend it is kept in
+   * the `presets` settings (`selected`, absent for none), so it survives a restart; only `profile` commands change it.
+   */
+  private get manualProfile(): string | null {
+    const selected = (this.config.presets as { selected?: unknown } | undefined)?.selected;
+    return typeof selected === 'string' ? selected : null;
+  }
+
+  private set manualProfile(id: string | null) {
+    const next = id === null ? {} : { selected: id };
+    if (JSON.stringify(next) === JSON.stringify(this.config.presets ?? {})) return;
+    this.config.presets = next;
+    this.emit('settings-update', { presets: next });
+  }
+  /** The presets turned off while their programs run (profile dismiss), until none of them runs; the last one is reported. */
+  private dismissedProfiles: string[] = [];
+  /** Programs that run (lower case), for the presets they turn on. */
+  private running: Set<string>;
+  /** The preset state last announced (profile-update), so that no change is sent twice. */
+  private announcedProfile: string;
   private logSeq = 0;
+  /** The LEDs of the layout and preset last shown (shownLeds). */
+  private ledCache: { layout: unknown; profile: string | null; leds: ReturnType<MockBackend['shownLeds']> } | null = null;
   /** Log of LEDs blinked (controller id, or none for an index over all LEDs; `hold` when held), for tests / debugging. */
   readonly blinks: Array<{ index: number; controller?: string; hold?: boolean }> = [];
   /** Log of stop requests (controller id, or none for every controller). */
@@ -162,8 +185,11 @@ export class MockBackend implements Backend {
     this.password = this.requireAuth ? MOCK_PASSWORD : null;
     this.seed = clone(options.config ?? {});
     this.demoLayout = options.demoLayout ?? false;
+    this.presets = options.presets ?? false;
     this.fresh = !!options.firstRun && !!options.fresh;
     this.offline = options.offline ?? false;
+    this.running = new Set((options.running ?? []).map((r) => r.toLowerCase()));
+    this.announcedProfile = JSON.stringify({ profile: null, dismissed: null });
     this.hardware = new MockHardware({
       usb: options.usb,
       hotspot: options.hotspot,
@@ -195,6 +221,12 @@ export class MockBackend implements Backend {
     };
   }
 
+  /** Programs start or quit: the presets they turn on follow (like the backend's program watcher). */
+  setRunning(programs: readonly string[]): void {
+    this.running = new Set(programs.map((r) => r.toLowerCase()));
+    this.profileChanged();
+  }
+
   /** The demo's HyperHDR quits: the lights may start (like the app noticing the process is gone). */
   quitOtherApp(): void {
     this.updateSetup({ otherApp: null });
@@ -207,7 +239,7 @@ export class MockBackend implements Backend {
   connect(): void {
     if (this._status === 'open' || this._status === 'connecting') return;
     this.setStatus('connecting');
-    void import('./mockData').then(({ MOCK_FIXTURES, demoLayout }) => {
+    void import('./mockData').then(({ MOCK_FIXTURES, demoLayout, demoPresets }) => {
       if (!this.fx) {
         this.fx = MOCK_FIXTURES;
         this.config = { ...clone(MOCK_FIXTURES.config), leds: clone(MOCK_FIXTURES.leds), ...clone(this.seed) };
@@ -219,9 +251,12 @@ export class MockBackend implements Backend {
             leds: [{ hmin: 0, hmax: 1, vmin: 0, vmax: 0.08, group: 0 }],
           };
         if (this.demoLayout && !this.config.layout) {
-          const layout = demoLayout(MOCK_WLED_HOST);
+          const base = demoLayout(MOCK_WLED_HOST);
+          // the default presets, as the first save gives them
+          const layout = { ...base, profiles: demoPresets(base, this.presets) };
           this.config = { ...this.config, layout, leds: compileLayout(layout).flatMap((c) => c.leds) };
         }
+        this.announcedProfile = JSON.stringify(this.profileState());
       }
       setTimeout(() => {
         this.admin = !this.requireAuth;
@@ -354,8 +389,6 @@ export class MockBackend implements Backend {
         return ok(this.ledDevice(subcommand, params, fail));
       case 'profile':
         return ok(this.profileCommand(subcommand, params, fail, needAdmin));
-      case 'mode':
-        return ok(this.modeCommand(subcommand, params, fail));
       case 'hardware':
         needAdmin();
         return ok(await this.hardware.handle(subcommand, params, fail));
@@ -443,21 +476,33 @@ export class MockBackend implements Backend {
     }
   }
 
-  /** `profile`: select (by hand, or null = by the running programs: none run here), programs (a fixed list), getstate. */
+  /**
+   * `profile`: getstate, select (by hand, or null = by the running programs), dismiss (the preset that is on goes off:
+   * by hand back to automatic, by program until its programs quit), programs (a fixed list).
+   */
   private profileCommand(subcommand: string | undefined, params: Record<string, unknown>, fail: (e: string) => never, needAdmin: () => void): unknown {
     switch (subcommand) {
       case 'getstate':
-        return { profile: this.activeProfile() };
+        return this.profileState();
       case 'select': {
         const id = params.id ?? null;
         if (id !== null && typeof id !== 'string') return fail('id must be a profile\'s id or null (choose by the running programs)');
         if (id !== null && !this.profiles().some((p) => p.id === id)) return fail(`The layout has no profile '${id}'`);
-        const before = JSON.stringify(this.activeProfile());
-        const mode = this.modeState();
         this.manualProfile = id;
-        if (JSON.stringify(this.activeProfile()) !== before) this.emit('profile-update', { profile: this.activeProfile() });
-        this.emitModeIfChanged(mode);
-        return { profile: this.activeProfile() };
+        // turning a dismissed preset on ends its dismissal
+        if (id !== null) this.dismissedProfiles = this.dismissedProfiles.filter((d) => d !== id);
+        this.profileChanged();
+        return this.profileState();
+      }
+      case 'dismiss': {
+        // off until its programs quit (by hand: back to automatic, which skips it while its programs run); the reply
+        // may name another preset whose program runs
+        const active = this.activeProfile();
+        if (active?.manual) this.manualProfile = null;
+        const preset = active && this.profiles().find((p) => p.id === active.id);
+        if (preset && this.runs(preset)) this.dismissedProfiles = [...this.dismissedProfiles.filter((d) => d !== preset.id), preset.id];
+        this.profileChanged();
+        return this.profileState();
       }
       case 'programs':
         needAdmin();
@@ -467,64 +512,56 @@ export class MockBackend implements Backend {
     }
   }
 
-  private profiles(): Array<{ id: string; name: string; game?: boolean }> {
+  private profiles(): Array<{ id: string; name: string; apps?: string[] }> {
     const profiles = (this.config.layout as { profiles?: unknown } | undefined)?.profiles;
-    return Array.isArray(profiles) ? (profiles as Array<{ id: string; name: string; game?: boolean }>) : [];
+    return Array.isArray(profiles) ? (profiles as Array<{ id: string; name: string; apps?: string[] }>) : [];
   }
 
-  /** `serverinfo.profile`: the profile chosen by hand, or null. */
+  private runs(p: { apps?: string[] }): boolean {
+    return (p.apps ?? []).some((a) => this.running.has(a.toLowerCase()));
+  }
+
+  /** `serverinfo.profile`: the preset turned on by hand, else the first one a running program turns on (not dismissed). */
   private activeProfile(): ActiveProfile | null {
-    const p = this.manualProfile === null ? undefined : this.profiles().find((x) => x.id === this.manualProfile);
-    return p ? { id: p.id, name: p.name, manual: true, game: p.game === true } : null;
+    const manual = this.manualProfile === null ? undefined : this.profiles().find((x) => x.id === this.manualProfile);
+    if (manual) return { id: manual.id, name: manual.name, manual: true };
+    const auto = this.profiles().find((p) => !this.dismissedProfiles.includes(p.id) && this.runs(p));
+    return auto ? { id: auto.id, name: auto.name, manual: false } : null;
   }
 
-  /** `mode`: getstate, set (saves `modes.mode`; Ambient while a game's profile runs turns its Game mode off). */
-  private modeCommand(subcommand: string | undefined, params: Record<string, unknown>, fail: (e: string) => never): unknown {
-    switch (subcommand) {
-      case 'getstate':
-        return { mode: this.modeState() };
-      case 'set': {
-        const mode = params.mode;
-        if (mode !== 'ambient' && mode !== 'game') return fail('mode must be "ambient" or "game"');
-        const before = this.modeState();
-        const profile = this.activeProfile();
-        // Game again while the dismissed game runs: on again, the chosen mode stays (as ModeMonitor.Set)
-        if (mode === 'game' && profile?.game && this.dismissedProfile === profile.id) {
-          this.dismissedProfile = null;
-          this.emitModeIfChanged(before);
-          return { mode: this.modeState() };
-        }
-        // before saving, as the backend: no Game in between for the running game
-        this.dismissedProfile = mode === 'ambient' && profile?.game ? profile.id : null;
-        this.writeConfig({ modes: { ...((this.config.modes as object | undefined) ?? {}), mode } });
-        this.emitModeIfChanged(before);
-        return { mode: this.modeState() };
-      }
-      default:
-        return fail('unknown or missing subcommand');
+  /** `serverinfo.dismissedProfile`: the preset turned off while its programs run. */
+  private dismissed(): DismissedProfile | null {
+    const last = this.dismissedProfiles[this.dismissedProfiles.length - 1];
+    const p = last === undefined ? undefined : this.profiles().find((x) => x.id === last);
+    return p ? { id: p.id, name: p.name } : null;
+  }
+
+  private profileState(): { profile: ActiveProfile | null; dismissed: DismissedProfile | null } {
+    return { profile: this.activeProfile(), dismissed: this.dismissed() };
+  }
+
+  /**
+   * After a change of the presets, the running programs or a choice: a dismissal ends once none of its programs runs
+   * (or the preset is gone), and a preset chosen by hand that was removed goes; then profile-update when the state
+   * changed. Like the backend, a preset that comes on clears the colors and effects that were started.
+   */
+  private profileChanged(): void {
+    const ids = new Set(this.profiles().map((p) => p.id));
+    if (this.manualProfile !== null && !ids.has(this.manualProfile)) this.manualProfile = null;
+    this.dismissedProfiles = this.dismissedProfiles.filter((id) => {
+      const p = this.profiles().find((x) => x.id === id);
+      return !!p && this.runs(p);
+    });
+    const before = JSON.parse(this.announcedProfile) as { profile: ActiveProfile | null };
+    const state = this.profileState();
+    const text = JSON.stringify(state);
+    if (text === this.announcedProfile) return;
+    this.announcedProfile = text;
+    this.emit('profile-update', state);
+    if (state.profile && state.profile.id !== before.profile?.id && this.source) {
+      this.source = null;
+      this.emitPriorities();
     }
-  }
-
-  /** `serverinfo.mode`: Game while a game's profile runs (unless turned off on Home), else the saved mode. */
-  private modeState(): ModeState {
-    const saved: LightMode = (this.config.modes as { mode?: unknown } | undefined)?.mode === 'game' ? 'game' : 'ambient';
-    const profile = this.activeProfile();
-    if (this.dismissedProfile !== null && profile?.id !== this.dismissedProfile) this.dismissedProfile = null;
-    if (profile?.game && profile.id !== this.dismissedProfile) return { mode: 'game', saved, gameProfile: profile.name, dismissedGame: null };
-    return { mode: saved, saved, gameProfile: null, dismissedGame: profile?.game ? profile.name : null };
-  }
-
-  /** The mode last announced with mode-update (or the state before the first change), so that no change is sent twice. */
-  private announcedMode: ModeState | null = null;
-
-  private emitModeIfChanged(before: ModeState): void {
-    const last = this.announcedMode ?? before;
-    const now = this.modeState();
-    if (JSON.stringify(now) === JSON.stringify(last)) return;
-    this.announcedMode = now;
-    this.emit('mode-update', { mode: now });
-    // Game mode shows only the screen; a color or effect waits
-    if (now.mode !== last.mode) this.emitPriorities();
   }
 
   private setupCommand(subcommand: string | undefined, params: Record<string, unknown>, fail: (e: string) => never): SetupState {
@@ -637,7 +674,6 @@ export class MockBackend implements Backend {
 
   /** Partial setconfig of validated sections: replace the sent sections, announce the changed ones. */
   private writeConfig(sent: BackendConfig): void {
-    const mode = this.modeState();
     const next = this.applyLayout(sent);
     for (const [section, value] of Object.entries(next)) {
       const changed = JSON.stringify(value) !== JSON.stringify(this.config[section]);
@@ -648,11 +684,7 @@ export class MockBackend implements Backend {
       if (section === 'layout') this.emitControllers();
       if (section === 'color') this.emit('adjustment-update', (value as { channelAdjustment: unknown }).channelAdjustment);
       if (section === 'systemGrabber') this.emit('capture-update', this.systemGrabbers());
-      if (section === 'layout' && this.manualProfile !== null && !this.profiles().some((p) => p.id === this.manualProfile)) {
-        // the chosen profile is gone: back to choosing by the programs
-        this.manualProfile = null;
-        this.emit('profile-update', { profile: null });
-      }
+      if (section === 'layout') this.profileChanged();
       if (section === 'soundEffect') {
         this.emit('sound-update', this.sound());
         if (!this.sound()?.available && this.source?.kind === 'effect' && this.source.name.startsWith('Music: ')) {
@@ -665,7 +697,6 @@ export class MockBackend implements Backend {
         this.updateSetup({ remoteAccess: { ...this.setup.remoteAccess, enabled: on, urls: on ? [MOCK_LAN_URL] : [], advertised: on } });
       }
     }
-    this.emitModeIfChanged(mode);
   }
 
   // ---- state ----
@@ -685,9 +716,7 @@ export class MockBackend implements Backend {
     }
     if (this.components.get('SYSTEMGRABBER'))
       list.push({ priority: 245, componentId: 'SYSTEMGRABBER', origin: 'System', owner: 'DirectX11', active: true, visible: false });
-    // Game mode shows only the screen: a color or effect waits until Ambient
-    const shown = this.modeState().mode === 'game' ? list.find((p) => p.componentId === 'SYSTEMGRABBER') : list[0];
-    if (shown) shown.visible = true;
+    if (list[0]) list[0].visible = true;
     return list;
   }
 
@@ -710,7 +739,7 @@ export class MockBackend implements Backend {
       systemGrabbers: this.systemGrabbers(),
       sound: this.sound(),
       profile: this.activeProfile(),
-      mode: this.modeState(),
+      dismissedProfile: this.dismissed(),
     };
   }
 
@@ -763,10 +792,9 @@ export class MockBackend implements Backend {
     return (this.config.color as { channelAdjustment: Array<Record<string, unknown>> }).channelAdjustment[0];
   }
 
-  /** The brightness shown: Game mode's own, once set, replaces Ambient's (as Engine/GameTuning.cs). */
+  /** The brightness shown. */
   private shownScale(): number {
-    const game = (this.config.game as { scaleOutput?: unknown } | undefined)?.scaleOutput;
-    return Number(this.modeState().mode === 'game' && typeof game === 'number' ? game : (this.activeAdjustment().scaleOutput ?? 1));
+    return Number(this.activeAdjustment().scaleOutput ?? 1);
   }
 
   private emitControllers(): void {
@@ -779,25 +807,52 @@ export class MockBackend implements Backend {
 
   // ---- streams ----
 
+  /** The LEDs as the setup in use has them: each one's rect and, in a zone, its role and place in the zone. */
+  private shownLeds(): { rects: LedRect[]; zones: Array<{ role: ZoneRole; at: number; of: number } | null> } {
+    const layout = this.config.layout as LayoutSpec | undefined;
+    const profile = this.activeProfile()?.id ?? null;
+    const cached = this.ledCache;
+    if (cached && cached.layout === layout && cached.profile === profile) return cached.leds;
+    let leds: { rects: LedRect[]; zones: Array<{ role: ZoneRole; at: number; of: number } | null> };
+    if (!layout) leds = { rects: (this.config.leds ?? []) as LedRect[], zones: [] };
+    else {
+      // like the backend: the preset's sections, its effect and color parts as zones
+      const applied = applyProfile(layout, profile);
+      const rects = compileLayout(applied).flatMap((c) => c.leds);
+      const zones: Array<{ role: ZoneRole; at: number; of: number } | null> = rects.map(() => null);
+      for (const zone of compileZones(applied)) zone.leds.forEach((led, at) => (zones[led] = { role: zone.role, at, of: zone.leds.length }));
+      leds = { rects, zones };
+    }
+    this.ledCache = { layout, profile, leds };
+    return leds;
+  }
+
   private startLedStream(): void {
     if (this.timers.has('leds')) return;
     const started = Date.now();
     this.timers.set(
       'leds',
       setInterval(() => {
-        const leds = (this.config.leds ?? []) as Array<{ hmin: number; hmax: number; vmin: number; vmax: number }>;
+        const { rects, zones } = this.shownLeds();
         const scale = Math.min(1, this.shownScale());
         const t = Date.now() - started;
         // like the backend: the preview keeps running while the output is held (the first-run setup shows it)
         const on = this.components.get('ALL') && this.components.get('LEDDEVICE');
         const out: number[] = [];
-        leds.forEach((r, i) => {
+        rects.forEach((r, i) => {
           const x = (r.hmin + r.hmax) / 2;
           const y = (r.vmin + r.vmax) / 2;
+          const zone = zones[i];
           let c: Rgb = [0, 0, 0];
           if (!on) c = [0, 0, 0];
           else if (this.source?.kind === 'color') c = this.source.rgb;
-          else if (this.source?.kind === 'effect') c = hsv((i * 360) / Math.max(1, leds.length) + t / 12, 1, 1);
+          else if (this.source?.kind === 'effect') c = hsv((i * 360) / Math.max(1, rects.length) + t / 12, 1, 1);
+          else if (zone?.role.kind === 'color') c = zone.role.color;
+          else if (zone?.role.kind === 'effect')
+            c = zone.role.effect.startsWith('Music: ')
+              ? hsv((zone.at * 240) / zone.of + t / 30, 1, 0.35 + 0.65 * Math.abs(Math.sin(t / 260 + zone.at / 9)))
+              : hsv((zone.at * 360) / zone.of + t / 12, 1, 1);
+          else if (r.disabled) c = [0, 0, 0];
           else if (this.components.get('SYSTEMGRABBER')) c = sceneColor(x, y, t);
           out.push(Math.round(c[0] * scale), Math.round(c[1] * scale), Math.round(c[2] * scale));
         });

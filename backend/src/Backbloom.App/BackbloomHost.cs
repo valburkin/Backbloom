@@ -102,7 +102,16 @@ public static class BackbloomHost
         services.AddCapture(options);
         services.AddAudio();
         services.AddSingleton<DeviceManager>();
-        services.AddSingleton<LightingEngine>();
+
+        // The screen capture follows the smoothing that applies (at least 60 fps while transitions are fast).
+        services.AddSingleton(sp =>
+        {
+            var engine = ActivatorUtilities.CreateInstance<LightingEngine>(sp);
+            var capture = sp.GetRequiredService<CaptureRateFollower>();
+            capture.SetSmoothing(engine.SmoothingApplied);
+            engine.SmoothingAppliedChanged += capture.SetSmoothing;
+            return engine;
+        });
 
         // No LED output before the first-run welcome is completed, nor while HyperHDR runs.
         services.AddSingleton<OtherAppMonitor>();
@@ -112,17 +121,8 @@ public static class BackbloomHost
             sp.GetRequiredService<OtherAppMonitor>(),
             sp.GetRequiredService<ILogger<LightingGate>>()));
 
-        // The layout's profiles: other roles for the strips while a program runs (or one chosen by hand).
+        // The layout's profiles (presets): other roles and a Look for the strips while a program runs (or one chosen by hand).
         services.AddSingleton<ProfileMonitor>();
-
-        // Ambient or Game mode: chosen on Home, Game while a game's profile runs; screen capture follows Game's rate.
-        services.AddSingleton(sp =>
-        {
-            var modes = ActivatorUtilities.CreateInstance<ModeMonitor>(sp);
-            var capture = sp.GetRequiredService<CaptureModeFollower>();
-            modes.Changed += state => capture.SetGameMode(state.Mode == LightMode.Game);
-            return modes;
-        });
 
         // Registered before the engine so that it stops after it: the tray icon goes once the LEDs are off.
         services.AddDesktop(options, launch);

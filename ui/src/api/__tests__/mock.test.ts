@@ -56,55 +56,91 @@ describe('MockBackend like the .NET app', () => {
     expect(preview.frames.get('Candle')!.length % (preview.ledCount * 3)).toBe(0);
   });
 
-  it('activates a profile by hand until set back to automatic, and lists the programs with a window', async () => {
+  it('turns a preset on by hand until set back to automatic, and lists the programs with a window', async () => {
     const { api, backend } = await connected();
     const events: unknown[] = [];
     backend.onEvent('profile-update', (e) => events.push(e.data));
     expect(SUBSCRIPTIONS).toContain('profile-update');
-    expect((await api.serverInfo()).profile).toBeNull();
+    expect(SUBSCRIPTIONS).not.toContain('mode-update');
+    const info = await api.serverInfo();
+    expect(info.profile).toBeNull();
+    expect(info.dismissedProfile).toBeNull();
+    expect(info).not.toHaveProperty('mode');
     await expect(api.setProfile('witcher')).rejects.toThrow("The layout has no profile 'witcher'");
 
-    // no program runs in the mock, so only a profile chosen by hand runs
+    // no program runs here, so only a preset chosen by hand is on
     await api.setConfig({ layout: specJson });
-    const witcher = { id: 'witcher', name: 'Witcher 3', manual: true, game: false };
+    const witcher = { id: 'witcher', name: 'Witcher 3', manual: true };
     expect(await api.setProfile('witcher')).toEqual(witcher);
     expect((await api.serverInfo()).profile).toEqual(witcher);
     expect(await api.setProfile(null)).toBeNull();
     expect((await api.serverInfo()).profile).toBeNull();
     await new Promise((r) => setTimeout(r, 0));
-    expect(events).toEqual([{ profile: witcher }, { profile: null }]);
+    expect(events).toEqual([
+      { profile: witcher, dismissed: null },
+      { profile: null, dismissed: null },
+    ]);
 
     expect(await api.runningPrograms()).toEqual([
       { exe: 'vlc.exe', title: 'VLC media player' },
       { exe: 'witcher3.exe', title: 'The Witcher 3' },
     ]);
   });
-  it('switches between Ambient and Game mode, and to Game while a game’s profile runs', async () => {
-    const { api, backend } = await connected();
-    const events: unknown[] = [];
-    backend.onEvent('mode-update', (e) => events.push((e.data as { mode: unknown }).mode));
-    expect(SUBSCRIPTIONS).toContain('mode-update');
-    expect((await api.serverInfo()).mode).toEqual({ mode: 'ambient', saved: 'ambient', gameProfile: null, dismissedGame: null });
 
-    expect(await api.setMode('game')).toEqual({ mode: 'game', saved: 'game', gameProfile: null, dismissedGame: null });
-    expect(((await api.getConfig()).modes as { mode: string }).mode).toBe('game');
-    // only the screen shows in Game mode; a color waits for Ambient
-    await api.setColor([255, 0, 0]);
-    expect((await api.serverInfo()).priorities?.find((p) => p.visible)?.componentId).toBe('SYSTEMGRABBER');
-    await api.setMode('ambient');
-    expect((await api.serverInfo()).priorities?.find((p) => p.visible)?.componentId).toBe('COLOR');
-
-    // the witcher profile marked as a game, previewed: Game mode until Ambient is chosen
-    const layout = { ...specJson, profiles: specJson.profiles!.map((p) => (p.id === 'witcher' ? { ...p, game: true } : p)) };
-    await api.setConfig({ layout });
+  it('keeps the preset chosen by hand in the presets settings, so it is still in use after a restart', async () => {
+    const { api } = await connected();
+    expect((await api.getConfig()).presets).toEqual({});
+    await api.setConfig({ layout: specJson });
     await api.setProfile('witcher');
-    expect((await api.serverInfo()).mode).toEqual({ mode: 'game', saved: 'ambient', gameProfile: 'Witcher 3', dismissedGame: null });
-    expect(await api.setMode('ambient')).toEqual({ mode: 'ambient', saved: 'ambient', gameProfile: null, dismissedGame: 'Witcher 3' });
-    // Game again while it runs: on again, Ambient stays the chosen mode
-    expect(await api.setMode('game')).toEqual({ mode: 'game', saved: 'ambient', gameProfile: 'Witcher 3', dismissedGame: null });
-    expect(((await api.getConfig()).modes as { mode: string }).mode).toBe('ambient');
-    await new Promise((r) => setTimeout(r, 0));
-    expect(events.map((e) => (e as { mode: string }).mode)).toEqual(['game', 'ambient', 'game', 'ambient', 'game']);
+    const config = await api.getConfig();
+    expect(config.presets).toEqual({ selected: 'witcher' });
+
+    const restarted = new MockBackend({ latencyMs: 0, config });
+    const opened = new Promise<void>((r) => restarted.onStatus((s) => s === 'open' && r()));
+    restarted.connect();
+    await opened;
+    const again = new RpcApi(restarted);
+    expect((await again.serverInfo()).profile).toEqual({ id: 'witcher', name: 'Witcher 3', manual: true });
+    // back to the running programs (Everyday when none runs): none chosen, `selected` absent
+    await again.dismissProfile();
+    expect((await again.getConfig()).presets).toEqual({});
+  });
+
+  it('turns a preset on while its program runs; Everyday keeps it unused until the program quits', async () => {
+    const { api, backend } = await connected();
+    await api.setConfig({ layout: specJson });
+    backend.setRunning(['Witcher3.exe']);
+    const byProgram = { id: 'witcher', name: 'Witcher 3', manual: false };
+    expect((await api.serverInfo()).profile).toEqual(byProgram);
+
+    expect(await api.dismissProfile()).toEqual({ profile: null, dismissed: { id: 'witcher', name: 'Witcher 3' } });
+    expect((await api.serverInfo()).dismissedProfile).toEqual({ id: 'witcher', name: 'Witcher 3' });
+    // another preset's program runs: that one comes on; dismissing it too leaves none
+    backend.setRunning(['witcher3.exe', 'vlc.exe']);
+    expect((await api.serverInfo()).profile).toEqual({ id: 'movies', name: 'Movies', manual: false });
+    expect(await api.dismissProfile()).toEqual({ profile: null, dismissed: { id: 'movies', name: 'Movies' } });
+    // the game quits and starts again: on again
+    backend.setRunning([]);
+    expect((await api.serverInfo()).dismissedProfile).toBeNull();
+    backend.setRunning(['witcher3.exe']);
+    expect((await api.serverInfo()).profile).toEqual(byProgram);
+
+    // by hand while its program runs: dismissing keeps it off until the program quits; select ends the dismissal
+    await api.setProfile('witcher');
+    expect(await api.dismissProfile()).toEqual({ profile: null, dismissed: { id: 'witcher', name: 'Witcher 3' } });
+    expect(await api.setProfile('witcher')).toEqual({ id: 'witcher', name: 'Witcher 3', manual: true });
+    expect((await api.serverInfo()).dismissedProfile).toBeNull();
+  });
+
+  it('clears the colors and effects that were started when a preset comes on, not when it goes off', async () => {
+    const { api } = await connected();
+    await api.setConfig({ layout: specJson });
+    await api.runEffect('Candle');
+    await api.setProfile('movies');
+    expect((await api.serverInfo()).priorities?.find((p) => p.visible)?.componentId).toBe('SYSTEMGRABBER');
+    await api.setColor([255, 0, 0]);
+    await api.dismissProfile();
+    expect((await api.serverInfo()).priorities?.find((p) => p.visible)?.componentId).toBe('COLOR');
   });
 
   it('saves while the lights are off and stores adjustments', async () => {

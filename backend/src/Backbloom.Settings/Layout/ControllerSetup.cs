@@ -48,10 +48,20 @@ public sealed record ZoneRole(string? Effect, byte R = 0, byte G = 0, byte B = 0
 /// <param name="Rects">Where each of those LEDs would sample the screen ('auto'): the layout an effect's picture is mapped with.</param>
 public sealed record LayoutZone(ZoneRole Role, IReadOnlyList<int> Leds, JsonArray Rects);
 
-/// <summary>A profile of the layout: other roles for the strips' sections while one of <see cref="Apps"/> runs.</summary>
-/// <param name="Apps">Executable names such as "game.exe" (compared case-insensitively).</param>
-/// <param name="Game">The programs are games: Game mode is on while the profile runs (<c>game: true</c>).</param>
-public sealed record LayoutProfile(string Id, string Name, IReadOnlyList<string> Apps, bool Game = false);
+/// <summary>
+/// A profile of the layout (the UI's preset): other roles for the strips' sections while it is on, turned on by hand or
+/// while one of <see cref="Apps"/> runs.
+/// </summary>
+/// <param name="Apps">Executable names such as "game.exe" (compared case-insensitively); may be empty (by hand only).</param>
+/// <param name="Look">Transitions and colors while the profile is on (<c>look</c>); null: the saved ones stay.</param>
+public sealed record LayoutProfile(string Id, string Name, IReadOnlyList<string> Apps, ProfileLook? Look = null);
+
+/// <summary>
+/// A profile's Look (<c>look</c>): what replaces the saved transition (<c>smoothing.time_ms</c>, <c>stiffness</c>,
+/// <c>damping</c>, with smoothing on) and the first channel adjustment's <c>saturationGain</c>,
+/// <c>luminanceGain</c> and <c>backlightThreshold</c> while the profile is on, without saving them there.
+/// </summary>
+public sealed record ProfileLook(int TimeMs, int Stiffness, int Damping, double SaturationGain, double LuminanceGain, double BacklightThreshold);
 
 /// <summary>
 /// The controllers the one pipeline feeds, in order: each gets the slice of the pipeline's LEDs that follows the

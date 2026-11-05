@@ -219,7 +219,19 @@ describe('editor reducer', () => {
     s = run(s, { type: 'removeStrip', stripId: 'strip-1' });
     expect(s.spec.profiles?.[0].sections).toEqual({});
     s = run(s, { type: 'removeProfile', profileId: 'profile-1' }, { type: 'removeProfile', profileId: 'profile-2' });
-    expect('profiles' in s.spec).toBe(false);
+    // an empty list stays, so the default presets don't come back
+    expect(s.spec.profiles).toEqual([]);
+  });
+
+  it('takes the default presets of the first save into the edited layout', () => {
+    const s = loaded();
+    const gaming = { id: 'gaming', name: 'Gaming', apps: [], sections: {} };
+    const saved = run(s, { type: 'markSaved', spec: { ...s.spec, profiles: [gaming] } });
+    expect(saved.spec.profiles).toEqual([gaming]);
+    expect(isDirty(saved)).toBe(false);
+    // presets the layout has are its own: a save doesn't replace them
+    const own = run(s, { type: 'addProfile', profile: { ...gaming, id: 'mine', name: 'Mine' } });
+    expect(run(own, { type: 'markSaved', spec: { ...s.spec, profiles: [gaming] } }).spec.profiles?.map((p) => p.id)).toEqual(['mine']);
   });
 
   it('removing a controller drops its strips from the profiles, so a new strip with a reused id starts clean', () => {

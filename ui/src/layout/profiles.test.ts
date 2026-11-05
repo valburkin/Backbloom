@@ -60,8 +60,9 @@ describe('profiles', () => {
     const msgs = (p: unknown) => validateLayout(spec([p as Profile])).map((i) => `${i.severity}: ${i.message}`);
     expect(msgs(profile({ s: [{ kind: 'gap' }, null, null] }))).toEqual([expect.stringMatching(/^error: .*can’t turn a part into a gap/)]);
     expect(msgs({ ...profile({}), name: '' })[0]).toMatch(/needs a name/);
-    expect(msgs(profile({}, []))[0]).toMatch(/^warning: .*never turns on/);
+    // a preset may have no programs: it is turned on by hand
+    expect(msgs(profile({}, []))).toEqual([]);
     expect(msgs(profile({ s: [null] }))[0]).toMatch(/^warning: .*another shape/);
-    expect(validateLayout(spec([profile({ s: [null, null, { kind: 'color', color: [0, 0, 0] }] }), { ...profile({}), id: 'p' }])).map((i) => i.message)).toContain('Two profiles share the id “p”.');
+    expect(validateLayout(spec([profile({ s: [null, null, { kind: 'color', color: [0, 0, 0] }] }), { ...profile({}), id: 'p' }])).map((i) => i.message)).toContain('Two presets share the id “p”.');
   });
 });

@@ -75,13 +75,19 @@ describe('saveLayout', () => {
     const { spec } = await loadLayout(api, { admin: true, serverInfo: si });
     const edited: LayoutSpec = { ...spec, strips: spec.strips.map((s, i) => (i === 0 ? { ...s, name: 'Renamed' } : s)) };
     const before = await api.getConfig();
-    const res = await saveLayout(api, edited);
-    expect(res).toEqual({ ledCount: 168, controllers: 1, layoutPersisted: true });
+    const res = await saveLayout(api, edited, ['Rainbow swirl', 'Music: quatro for LED strip (MULTI COLOR)']);
+    expect(res).toMatchObject({ ledCount: 168, controllers: 1, layoutPersisted: true });
     const after = await api.getConfig();
     expect(isLayoutSpec(after.layout)).toBe(true);
     expect((after.layout as LayoutSpec).strips[0].name).toBe('Renamed');
     expect(after.device).toEqual(before.device); // other settings preserved
     expect((after.leds as unknown[]).length).toBe(168);
+    // a layout that never had presets gets the default ones, saved and returned
+    expect((after.layout as LayoutSpec).profiles?.map((p) => p.name)).toEqual(['Gaming', 'Movie', 'Music', 'Cozy']);
+    expect(res.spec.profiles).toEqual((after.layout as LayoutSpec).profiles);
+    // once: a layout with presets (or an empty list) keeps them
+    expect((await saveLayout(api, { ...edited, profiles: [] })).spec.profiles).toEqual([]);
+    expect((await api.getConfig()).layout).toMatchObject({ profiles: [] });
   });
 
   it('saves layouts that span several controllers', async () => {
@@ -98,7 +104,7 @@ describe('saveLayout', () => {
     };
     expect(saveBlockers(multi, 0)).toEqual([]);
 
-    expect(await saveLayout(api, multi)).toEqual({ ledCount: 198, controllers: 2, layoutPersisted: true });
+    expect(await saveLayout(api, multi)).toMatchObject({ ledCount: 198, controllers: 2, layoutPersisted: true });
 
     const after = await api.getConfig();
     expect((after.leds as unknown[]).length).toBe(198);

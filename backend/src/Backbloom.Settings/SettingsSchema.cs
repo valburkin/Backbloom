@@ -13,12 +13,15 @@ public sealed class SettingsSchema
     /// <summary>The section that is stored per controller; every other section belongs to the one pipeline.</summary>
     public const string ControllerSection = "device";
 
-    /// <summary>Every section, in the order of the C++ settings.schema.json (and of <c>getconfig</c>).</summary>
+    /// <summary>
+    /// Every section, in the order of the C++ settings.schema.json (and of <c>getconfig</c>), then Backbloom's own
+    /// (<c>presets</c>).
+    /// </summary>
     public static readonly IReadOnlyList<string> BuiltinSections =
     [
         "general", "logger", "device", "color", "smoothing", "systemGrabber", "blackborderdetector", "foregroundEffect",
         "backgroundEffect", "soundEffect", "webConfig", "effects", "systemControl", "network", "ledConfig", "leds", "mqtt",
-        "layout", "modes", "game",
+        "layout", "presets",
     ];
 
     /// <summary>Sections without a default: absent until a client saves them (HyperHDR stored an empty <c>layout</c>).</summary>

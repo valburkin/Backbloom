@@ -21,7 +21,7 @@ the program in `%LOCALAPPDATA%\BackbloomApp`, separate from the data, so uninsta
 
 `general`, `logger`, `device`, `color`, `smoothing`, `systemGrabber`, `blackborderdetector`, `foregroundEffect`,
 `backgroundEffect`, `soundEffect`, `webConfig`, `effects`, `systemControl`, `network`, `ledConfig`, `leds`, `mqtt`,
-`layout`. Their JSON schemas are in `backend/src/Backbloom.Settings/Schemas` (the LED driver schemas in
+`layout`, `presets`. Their JSON schemas are in `backend/src/Backbloom.Settings/Schemas` (the LED driver schemas in
 `backend/src/Backbloom.Devices/Schemas`); defaults exist only there.
 
 - `setconfig` validates strictly: an invalid value is rejected with a per-field error and nothing is stored.
@@ -79,19 +79,32 @@ the program in `%LOCALAPPDATA%\BackbloomApp`, separate from the data, so uninsta
   color settings like any effect, a color zone doesn't (like a static color), except the brightness and the power
   limit. Zones keep the lights on when nothing else shows (the other LEDs are black then), and pause while the lights
   are off or held. An effect that doesn't exist leaves its zone dark.
-- `profiles` (optional): other roles for the sections while a program runs, e.g.
-  `{ id: "witcher", name: "Witcher 3", apps: ["witcher3.exe"], sections: { "ceiling": [{ kind: "color", color: [0, 40, 80] }, null] } }`:
+- `profiles` (optional, the app's presets): other roles for the sections while a profile is on, and optionally its
+  own Look, e.g.
+  `{ id: "witcher", name: "Witcher 3", apps: ["witcher3.exe"], sections: { "ceiling": [{ kind: "color", color: [0, 40, 80] }, null] }, look: { time_ms: 150, stiffness: 817, damping: 61, saturationGain: 1.5, luminanceGain: 1.2, backlightThreshold: 0 } }`:
   per strip id, one entry per section (`null` = auto); strips not listed keep the layout's sections, gaps can't be
-  changed, and a list made for another number of sections is ignored. While one of a profile's programs runs (checked
-  every 2 seconds, names compared without regard to case), its roles apply; the first profile in the list wins when
-  programs of several run. Switching saves nothing and doesn't reconnect the controllers. The UI can also turn one on
-  by hand to try it (Preview, `profile select`).
+  changed, and a list made for another number of sections is ignored. `look` (optional) replaces the saved transition
+  and the first channel adjustment's gains and minimum glow while the profile is on, without saving them. A profile is
+  on while one of its programs runs (checked every 2 seconds, names compared without regard to case; `apps` may be
+  empty for a profile turned on by hand only), the first in the list winning when programs of several run, or when it
+  is turned on by hand (`profile select`, saved in [`presets`](#presets)); Everyday in the UI (`profile dismiss`) turns
+  it off until its programs quit. Switching doesn't change the layout and doesn't reconnect the controllers. The UI gives a layout that has strips and no `profiles` yet the
+  default presets (Gaming, Movie, Music, Cozy) when it saves it; an empty list stays empty.
 
 The LEDs are spread evenly over the sections that have LEDs (gaps count no length), so strips anywhere in the room get
 sensible colors. The backend compiles the layout into the `leds` sampling areas (one per LED, all controllers one after
 the other) whenever it is saved; `leds` sent along with it is replaced. An invalid layout is rejected with the path of
 the problem (e.g. `layout.strips.1.path.0: is outside the room (the ceiling is 4.2 x 3.6 m)`). Details:
 [backend/README.md](../backend/README.md#led-controllers-and-the-layout-port-step-6b).
+
+### Presets
+
+`presets` (new in Backbloom) is `{ selected?: string }`: the id of the layout profile (preset) turned on by hand with
+`profile select`, so that it is on again after a restart. Without `selected` (the default, `{}`) the running programs
+choose (Everyday when none of them runs). The backend writes it: `select` sets it, `select` with null, `profile
+dismiss` of the chosen preset and removing that preset from the layout clear it, and so does starting with a layout
+that no longer has it. A `presets` written with `setconfig` or a restored backup is followed like `select` (an id the
+layout doesn't have is cleared). Dismissals aren't saved.
 
 ## Importing HyperHDR
 

@@ -17,11 +17,15 @@ Transitions → More options → Style.
   0.15 s would need a stiffness above the setting's maximum, so with a Natural style the slider's times start at
   0.15 s. Its left end, **Instant**, turns smoothing off (`enable`); moving it to a time turns it on again. Stiffness
   and damping (expert tools) override the spring until the time is changed again.
-- **Presets on Home**, one set per mode (`ui/src/settings/intensity.ts`), each with its saturation and color
-  brightness (luminance) gain. Ambient's **Mood**: Relaxed 0.55 s, Natural 0.35 s (the default settings), Rich 0.3 s.
-  Game's **Intensity**: Subtle 0.25 s, Vivid 0.2 s, Intense 0.15 s (the `game` section's default). A preset is shown as
-  chosen only when transitions are on and time, spring and gains all match. Game mode always smooths, so its Reaction
-  time slider (Colors in Game mode) has no Instant.
+- **Looks on Home**, one list (`ui/src/settings/intensity.ts`), each with its saturation and color brightness
+  (luminance) gain and minimum glow: Relaxed 0.55 s, Natural 0.35 s (the default settings), Rich 0.3 s, Vivid 0.2 s,
+  Intense 0.15 s (Vivid and Intense without minimum glow). A Look writes the saved `smoothing` and
+  `color.channelAdjustment[0]`; it is shown as chosen only when transitions are on and time, spring and gains all
+  match. A preset (a layout profile) can carry its own Look (`look`), applied on top of the saved settings while the
+  preset is on, with smoothing on.
+- **The frame rate follows the transition**: while the smoothing that applies is on with a transition under 0.3 s
+  (Vivid, Intense or a fast custom time), the screen is read at least 60 times a second, since a fast transition
+  shows the steps of a slow capture; otherwise at the Screen page's frame rate (`systemGrabber.fps`).
 
 ## The six styles compared
 

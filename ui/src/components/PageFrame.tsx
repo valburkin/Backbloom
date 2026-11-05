@@ -22,7 +22,7 @@ export function PageFrame({
   children,
 }: {
   title: string;
-  /** Next to the title (the mode on a page that differs between Ambient and Game). */
+  /** Next to the title. */
   badge?: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;

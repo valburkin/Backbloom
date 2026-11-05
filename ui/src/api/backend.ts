@@ -45,7 +45,8 @@ export function createBackend(): Backend {
     // ?mock=auth: another device, which signs in; ?mock=welcome: a new install's setup (only the test device);
     // ?mock=welcome-imported: the setup after importing HyperHDR settings; ?mock=hyperhdr: the same while HyperHDR runs;
     // ?mock=imported: no layout saved yet, only the LED positions (as after importing HyperHDR settings);
-    // ?mock=offline: a device can't be reached; ?mock=game: in Game mode; ?mock=nousb: no new WLED board on USB;
+    // ?mock=offline: a device can't be reached; ?mock=presets: two presets, Gaming turned on by its running game;
+    // ?mock=nousb: no new WLED board on USB;
     // ?mock=welcome-hotspot: a new install with only a new board's hotspot nearby; ?mock=location: Windows hides nearby
     // Wi-Fi networks; ?mock=noboards: no new board anywhere;
     // ?mock=existing: the owner's board on the network, not in the layout yet (Add it as it is)
@@ -63,7 +64,8 @@ export function createBackend(): Backend {
       usb: mode !== 'nousb' && mode !== 'welcome-hotspot' && mode !== 'noboards',
       hotspot: mode !== 'noboards',
       locationBlocked: mode === 'location',
-      config: mode === 'game' ? { modes: { mode: 'game' } } : undefined,
+      presets: mode === 'presets',
+      running: mode === 'presets' ? ['witcher3.exe'] : undefined,
     });
   }
   return new WsClient({ url: resolveBackendUrl(loc, env.VITE_BACKEND as string | undefined, env.DEV) });
