@@ -90,10 +90,10 @@ export function StripPanel({
             <li key={strip.id}>
               <div
                 className={cx(
-                  'flex items-center gap-3 rounded-xl border px-3 py-2 transition-colors',
-                  selected ? 'border-line-strong bg-surface-2 ring-1 ring-inset' : 'border-line hover:border-line-strong',
+                  'flex items-center gap-3 rounded-2xl border px-3 py-2 transition-[background-color,border-color,box-shadow] duration-200',
+                  selected ? 'bg-white/[0.06]' : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]',
                 )}
-                style={selected ? ({ '--tw-ring-color': `${color}66` } as CSSProperties) : undefined}
+                style={selected ? ({ borderColor: `${color}99`, boxShadow: `0 0 22px -8px ${color}` } as CSSProperties) : undefined}
               >
                 <button
                   type="button"
@@ -111,7 +111,7 @@ export function StripPanel({
                       aria-label="Strip name"
                       value={strip.name}
                       onChange={(e) => dispatch({ type: 'updateStrip', stripId: strip.id, patch: { name: e.target.value }, coalesce: `strip-name-${strip.id}` })}
-                      className="-mx-1 w-full rounded-md bg-transparent px-1 text-sm font-medium hover:bg-surface-3 focus:bg-surface-3"
+                      className="-mx-1 w-full rounded-md bg-transparent px-1 text-sm font-medium hover:bg-white/[0.06] focus:bg-surface-3"
                     />
                   ) : (
                     <p className="cursor-pointer truncate text-sm font-medium">{strip.name}</p>

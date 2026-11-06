@@ -2,6 +2,7 @@ import { BackendEvents } from './emitter';
 import { MockHardware } from './mockHardware';
 import type { MockFixtures } from './mockData';
 import { UI_PRIORITY } from './rpcApi';
+import { brightnessForScale } from '../settings/brightness';
 import {
   ConnectionError,
   RpcError,
@@ -834,7 +835,9 @@ export class MockBackend implements Backend {
       'leds',
       setInterval(() => {
         const { rects, zones } = this.shownLeds();
-        const scale = Math.min(1, this.shownScale());
+        // like the backend: the brightness leaves about p² of the full output at slider position p (its OutputShare)
+        const position = Math.min(1, brightnessForScale(this.shownScale(), Number(this.activeAdjustment().gamma ?? 1.5)));
+        const share = position * position;
         const t = Date.now() - started;
         // like the backend: the preview keeps running while the output is held (the first-run setup shows it)
         const on = this.components.get('ALL') && this.components.get('LEDDEVICE');
@@ -854,9 +857,9 @@ export class MockBackend implements Backend {
               : hsv((zone.at * 360) / zone.of + t / 12, 1, 1);
           else if (r.disabled) c = [0, 0, 0];
           else if (this.components.get('SYSTEMGRABBER')) c = sceneColor(x, y, t);
-          out.push(Math.round(c[0] * scale), Math.round(c[1] * scale), Math.round(c[2] * scale));
+          out.push(Math.round(c[0] * share), Math.round(c[1] * share), Math.round(c[2] * share));
         });
-        this.emit('ledcolors-ledstream-update', { leds: out });
+        this.emit('ledcolors-ledstream-update', { leds: out, share });
       }, 100),
     );
   }

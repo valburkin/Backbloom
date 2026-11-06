@@ -5,9 +5,10 @@
   --color-surface: #0f121a;
   --color-surface-2: #151923;
   --color-surface-3: #1d2230;
-  --color-line: #222838;
-  --color-line-strong: #343c4f;
-  /* Borders of inputs and choice controls: 3:1 against the background (WCAG 1.4.11). */
+  /* Hairlines are translucent white, so they read the same on every surface and over the page glow. */
+  --color-line: rgb(255 255 255 / 0.07);
+  --color-line-strong: rgb(255 255 255 / 0.13);
+  /* Edges of text inputs, selects and number boxes: 3:1 against the background (WCAG 1.4.11). */
   --color-line-input: #5a6480;
   --color-ink: #e8eaf0;
   --color-ink-muted: #9ba3b5;
@@ -28,6 +29,8 @@
   /* Titles, like the landing page. */
   --font-display: "Space Grotesk Variable", "Inter Variable", system-ui, sans-serif;
   --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  /* The landing page's easing: quick start, soft landing. */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :root {
@@ -107,11 +110,21 @@ body {
     letter-spacing: -0.015em;
   }
 
-  /* Consistent, visible keyboard focus everywhere. */
+  /* Consistent, visible keyboard focus everywhere (the outline follows each element's own corners). */
   :focus-visible {
     outline: 2px solid var(--color-accent-strong);
     outline-offset: 2px;
-    border-radius: 6px;
+  }
+
+  /* Number boxes have no spin arrows: typing, the arrow keys or a Stepper's buttons change them. */
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 
   /* Sliders: a track filled up to the thumb (components pass --fill, see rangeFill in components/ui.tsx). */
@@ -202,19 +215,138 @@ body {
   }
 }
 
-input[type="number"]::-webkit-inner-spin-button {
-  opacity: 0.4;
+@layer components {
+  /* The one card look (CARD in components/ui.tsx). On a dark page a drop shadow barely shows, so a card stands out by
+     a lighter, slightly translucent surface (the page glow shows through), a faint edge and a light top edge. */
+  .card {
+    border: 1px solid rgb(255 255 255 / 0.07);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0.012) 160px) border-box,
+      rgb(14 16 24 / 0.72);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  }
+
+  /* The primary button (Button variant="primary"), as on the landing page: the brand gradient, a sheen that runs
+     across it on hover and a soft halo of its own colors. Dark text keeps 4.5:1 along the whole gradient. */
+  .btn-brand {
+    position: relative;
+    isolation: isolate;
+    color: var(--color-accent-ink);
+    background-image: linear-gradient(
+      100deg,
+      var(--color-pink),
+      var(--color-violet) 25%,
+      var(--color-cyan) 50%,
+      var(--color-violet) 75%,
+      var(--color-pink)
+    );
+    background-size: 200% 100%;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.25),
+      0 6px 22px -8px rgb(255 60 172 / 0.6),
+      0 6px 26px -10px rgb(34 211 238 / 0.55);
+  }
+  .btn-brand::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    z-index: -1;
+    border-radius: inherit;
+    background: inherit;
+    filter: blur(14px);
+    opacity: 0;
+    transition: opacity 0.35s var(--ease-out-soft);
+  }
+  .btn-brand:enabled:hover,
+  a.btn-brand:hover {
+    animation: brand-sheen 2.4s linear infinite;
+  }
+  .btn-brand:enabled:hover::before,
+  a.btn-brand:hover::before {
+    opacity: 0.65;
+  }
+  .btn-brand:disabled {
+    color: var(--color-ink-muted);
+    background: var(--color-surface-3);
+    box-shadow: none;
+  }
+  .btn-brand:disabled::before {
+    display: none;
+  }
+
+  /* A card that is the one in use or playing: the brand-gradient edge and a soft violet glow. */
+  .edge-brand {
+    position: relative;
+    border-color: transparent;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 0 40px -16px rgb(139 92 246 / 0.7);
+  }
+  /* The chosen option (CHOICE_ACTIVE): a violet tint inside a thin brand-gradient edge, which keeps 3:1 against the
+     page. Used by the sliding thumb of Segmented and the other "pick one" rows, and by ChoiceCard. */
+  .choice-on {
+    position: relative;
+    color: var(--color-ink);
+    background: linear-gradient(120deg, rgb(255 60 172 / 0.14), rgb(139 92 246 / 0.24) 50%, rgb(34 211 238 / 0.12));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.08),
+      0 0 22px -8px rgb(139 92 246 / 0.75);
+  }
+  .choice-on::before,
+  .edge-brand::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(100deg, var(--color-pink), var(--color-violet) 50%, var(--color-cyan));
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+
+  /* A <select> drawn like the other inputs, with its own arrow. */
+  .select-arrow {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ba3b5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    padding-right: 2.25rem;
+  }
+  .select-arrow option,
+  .select-arrow optgroup {
+    background: var(--color-surface-2);
+    color: var(--color-ink);
+  }
 }
 
-/* Small number boxes next to sliders: the slider is the stepper. */
-input[type="number"].no-spin {
-  -moz-appearance: textfield;
-  appearance: textfield;
+@keyframes brand-sheen {
+  to {
+    background-position: 200% 0;
+  }
 }
-input[type="number"].no-spin::-webkit-inner-spin-button,
-input[type="number"].no-spin::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+@media (prefers-reduced-motion: reduce) {
+  .btn-brand:enabled:hover,
+  a.btn-brand:hover {
+    animation: none;
+  }
+}
+@media (forced-colors: active) {
+  .choice-on::before,
+  .edge-brand::before {
+    display: none;
+  }
+  /* (not while focused: the focus outline shows then) */
+  .choice-on:not(:focus-visible),
+  .edge-brand:not(:focus-visible) {
+    outline: 2px solid Highlight;
+  }
 }
 
 .scroll-thin {

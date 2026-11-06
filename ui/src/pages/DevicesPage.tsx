@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { stripLedCount, type Controller } from '../layout';
-import { Badge, Button, Card, IconButton, StatusDot } from '../components/ui';
+import { Badge, Button, Card, IconButton, StatusDot, INPUT_SMALL, cx } from '../components/ui';
 import { Advanced, Switch } from '../components/form';
 import { PageFrame } from '../components/PageFrame';
 import { SaveBar } from '../components/SaveBar';
@@ -72,7 +72,7 @@ function ControllerCard({ controller }: { controller: Controller }) {
             <input
               aria-label="Device name"
               style={{ width: `calc(${Math.max(4, controller.name.length)}ch + 1rem)` }}
-              className="-mx-1 min-w-0 max-w-full rounded-md bg-transparent px-1 text-base font-semibold hover:bg-surface-2 focus:bg-surface-2"
+              className="-mx-1 min-w-0 max-w-full rounded-md bg-transparent px-1 text-base font-semibold hover:bg-white/[0.04] focus:bg-surface-2"
               value={controller.name}
               onChange={(e) => update({ name: e.target.value }, `ctrl-name-${controller.id}`)}
             />
@@ -136,7 +136,7 @@ function ControllerCard({ controller }: { controller: Controller }) {
                     <input
                       type="number"
                       aria-label={`${ledCountLabel(type)} on ${controller.name}`}
-                      className="h-8 w-20 rounded-md border border-line-input bg-bg px-2 text-[13px] tabular-nums"
+                      className={cx('h-8 w-20 rounded-lg', INPUT_SMALL, 'px-2.5 text-[13px] tabular-nums')}
                       min={1}
                       max={10000}
                       value={o.length}

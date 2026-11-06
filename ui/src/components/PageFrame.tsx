@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Check, Loader2, RotateCcw, Save, TriangleAlert } from 'lucide-react';
 import { useConfig, type PageSettings } from '../app/config';
-import { Button, cx } from './ui';
+import { Button, cx, FLOATING } from './ui';
 import { PageHeader } from './PageHeader';
 
 /**
@@ -56,7 +56,7 @@ export function PageFrame({
         }
       />
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-        <div className={cx('mx-auto space-y-6 p-4 sm:p-6', wide ? 'max-w-6xl' : 'max-w-3xl', bar && 'pb-28')}>
+        <div className={cx('mx-auto space-y-6 p-4 sm:px-8 sm:pb-8 sm:pt-4', wide ? 'max-w-6xl' : 'max-w-3xl', bar && 'pb-28 sm:pb-28')}>
           {toolbar}
           {settings && gate ? <SettingsGate settings={settings}>{children}</SettingsGate> : children}
         </div>
@@ -70,7 +70,7 @@ function SettingsGate({ settings, children }: { settings: PageSettings; children
   const { status, error, reload } = useConfig();
   if (status === 'error')
     return (
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-bad/30 bg-bad/10 p-4 text-[13px] text-bad">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-bad/30 bg-bad/10 p-4 text-[13px] text-bad">
         Couldn’t load the settings: {error}
         <Button size="sm" icon={<RotateCcw size={14} />} className="ml-auto" onClick={reload}>
           Try again
@@ -110,7 +110,7 @@ function UnsavedBar({ settings, onDiscard, label }: { settings: PageSettings; on
       <div
         role="region"
         aria-label="Unsaved changes"
-        className="pointer-events-auto flex w-full max-w-2xl flex-wrap items-center gap-3 rounded-2xl border border-line-strong bg-surface-2/95 px-4 py-3 shadow-2xl backdrop-blur"
+        className={cx('pointer-events-auto flex w-full max-w-2xl flex-wrap items-center gap-3 rounded-[28px] py-2.5 pl-5 pr-2.5', FLOATING)}
       >
         <span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden />
         <p className="min-w-0 flex-1 text-[13px]">

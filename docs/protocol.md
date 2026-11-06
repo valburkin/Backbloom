@@ -62,7 +62,7 @@ needed only from another device; this computer can set a new one without it, als
 | `effect` | run an effect by name at a priority, optionally for a duration; a music effect is refused while sound capture is off (`serverinfo.sound.available`) |
 | `effects` `previews` | a few looping seconds of one effect (`name`) or of every effect on the user's LEDs, for the effect cards: `{ fps, ledCount, standard, previews: [{ name, frames }] }`, `frames` the RGB bytes of each frame in base64 in the order of `leds`; `standard`: there are no LEDs yet, so a standard 16:9 frame was used (rendered on simulated time, not on the lights) |
 | `adjustment` | change color adjustment (stored) |
-| `ledcolors` `ledstream-start` / `ledstream-stop` | live LED colors for the preview |
+| `ledcolors` `ledstream-start` / `ledstream-stop` | live LED colors for the preview: each `ledcolors-ledstream-update` carries `leds` (RGB per LED), `controllers` (which LEDs each controller has) and `share` (the share of the full output Home's Brightness left in the frame, 0..1) |
 | `leddevice` `discover` / `getProperties` / `identify` | driver tools; `identify` with `ledDeviceType: "blink"` finds an LED (see below) |
 | `logging` `start` / `stop` | log history and live log lines |
 | `performance-counters` | CPU, memory, frame and LED rates |

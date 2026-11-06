@@ -42,8 +42,11 @@ that never had presets gets Gaming, Movie, Music and Cozy at its first save with
 `control/presets.ts`, applied in `saveLayout`); deleting them leaves an empty list. A preset that plays one thing on
 all its parts follows the strips: each save gives strips added or reshaped since the last one its pick
 (`followStrips`; a list a pick wrote for a strip while it was still being drawn doesn't make the preset customized);
-presets customized in Layout keep their lists. The previews show the colors as at full brightness
-(`live/previewBrightness.ts`), with "Shown at full brightness" below 100%.
+presets customized in Layout keep their lists. The previews show what the LEDs light right now: each
+channel at the screen value of its light, brightened by part of what Home's Brightness took away (the stream's
+`share`), so they get darker along the slider but stay readable at the low brightness most people use; colors keep
+their hue, LEDs that are off stay off (`live/previewLight.ts`). The light around the LEDs adds up like light: a glow
+close to each LED and a faint wide wash, each by the LED's own color and brightness (`LayoutLights`).
 
 To send the user to one control (Home's "Lights look wrong?" troubleshooter does), link with a focus:
 `hrefFor('capture', null, 'crop')` is `#/capture?focus=crop`. The page scrolls to the element with that id (else the
@@ -117,20 +120,33 @@ One term per concept, in the UI, docs, toasts and backend messages that reach th
   hints 12 px (`text-xs`, `text-ink-faint`). Nothing smaller than 11 px. Like the landing page, titles (`h1`, `h2`) are
   Space Grotesk and everything else is Inter, both bundled (`@fontsource-variable`).
 - The brand gradient (`bg-brand`: pink, violet, cyan, the logo's) is decoration and the one primary action: the primary
-  button, a switch that is on, Home's brightness slider, the active section's marker. Never for status, never for
-  text. Other sliders fill in violet (pass `rangeFill(value, min, max)` as their style).
+  button (`.btn-brand`, the landing page's: a sheen on hover and a soft halo), a switch that is on, Home's brightness
+  slider, the active section's marker, and the thin edge of a chosen option or of the card in use (`.choice-on`,
+  `.edge-brand`). Never for status, never for text. Other sliders fill in violet (pass `rangeFill(value, min, max)` as
+  their style).
+- Depth without shadows: the app is dark only, where a drop shadow barely shows. Cards (`.card`) stand out by a lighter,
+  translucent surface, a faint white edge and a light top edge; hairlines (`line`, `line-strong`) are translucent white.
+  Only what floats over the page (menus, dialogs, toasts, the unsaved-changes bar) has a shadow (`FLOATING`), and only
+  brand-colored things glow (and the selected strip in Layout, in its own color).
+- Corners: cards and dialogs 24 px (`rounded-3xl`); tiles, notices and menus 16 px (`rounded-2xl`); inputs 12 px
+  (`rounded-xl`), small ones in a toolbar or row 8 px (`rounded-lg`, `INPUT_SMALL`), search boxes pills; buttons and
+  the options of "pick one" rows pills (`rounded-full`), their tracks rounded to match (20 px).
 - The page glow behind the top of every page (`.app-glow` on the main area) shows the brand colors; on Home it takes
   the colors the lights show right now (`useAppGlow`, once a second, not with reduced motion). Cards are `CARD` (`Card`, `Section`), slightly translucent so the glow shows
   through; a hand-made element that must look like a button uses `buttonClass`, not its own colors.
 - One container level: a section is a card; inside it, separate groups with spacing or `divide-y divide-line`, not
   nested bordered boxes. More options is a divider and a disclosure, not a box.
 - One primary button per view, and only when it does something now (Save is primary only with unsaved changes).
-- "Pick one" controls: `Segmented` for short labels, `ChoiceCard` for options with a title and a line of text. The
-  chosen option always looks like `CHOICE_ACTIVE` (`ui/src/components/ui.tsx`).
+- "Pick one" controls: `Segmented` for short labels, `ChoiceCard` for options with a title and a line of text. A row of
+  short options (Segmented, tabs; the Look as a grid of five) is a pill track (`CHOICE_TRACK`) whose chosen option is a thumb that slides
+  to it (`useChoiceThumb`). The chosen option always looks like `CHOICE_ACTIVE` (`ui/src/components/ui.tsx`); options
+  not chosen are `TILE`s (a faint fill and edge), not outlined boxes.
 - Color carries meaning: green, amber and red only for status, and status badges only when something needs
   attention ("91 / 91 LEDs" in green is noise). Section icons are muted. Only live things pulse
   (`StatusDot live`), and never with reduced motion.
-- Contrast: hint text `ink-faint` (≥ 4.5:1), input and choice borders `line-input` (≥ 3:1).
+- Contrast: hint text `ink-faint` (≥ 4.5:1), the edge of text inputs, selects and number boxes `line-input` (≥ 3:1;
+  `INPUT_BASE`, `SELECT_CLASS`). Buttons and options are named by their text and need no such edge; the chosen option's
+  gradient edge keeps 3:1. Number boxes have no spin arrows.
 - Settings pages are at most `max-w-3xl` wide; short inputs (numbers, ports, selects with short options) use
   `max-w-xs`.
 - Touch targets at least 44 px on touch screens (`pointer-coarse:`).

@@ -1,7 +1,7 @@
 import { ArrowDown, ArrowLeftRight, ArrowUp, CircleAlert, Lightbulb, PenLine, Plus, Shapes, Trash2, TriangleAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { DEFAULT_BLEND, DEFAULT_DEPTH, litLength, shapePath, stripLedCount, type LayoutIssue, type LayoutSpec, type Section, type Strip } from '../../layout';
-import { Button, cx, IconButton, SliderField, Stepper } from '../../components/ui';
+import { Button, buttonClass, cx, IconButton, SliderField, Stepper } from '../../components/ui';
 import { Advanced, Select } from '../../components/form';
 import type { EditorAction } from '../../editor/state';
 import { DENSITIES, ledsForLength, pinUnevenness, unpinned } from '../../editor/strips';
@@ -186,7 +186,7 @@ export function PlaceEditor({
                 <button
                   key={d}
                   type="button"
-                  className="h-8 rounded-md border border-line-input px-2.5 text-xs text-ink-muted hover:border-line-strong hover:text-ink"
+                  className={buttonClass('secondary', 'sm')}
                   onClick={() => update({ ledCount: ledsForLength(room, strip.path, d) })}
                   title={`${ledsForLength(room, strip.path, d)} LEDs for ${length.toFixed(2)} m`}
                 >

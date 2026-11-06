@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Loader2, Power, WifiOff } from 'lucide-react';
-import { Button, cx, StatusDot } from '../components/ui';
+import { Button, CHOICE_TRACK, choiceOption, cx, StatusDot, useChoiceThumb } from '../components/ui';
 import { Logo } from '../components/Logo';
 import { isPageDirty } from '../settings/drafts';
 import { useConnection } from './connection';
@@ -38,31 +38,32 @@ function profileLink(sub: string | null): string | null {
 /** Tabs between the pages of a section (Setup: Layout / Devices / Screen / Calibration). */
 function SectionTabs({ nav, route, go, unsaved }: { nav: readonly NavItem[]; route: Route; go: (r: Route) => void; unsaved: (r: Route) => boolean }) {
   const section = sectionOf(nav, route);
+  const { ref, thumb } = useChoiceThumb<HTMLElement>(route);
   if (!section || section.pages.length < 2) return null;
   return (
-    <nav aria-label={section.label} className="flex gap-1 border-b border-line px-4 pt-2 sm:px-6">
-      {section.pages.map((p) => {
-        const active = p.route === route;
-        return (
-          <a
-            key={p.route}
-            href={hrefFor(p.route)}
-            aria-current={active ? 'page' : undefined}
-            onClick={(e) => {
-              e.preventDefault();
-              go(p.route);
-            }}
-            className={cx(
-              '-mb-px inline-flex h-10 items-center gap-2 border-b-2 px-3 text-sm font-medium transition-colors',
-              active ? 'border-accent text-ink' : 'border-transparent text-ink-muted hover:text-ink',
-            )}
-          >
-            {p.label}
-            {unsaved(p.route) && <span className="h-1.5 w-1.5 rounded-full bg-warn" aria-label="Unsaved changes" />}
-          </a>
-        );
-      })}
-    </nav>
+    <div className="px-4 pt-4 sm:px-8">
+      <nav ref={ref} aria-label={section.label} className={CHOICE_TRACK}>
+        {thumb}
+        {section.pages.map((p) => {
+          const active = p.route === route;
+          return (
+            <a
+              key={p.route}
+              href={hrefFor(p.route)}
+              aria-current={active ? 'page' : undefined}
+              onClick={(e) => {
+                e.preventDefault();
+                go(p.route);
+              }}
+              className={cx(choiceOption(active), 'h-8 px-4 text-[13px]')}
+            >
+              {p.label}
+              {unsaved(p.route) && <span className="h-1.5 w-1.5 rounded-full bg-warn" aria-label="Unsaved changes" />}
+            </a>
+          );
+        })}
+      </nav>
+    </div>
   );
 }
 
@@ -80,7 +81,7 @@ function ConnectionPill() {
           ? 'Connecting…'
           : 'Offline';
   return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-3 py-2" title={backend.url}>
+    <div className="flex items-center gap-2.5 rounded-full border border-line bg-white/[0.03] px-3.5 py-2" title={backend.url}>
       <StatusDot tone={tone} />
       <span className="hidden text-xs text-ink-muted lg:inline">{label}</span>
       <span className="sr-only lg:hidden">{label}</span>
@@ -108,8 +109,8 @@ function Shell() {
       <nav
         aria-label="Main"
         className={cx(
-          'order-last flex shrink-0 border-line/70 bg-surface/95 backdrop-blur',
-          'border-t px-1 pb-[env(safe-area-inset-bottom)] sm:order-first sm:w-[72px] sm:flex-col sm:border-r sm:border-t-0 sm:bg-surface/50 sm:px-3 sm:py-4 lg:w-56',
+          'order-last flex shrink-0 border-line bg-[#0b0d14]/95 backdrop-blur',
+          'border-t px-1 pb-[env(safe-area-inset-bottom)] sm:order-first sm:w-[72px] sm:flex-col sm:border-r sm:border-t-0 sm:bg-white/[0.015] sm:px-3 sm:py-5 lg:w-56',
         )}
       >
         <div className="mb-6 hidden items-center gap-2.5 px-1.5 sm:flex">
@@ -134,7 +135,7 @@ function Shell() {
                   className={cx(
                     'relative flex h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[11px] font-medium transition-colors',
                     'sm:h-11 sm:flex-row sm:justify-start sm:gap-3 sm:px-3 sm:text-sm',
-                    active ? 'bg-gradient-to-r from-accent/15 to-white/[0.03] text-ink' : 'text-ink-muted hover:bg-white/[0.04] hover:text-ink',
+                    active ? 'bg-gradient-to-r from-accent/[0.16] to-white/[0.03] text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]' : 'text-ink-muted hover:bg-white/[0.04] hover:text-ink',
                   )}
                   title={n.label}
                 >
@@ -198,7 +199,7 @@ function SetupBanner() {
   if (!setup?.outputHeld) return null;
   if (setup.otherApp)
     return (
-      <div className="border-b border-line px-4 py-3 sm:px-6">
+      <div className="px-4 pt-4 sm:px-8">
         <OtherAppNotice app={setup.otherApp} />
       </div>
     );

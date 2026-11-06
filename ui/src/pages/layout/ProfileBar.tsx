@@ -3,7 +3,7 @@ import { AppWindow, Loader2, Plus, Power, Trash2, Undo2, X } from 'lucide-react'
 import { EVERYDAY, freeName } from '../../control/presets';
 import { programName, type LayoutSpec } from '../../layout';
 import { Menu } from '../../components/Menu';
-import { Button, buttonClass, CHOICE_ACTIVE, cx, IconButton } from '../../components/ui';
+import { Button, buttonClass, CHOICE_TRACK, choiceOption, cx, IconButton, useChoiceThumb, INPUT_SMALL } from '../../components/ui';
 import type { EditorAction } from '../../editor/state';
 import { nextProfileId } from '../../editor/state';
 
@@ -38,6 +38,7 @@ export function ProfileTabs({
   onEdit(profileId: string | null): void;
 }) {
   const profiles = spec.profiles ?? [];
+  const { ref, thumb } = useChoiceThumb(`${editing}|${profiles.map((p) => `${p.id}:${p.name}`).join(',')}`);
   const tab = (id: string | null, label: string) => (
     <button
       key={id ?? 'everyday'}
@@ -45,10 +46,7 @@ export function ProfileTabs({
       role="tab"
       aria-selected={editing === id}
       onClick={() => onEdit(id)}
-      className={cx(
-        'inline-flex h-7 max-w-[10rem] items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium',
-        editing === id ? CHOICE_ACTIVE : 'text-ink-muted hover:text-ink',
-      )}
+      className={cx(choiceOption(editing === id), 'h-7 max-w-[10rem] whitespace-nowrap px-3 text-xs')}
     >
       <span className="truncate">{label}</span>
       {active !== undefined && active === id && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ok" title="In use now" />}
@@ -56,7 +54,8 @@ export function ProfileTabs({
   );
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <div role="tablist" aria-label="Presets" className="inline-flex min-w-0 flex-wrap rounded-lg border border-line-input bg-bg/60 p-0.5">
+      <div ref={ref} role="tablist" aria-label="Presets" className={cx(CHOICE_TRACK, 'min-w-0')}>
+        {thumb}
         {tab(null, 'Everyday')}
         {profiles.map((p) => tab(p.id, p.name || 'Untitled'))}
       </div>
@@ -126,7 +125,7 @@ export function ProfileSettings({
           aria-label="Preset name"
           value={profile.name}
           onChange={(e) => dispatch({ type: 'updateProfile', profileId: profile.id, patch: { name: e.target.value }, coalesce: `profile-name-${profile.id}` })}
-          className="h-8 w-36 rounded-md border border-line-input bg-bg px-2 text-[13px] font-medium text-ink"
+          className={cx('h-8 w-36 rounded-lg', INPUT_SMALL, 'px-2.5 text-[13px] font-medium text-ink')}
         />
         <span>is used while</span>
         {profile.apps.map((a) => (
@@ -154,10 +153,10 @@ export function ProfileSettings({
             placeholder="Add program…"
             value={app}
             onChange={(e) => setApp(e.target.value)}
-            className="h-8 w-32 rounded-md border border-line-input bg-bg px-2 text-xs text-ink placeholder:text-ink-faint"
+            className={cx('h-8 w-32 rounded-lg', INPUT_SMALL, 'px-2.5 text-xs text-ink placeholder:text-ink-faint')}
           />
           {programName(app) && (
-            <button type="submit" className="h-8 rounded-md px-2 text-xs font-medium text-accent-strong hover:bg-surface-3">
+            <button type="submit" className="h-8 rounded-md px-2 text-xs font-medium text-accent-strong hover:bg-white/[0.06]">
               Add
             </button>
           )}
@@ -238,7 +237,7 @@ export function ProgramPicker({
         className={
           primary
             ? buttonClass('primary')
-            : 'inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-strong hover:bg-surface-3'
+            : 'inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-strong hover:bg-white/[0.06]'
         }
       >
         <AppWindow size={primary ? 16 : 13} /> {label}
@@ -263,7 +262,7 @@ export function ProgramPicker({
                   onPick(p.exe, p.title);
                   setOpen(false);
                 }}
-                className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-surface-3"
+                className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.06]"
               >
                 <span className="block truncate text-xs font-medium text-ink">{p.title || p.exe}</span>
                 <span className="block truncate text-[11px] text-ink-faint">{p.exe}</span>

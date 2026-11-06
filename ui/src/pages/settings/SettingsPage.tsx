@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Info, LifeBuoy, Plug, SlidersHorizontal, Smartphone } from 'lucide-react';
-import { cx } from '../../components/ui';
+import { CHOICE_TRACK, choiceOption, cx, useChoiceThumb } from '../../components/ui';
 import { PageFrame } from '../../components/PageFrame';
 import { usePageSettings } from '../../app/config';
 import { useExpertTools } from '../../app/expert';
@@ -51,13 +51,15 @@ export function SettingsPage({ tab, onTab }: { tab: string | null; onTab: (t: st
   const tabs = TABS.filter((t) => !t.expert || expert);
   const id = tab && tab in RENAMED ? RENAMED[tab] : tab;
   const active = tabs.find((t) => t.id === id) ?? tabs[0];
+  const { ref, thumb } = useChoiceThumb(`${active.id}|${tabs.length}`);
   return (
     <PageFrame
       title="Settings"
       subtitle="Everything about the app itself: startup, backups, remote access and integrations."
       settings={active.config || ps.dirty ? ps : undefined}
       toolbar={
-        <div role="tablist" aria-label="Settings sections" className="scroll-thin -mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
+        <div ref={ref} role="tablist" aria-label="Settings sections" className={CHOICE_TRACK}>
+          {thumb}
           {tabs.map((t) => {
             const selected = t.id === active.id;
             return (
@@ -79,10 +81,7 @@ export function SettingsPage({ tab, onTab }: { tab: string | null; onTab: (t: st
                     requestAnimationFrame(() => document.getElementById(`tab-${next.id}`)?.focus());
                   }
                 }}
-                className={cx(
-                  'flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors',
-                  selected ? 'bg-surface-3 text-ink' : 'text-ink-muted hover:bg-surface-2 hover:text-ink',
-                )}
+                className={cx(choiceOption(selected), 'h-9 shrink-0 gap-2 px-4 text-[13px]')}
               >
                 <span className={selected ? 'text-accent-strong' : ''}>{t.icon}</span>
                 {t.label}

@@ -141,7 +141,7 @@ describe('setup', () => {
     expect(found).toContain('LED strips on a WLED board');
     expect(found).toContain('Room lights');
     expect(found).toContain('Another kind of device');
-    expect(found.match(/bg-brand text-accent-ink font-semibold/g)).toHaveLength(1);
+    expect(found.match(/btn-brand font-semibold/g)).toHaveLength(1);
     expect(found).toMatch(/>Next/);
 
     const none = view({ step: 1, devices: [testDevice] });
@@ -159,7 +159,7 @@ describe('setup', () => {
     const roles = view({ step: 2 });
     expect(roles).toContain('What each light does');
     expect(roles).toContain('Skip — use the defaults');
-    expect(roles.match(/bg-brand text-accent-ink font-semibold/g)).toHaveLength(1);
+    expect(roles.match(/btn-brand font-semibold/g)).toHaveLength(1);
     const trace = view({ step: 2, trace: { title: 'Trace your strip', intro: 'LED 1 is bright.', children: <p>drawing</p>, actions: <button type="button">Use this route</button> } });
     expect(trace).toContain('Trace your strip');
     expect(trace).toContain('Use this route');

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Lightbulb, Loader2, Radio, Search, Usb, Wifi } from 'lucide-react';
-import { Badge, Button, cx } from '../components/ui';
+import { Badge, Button, cx, TILE } from '../components/ui';
 import { Advanced, Callout, Input } from '../components/form';
 import { useConnection } from '../app/connection';
 import { useEditor } from '../app/editor';
@@ -142,8 +142,9 @@ export function FindStep({
                         disabled={already}
                         onClick={() => onPick(b, result.wifi)}
                         className={cx(
-                          'flex min-w-0 flex-1 items-start gap-3 rounded-xl border border-line-input px-4 py-3 text-left transition-colors pointer-coarse:min-h-11',
-                          already ? 'cursor-not-allowed text-ink-muted' : 'hover:border-accent',
+                          'flex min-w-0 flex-1 items-start gap-3 rounded-2xl px-4 py-3 text-left pointer-coarse:min-h-11',
+                          TILE,
+                          already && 'cursor-not-allowed text-ink-muted',
                         )}
                       >
                         <Icon size={18} className="mt-0.5 shrink-0 text-ink-faint" aria-hidden />

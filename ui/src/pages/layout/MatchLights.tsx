@@ -118,7 +118,7 @@ export function MatchLights({
   };
 
   return (
-    <section aria-label={`Match ${strip.name} with the lights`} className="space-y-4 rounded-2xl border border-line-strong bg-surface-2 p-4">
+    <section aria-label={`Match ${strip.name} with the lights`} className="space-y-4 rounded-2xl border border-line bg-white/[0.03] p-4">
       <div className="flex items-start gap-2">
         <Lightbulb size={18} className="mt-0.5 shrink-0 text-ink-faint" />
         <div className="min-w-0 flex-1">

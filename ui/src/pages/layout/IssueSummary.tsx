@@ -44,7 +44,7 @@ export function IssueSummary({
                   type="button"
                   disabled={!issue.stripId && !issue.room}
                   onClick={() => onPick(issue)}
-                  className="flex w-full gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-surface-2 disabled:hover:bg-transparent"
+                  className="flex w-full gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-white/[0.04] disabled:hover:bg-transparent"
                 >
                   <Icon size={15} className={cx('mt-px shrink-0', issue.severity === 'error' ? 'text-bad' : 'text-warn')} />
                   <span>

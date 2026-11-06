@@ -402,6 +402,10 @@ public sealed class EngineTests : IDisposable
         color["channelAdjustment"]![0]!["scaleOutput"] = 0.5;
         Assert.True(store.Update(new JsonObject { ["color"] = color.DeepClone() }).Success);
         WaitUntil(() => engine.LedColors.CopyLatest(preview) == 3 && preview[0] is > 180 and < 195);
+
+        // the preview learns the share the brightness left: a static color's is the sRGB-encoded scale
+        engine.LedColors.CopyLatest(preview, out var share);
+        Assert.InRange(share, 0.73f, 0.74f);
     }
 
     [Fact]

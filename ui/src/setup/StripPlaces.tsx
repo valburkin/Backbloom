@@ -1,5 +1,5 @@
 import { Frame, LampCeiling, LampDesk, Monitor, Shapes } from 'lucide-react';
-import { CHOICE_ACTIVE, cx } from '../components/ui';
+import { CHOICE_ACTIVE, cx, TILE } from '../components/ui';
 import { Advanced } from '../components/form';
 import { STRIP_PLACES, type StripPlace } from './wled';
 
@@ -37,8 +37,10 @@ export function PlaceCards({ label = 'Where is this strip?', places, onChange }:
               aria-pressed={on}
               onClick={() => onChange(togglePlace(places, p.value))}
               className={cx(
-                'flex min-h-11 items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors',
-                on ? cx(CHOICE_ACTIVE, 'border-transparent') : 'border-line-input text-ink-muted hover:border-line-strong hover:text-ink',
+                'flex min-h-11 items-center gap-2.5 rounded-2xl border px-3.5 py-2.5 text-left text-sm font-medium transition-[background-color,border-color,color] duration-200',
+                on
+                  ? cx(CHOICE_ACTIVE, 'border-transparent')
+                  : cx(TILE, 'text-ink-muted hover:text-ink'),
               )}
             >
               <Icon size={16} className={cx('shrink-0', on && 'text-accent-strong')} aria-hidden />

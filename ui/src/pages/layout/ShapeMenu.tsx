@@ -64,7 +64,7 @@ export function ShapeMenu({
         onClick={() => setOpen((o) => !o)}
         className={cx(
           'inline-flex h-8 items-center justify-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-          variant === 'ghost' ? 'text-ink-muted hover:bg-surface-3 hover:text-ink' : 'border border-line-strong bg-surface-3 text-ink hover:bg-line-strong',
+          variant === 'ghost' ? 'text-ink-muted hover:bg-white/[0.06] hover:text-ink' : 'border border-line-strong bg-surface-3 text-ink hover:bg-line-strong',
         )}
       >
         {icon}
@@ -78,7 +78,7 @@ export function ShapeMenu({
               type="button"
               role="menuitem"
               onClick={pick(() => onShape(s.id))}
-              className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-surface-3"
+              className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-white/[0.06]"
             >
               <ShapeIcon room={room} shape={s.id} />
               <span className="min-w-0">
@@ -87,7 +87,7 @@ export function ShapeMenu({
               </span>
             </button>
           ))}
-          <button type="button" role="menuitem" onClick={pick(onDraw)} className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-surface-3">
+          <button type="button" role="menuitem" onClick={pick(onDraw)} className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-white/[0.06]">
             <span className="flex h-12 w-16 shrink-0 items-center justify-center rounded-md bg-bg text-accent-strong">
               <PenLine size={20} />
             </span>

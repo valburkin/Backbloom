@@ -54,6 +54,9 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ### Changed
 
+- **A fresher look**: lighter cards without heavy outlines, the landing page's glowing buttons, choices that slide
+  into place, softer fields and lists, and live previews whose light glows and blends like the real thing. The
+  previews show your LEDs as they light the room: dimmer when you turn the brightness down, but still easy to see.
 - **What you pick stays**: Screen edges, Screen average, an effect, music or a color picked on the new **Effects**
   page is saved to the preset in use and plays on every strip, also after a restart; there's no temporary effect to
   stop any more. Picking one replaces what you customized per strip in Layout (Off parts stay off; Undo puts it
@@ -98,8 +101,8 @@ release note (the landing page in `site/` isn't part of a release and has no ent
   you already added are marked. Afterwards Backbloom points you to placing your strips.
 - **Layout has two modes**: Place (where your strips are, with four guided steps when there's no layout yet) and
   Customize (what each part shows, brightness, and the strips of each preset).
-- **Home** shows what matters: on/off, brightness, what plays now above a live preview (shown at full brightness, so
-  it stays readable when the lights are dim), the preset in use and its Look, a warning when a device can't be
+- **Home** shows what matters: on/off, brightness, what plays now above a live preview (it follows the brightness and
+  stays readable when the lights are dim), the preset in use and its Look, a warning when a device can't be
   reached, and **Lights look wrong?**, which names the usual causes and takes you to the right setting. Brightness is
   set only here now (above 100% is an expert setting on Colors).
 - **Music effects turn on sound input by themselves.**

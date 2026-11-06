@@ -134,7 +134,7 @@ export function PlaceGuide({
                   aria-current={open ? 'step' : undefined}
                   disabled={open}
                   onClick={() => go(i)}
-                  className={cx('flex w-full items-center gap-2.5 text-left text-sm', !open && 'rounded-lg px-3 py-1.5 hover:bg-surface-2')}
+                  className={cx('flex w-full items-center gap-2.5 text-left text-sm', !open && 'rounded-lg px-3 py-1.5 hover:bg-white/[0.04]')}
                 >
                   <span
                     className={cx(

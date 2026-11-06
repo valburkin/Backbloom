@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronsDown, Copy, FileDown, Eraser, Pause, Play, ScrollText, Search } from 'lucide-react';
-import { cx, IconButton } from '../../components/ui';
+import { cx, IconButton, INPUT_SMALL } from '../../components/ui';
 import { Callout, Section, Select } from '../../components/form';
 import type { PageSettings } from '../../app/config';
 import { useToast } from '../../app/toast';
@@ -127,7 +127,7 @@ export function LogsTab({ ps }: { ps: PageSettings }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Filter"
-              className="h-8 w-52 rounded-lg border border-line bg-bg pl-8 pr-2 text-[13px] focus:border-accent"
+              className={cx('h-8 w-52 rounded-full', INPUT_SMALL, 'pl-8 pr-3 text-[13px]')}
             />
           </label>
         </div>

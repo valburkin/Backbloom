@@ -234,7 +234,7 @@ function SetupCard() {
 
 function Stat({ icon, label, value, sub }: { icon: ReactNode; label: string; value: ReactNode; sub?: ReactNode }) {
   return (
-    <div className="rounded-xl border border-line bg-surface-2 p-3.5">
+    <div className="rounded-2xl border border-line bg-white/[0.03] p-3.5">
       <p className="flex items-center gap-1.5 text-xs text-ink-muted">
         {icon}
         {label}

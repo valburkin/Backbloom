@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Lock } from 'lucide-react';
-import { Button, TextField } from '../components/ui';
+import { Button, CARD, cx, TextField } from '../components/ui';
 import { useConnection } from '../app/connection';
 import { Logo } from '../components/Logo';
 import { MOCK_PASSWORD } from '../api/mock';
@@ -42,7 +42,7 @@ export function LoginScreen() {
         className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full opacity-30 blur-3xl"
         style={{ background: 'radial-gradient(closest-side, #8b7cf6, transparent), radial-gradient(closest-side, #22d3ee55, transparent)' }}
       />
-      <form onSubmit={onSubmit} className="relative w-full max-w-sm rounded-2xl border border-line bg-surface/90 p-7 shadow-2xl backdrop-blur" aria-labelledby="login-title">
+      <form onSubmit={onSubmit} className={cx(CARD, 'relative w-full max-w-sm p-7 backdrop-blur')} aria-labelledby="login-title">
         <div className="mb-6 flex items-center gap-3">
           <Logo size={36} />
           <div>

@@ -263,8 +263,9 @@ public sealed partial class OutputStage : IDisposable
                 }
             }
 
-            _devices.Submit(_emitColors, _share, _minimalBacklight);
-            _feed.Publish(_emitColors);
+            var share = _share;
+            _devices.Submit(_emitColors, share, _minimalBacklight);
+            _feed.Publish(_emitColors, share);
         }
     }
 

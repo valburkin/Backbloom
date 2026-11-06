@@ -689,7 +689,29 @@ public sealed class JsonRpcTests
         var update = client.NextEvent("ledcolors-ledstream-update");
         Assert.Equal(start["tan"]!.GetValue<int>(), update["tan"]!.GetValue<int>());
         Assert.Equal(3, update["result"]!["leds"]!.AsArray().Count);
+        Assert.Equal(1.0, update["result"]!["share"]!.GetValue<double>());
 
+        Assert.True(Success(await client.CallAsync("ledcolors", "ledstream-stop")));
+    }
+
+    [Fact]
+    public async Task LedStream_SendsTheShareTheBrightnessLeft()
+    {
+        await using var server = await TestServer.StartAsync();
+        await using var client = await server.ConnectAsync();
+        await client.CallAsync("ledcolors", "ledstream-start");
+        Assert.Equal(1.0, client.NextEvent("ledcolors-ledstream-update")["result"]!["share"]!.GetValue<double>());
+
+        Assert.True(Success(await client.CallAsync("adjustment", parameters: Obj("""{ "adjustment": { "scaleOutput": 0.5 } }"""))));
+        var share = 1.0;
+        for (var i = 0; i < 50 && share >= 1.0; i++)
+        {
+            share = client.NextEvent("ledcolors-ledstream-update")["result"]!["share"]!.GetValue<double>();
+        }
+
+        // half the light: sRGB-encoded about 0.735, with the default contrast (1.5) about 0.63; rounded to 4 places
+        Assert.InRange(share, 0.6, 0.75);
+        Assert.Equal(Math.Round(share, 4), share);
         Assert.True(Success(await client.CallAsync("ledcolors", "ledstream-stop")));
     }
 

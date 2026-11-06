@@ -68,7 +68,7 @@ export function RemoteAccessDialog({
           <span className="font-medium text-ink">What it does:</span> Backbloom starts accepting connections from your home network, so you can open it
           on your phone, a tablet or another PC, and it announces itself on the network so apps can find it. Until now only this PC could open it.
         </p>
-        <div className="rounded-xl border border-accent/30 bg-accent/10 p-3 text-ink">
+        <div className="rounded-2xl border border-accent/30 bg-accent/10 p-3 text-ink">
           <p className="font-medium">Windows will ask next</p>
           <p className="mt-1 text-ink-muted">
             Right after you turn this on, Windows Security asks whether Backbloom may communicate on networks. Allow <span className="font-medium text-ink">Private
@@ -81,7 +81,7 @@ export function RemoteAccessDialog({
             in Settings → Remote access). This PC never needs it.
           </p>
         ) : (
-          <div className="space-y-3 rounded-xl border border-line bg-surface-2 p-3">
+          <div className="space-y-3 rounded-2xl border border-line bg-white/[0.03] p-3">
             <p className="flex items-start gap-2 text-ink">
               <KeyRound size={15} className="mt-0.5 shrink-0 text-accent-strong" />
               <span>

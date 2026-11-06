@@ -108,7 +108,7 @@ function PresetLine<Id extends string>({ what, setup, presets, current, focus }:
   if (!current) return null;
   const label = presets.find((p) => p.id === current)?.label;
   return (
-    <p className="rounded-xl border border-line bg-surface-2 px-4 py-3 text-[13px] text-ink-muted">
+    <p className="rounded-2xl border border-line bg-white/[0.03] px-4 py-3 text-[13px] text-ink-muted">
       {label ? (
         <>
           {setup}’s {what} matches <span className="font-medium text-ink">{label}</span>.

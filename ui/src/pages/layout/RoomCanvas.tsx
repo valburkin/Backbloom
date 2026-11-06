@@ -877,7 +877,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
             type="button"
             disabled={!draft.length}
             onClick={() => setDraft((d) => d.slice(0, -1))}
-            className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-ink-muted hover:bg-surface-3 hover:text-ink disabled:opacity-40"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-ink-muted hover:bg-white/[0.06] hover:text-ink disabled:opacity-40"
           >
             <Undo2 size={14} /> Undo
           </button>
@@ -918,7 +918,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
               type="button"
               aria-label="Close"
               onClick={() => dispatch({ type: 'selectSection', index: null })}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-muted hover:bg-surface-3 hover:text-ink"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-muted hover:bg-white/[0.06] hover:text-ink"
             >
               <X size={14} />
             </button>
@@ -935,7 +935,7 @@ export function RoomCanvas({ spec, selection, dispatch, drawing, onDrawn, found,
             aria-label={b.label}
             onClick={b.onClick}
             disabled={b.disabled}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-muted hover:bg-surface-3 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-muted hover:bg-white/[0.06] hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
           >
             {b.icon}
           </button>

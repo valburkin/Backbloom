@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bookmark, Loader2, Plus, Save, SlidersHorizontal, Trash2, X } from 'lucide-react';
-import { Badge, Button, Card, cx, IconButton, StatusDot } from '../components/ui';
+import { Badge, Button, Card, cx, IconButton, StatusDot, INPUT_SMALL } from '../components/ui';
 import { Callout, Select } from '../components/form';
 import { PageFrame } from '../components/PageFrame';
 import { SWATCHES } from '../components/ColorPicker';
@@ -167,7 +167,7 @@ function TurnsOnWith({ preset, gaming, disabled, loadPrograms, onChange }: { pre
                 value={typed}
                 autoFocus
                 onChange={(e) => setTyped(e.target.value)}
-                className="h-8 w-32 rounded-md border border-line-input bg-bg px-2 text-xs text-ink placeholder:text-ink-faint"
+                className={cx('h-8 w-32 rounded-lg', INPUT_SMALL, 'px-2.5 text-xs text-ink placeholder:text-ink-faint')}
               />
               <Button size="xs" type="submit" disabled={!programName(typed)}>
                 Add
@@ -207,7 +207,7 @@ function NameField({ name, disabled, onChange }: { name: string; disabled: boole
           e.currentTarget.blur();
         }
       }}
-      className="h-9 min-w-[6rem] max-w-[16rem] rounded-md border [field-sizing:content] border-transparent bg-transparent px-2 font-display text-base font-semibold text-ink hover:border-line-input focus:border-accent"
+      className="h-9 min-w-[6rem] max-w-[16rem] rounded-lg border [field-sizing:content] border-transparent bg-transparent px-2 font-display text-base font-semibold text-ink hover:border-line-input focus:border-accent"
     />
   );
 }
@@ -241,7 +241,7 @@ function EverydayCard({
   onUse(): void;
 }) {
   return (
-    <Card className={cx('p-5', inUse && 'ring-1 ring-inset ring-accent/60')}>
+    <Card className={cx('p-5', inUse && 'edge-brand')}>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="flex h-9 items-center px-2 font-display text-base font-semibold">{EVERYDAY}</h2>
         {inUse && <InUseBadge />}
@@ -291,7 +291,7 @@ function PresetCard({
   const inUse = status === 'program' || status === 'hand';
   const note = statusText(preset, status);
   return (
-    <Card className={cx('p-5', inUse && 'ring-1 ring-inset ring-accent/60')}>
+    <Card className={cx('p-5', inUse && 'edge-brand')}>
       <div className="flex flex-wrap items-center gap-2">
         <NameField name={preset.name} disabled={disabled} onChange={(name) => update({ name })} />
         {inUse && <InUseBadge />}

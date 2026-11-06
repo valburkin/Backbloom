@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { CHOICE_ACTIVE, cx } from '../components/ui';
+import { choiceOption, cx, useChoiceThumb } from '../components/ui';
 import { describePreset, type Preset } from '../settings/intensity';
 
 /**
@@ -26,9 +26,16 @@ export function PresetPicker<Id extends string>({
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
   const focusable = Math.max(0, presets.findIndex((p) => p.id === current));
   const shown = presets.find((p) => p.id === (preview ?? (current !== 'custom' ? current : null)));
+  const { ref, thumb } = useChoiceThumb(current, disabled);
   return (
     <div>
-      <div role="radiogroup" aria-label={label} className="grid grid-cols-5 gap-1.5">
+      <div
+        ref={ref}
+        role="radiogroup"
+        aria-label={label}
+        className="relative grid grid-cols-5 gap-0.5 rounded-[22px] border border-white/[0.08] bg-white/[0.035] p-1"
+      >
+        {thumb}
         {presets.map((p, i) => {
           const active = current === p.id;
           return (
@@ -53,10 +60,7 @@ export function PresetPicker<Id extends string>({
               onFocus={() => setPreview(p.id)}
               onBlur={() => setPreview(null)}
               onClick={() => onPick(p.id)}
-              className={cx(
-                'min-h-10 rounded-lg border px-1 text-[13px] font-medium transition-colors sm:text-sm disabled:cursor-not-allowed disabled:opacity-50',
-                active ? cx(CHOICE_ACTIVE, 'border-transparent') : 'border-line-input text-ink-muted hover:border-line-strong hover:text-ink',
-              )}
+              className={cx(choiceOption(active), 'min-h-9 px-1 text-[13px] sm:text-sm')}
             >
               {p.label}
             </button>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, Crosshair, Info, Loader2, MonitorPlay, RotateCcw, X } from 'lucide-react';
 import { applyProfile, withStripSections, type LayoutIssue, type LayoutSpec, type PathPoint, type Room, type ShapeId } from '../../layout';
-import { Button, Card, IconButton, Segmented } from '../../components/ui';
+import { Button, Card, IconButton, Segmented, INPUT_SMALL, cx } from '../../components/ui';
 import { Expert } from '../../components/form';
 import { PageHeader } from '../../components/PageHeader';
 import { SaveBar } from '../../components/SaveBar';
@@ -89,7 +89,7 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
   // Customize can show the LEDs' live colors instead of what each one follows (the rainbow).
   const [liveOn, setLiveOn] = useState(false);
   const showLive = liveOn && !place;
-  const { frame: liveFrame, brighter: liveBrighter } = usePreviewFrame(showLive);
+  const { frame: liveFrame } = usePreviewFrame(showLive);
 
   // No layout yet, or one made from LED positions alone: Place starts as a short guided sequence.
   const wantsGuide = load.status === 'ready' && layout.controllers.length > 0 && (load.source !== 'saved' || layout.strips.length === 0);
@@ -217,7 +217,7 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
     : showLive
       ? dirty
         ? 'Live colors follow the saved layout: save to see these changes lit.'
-        : `Live colors: each LED as it lights your room right now${liveBrighter ? ', shown at full brightness' : ''}. Turn them off to see and adjust what each LED follows.`
+        : `Live colors: each LED as it lights your room right now. Turn them off to see and adjust what each LED follows.`
       : !strip
       ? profile
         ? `Select a strip to choose what it shows in ${profile.name || 'this preset'}.`
@@ -249,13 +249,13 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
           {/* Left: the room */}
           <div className="scroll-thin min-w-0 space-y-4 p-5 lg:overflow-y-auto">
             {note && !guideShown && (
-              <div className="flex gap-2 rounded-xl border border-line bg-surface-2 p-3 text-[13px] text-ink-muted">
+              <div className="flex gap-2 rounded-2xl border border-line bg-white/[0.03] p-3 text-[13px] text-ink-muted">
                 <Info size={16} className="mt-px shrink-0 text-ink-faint" />
                 {note}
               </div>
             )}
             {load.status === 'error' && (
-              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-bad/30 bg-bad/10 p-3 text-[13px] text-bad">
+              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-bad/30 bg-bad/10 p-3 text-[13px] text-bad">
                 Couldn’t load your layout: {load.error}
                 <Button size="sm" icon={<RotateCcw size={14} />} className="ml-auto" onClick={reload}>
                   Try again
@@ -303,7 +303,7 @@ export function LayoutPage({ openProfile }: { openProfile?: string | null } = {}
                                 },
                               })
                             }
-                            className="h-8 rounded-lg border border-line-input bg-bg/60 px-2 text-[13px] text-ink @min-[30rem]:hidden"
+                            className={cx('select-arrow h-8 rounded-xl', INPUT_SMALL, 'pl-3 text-[13px] text-ink @min-[30rem]:hidden')}
                           >
                             {FURNITURE.map((f) => (
                               <option key={f.value} value={f.value}>

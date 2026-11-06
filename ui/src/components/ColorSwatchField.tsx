@@ -25,7 +25,7 @@ export function ColorSwatchField({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface-2 p-2.5 text-left hover:border-line-strong"
+        className="flex w-full items-center gap-3 rounded-2xl border border-line bg-white/[0.03] p-2.5 text-left hover:border-line-strong"
         aria-label={`${label}: ${hex}. Change`}
       >
         <span className="flex h-9 w-12 shrink-0 items-center justify-center rounded-lg font-mono text-[10px]" style={{ background: hex, color: contrastInk(value) }}>

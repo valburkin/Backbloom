@@ -138,8 +138,8 @@ export function RoleChooser({
               title={describe(c)}
               onClick={() => onChange(sectionFor(c.id, value, effects))}
               className={cx(
-                'inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-md px-2 text-xs font-medium',
-                current === c.id ? CHOICE_ACTIVE : 'text-ink-muted hover:bg-surface-3 hover:text-ink',
+                'inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-xs font-medium transition-colors',
+                current === c.id ? CHOICE_ACTIVE : 'text-ink-muted hover:bg-white/[0.06] hover:text-ink',
               )}
             >
               {c.icon(13)}

@@ -15,8 +15,8 @@ describe('rangeFill', () => {
 });
 
 describe('buttonClass', () => {
-  it('drops the brand gradient on a disabled primary button', () => {
-    expect(buttonClass('primary')).toContain('bg-brand');
-    expect(buttonClass('primary')).toContain('disabled:bg-none');
+  it('gives the primary button the brand look (index.css drops it while disabled)', () => {
+    expect(buttonClass('primary')).toContain('btn-brand');
+    expect(buttonClass('secondary')).not.toContain('btn-brand');
   });
 });

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
-import { cx } from '../components/ui';
+import { cx, FLOATING } from '../components/ui';
 
 type Tone = 'ok' | 'bad' | 'info';
 /** A button on a toast (Undo): runs and closes it. */
@@ -37,7 +37,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => {
           const Icon = t.tone === 'ok' ? CheckCircle2 : t.tone === 'bad' ? AlertTriangle : Info;
           return (
-            <div key={t.id} className="pointer-events-auto flex gap-3 rounded-xl border border-line-strong bg-surface-2 p-3 shadow-2xl">
+            <div key={t.id} className={cx('pointer-events-auto flex gap-3 rounded-2xl p-3.5', FLOATING)}>
               <Icon size={18} className={cx('mt-0.5 shrink-0', t.tone === 'ok' ? 'text-ok' : t.tone === 'bad' ? 'text-bad' : 'text-accent-strong')} />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">{t.title}</p>

@@ -84,7 +84,7 @@ export function FindLed({
 
   const shown = Math.min(index, Math.max(0, total - 1));
   return (
-    <section aria-label="Find an LED" className="space-y-3 rounded-2xl border border-line-strong bg-surface-2 p-4">
+    <section aria-label="Find an LED" className="space-y-3 rounded-2xl border border-line bg-white/[0.03] p-4">
       <div className="flex items-center gap-2">
         <Crosshair size={17} className="shrink-0 text-ink-faint" aria-hidden />
         <h2 className="flex-1 text-sm font-semibold">Find an LED</h2>

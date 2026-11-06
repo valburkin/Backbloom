@@ -34,7 +34,7 @@ function playIcon(plays: WhatPlays, size = 18): ReactNode {
 
 /**
  * Playing now: what the setup in use plays (from its strips: Screen edges, an effect, music, a color, or customized in
- * Layout) with the setup's name, and the live preview, as at full brightness. Nothing to pick here: Change leads to
+ * Layout) with the setup's name, and the live preview, as the LEDs light the room right now. Nothing to pick here: Change leads to
  * Effects. When another app shows something over the setup, it says so with Back to <setup> (clears that).
  * `inline`: the words beside the preview, which is at most `maxHeight` high (the Effects page's sticky preview).
  */
@@ -59,7 +59,7 @@ export function PlayingPreview({
   const { name, plays } = useSetupInUse();
   const full = useLayoutView(api, auth === 'admin', serverInfo?.leds);
   const view = useMemo(() => (full ? compactLayoutView(full) : null), [full]);
-  const { frame, brighter } = usePreviewFrame();
+  const { frame } = usePreviewFrame();
   const glowing = useMemo(() => (glow ? glowColors(frame, serverInfo?.leds) : null), [glow, frame, serverInfo?.leds]);
   useAppGlow(glow ? glowing : null);
   const overlay = overlayOf(serverInfo?.priorities, ignoreOwn);
@@ -84,7 +84,7 @@ export function PlayingPreview({
       {frame ? 'Live' : 'Waiting for colors…'}
     </span>
   );
-  const notes = (usesScreen && !grabberOn && !overlay) || plays.kind === 'customized' || brighter;
+  const notes = (usesScreen && !grabberOn && !overlay) || plays.kind === 'customized';
   const noteLine = notes && (
     <p className={cx('flex flex-wrap gap-x-3 text-xs text-ink-faint', !inline && 'mt-2 justify-center text-center')}>
       {usesScreen && !grabberOn && !overlay && <span>Screen sync is off.</span>}
@@ -97,7 +97,6 @@ export function PlayingPreview({
           has it.
         </span>
       )}
-      {brighter && <span>Shown at full brightness.</span>}
     </p>
   );
   const preview = (

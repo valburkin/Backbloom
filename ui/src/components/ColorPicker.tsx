@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { hexToRgb, hsvToRgb, rgbToHex, rgbToHsv, type Hsv, type Rgb } from '../color/color';
-import { cx } from './ui';
+import { cx, INPUT_SMALL } from './ui';
 
 export const SWATCHES: ReadonlyArray<{ name: string; rgb: Rgb }> = [
   { name: 'Warm white', rgb: [255, 170, 90] },
@@ -152,7 +152,7 @@ export function ColorPicker({
             setHexDraft(null);
             commit();
           }}
-          className="h-9 w-28 rounded-lg border border-line bg-bg px-2.5 font-mono text-[13px] uppercase text-ink focus:border-accent"
+          className={cx('h-9 w-28 rounded-xl', INPUT_SMALL, 'px-3 font-mono text-[13px] uppercase text-ink')}
         />
         <span className="text-xs tabular-nums text-ink-faint">
           {value[0]}, {value[1]}, {value[2]}

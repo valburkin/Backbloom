@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useExpertTools } from '../app/expert';
-import { CARD, cx } from './ui';
+import { CARD, INPUT_BASE, cx } from './ui';
 
 /** Label + control + hint/error, with ids wired for screen readers. */
 export function Field({
@@ -51,8 +51,10 @@ export function Field({
   );
 }
 
-export const INPUT_CLASS =
-  'h-10 w-full rounded-lg border bg-bg px-3 text-sm text-ink placeholder:text-ink-faint focus:border-accent disabled:opacity-50';
+export const INPUT_CLASS = INPUT_BASE;
+
+/** A select drawn like the inputs, with its own arrow (add the border color, like INPUT_CLASS). */
+export const SELECT_CLASS = cx(INPUT_BASE.replace('px-3.5', 'pl-3.5 pr-9'), 'select-arrow cursor-pointer');
 
 /** Border of an input that has no error. */
 export const INPUT_BORDER = 'border-line-input';
@@ -227,7 +229,7 @@ export function Select<T extends string | number = string>({
             const o = options.find((x) => String(x.value) === e.target.value);
             if (o) onChange(o.value);
           }}
-          className={cx(INPUT_CLASS, 'pr-8', error ? 'border-bad/60' : INPUT_BORDER)}
+          className={cx(SELECT_CLASS, error ? 'border-bad/60' : INPUT_BORDER)}
         >
           {!known && (
             <option value={value === undefined ? '' : String(value)} disabled>
@@ -302,7 +304,7 @@ export function Switch({
       className={cx(
         'relative inline-flex shrink-0 items-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40',
         lg ? 'h-8 w-14' : 'mt-0.5 h-6 w-11',
-        checked ? 'bg-brand border-transparent shadow-[0_0_18px_-4px_rgba(139,92,246,0.75)]' : 'border-line-strong bg-surface-3',
+        checked ? 'bg-brand border-transparent shadow-[0_0_18px_-4px_rgba(139,92,246,0.75)]' : 'border-white/[0.14] bg-white/[0.08] hover:bg-white/[0.12]',
       )}
     >
       <span
@@ -416,13 +418,13 @@ export function Callout({
   className?: string;
 }) {
   const tones = {
-    info: 'border-line bg-surface-2 text-ink-muted',
+    info: 'border-line bg-white/[0.03] text-ink-muted',
     warn: 'border-warn/30 bg-warn/10 text-warn',
     bad: 'border-bad/30 bg-bad/10 text-bad',
     ok: 'border-ok/30 bg-ok/10 text-ok',
   } as const;
   return (
-    <div role={tone === 'bad' ? 'alert' : undefined} className={cx('flex gap-2.5 rounded-xl border p-3 text-[13px]', tones[tone], className)}>
+    <div role={tone === 'bad' ? 'alert' : undefined} className={cx('flex gap-2.5 rounded-2xl border px-3.5 py-3 text-[13px]', tones[tone], className)}>
       {icon && <span className="mt-px shrink-0">{icon}</span>}
       <div className="min-w-0 flex-1">{children}</div>
     </div>

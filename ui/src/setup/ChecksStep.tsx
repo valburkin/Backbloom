@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
-import { Button, cx } from '../components/ui';
+import { Button, cx, TILE } from '../components/ui';
 import { Callout, Select } from '../components/form';
 import { useConnection } from '../app/connection';
 import type { WledTest } from '../api/types';
@@ -392,7 +392,8 @@ export function ChecksStep({
                     disabled={!!busy}
                     onClick={() => void onColor(c.value)}
                     className={cx(
-                      'inline-flex h-10 items-center gap-2 rounded-lg border border-line-input px-3.5 text-sm font-medium hover:border-accent disabled:opacity-40',
+                      'inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium disabled:opacity-40',
+                      TILE,
                     )}
                   >
                     {c.swatch && <span className="h-3.5 w-3.5 rounded-full" style={{ background: c.swatch }} aria-hidden />}

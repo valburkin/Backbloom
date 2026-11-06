@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { cx } from './ui';
+import { cx, FLOATING } from './ui';
 
 /** Space between the button and its menu, and between the menu and the window's edge (px). */
 const GAP = 4;
@@ -131,7 +131,7 @@ export function Menu({
       role="menu"
       onKeyDown={onKeyDown}
       style={pos ?? { left: 0, top: 0, visibility: 'hidden' }}
-      className={cx('scroll-thin fixed z-50 w-72 overflow-y-auto rounded-xl border border-line-strong bg-surface shadow-2xl', className)}
+      className={cx('scroll-thin fixed z-50 w-72 overflow-y-auto rounded-2xl', FLOATING, className)}
     >
       <div ref={content} className="p-1.5">
         {children}

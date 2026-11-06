@@ -133,10 +133,12 @@ public sealed class LedDeviceCommand(LightingEngine engine, DeviceTools tools) :
 
 /// <summary>
 /// <c>ledcolors</c>: <c>ledstream-start</c> pushes the current LED colors as
-/// <c>{ command: "ledcolors-ledstream-update", tan, result: { leds: [r, g, b, ...], controllers: [{ id, start, length }] } }</c>
+/// <c>{ command: "ledcolors-ledstream-update", tan, result: { leds: [r, g, b, ...], share, controllers: [{ id, start, length }] } }</c>
 /// every <c>interval</c> ms (default 100, at least 50) until <c>ledstream-stop</c>. <c>leds</c> covers every
 /// controller's LEDs (in <c>serverinfo.leds</c> order); <c>controllers</c> (an addition) says which LEDs belong to which
-/// controller. The <c>ledstream-start</c> reply carries the same <c>controllers</c> list.
+/// controller. The <c>ledstream-start</c> reply carries the same <c>controllers</c> list. <c>share</c> (an addition) is the
+/// share of the full output Home's Brightness left in the frame, 0..1 (<see cref="Core.Color.ColorProcessor.OutputShare"/>):
+/// the UI's previews use it to keep a dim frame readable.
 /// </summary>
 public sealed class LedColorsCommand(LightingEngine engine) : IRpcCommand
 {
@@ -221,7 +223,7 @@ public sealed class LedColorsCommand(LightingEngine engine) : IRpcCommand
                 _colors = new byte[needed];
             }
 
-            var n = _feed.CopyLatest(_colors);
+            var n = _feed.CopyLatest(_colors, out var share);
             if (n == 0)
             {
                 return;
@@ -243,6 +245,7 @@ public sealed class LedColorsCommand(LightingEngine engine) : IRpcCommand
                 }
 
                 writer.WriteEndArray();
+                writer.WriteNumber("share", Math.Round(share, 4));
                 writer.WriteStartArray("controllers");
                 var start = 0;
                 foreach (var controller in _engine.Setup.Controllers)

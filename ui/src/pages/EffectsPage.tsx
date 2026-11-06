@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { AudioLines, MonitorPlay, Palette, Play, Search, ScreenShare, SlidersHorizontal, Sparkles, SunMedium } from 'lucide-react';
-import { Badge, ChoiceCard, cx, StatusDot } from '../components/ui';
+import { Badge, ChoiceCard, cx, StatusDot, TILE, INPUT_SMALL } from '../components/ui';
 import { Callout, Section, Select, Toggle } from '../components/form';
 import { PageFrame } from '../components/PageFrame';
 import { ColorPicker } from '../components/ColorPicker';
@@ -51,8 +51,8 @@ function EffectGrid({ names, descriptions, api, layoutKey, running, onPlay, busy
               title={description || undefined}
               onClick={() => onPlay(n)}
               className={cx(
-                'group flex h-full w-full flex-col gap-1.5 rounded-xl border p-1.5 text-left transition-colors',
-                active ? 'border-accent bg-accent/10' : 'border-line bg-surface-2 hover:border-line-strong',
+                'group flex h-full w-full flex-col gap-1.5 rounded-2xl border p-1.5 text-left',
+                active ? 'choice-on border-transparent' : TILE,
               )}
             >
               <div className="relative">
@@ -111,7 +111,7 @@ function ColorSection({ plays, busy }: { plays: WhatPlays; busy: boolean }) {
       title="Color"
       icon={<Palette size={18} />}
       description="One color on every strip. Drag to try it on your lights; letting go saves it."
-      className={cx(picked && 'ring-1 ring-inset ring-accent/60')}
+      className={cx(picked && 'edge-brand')}
       actions={picked ? <Badge tone="accent">Playing</Badge> : undefined}
     >
       <div className={cx(busy && 'pointer-events-none opacity-60')}>
@@ -203,13 +203,13 @@ export function EffectsPage() {
         actions={
           <label className="relative block">
             <span className="sr-only">Search effects</span>
-            <Search size={15} className="pointer-events-none absolute left-2.5 top-2.5 text-ink-faint" />
+            <Search size={15} className="pointer-events-none absolute left-3 top-2.5 text-ink-faint" />
             <input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search"
-              className="h-9 w-48 rounded-lg border border-line-input bg-bg pl-8 pr-2 text-[13px] focus:border-accent"
+              className={cx('h-9 w-52 rounded-full', INPUT_SMALL, 'pl-9 pr-3 text-[13px]')}
             />
           </label>
         }

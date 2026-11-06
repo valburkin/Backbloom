@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Loader2 } from 'lucide-react';
-import { cx } from '../components/ui';
+import { cx, TILE } from '../components/ui';
 import { saveErrorText } from '../app/config';
 
 /** A backend error in words for the wizard (the reply's message, or its rejected settings). */
@@ -64,7 +64,7 @@ export function OptionButton({ icon, title, children, onClick, disabled }: { ico
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="flex w-full items-start gap-3 rounded-xl border border-line-input px-4 py-3 text-left transition-colors hover:border-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line-input pointer-coarse:min-h-11"
+      className={cx('flex w-full items-start gap-3 rounded-2xl px-4 py-3 text-left disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:min-h-11', TILE)}
     >
       {icon && <span className="mt-0.5 shrink-0 text-ink-faint">{icon}</span>}
       <span className="min-w-0">

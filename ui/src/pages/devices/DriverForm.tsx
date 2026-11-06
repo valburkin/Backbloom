@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Lightbulb, Loader2, ScanSearch } from 'lucide-react';
-import { Badge, Button, Dialog } from '../../components/ui';
+import { Badge, Button, cx, Dialog, TILE } from '../../components/ui';
 import { Callout, Select } from '../../components/form';
 import { SchemaForm } from '../../components/SchemaForm';
 import { useConnection } from '../../app/connection';
@@ -86,7 +86,7 @@ export function FoundDevices({ found, usb, added, onPick }: { found: DiscoveredD
             <button
               type="button"
               disabled={already}
-              className="flex w-full items-center gap-3 rounded-lg border border-line-input px-3 py-2.5 text-left text-[13px] hover:border-accent disabled:cursor-not-allowed disabled:text-ink-muted disabled:hover:border-line-input"
+              className={cx('flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-[13px] disabled:cursor-not-allowed disabled:text-ink-muted', TILE)}
               onClick={() => onPick(d)}
             >
               <span className="min-w-0 flex-1">

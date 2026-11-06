@@ -3,10 +3,35 @@ import type { LayoutView } from '../live/layoutView';
 
 // The glow is drawn at this fraction of the view's size and scaled up by the browser, which softens it like light on
 // a wall.
-const GLOW_SCALE = 0.25;
+const GLOW_SCALE = 0.5;
 // The dots are drawn at twice the view's size, so they stay sharp on large cards and high-density screens.
 const DOT_SCALE = 2;
 const UNLIT = 'rgb(30,34,46)';
+
+// How light falls off around an LED (fractions of the radius → share of the center's strength), close to a lamp's
+// light on a wall: bright near it, then a long soft tail.
+const FALLOFF: ReadonlyArray<readonly [number, number]> = [
+  [0, 1],
+  [0.25, 0.45],
+  [0.5, 0.15],
+  [1, 0],
+];
+// Along a strip the glows of neighboring LEDs add up to about this many times one LED's center strength per radius
+// covered: twice the area under FALLOFF.
+const OVERLAP = 0.58;
+
+/**
+ * One layer of light around the LEDs, added up like light (overlapping LEDs mix, a red next to a blue gives purple):
+ * each LED's own color and brightness, falling off over `radius`. `strength` is how bright the middle of a lit strip's
+ * glow gets, whatever the LED density.
+ */
+function addLight(ctx: CanvasRenderingContext2D, x: number, y: number, rgb: readonly [number, number, number], radius: number, spacing: number, strength: number) {
+  const a = Math.min(strength, (strength * spacing) / (OVERLAP * radius));
+  const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  for (const [at, k] of FALLOFF) g.addColorStop(at, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${(a * k).toFixed(4)})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+}
 
 export interface LayoutLightsHandle {
   /** Shows LED colors: a flat [r, g, b, ...] list in the order of `leds`, starting at `offset`; missing LEDs are unlit. */
@@ -30,33 +55,52 @@ export const LayoutLights = forwardRef<LayoutLightsHandle, { view: LayoutView; l
         const dots = dotsRef.current?.getContext('2d');
         if (!glow || !dots) return;
         const r = Math.min(Math.max(view.spacing * 0.3, 1.6), 4.5);
-        const halo = Math.max(view.spacing * 1.1, 8) * GLOW_SCALE;
+        const spacing = Math.max(view.spacing, 1) * GLOW_SCALE;
+        // the light right around each LED, and the wide, faint wash it throws on the wall
+        const near = Math.max(view.spacing * 3, 10) * GLOW_SCALE;
+        const wash = Math.max(view.spacing * 11, 36) * GLOW_SCALE;
+        glow.globalCompositeOperation = 'source-over';
         glow.clearRect(0, 0, glow.canvas.width, glow.canvas.height);
+        glow.globalCompositeOperation = 'lighter';
+        // The wash comes from groups of a few neighboring LEDs, each drawn once with their average light from their
+        // middle: one LED's share of so wide a glow is below the canvas's color steps and would band. A group ends at a
+        // strip's end (the next LED is far away), so short strips and lone room lights get their own wash.
+        const washEvery = Math.max(1, Math.floor(wash / (spacing * 2.5)));
+        const group = { n: 0, x: 0, y: 0, r: 0, g: 0, b: 0, px: NaN, py: NaN };
+        const flush = () => {
+          if (group.n > 0 && group.r + group.g + group.b > 0) {
+            const rgb = [Math.round(group.r / group.n), Math.round(group.g / group.n), Math.round(group.b / group.n)] as const;
+            addLight(glow, (group.x / group.n) * GLOW_SCALE, (group.y / group.n) * GLOW_SCALE, rgb, wash, spacing * group.n, 0.16);
+          }
+          group.n = group.x = group.y = group.r = group.g = group.b = 0;
+        };
         dots.setTransform(DOT_SCALE, 0, 0, DOT_SCALE, 0, 0);
         dots.clearRect(0, 0, view.width, view.height);
         for (const { x, y, led } of view.leds) {
           const i = offset + led * 3;
-          const lit = !!colors && led < count && i + 2 < colors.length;
-          const color = lit ? `rgb(${colors[i]},${colors[i + 1]},${colors[i + 2]})` : UNLIT;
-          if (lit) {
-            glow.fillStyle = color;
-            glow.beginPath();
-            glow.arc(x * GLOW_SCALE, y * GLOW_SCALE, halo, 0, 2 * Math.PI);
-            glow.fill();
+          const inFrame = !!colors && led < count && i + 2 < colors.length;
+          const rgb = inFrame ? ([colors[i], colors[i + 1], colors[i + 2]] as const) : null;
+          const peak = rgb ? Math.max(rgb[0], rgb[1], rgb[2]) : 0;
+          if (rgb && peak > 0) addLight(glow, x * GLOW_SCALE, y * GLOW_SCALE, rgb, near, spacing, 0.7);
+          if (group.n >= washEvery || Math.hypot(x - group.px, y - group.py) > view.spacing * 2.5) flush();
+          group.n++;
+          group.x += x;
+          group.y += y;
+          if (rgb) {
+            group.r += rgb[0];
+            group.g += rgb[1];
+            group.b += rgb[2];
           }
+          group.px = x;
+          group.py = y;
 
-          dots.fillStyle = color;
+          // the LED itself in its own color; an LED that is off (or not in the frame) shows as an unlit one
+          dots.fillStyle = rgb && peak > 0 ? `rgb(${rgb[0]},${rgb[1]},${rgb[2]})` : UNLIT;
           dots.beginPath();
           dots.arc(x, y, r, 0, 2 * Math.PI);
           dots.fill();
-          if (lit) {
-            // a lighter core, so each LED reads as a point of light in its glow
-            dots.fillStyle = 'rgba(255,255,255,0.35)';
-            dots.beginPath();
-            dots.arc(x, y, r * 0.45, 0, 2 * Math.PI);
-            dots.fill();
-          }
         }
+        flush();
       },
     }),
     [view],
@@ -75,7 +119,7 @@ export const LayoutLights = forwardRef<LayoutLightsHandle, { view: LayoutView; l
         ref={glowRef}
         width={Math.ceil(width * GLOW_SCALE)}
         height={Math.ceil(height * GLOW_SCALE)}
-        className="absolute inset-0 h-full w-full opacity-90 blur-[3px] saturate-150"
+        className="absolute inset-0 h-full w-full blur-[2px]"
       />
       {view.surfaces.map((r, i) => (
         <div

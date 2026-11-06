@@ -47,7 +47,7 @@ describe('Add device', () => {
     expect(html).not.toContain('Plan your strips');
     expect(html).not.toContain('Address');
     // one primary button per view: Search
-    expect(html.match(/bg-brand text-accent-ink font-semibold/g)).toHaveLength(1);
+    expect(html.match(/btn-brand font-semibold/g)).toHaveLength(1);
   });
 });
 

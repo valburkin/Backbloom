@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Loader2, Power } from 'lucide-react';
-import { Button, cx } from '../../components/ui';
+import { Button, CARD, cx } from '../../components/ui';
 import { Advanced } from '../../components/form';
 import { Logo } from '../../components/Logo';
 import { useConnection } from '../../app/connection';
@@ -11,7 +11,7 @@ import { useToast } from '../../app/toast';
 import { hrefFor } from '../../app/router';
 import { defaultRoom, type Controller, type LayoutSpec, type PathPoint } from '../../layout';
 import type { BackendConfig, ServerInfo, SetupState } from '../../api/types';
-import { useLedFrame } from '../../live/hooks';
+import { usePreviewFrame } from '../../live/hooks';
 import { AddDeviceDialog } from '../devices/AddDeviceDialog';
 import { SetupChoices, type AddStart } from '../../setup/SetupChoices';
 import { YourLights } from '../../setup/YourLights';
@@ -136,7 +136,7 @@ function WelcomeStep(p: WelcomeViewProps) {
       <Heading title="Welcome to Backbloom">Backbloom makes your LED strips glow along with your screen, your music or an effect. Check your lights, then turn them on.</Heading>
       {setup.otherApp && <OtherAppNotice app={setup.otherApp} />}
       {!setup.otherApp && p.otherAppQuit && (
-        <p role="status" className="flex items-center gap-2 rounded-xl border border-ok/30 bg-ok/10 px-4 py-3 text-[13px] text-ink">
+        <p role="status" className="flex items-center gap-2 rounded-2xl border border-ok/30 bg-ok/10 px-4 py-3 text-[13px] text-ink">
           <CheckCircle2 size={16} className="shrink-0 text-ok" aria-hidden /> HyperHDR has quit. Backbloom can take over your lights now.
         </p>
       )}
@@ -390,8 +390,8 @@ export function WelcomeView(p: WelcomeViewProps) {
     if (moved.current) document.getElementById('welcome-title')?.focus({ preventScroll: true });
   }, [step]);
   return (
-    <div className="flex h-full justify-center overflow-y-auto p-4 sm:p-8">
-      <main aria-labelledby="welcome-title" className="my-auto flex w-full max-w-2xl flex-col gap-5 rounded-2xl border border-line bg-surface p-6 shadow-2xl sm:p-8">
+    <div className="app-glow flex h-full justify-center overflow-y-auto p-4 sm:p-8">
+      <main aria-labelledby="welcome-title" className={cx(CARD, 'my-auto flex w-full max-w-2xl flex-col gap-5 p-6 sm:p-8')}>
         <header className="flex flex-wrap items-center justify-between gap-3">
           <span className="flex items-center gap-2.5">
             <Logo size={28} />
@@ -459,7 +459,7 @@ export function WelcomeScreen({ onLookAround }: { onLookAround(): void }) {
   const [feelBusy, setFeelBusy] = useState(false);
   const saver = useLayoutSaver();
   // live colors for What each light does: the layout as saved, so each choice shows
-  const frame = useLedFrame(step === 2 && !tracing);
+  const { frame } = usePreviewFrame(step === 2 && !tracing);
   const specRef = useRef(state.spec);
   specRef.current = state.spec;
   const screensAsked = useRef(false);
