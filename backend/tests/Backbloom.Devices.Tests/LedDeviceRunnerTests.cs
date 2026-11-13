@@ -102,6 +102,88 @@ public sealed class LedDeviceRunnerTests
     }
 
     [Fact]
+    public void Runner_IdentifyOnAFailedDevice_TriesToOpenItAgain()
+    {
+        var driver = new FakeDriver(new RetryPolicy(1, TimeSpan.FromMilliseconds(5)), failOpens: 2);
+        var (runner, _) = Create(driver);
+        using (runner)
+        {
+            runner.SetEnabled(true);
+            Wait.Until(() => runner.State == DeviceState.Failed);
+
+            // the user asks which strip this is: worth another try
+            runner.Identify(0);
+            Wait.Until(() => runner.State == DeviceState.Ready);
+            Assert.Equal(3, driver.Opens);
+        }
+    }
+
+    [Fact]
+    public void Runner_DisposedWhileOpening_AbortsTheConnectionAttempt()
+    {
+        var driver = new HangingDriver();
+        var runner = new LedDeviceRunner(driver, new LedDeviceRunnerOptions("hanging", 2, ColorOrder.Rgb, null), NullLogger.Instance);
+        runner.Start();
+        runner.SetEnabled(true);
+        Assert.True(driver.Opening.Wait(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken));
+
+        runner.Dispose();
+        runner.Dispose();
+
+        // nothing was open, so nothing is switched off or closed
+        Assert.True(driver.Canceled);
+        Assert.Equal(0, driver.Closes);
+        Assert.True(driver.Disposed);
+        Assert.Equal(DeviceState.Off, runner.State);
+    }
+
+    /// <summary>A controller that never answers: opening waits until it is canceled.</summary>
+    private sealed class HangingDriver : ILedDriver
+    {
+        public ManualResetEventSlim Opening { get; } = new();
+
+        public string Type => "hanging";
+
+        public RetryPolicy RetryPolicy => RetryPolicy.None;
+
+        public string? Status => null;
+
+        public bool Canceled { get; private set; }
+
+        public bool Disposed { get; private set; }
+
+        public int Closes { get; private set; }
+
+        public async ValueTask OpenAsync(int ledCount, CancellationToken cancellationToken)
+        {
+            Opening.Set();
+            try
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                Canceled = true;
+                throw;
+            }
+        }
+
+        public bool Write(ReadOnlySpan<byte> colors) => true;
+
+        public ValueTask CloseAsync(CancellationToken cancellationToken)
+        {
+            Closes++;
+            return ValueTask.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            Disposed = true;
+            Opening.Dispose();
+        }
+    }
+
+    [Fact]
     public void RetryPolicy_KeepsTryingSlowlyAfterTheQuickRetries()
     {
         var policy = new RetryPolicy(2, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(30));

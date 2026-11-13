@@ -146,7 +146,7 @@ public sealed class EffectEngineTests : IDisposable
     [Fact]
     public void EffectSource_StepsAtTheEffectsTimesWithoutAllocating()
     {
-        var layout = LedLayout.FromJson(JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "layouts", "owner-168.json"))));
+        var layout = LedLayout.FromJson(JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "layouts", "reference-168.json"))));
         var mapping = new LedMappingOptions(layout);
         var colors = new Vector3[layout.Count];
         foreach (var name in new[] { "Rainbow swirl fast", "Candle", "Breath", "Warm mood blobs" })

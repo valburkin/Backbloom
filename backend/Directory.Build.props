@@ -10,10 +10,11 @@
     <Deterministic>true</Deterministic>
     <InvariantGlobalization>true</InvariantGlobalization>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <Company>Backbloom</Company>
+    <Authors>Val Burkin</Authors>
+    <Company>Backbloom contributors</Company>
     <Product>Backbloom</Product>
-    <Copyright>Copyright (c) 2026 Backbloom. Portions ported from HyperHDR, copyright (c) 2020-2026 awawa-dev (MIT).</Copyright>
-    <Version>0.1.0</Version>
+    <Copyright>Copyright (c) 2026 Val Burkin and Backbloom contributors. Portions ported from HyperHDR, copyright (c) 2020-2026 awawa-dev, and Hyperion.ng, copyright (c) 2014-2020 Hyperion Project (MIT).</Copyright>
+    <Version>0.2.0</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(CI)' == 'true'">

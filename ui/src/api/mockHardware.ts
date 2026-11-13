@@ -5,7 +5,7 @@ const PRESET_ORDER: Record<string, ColorOrder> = { 'ws2811-12v': 'BRG', 'ws2814-
 
 // The mock backend's hardware (docs/guided-setup.md): WLED boards to find and set up, and room lights to find and pair.
 // Boards: a new one on USB (COM5), a new one that only opens its hotspot (WLED-AP, seen by this PC's Wi-Fi), and the
-// owner's board on the home network (two strips, 91 and 77 LEDs, which Backbloom streams to in the demo). New boards
+// reference board on the home network (two strips, 91 and 77 LEDs, which Backbloom streams to in the demo). New boards
 // join Wi-Fi over Improv or from their hotspot, restart after settings that need it, and light test patterns.
 // Failures to try out:
 // - Wi-Fi password "wrongpass" (or shorter than 8 characters): "couldn’t join <ssid>: check the password"
@@ -20,9 +20,9 @@ export interface MockHardwareOptions {
   usb?: boolean;
   /** A new board opens its hotspot nearby (default true). */
   hotspot?: boolean;
-  /** The owner's board (two strips) is on the home network (default true). */
+  /** The reference board (two strips) is on the home network (default true). */
   existing?: boolean;
-  /** Where the owner's board answers (default MOCK_EXISTING_HOST, the demo layout's). */
+  /** Where the reference board answers (default MOCK_EXISTING_HOST, the demo layout's). */
   existingHost?: string;
   /** Windows keeps nearby Wi-Fi networks from Backbloom (location access off): hotspots aren't seen. */
   locationBlocked?: boolean;
@@ -45,7 +45,7 @@ export const MOCK_BOARD_HOST = '192.168.1.77';
 export const MOCK_BOARD_PORT = 'COM5';
 /** Where the new hotspot board ends up on Wi-Fi. */
 export const MOCK_HOTSPOT_HOST = '192.168.1.78';
-/** The owner's board on the network. */
+/** The reference board on the network. */
 export const MOCK_EXISTING_HOST = 'wled-mock.local';
 
 const NETWORKS: WifiNetwork[] = [
@@ -133,7 +133,7 @@ export class MockHardware {
     this.streamedBy = options.streamedBy ?? (() => null);
     this.locationBlocked = options.locationBlocked ?? false;
     if (options.usb ?? true)
-      // the owner's case: a strip of 91 LEDs on GPIO 16, and a 720 LEDs/m COB strip (77 segments) on GPIO 2
+      // the reference setup's case: a strip of 91 LEDs on GPIO 16, and a 720 LEDs/m COB strip (77 segments) on GPIO 2
       this.boards.push({
         id: 'usb:COM5',
         route: 'usb',
@@ -214,7 +214,7 @@ export class MockHardware {
     b.restartUntil = this.now() + this.restartMs;
   }
 
-  /** WLED boards a network search finds: those on Wi-Fi (the owner's is listed by the demo itself). */
+  /** WLED boards a network search finds: those on Wi-Fi (the reference setup's is listed by the demo itself). */
   wledOnNetwork(): Array<{ value: string; name: string }> {
     return this.boards
       .filter((b) => b.onWifi && b.route !== 'network')

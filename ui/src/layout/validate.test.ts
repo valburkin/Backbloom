@@ -141,4 +141,45 @@ describe('validateLayout', () => {
   it('warns about devices without outputs', () => {
     expect(messages(spec([], [controller({ outputs: [] })]))).toEqual([expect.stringMatching(/^warning: .*no LED outputs/)]);
   });
+
+  it('reports a layout without a room, and a screen without a size', () => {
+    expect(messages({ ...spec([]), room: undefined as unknown as Room })).toContain('error: The layout has no room.');
+    expect(messages(spec([], [controller()], { ...defaultRoom(), screen: { x: 1, y: 1, width: 0, height: 0.3 } }))).toEqual([
+      'error: The screen needs a position and a size above 0.',
+    ]);
+  });
+
+  it('points at a bend that isn’t on a surface of the room', () => {
+    const issues = validateLayout(spec([strip({ path: [{ surface: 'front', x: 2.3, y: 1.31 }, { surface: 'roof' as 'front', x: 1, y: 1 }] })]));
+    expect(issues).toContainEqual(expect.objectContaining({ severity: 'error', stripId: 'monitor', pointIndex: 1, message: 'Bend 2 of strip “Monitor” isn’t on a wall, the ceiling or the floor.' }));
+  });
+
+  it('reports outputs that drive no LEDs or start before LED 1', () => {
+    const c = controller({ outputs: [{ index: 0, start: 0, length: 0 }, { index: 1, start: -2, length: 5 }] });
+    const found = messages(spec([], [c]));
+    expect(found).toContain('error: Output 1 of “Desk WLED” must drive at least 1 LED (it has 0).');
+    expect(found).toContain('error: Output 2 of “Desk WLED” has an invalid start (-2).');
+  });
+
+  it('names a device without outputs when a strip is plugged into it', () => {
+    expect(messages(spec([strip()], [controller({ outputs: [] })]))).toEqual([
+      'warning: Device “Desk WLED” has no LED outputs.',
+      'error: Strip “Monitor” is plugged into output 1 of “Desk WLED”, but it has no outputs.',
+    ]);
+  });
+
+  it('reports presets that aren’t in the shape the backend reads', () => {
+    const base = spec([strip()]);
+    const preset = { id: 'p', name: 'Gaming', apps: [], sections: {} };
+    expect(messages({ ...base, profiles: {} as never })).toEqual(['error: The presets must be a list.']);
+    expect(messages({ ...base, profiles: [{ ...preset, id: ' ' }] })).toEqual(['error: A preset needs an id.']);
+    expect(messages({ ...base, profiles: [{ ...preset, apps: ['game.exe', ''] }] })).toEqual([
+      'error: Preset “Gaming” needs its programs as a list of program names.',
+    ]);
+    expect(messages({ ...base, profiles: [{ ...preset, look: 5 as never }] })).toEqual(['error: Preset “Gaming” needs its Look as transition and color values.']);
+    expect(messages({ ...base, profiles: [{ ...preset, sections: [] as never }] })).toEqual(['error: Preset “Gaming” needs what each strip’s parts show.']);
+    expect(messages({ ...base, profiles: [{ ...preset, sections: { monitor: {} as never } }] })).toEqual([
+      'error: Preset “Gaming”: the parts of strip “monitor” must be a list.',
+    ]);
+  });
 });

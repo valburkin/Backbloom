@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WsClient, type WebSocketLike } from '../client';
 import { ConnectionError, RpcError, RpcTimeoutError, type ConnectionStatus } from '../types';
-import { normalizeBackendUrl, resolveBackendUrl } from '../backend';
+import { isMockEnabled, normalizeBackendUrl, resolveBackendUrl } from '../backend';
 
 class FakeSocket implements WebSocketLike {
   static instances: FakeSocket[] = [];
@@ -270,5 +270,13 @@ describe('backend URL resolution', () => {
     expect(normalizeBackendUrl('https://a:1')).toBe('wss://a:1');
     expect(normalizeBackendUrl('ws://a:1')).toBe('ws://a:1');
     expect(normalizeBackendUrl('a:1', true)).toBe('wss://a:1');
+  });
+
+  it('runs the demo backend only when asked for (?mock or VITE_MOCK=1)', () => {
+    expect(isMockEnabled(loc())).toBe(false);
+    expect(isMockEnabled(loc({ search: '?mock' }))).toBe(true);
+    expect(isMockEnabled(loc({ search: '?backend=a:1&mock=welcome' }))).toBe(true);
+    expect(isMockEnabled(loc(), '1')).toBe(true);
+    expect(isMockEnabled(loc(), '0')).toBe(false);
   });
 });

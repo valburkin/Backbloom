@@ -4,7 +4,7 @@ using Backbloom.Core.Imaging;
 
 namespace Backbloom.Capture;
 
-/// <summary>Options of the synthetic source; 512x288 at 60 fps resembles the owner's DX capture (512 px wide).</summary>
+/// <summary>Options of the synthetic source; 512x288 at 60 fps resembles the reference setup's DX capture (512 px wide).</summary>
 public sealed record SyntheticFrameSourceOptions(int Width = 512, int Height = 288, double FramesPerSecond = 60, double CycleSeconds = 8);
 
 /// <summary>

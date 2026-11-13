@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
@@ -25,6 +26,7 @@ public interface IMdnsTransport : IDisposable
 /// so it hears and answers the queries of phones. This is a listener on the network, which is why it only exists
 /// after the user turned remote access on. When the port can't be shared, nothing is advertised.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Binds port 5353 on every interface and joins the multicast group; tests may listen on loopback only. MdnsService is tested through IMdnsTransport.")]
 public sealed partial class UdpMdnsTransport(ILogger<UdpMdnsTransport> logger, int port = UdpMdnsTransport.MdnsPort) : IMdnsTransport
 {
     public const int MdnsPort = 5353;

@@ -9,7 +9,7 @@
        release feed files for the channel, in artifacts/releases.
 
     The version comes from backend/Directory.Build.props (with -Dev: a pre-release of the next patch version).
-    Nothing is installed and nothing is uploaded.
+    Nothing is installed and nothing is uploaded (the release workflow uploads with vpk upload github).
 
 .PARAMETER Channel
     Release channel the package belongs to (an installed copy follows it). Default: stable.
@@ -18,6 +18,14 @@
     Code signing hook, passed to vpk as --signTemplate: a command with {{file}} where the file to sign goes, e.g.
     'signtool sign /fd sha256 /tr http://timestamp.digicert.com /td sha256 /a {{file}}'. vpk signs every program
     and library of the package and Setup.exe. Without it the package is unsigned (SmartScreen warns on download).
+
+.PARAMETER ReleaseNotes
+    Markdown file with the release notes (packaging/Get-ReleaseNotes.ps1 extracts them from CHANGELOG.md); shown on
+    the GitHub release page.
+
+.PARAMETER PreviousReleaseRepo
+    GitHub repository URL whose latest release is downloaded first, so the package includes a delta update from it.
+    Skipped with a warning when the repository has no release yet.
 
 .PARAMETER Output
     Output folder (default: artifacts/ at the repository root): publish/ and releases/ are recreated.
@@ -39,6 +47,8 @@
 param(
     [string] $Channel = 'stable',
     [string] $SignTemplate,
+    [string] $ReleaseNotes,
+    [string] $PreviousReleaseRepo,
     [string] $Output,
     [switch] $SkipUi,
     [switch] $Dev
@@ -48,7 +58,10 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $repo = Split-Path -Parent $PSScriptRoot
+# Relative paths are relative to where the script was started; resolve them before changing directories.
 if (-not $Output) { $Output = Join-Path $repo 'artifacts' }
+$Output = [System.IO.Path]::GetFullPath($Output, (Get-Location).Path)
+if ($ReleaseNotes) { $ReleaseNotes = (Resolve-Path $ReleaseNotes).Path }
 $publish = Join-Path $Output 'publish'
 $releases = Join-Path $Output 'releases'
 
@@ -85,7 +98,10 @@ if (-not (Test-Path (Join-Path $repo 'ui/dist/index.html'))) { throw 'ui/dist/in
 
 Remove-Item $publish, $releases -Recurse -Force -ErrorAction SilentlyContinue
 Invoke-Step 'Publish the backend' {
-    & $dotnet publish (Join-Path $repo 'backend/src/Backbloom.App/Backbloom.App.csproj') -c Release -r win-x64 -o $publish --nologo "-p:Version=$version"
+    # from backend/, so backend/global.json pins the SDK
+    Push-Location (Join-Path $repo 'backend')
+    try { & $dotnet publish 'src/Backbloom.App/Backbloom.App.csproj' -c Release -r win-x64 -o $publish --nologo "-p:Version=$version" }
+    finally { Pop-Location }
 }
 foreach ($required in 'backbloom.exe', 'ui/index.html', 'LICENSE.txt', 'NOTICE.md', 'THIRD-PARTY-NOTICES.md') {
     if (-not (Test-Path (Join-Path $publish $required))) { throw "The published folder lacks $required." }
@@ -94,11 +110,18 @@ foreach ($required in 'backbloom.exe', 'ui/index.html', 'LICENSE.txt', 'NOTICE.m
 Push-Location $PSScriptRoot
 try {
     Invoke-Step 'Restore vpk' { & $dotnet tool restore }
+    if ($PreviousReleaseRepo) {
+        # Velopack builds a delta package from the previous full package found in the output folder.
+        $download = @('vpk', 'download', 'github', '--repoUrl', $PreviousReleaseRepo, '--channel', $Channel, '--outputDir', $releases)
+        if ($env:GITHUB_TOKEN) { $download += @('--token', $env:GITHUB_TOKEN) }  # avoids the API's anonymous rate limit
+        & $dotnet @download
+        if ($LASTEXITCODE -ne 0) { Write-Warning "No previous release downloaded from $PreviousReleaseRepo; packing without a delta." }
+    }
     $pack = @(
         'vpk', 'pack',
         '--packId', 'BackbloomApp',
         '--packTitle', 'Backbloom',
-        '--packAuthors', 'Backbloom',
+        '--packAuthors', 'Val Burkin',
         '--packVersion', $version,
         '--packDir', $publish,
         '--mainExe', 'backbloom.exe',
@@ -110,6 +133,7 @@ try {
         '--outputDir', $releases
     )
     if ($SignTemplate) { $pack += @('--signTemplate', $SignTemplate) }
+    if ($ReleaseNotes) { $pack += @('--releaseNotes', $ReleaseNotes) }
     Invoke-Step 'Pack the installer' { & $dotnet @pack }
 }
 finally { Pop-Location }

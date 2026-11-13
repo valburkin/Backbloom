@@ -1,4 +1,4 @@
-// Fixtures for the mock backend: replies of the .NET app with the product owner's settings imported (serverinfo,
+// Fixtures for the mock backend: replies of the .NET app with the reference setup's settings imported (serverinfo,
 // sysinfo, getschema, getconfig), with personal data (host names, devices, ids) replaced.
 // Loaded on demand so the production bundle doesn't carry them.
 import legacyLeds from '../layout/__fixtures__/my-layout.json';
@@ -23,7 +23,7 @@ export const MOCK_FIXTURES = {
 export type MockFixtures = typeof MOCK_FIXTURES;
 
 /**
- * The product owner's setup placed in the room: one strip runs along the wall behind the desk from the right, up the
+ * The reference setup placed in the room: one strip runs along the wall behind the desk from the right, up the
  * monitor stand, around the monitor and back down to the left; the other runs across the ceiling, right to left.
  */
 export function demoLayout(host: string): LayoutSpec {

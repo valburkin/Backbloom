@@ -1,6 +1,6 @@
 {
   "source": "C++ reference: the interpolators of InfiniteSmoothing (tests/golden/SmoothingGolden.cpp)",
-  "description": "The owner's smoothing settings with the YuvInterpolator.",
+  "description": "The reference setup's smoothing settings with the YuvInterpolator.",
   "name": "yuv",
   "settings": {
     "antiFlickeringFilter": true,

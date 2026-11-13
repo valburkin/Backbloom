@@ -1,9 +1,17 @@
 # Smoothing
 
-Smoothing moves the LEDs towards each new frame's colors over time instead of jumping, so fast cuts and flickering
+Smoothing moves the LEDs toward each new frame's colors over time instead of jumping, so fast cuts and flickering
 content look calm. It runs on its own thread at `updateFrequency` ticks per second (the rate the controllers then
 receive) and stops sending once a transition has finished (three more frames, then one per second), unless
 `continuousOutput` is on.
+
+## Contents
+
+- [What the app offers](#what-the-app-offers)
+- [The six styles compared](#the-six-styles-compared)
+- [Settings (`smoothing`)](#settings-smoothing)
+- [How the springs are integrated](#how-the-springs-are-integrated)
+- [Differences from HyperHDR](#differences-from-hyperhdr)
 
 ## What the app offers
 
@@ -78,4 +86,5 @@ damping 100 even at 50 Hz), so the lights flickered.
 - HyperHDR integrated the springs with one step per tick, whatever its length; Backbloom takes the steps the spring
   allows (see above).
 
-Both are described in [backend/tests/fixtures/README.md](../backend/tests/fixtures/README.md).
+Both are described in the [fixtures README](../backend/tests/fixtures/README.md#deliberate-deviations-from-hyperhdr).
+The implementation is described in [Engine: smoothing](backend/engine.md#smoothing).

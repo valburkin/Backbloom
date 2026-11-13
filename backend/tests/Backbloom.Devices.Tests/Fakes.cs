@@ -104,8 +104,16 @@ internal sealed class FakeHidDevice : IHidDevice
 
     public bool Disposed { get; private set; }
 
+    /// <summary>Writes fail (a device that was unplugged, or doesn't take the reports).</summary>
+    public bool Fails { get; set; }
+
     public bool Write(ReadOnlySpan<byte> report)
     {
+        if (Fails)
+        {
+            return false;
+        }
+
         var bytes = report.ToArray();
         Reports.Add(bytes);
         if (Answer?.Invoke(bytes) is { } reply)

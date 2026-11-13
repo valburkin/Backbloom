@@ -14,7 +14,7 @@ public sealed class ImageToLedMapTests
     public void Process_SolidFrame_EveryLedGetsTheLinearColor()
     {
         var frame = TestFrames.Solid(64, 36, 200, 100, 10);
-        var layout = LedLayout.FromJson(Fixtures.Load("layouts/owner-168.json"));
+        var layout = LedLayout.FromJson(Fixtures.Load("layouts/reference-168.json"));
         var map = new ImageToLedMap(layout, LedMappingType.Advanced, false, frame.Width, frame.Height);
         var colors = new Vector3[layout.Count];
 

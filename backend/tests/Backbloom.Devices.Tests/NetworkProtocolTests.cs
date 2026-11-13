@@ -114,6 +114,59 @@ public sealed class NetworkProtocolTests
     }
 
     [Fact]
+    public void ArtNet_OptionsReadTheSchemaKeys_WithHyperHdrsDefaults()
+    {
+        var configured = ArtNetOptions.FromConfig(Ctx.Json("""{ "host": "10.0.0.3", "port": 6455, "universe": 4, "channelsPerFixture": 6, "disableSplitting": true, "colorOrder": "grb", "enable_ice_rgbw": true }"""));
+        Assert.Equal(("10.0.0.3", 6455, 4, 6, true, ColorOrder.Grb), (configured.Host, configured.Port, configured.Universe, configured.ChannelsPerFixture, configured.DisableSplitting, configured.ColorOrder));
+        Assert.True(configured.Rgbw!.Enabled);
+
+        var defaults = ArtNetOptions.FromConfig(Ctx.Json("""{ "host": "h" }"""));
+        Assert.Equal((ArtNetProtocol.DefaultPort, 1, 3, false, ColorOrder.Rgb), (defaults.Port, defaults.Universe, defaults.ChannelsPerFixture, defaults.DisableSplitting, defaults.ColorOrder));
+        Assert.False(defaults.Rgbw!.Enabled);
+    }
+
+    [Fact]
+    public void ArtNet_SendsNothingBeforeItIsOpen()
+    {
+        var channel = new RecordingChannel();
+        using var driver = new ArtNetDriver(new ArtNetOptions("h", Rgbw: new InfiniteRgbwOptions(true, 0, 1, Vector3.One)), Contexts.With(new FakeHttpHandler((_, _) => new()), channel));
+
+        Assert.False(driver.Write(Leds(1)));
+        Assert.False(driver.WriteFloat([Vector3.One], TimeSpan.Zero));
+        Assert.Empty(channel.Packets);
+    }
+
+    [Theory]
+    [InlineData(false, new[] { 512, 8 })] // 130 LEDs of 4 channels: the 129th starts the next universe
+    [InlineData(true, new[] { 510, 140 })] // 5 channels per fixture, a fixture never split: 102 fit in one universe
+    public async Task ArtNet_RgbwFramesContinueInTheNextUniverse(bool disableSplitting, int[] lengths)
+    {
+        var channel = new RecordingChannel();
+        var rgbw = new InfiniteRgbwOptions(true, 0, 1, Vector3.One);
+        var options = new ArtNetOptions("h", Universe: 7, ChannelsPerFixture: disableSplitting ? 5 : 4, DisableSplitting: disableSplitting, Rgbw: rgbw);
+        using var driver = new ArtNetDriver(options, Contexts.With(new FakeHttpHandler((_, _) => new()), channel));
+        const int Leds = 130;
+        await driver.OpenAsync(Leds, TestContext.Current.CancellationToken);
+
+        Assert.True(driver.WriteFloat([.. Enumerable.Repeat(new Vector3(1, 0, 0), Leds)], TimeSpan.Zero));
+
+        var packets = channel.Packets.ToArray();
+        Assert.Equal(lengths.Length, packets.Length);
+        for (var i = 0; i < packets.Length; i++)
+        {
+            Assert.Equal(7 + i, packets[i][14]);
+            Assert.Equal(lengths[i], (packets[i][16] << 8) | packets[i][17]);
+            Assert.Equal(ArtNetProtocol.HeaderSize + lengths[i], packets[i].Length);
+        }
+
+        // every fixture starts with the LED's red channel
+        var fixture = disableSplitting ? 5 : 4;
+        Assert.Equal(255, packets[0][ArtNetProtocol.HeaderSize]);
+        Assert.Equal(255, packets[1][ArtNetProtocol.HeaderSize]);
+        Assert.Equal(0, packets[0][ArtNetProtocol.HeaderSize + fixture - 1]);
+    }
+
+    [Fact]
     public void ArtNet_SequenceSkipsZero()
     {
         Assert.Equal(2, ArtNetProtocol.NextSequence(1));

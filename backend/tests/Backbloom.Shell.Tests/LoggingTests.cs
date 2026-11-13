@@ -45,7 +45,8 @@ public sealed class LoggingTests : IDisposable
         }
 
         Assert.Equal(Path.Combine(logs, "backbloom-20261019.log"), path);
-        var lines = File.ReadAllLines(path!);
+        // Shared like a log viewer: on a starved machine the logger's writer thread may still hold the file open.
+        var lines = ReadShared(path!);
         Assert.Equal("2026-10-19 21:00:00.000 INFO  Backbloom.Test: Hello world", lines[0]);
         Assert.Equal("2026-10-19 21:00:00.000 FATAL Backbloom: Backbloom couldn't start", lines[1]);
         Assert.StartsWith("    System.IO.InvalidDataException: settings.db isn't readable", lines[2], StringComparison.Ordinal);
@@ -91,6 +92,104 @@ public sealed class LoggingTests : IDisposable
         Assert.Contains("backbloom-20261019-1.log", files);
         Assert.Contains("backbloom-20261020.log", files);
         Assert.DoesNotContain("backbloom-20260910.log", files);
+    }
+
+    [Fact]
+    public void Files_AStartContinuesInTheFirstPartThatIsntFull()
+    {
+        File.WriteAllText(Path.Combine(_dir, "backbloom-20261019.log"), new string('x', 300));
+
+        using (var provider = new RollingFileLoggerProvider(_dir, _time, maxFileBytes: 200))
+        {
+            var logger = provider.CreateLogger("Backbloom.Test");
+            Log.Hello(logger, "world");
+            provider.Flush();
+            Assert.EndsWith("backbloom-20261019-1.log", provider.CurrentPath, StringComparison.Ordinal);
+        }
+
+        Assert.Equal(new string('x', 300), File.ReadAllText(Path.Combine(_dir, "backbloom-20261019.log")));
+    }
+
+    [Fact]
+    public void Files_ThatAreStillOpenElsewhere_AreDeletedNextTime()
+    {
+        var locked = Path.Combine(_dir, "backbloom-20260901.log");
+        File.WriteAllText(locked, "old");
+        File.SetLastWriteTimeUtc(locked, new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc));
+        for (var i = 0; i < RollingFileLoggerProvider.RetainedFiles; i++)
+        {
+            File.WriteAllText(Path.Combine(_dir, $"backbloom-202609{10 + i}.log"), "newer");
+        }
+
+        using (new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
+        using (var provider = new RollingFileLoggerProvider(_dir, _time))
+        {
+            var logger = provider.CreateLogger("Backbloom.Test");
+            Log.Hello(logger, "world");
+            provider.Flush();
+            Assert.True(File.Exists(locked));
+        }
+
+        // the next file opened (the next day) cleans up
+        _time.Advance(TimeSpan.FromDays(1));
+        using (var provider = new RollingFileLoggerProvider(_dir, _time))
+        {
+            var logger = provider.CreateLogger("Backbloom.Test");
+            Log.NextDay(logger);
+            provider.Flush();
+        }
+
+        Assert.False(File.Exists(locked));
+    }
+
+    [Fact]
+    public void Logging_GoesOnInTheNextPart_WhenTheDaysFileCantBeWritten()
+    {
+        var path = Path.Combine(_dir, "backbloom-20261019.log");
+        File.WriteAllText(path, string.Empty);
+        File.SetAttributes(path, FileAttributes.ReadOnly);
+        try
+        {
+            using var provider = new RollingFileLoggerProvider(_dir, _time);
+            var logger = provider.CreateLogger("Backbloom.Test");
+            Log.Hello(logger, "lost");
+            provider.Flush();
+            Assert.Null(provider.CurrentPath);
+
+            Log.Hello(logger, "found");
+            provider.Flush();
+            Assert.EndsWith("backbloom-20261019-1.log", provider.CurrentPath, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.SetAttributes(path, FileAttributes.Normal);
+        }
+
+        Assert.Equal(["2026-10-19 21:00:00.000 INFO  Backbloom.Test: Hello found"], File.ReadAllLines(Path.Combine(_dir, "backbloom-20261019-1.log")));
+    }
+
+    [Fact]
+    public void Logger_WritesEveryLevel_ButNotNone_AndIgnoresMessagesAfterItsDisposal()
+    {
+        var provider = new RollingFileLoggerProvider(_dir, _time);
+        var logger = provider.CreateLogger("Backbloom.Test");
+        Assert.False(logger.IsEnabled(LogLevel.None));
+        Assert.Null(logger.BeginScope("scope"));
+#pragma warning disable CA1848, CA2254 // the levels themselves are under test
+        logger.Log(LogLevel.Trace, "trace");
+        logger.Log(LogLevel.Debug, "debug");
+        logger.Log(LogLevel.Critical, "critical");
+        logger.Log(LogLevel.None, "none");
+        provider.Flush();
+        provider.Dispose();
+        provider.Dispose();
+        logger.Log(LogLevel.Error, "after");
+#pragma warning restore CA1848, CA2254
+        provider.Flush();
+
+        Assert.Equal(
+            ["2026-10-19 21:00:00.000 TRACE Backbloom.Test: trace", "2026-10-19 21:00:00.000 DEBUG Backbloom.Test: debug", "2026-10-19 21:00:00.000 FATAL Backbloom.Test: critical"],
+            File.ReadAllLines(Path.Combine(_dir, "backbloom-20261019.log")));
     }
 
     [Fact]
@@ -194,6 +293,13 @@ public sealed class LoggingTests : IDisposable
             using var reader = new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete));
             return reader.ReadToEnd();
         }
+    }
+
+    private static string[] ReadShared(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd().Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
     }
 }
 

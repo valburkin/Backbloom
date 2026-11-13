@@ -35,7 +35,7 @@ public sealed class SetupStateTests : IDisposable
     {
         var legacy = Path.Combine(_dir.Path, "HyperHDR");
         Directory.CreateDirectory(Path.Combine(legacy, "db"));
-        File.Copy(Fixtures.OwnerDatabase, Path.Combine(legacy, DataDirectories.LegacyDatabase));
+        File.Copy(Fixtures.ReferenceDatabase, Path.Combine(legacy, DataDirectories.LegacyDatabase));
 
         using var services = Open(legacy);
 

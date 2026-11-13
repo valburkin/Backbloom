@@ -1,6 +1,6 @@
 {
   "source": "C++ reference: ImageColorAveraging + LedString::createLedString (tests/golden/MappingGolden.cpp)",
-  "description": "The owner's 168-LED layout at the capture size of the .NET synthetic source.",
+  "description": "The reference setup's 168-LED layout at the capture size of the .NET synthetic source.",
   "tolerance": 0,
   "leds": [
     {"group": 0, "hmax": 1, "hmin": 0.9694, "vmax": 1, "vmin": 0.8},

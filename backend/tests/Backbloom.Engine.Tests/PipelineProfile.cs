@@ -13,7 +13,7 @@ using Backbloom.Engine.Platform;
 namespace Backbloom.Engine.Tests;
 
 /// <summary>
-/// CPU cost of the whole pipeline: the owner's 168 LEDs on one file controller writing to the null device, or the
+/// CPU cost of the whole pipeline: the reference setup's 168 LEDs on one file controller writing to the null device, or the
 /// same plus two 30-LED controllers (three controllers, one mapping pass), the synthetic source at 60 fps, with or
 /// without smoothing at 50 Hz. Explicit: run with
 /// <c>dotnet test -c Release --filter PipelineProfile -- xUnit.Explicit=on</c>; the result is written to the output.
@@ -31,7 +31,7 @@ public sealed class PipelineProfile(ITestOutputHelper output)
         using var devices = new DeviceManager(registry, new DriverContext(NullLoggerFactory.Instance, new HttpClient()), NullLoggerFactory.Instance);
         JsonObject Device() => JsonNode.Parse("""{ "type": "file", "output": "/dev/null", "printTimeStamp": true }""")!.AsObject();
         List<ControllerDevice> list = [new("a", "Monitor and ceiling", Device(), 168)];
-        var owner = LedLayout.FromJson(JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "layouts", "owner-168.json"))));
+        var owner = LedLayout.FromJson(JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "layouts", "reference-168.json"))));
         var areas = owner.Areas.ToList();
         for (var i = 1; i < controllers; i++)
         {

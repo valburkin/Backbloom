@@ -1,7 +1,18 @@
 # JSON-RPC protocol
 
-The UI and other clients talk to the app with JSON messages, compatible with HyperHDR's JSON API for the commands the
-UI uses (`ui/src/api/rpcApi.ts` is the reference client).
+The UI and other clients control Backbloom with JSON messages over WebSocket, HTTP or MQTT. The protocol is compatible
+with HyperHDR's JSON API for the commands the UI uses; `ui/src/api/rpcApi.ts` is the reference client.
+
+## Contents
+
+- [Transports](#transports)
+- [Messages](#messages)
+- [Authorization](#authorization)
+- [Commands](#commands)
+  - [Finding an LED](#finding-an-led-leddevice-identify-leddevicetype-blink)
+  - [Profiles](#profiles-profile)
+- [Events](#events)
+- [Compatibility with HyperHDR](#compatibility-with-hyperhdr)
 
 ## Transports
 
@@ -115,11 +126,47 @@ profile turned on by its program clears nothing.
 The screen is read at least 60 times a second while the smoothing that applies (the saved one, or a profile's Look) is
 on with a transition under 300 ms; otherwise at `systemGrabber.fps`. A faster saved rate always applies.
 
-Events: `components-update`, `priorities-update`, `adjustment-update`, `settings-update`, `leds-update`,
-`imageToLedMapping-update`, `performance-update`, `token-update`, `instance-update`, `sessions-update`,
-`controllers-update`, `capture-update` (screen capture started or stopped, monitor HDR mode and tone mapping),
-`setup-update` (the `setup` state), `profile-update` (the profile that is on and the dismissed one), `hardware-progress-update` (the steps of `hardware connect-wifi`, to the asking connection only), `sound-update` (`serverinfo.sound` when the
-sound capture starts, stops, fails or recovers), `logging-update`, and the LED color stream.
+## Events
 
-Differences from HyperHDR (rejected invalid settings, persisted `adjustment`, restore without restart, and others)
-are listed in [backend/README.md](../backend/README.md#json-rpc-protocol).
+Events are pushed as `{ "command": "<name>", "data": { ... } }` (see `serverinfo` `subscribe` above):
+
+| Event | Carries |
+|---|---|
+| `components-update`, `priorities-update`, `adjustment-update`, `settings-update`, `leds-update`, `imageToLedMapping-update`, `performance-update`, `token-update`, `instance-update`, `sessions-update` | the changed state: components, priorities, color adjustment, settings, LEDs, the LED mapping, performance, tokens, instances, sessions |
+| `controllers-update` | the controllers and their state (`serverinfo.controllers`) |
+| `capture-update` | screen capture started or stopped, monitor HDR mode and tone mapping |
+| `setup-update` | the `setup` state |
+| `profile-update` | the profile that is on and the dismissed one |
+| `hardware-progress-update` | the steps of `hardware connect-wifi`, to the asking connection only |
+| `sound-update` | `serverinfo.sound` when the sound capture starts, stops, fails or recovers |
+| `logging-update` | log history and live log lines |
+| `ledcolors-ledstream-update` | the LED color stream (after `ledcolors` `ledstream-start`) |
+
+## Compatibility with HyperHDR
+
+Not implemented: `image` and `imagestream` reply "Command not implemented". `effect.args`, `pythonScript` and
+`imageData` are rejected (HyperHDR rejected arguments too). `setup`, `profile`, `hardware` and `effects` are Backbloom
+additions.
+
+Deliberate differences from HyperHDR's backend (mostly fixes from its bug backlog):
+
+1. `setconfig` rejects invalid values with `errors: [{path, message}]` and stores nothing; it never resets values to
+   defaults. Unknown sections are rejected too.
+2. `adjustment` is stored in `color.channelAdjustment` (so its `settings-update` is true); it needs admin rights.
+3. `serverinfo` always returns the info, also when subscribing to `performance-update`.
+4. `logging start` replies first; the history follows as a `logging-update` event without the request's tan.
+5. Settings can be saved while the lights are off.
+6. `load-db` restores while running: the settings are migrated like an import, the current ones are saved to
+   `backups/` first, the reply lists what the migration changed, and the pipeline and controllers pick the new values
+   up through `settings-update` (HyperHDR quit the process). Sections the backup doesn't contain get their defaults; an
+   absent `layout` is not announced by an event, so clients reload the config after a restore.
+7. `layout` has no default: `getconfig` omits it until a client saves one.
+8. Access: this computer always has full access and other devices always sign in; there is no factory password, and
+   HyperHDR's `network` access options are gone (see [Authorization](#authorization)). `getstate` of `setup` needs a
+   signed-in session like every other command.
+9. `logout` returns the connection to the rights it had before signing in.
+10. The identify blink is applied before the controller's color order, so it is really red, green, blue on GRB strips.
+
+Several controllers change some replies (`serverinfo.controllers`, `ledcolors`, `performance-update`, `leddevice
+identify`); see [LED controllers and the layout](backend/layout-and-controllers.md#protocol-additions). The backend
+pages describe the subsystems behind each command, starting from [backend/README.md](../backend/README.md#subsystem-reference).

@@ -178,7 +178,7 @@ public sealed class EngineTests : IDisposable
         var registry = Registry();
         using var devices = Devices(registry);
         JsonObject Device() => JsonNode.Parse("""{ "type": "file", "output": "/dev/null", "printTimeStamp": true }""")!.AsObject();
-        var layout = LedLayout.FromJson(JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "layouts", "owner-168.json"))));
+        var layout = LedLayout.FromJson(JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "layouts", "reference-168.json"))));
         List<ControllerDevice> list = [new("tv", "TV", Device(), 168)];
         var areas = layout.Areas.ToList();
         for (var i = 1; i < controllers; i++)

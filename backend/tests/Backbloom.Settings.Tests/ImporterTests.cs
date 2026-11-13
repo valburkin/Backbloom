@@ -20,10 +20,10 @@ public sealed class ImporterTests : IDisposable
         CryptographicOperations.FixedTimeEquals(SHA512.HashData([.. Encoding.UTF8.GetBytes(secret), .. hash.Salt]), hash.Hash);
 
     [Fact]
-    public void OwnerDatabase_KeepsLedsColorSmoothingDeviceEffectsAndCapture()
+    public void ReferenceDatabase_KeepsLedsColorSmoothingDeviceEffectsAndCapture()
     {
         using var services = OpenServices();
-        var outcome = services.ImportDatabase(Fixtures.OwnerDatabase);
+        var outcome = services.ImportDatabase(Fixtures.ReferenceDatabase);
 
         Assert.True(outcome.Stored.Success, string.Join("; ", outcome.Stored.Errors));
         var store = services.Store;
@@ -54,7 +54,7 @@ public sealed class ImporterTests : IDisposable
         Assert.Equal("Rainbow swirl fast", store.GetSection("backgroundEffect")!["effect"]!.GetValue<string>());
 
         var capture = store.GetSection("systemGrabber")!.AsObject();
-        // the owner had tone mapping on for an SDR monitor, which oversaturated the LEDs: it becomes "auto"
+        // the reference setup had tone mapping on for an SDR monitor, which oversaturated the LEDs: it becomes "auto"
         Assert.Equal((30, 512, "auto", true, 200), (
             capture["fps"]!.GetValue<int>(), capture["videoMode"]!.GetValue<int>(), capture["hdrToneMapping"]!.GetValue<string>(),
             capture["hardware"]!.GetValue<bool>(), capture["monitor_nits"]!.GetValue<int>()));
@@ -63,7 +63,7 @@ public sealed class ImporterTests : IDisposable
         Assert.Equal("My Backbloom Config", store.GetSection("general")!["name"]!.GetValue<string>());
         Assert.Equal(100, store.GetSection("ledConfig")!["classic"]!["top"]!.GetValue<int>());
 
-        // HyperHDR's localAdminAuth (on in the owner's setup) and the other access options are gone
+        // HyperHDR's localAdminAuth (on in the reference setup) and the other access options are gone
         Assert.Equal("""{"remoteAccess":false}""", store.GetSection("network")!.ToJsonString());
         Assert.Contains(outcome.Result.Changes, c => c.StartsWith("Removed the network access options (", StringComparison.Ordinal) && c.Contains("localAdminAuth", StringComparison.Ordinal));
         Assert.Null(store.GetSection("layout"));
@@ -74,17 +74,17 @@ public sealed class ImporterTests : IDisposable
         }
 
         var auth = services.Auth.Load();
-        Assert.True(Verify(auth.Password!, Fixtures.OwnerPassword));
+        Assert.True(Verify(auth.Password!, Fixtures.FixturePassword));
         Assert.False(Verify(auth.Password!, "hyperhdr"));
         Assert.Equal("00000000-0000-5000-8000-000000000001", services.Database.GetOrCreateInstanceId());
-        Assert.DoesNotContain(outcome.Result.Changes, c => c.Contains(Fixtures.OwnerPassword, StringComparison.Ordinal));
+        Assert.DoesNotContain(outcome.Result.Changes, c => c.Contains(Fixtures.FixturePassword, StringComparison.Ordinal));
     }
 
     [Fact]
     public void Import_NeverModifiesTheSourceAndIsIdempotent()
     {
         var source = _dir.File("hyperhdr.db");
-        File.Copy(Fixtures.OwnerDatabase, source);
+        File.Copy(Fixtures.ReferenceDatabase, source);
         var before = SHA256.HashData(File.ReadAllBytes(source));
         var stamp = File.GetLastWriteTimeUtc(source);
 
@@ -110,7 +110,7 @@ public sealed class ImporterTests : IDisposable
     {
         var legacy = Path.Combine(_dir.Path, "HyperHDR");
         Directory.CreateDirectory(Path.Combine(legacy, "db"));
-        File.Copy(Fixtures.OwnerDatabase, Path.Combine(legacy, "db", "hyperhdr.db"));
+        File.Copy(Fixtures.ReferenceDatabase, Path.Combine(legacy, "db", "hyperhdr.db"));
 
         using (var services = OpenServices(legacy))
         {

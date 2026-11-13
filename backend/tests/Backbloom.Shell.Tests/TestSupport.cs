@@ -190,7 +190,10 @@ internal sealed class FakeAutostart : IAutostart
 
     public bool IsEnabled { get; private set; }
 
-    public void SetEnabled(bool enabled) => IsEnabled = enabled;
+    /// <summary>Thrown by <see cref="SetEnabled"/> when set (e.g. the Run key is locked down by a policy).</summary>
+    public Exception? Failure { get; set; }
+
+    public void SetEnabled(bool enabled) => IsEnabled = Failure is null ? enabled : throw Failure;
 }
 
 internal sealed class FakeSystemEvents : ISystemEvents

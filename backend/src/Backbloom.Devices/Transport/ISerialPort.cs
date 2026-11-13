@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Ports;
 
 namespace Backbloom.Devices.Transport;
@@ -37,6 +38,7 @@ public interface ISerialPortFactory
 }
 
 /// <summary><see cref="ISerialPort"/> over System.IO.Ports.</summary>
+[ExcludeFromCodeCoverage(Justification = "Opens real serial ports; tests never touch hardware. The serial drivers are tested against a fake ISerialPort.")]
 public sealed class SystemSerialPort(string portName, int baudRate) : ISerialPort
 {
     private static readonly TimeSpan s_writeTimeout = TimeSpan.FromSeconds(1);

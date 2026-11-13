@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in Backbloom doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Search the [open issues](https://github.com/valburkin/Backbloom/issues?q=is%3Aissue+is%3Aopen) first:**
+        if your problem is already there, give it a thumbs-up or add your details to it instead of opening a new one.
+        Questions and ideas go to [Discussions](https://github.com/valburkin/Backbloom/discussions).
+
+        Issues are public: look through logs and screenshots before attaching them.
+  - type: checkboxes
+    id: searched
+    attributes:
+      label: Existing issues
+      options:
+        - label: I searched the open issues and didn't find this problem.
+          required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, step by step, what you expected and what happened instead.
+      placeholder: |
+        1. ...
+        2. ...
+        Expected: ...
+        Instead: ...
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often
+      options: [Every time, Sometimes, Once]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Backbloom version
+      description: Settings > About.
+      placeholder: 0.2.0
+    validations:
+      required: true
+  - type: textarea
+    id: system
+    attributes:
+      label: System report
+      description: Settings > About > Copy system report, pasted here.
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >-
+        Attach the newest backbloom-….log (and any crash-….jsonl) from %LOCALAPPDATA%\Backbloom\logs. They contain
+        your PC's name and your devices' names and local addresses; replace anything you'd rather not share.

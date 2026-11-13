@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using HidSharp;
 
 namespace Backbloom.Devices.Transport;
@@ -22,6 +23,7 @@ public interface IHidOpener
 /// HID access through HidSharp (Apache-2.0): a managed wrapper over hid.dll/SetupAPI on Windows, hidraw on Linux and
 /// IOKit on macOS, so the HID drivers need no platform project.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Opens real HID devices; tests never touch hardware. The HID drivers are tested against fake IHidDevice implementations.")]
 public sealed class HidSharpOpener : IHidOpener
 {
     public IHidDevice Open(string path)

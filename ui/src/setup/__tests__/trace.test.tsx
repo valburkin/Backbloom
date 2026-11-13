@@ -13,7 +13,7 @@ const desk = furnitureTop(room)!;
 const bottom = s.y + s.height;
 const pt = (x: number, y: number): TracePoint => ({ x, y, where: '' });
 
-/** The owner's real strip: from the desk's right end left to under the monitor, up and around it, on along the desk. */
+/** The reference setup's real strip: from the desk's right end left to under the monitor, up and around it, on along the desk. */
 const owners: TracePoint[] = [
   pt(desk.x + desk.width, desk.y),
   pt(s.x + s.width / 2, desk.y),

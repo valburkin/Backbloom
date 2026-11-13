@@ -17,7 +17,7 @@ public sealed class BackupTests : IDisposable
     public void Backup_RoundTripsEverythingIntoAnotherInstallation()
     {
         using var source = Open("a");
-        source.ImportDatabase(Fixtures.OwnerDatabase);
+        source.ImportDatabase(Fixtures.ReferenceDatabase);
         Assert.True(source.Store.Update(TestSchema.Parse("""
             { "layout": { "version": 1,
                           "room": { "width": 4, "depth": 4, "height": 2.6, "screen": { "x": 1.7, "y": 1.31, "width": 0.6, "height": 0.34 },

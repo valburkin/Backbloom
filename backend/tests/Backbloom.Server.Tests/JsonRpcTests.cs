@@ -540,7 +540,8 @@ public sealed class JsonRpcTests
 
         var color = await client.CallAsync("color", parameters: Obj("""{ "priority": 1, "color": [255, 0, 0], "duration": 60000, "origin": "Backbloom UI" }"""));
         Assert.True(Success(color), Error(color));
-        var priorities = client.NextEvent("priorities-update")["data"]!["priorities"]!.AsArray();
+        // the first update after subscribing may still be about the screen capture starting up: wait for the color's
+        var priorities = client.NextEvent("priorities-update", e => e["data"]!["priorities"]!.AsArray().Any(p => p!["priority"]!.GetValue<int>() == 1))["data"]!["priorities"]!.AsArray();
         var visible = priorities[0]!;
         Assert.Equal((1, "COLOR", true), (visible["priority"]!.GetValue<int>(), visible["componentId"]!.GetValue<string>(), visible["visible"]!.GetValue<bool>()));
         Assert.Equal([255, 0, 0], visible["value"]!["RGB"]!.AsArray().Select(v => v!.GetValue<int>()));

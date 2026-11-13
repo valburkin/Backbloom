@@ -1,38 +1,80 @@
 # Golden fixtures
 
-Reference data the test projects compare the .NET backend with. They are copied next to the test binaries and loaded
-by `Fixtures.Load` / `Fixtures.All`; every `.json` file of a folder becomes one test case.
+Reference data the test projects compare the .NET backend with: outputs of HyperHDR's C++ code on deterministic
+inputs, plus a few hand-written cases. This page explains how the fixtures were produced, their formats, and the
+deliberate deviations from HyperHDR they record.
 
-## Frozen
+The files are copied next to the test binaries and loaded by `Fixtures.Load` / `Fixtures.All`; every `.json` file of a
+folder becomes one test case.
+
+## Contents
+
+- [Frozen fixtures](#frozen-fixtures)
+- [How they were produced](#how-they-were-produced)
+- [Formats](#formats)
+- [Tolerance](#tolerance)
+- [Deliberate deviations from HyperHDR](#deliberate-deviations-from-hyperhdr)
+
+## Frozen fixtures
 
 The `cpp-*.json` files were exported from the C++ reference implementation (the HyperHDR fork this backend was ported
-from) and are now **frozen**: the C++ code was deleted after the port reached parity, so they can no longer be
-regenerated. Treat them as the specification of HyperHDR's behavior. Change one only to record a deliberate deviation
-(see below), never to make a failing test pass.
+from) and are **frozen**: the C++ code was deleted after the port reached parity, so they can no longer be regenerated.
+Treat them as the specification of HyperHDR's behavior. Change one only to record a deliberate deviation (see
+[below](#deliberate-deviations-from-hyperhdr)), never to make a failing test pass.
 
-How they were produced: the Qt test programs in `tests/golden/` (`MappingGolden.cpp`, `ColorGolden.cpp`,
-`BlackBorderGolden.cpp`, `HdrGolden.cpp`, `SmoothingGolden.cpp`, `EffectsGolden.cpp`, helpers in `GoldenFixture.*` and
-`TestImages.*`) ran the real C++ classes on deterministic inputs and wrote these files
-(`ctest --preset win-release -L golden` with the update variable of `GoldenFixture.cpp` set; without it ctest compared its output with
-the committed files; the RGBW fixtures in `rgbw/` come from `ColorGolden.cpp` too). The exporter was added in commit
-`cd0932d`; commit `9f49bd2` is the last one that contains it and the whole C++ code
-(`git show 9f49bd2:tests/golden/ColorGolden.cpp`, or `git worktree add <dir> 9f49bd2` to build it).
+`hand-*.json` files are written by hand and state their own tolerance.
 
-`hand-*.json` files are written by hand and state their own tolerance. `settings/owner-hyperhdr-v22.db` is the owner's
-HyperHDR v22 database, sanitized (see `backend/README.md`).
+## How they were produced
 
-| Folder | C++ source | C# test |
-|---|---|---|
-| `layouts/` | `LedString` | `MappingGoldenTests` |
-| `mapping/` | `ImageColorAveraging` | `MappingGoldenTests` |
-| `color/` | `InfiniteProcessing`, `LedDevice` rounding | `ColorGoldenTests` |
-| `blackborder/` | `BlackBorderDetector` | `BlackBorderGoldenTests` |
-| `hdr/` | `DefaultLut`, `LutLoader`, `decodeBGRA` | `HdrGoldenTests`, `ScalerTests` |
-| `smoothing/` | `Infinite*Interpolator` | `SmoothingGoldenTests` |
-| `effects/` | the 10 kept effects, `SoundCapture::analyzeSpectrum` | `EffectsGoldenTests` |
-| `rgbw/` | `RGBW::rgb2rgbw`, `InfiniteColorEngineRgbw` | `RgbwGoldenTests` |
+The Qt test programs in `tests/golden/` (`MappingGolden.cpp`, `ColorGolden.cpp`, `BlackBorderGolden.cpp`,
+`HdrGolden.cpp`, `SmoothingGolden.cpp`, `EffectsGolden.cpp`, helpers in `GoldenFixture.*` and `TestImages.*`) ran the
+real C++ classes on deterministic inputs and wrote these files (`ctest --preset win-release -L golden` with the update
+variable of `GoldenFixture.cpp` set; without it, ctest compared its output with the committed files). The RGBW fixtures
+in `rgbw/` come from `ColorGolden.cpp` too.
 
-The formats are described in `backend/README.md` ("Golden fixtures").
+The exporter was added in commit `56d620d`; commit `5f70189` is the last one that contains it and the whole C++ code.
+To read or build it:
+
+```powershell
+git show 5f70189:tests/golden/ColorGolden.cpp
+git worktree add <dir> 5f70189
+```
+
+## Formats
+
+Input images are not stored but described by a small spec (`solid`, `hgradient`, `vgradient`, `quadrants`, `checker`,
+`random` (xorshift32), `overlay`, `hex`; see `tests/golden/TestImages.h` at `5f70189`) that `Golden/TestImages.cs`
+rebuilds with the same integer math. Each case carries an FNV-1a checksum of the pixels, which is checked first. Floats
+are written with the shortest text that reads back to the same float. `Golden/GoldenDiff` lists every mismatch (where,
+expected, actual, difference), up to 20 per failure.
+
+| Folder | C++ source | C# test | Contents |
+|---|---|---|---|
+| `layouts/cpp-parsing.json` | `LedString` | `MappingGoldenTests` | parsed areas, grid size |
+| `mapping/` `{ leds, tolerance, cases: [{ image, width, height, fnv1a, mappingType, sparseProcessing, horizontalBorder, verticalBorder, expected }] }` | `ImageColorAveraging` | `MappingGoldenTests` | the 168-LED reference layout and 3 others, 8 images, 3 sizes (+512x288, 7x5), both mapping types, sparse, borders |
+| `color/` `{ step: process \| calibrate, enabled, colorOrder, adjustment, tolerance, inputs, expected, expectedBytes }` | `InfiniteProcessing`, `LedDevice` rounding | `ColorGoldenTests` | the reference settings, 23 variations, 6 color orders, 4 calibration-only; 185 colors each |
+| `blackborder/cpp-detector.json` | `BlackBorderDetector` | `BlackBorderGoldenTests` | 15 pictures x 3 sizes x 3 thresholds x 4 modes |
+| `hdr/` | `DefaultLut`, `LutLoader`, `decodeBGRA` | `HdrGoldenTests` (Capture.Tests), `ScalerTests` (GPU) | default table (MD5, grid, grays) and the CPU path match exactly; the GPU LUT path matches exactly without scaling and within 1 level of the mean of the looked-up block colors with scaling (the C++ code point-sampled) |
+| `smoothing/` | the 6 interpolators (`Infinite*Interpolator`), injected time line | `SmoothingGoldenTests` | the reference settings with each type plus 4 variations (smoothing factor, y_limit, stiffness/damping, 25 Hz); frames at 60 Hz, ticks at the update interval, completion flag and colors match exactly |
+| `effects/` `{ name, smoothing*, seed, ledCount, gridSize, latchTime, frames: [{ frame, sleepTime, leds \| color \| image }] }` or `{ ..., blocks: [{ audio, frames }] }` | the 10 kept effects, stepped like `Effect::run`; music effects through `SoundCapture::analyzeSpectrum` | `EffectsGoldenTests` | LED colors, pictures (zlib RGB) and step times match byte for byte; Candle and Full color mood blobs with the MSVC `rand()` sequence after seed 42 |
+| `rgbw/` | `RGBW::rgb2rgbw`, `InfiniteColorEngineRgbw` | `RgbwGoldenTests` (Devices.Tests) | every algorithm and the 4 dithering setups match byte for byte |
+
+The `layouts/ui-multi-controller.*.json` files are not from the C++ code: they check the backend's layout compiler
+against the UI's (see [LED controllers and the layout](../../../docs/backend/layout-and-controllers.md#validation-and-compiling)).
+
+### Reference HyperHDR database
+
+`settings/reference-hyperhdr-v22.db` is a real HyperHDR v22 database (the reference setup), sanitized: admin password, salt
+and session token replaced (the password is `fixture-password`), meta uuid replaced, WLED host blanked, microphone and
+display names replaced by `default` / `auto`, file vacuumed (no free pages with old content). Everything else (168 LEDs,
+color, smoothing, effects, capture, removed-feature records) is as it was configured.
+
+## Tolerance
+
+Tolerance is 0 for every exported fixture: the mapping sums integers and does the same float conversion and divisions as
+the C++ code, and the color pipeline builds the same float tables (`powf` of the same C runtime) and runs the same float
+operations in the same order (no FMA contraction on either side). Hand-written fixtures (`hand-*.json`) state their own
+tolerance.
 
 ## Deliberate deviations from HyperHDR
 
@@ -62,13 +104,13 @@ other value is still the C++ output.
    fixture runs at 25 Hz). HyperHDR's Hybrid and HybridRgb interpolators integrate their spring with one semi-implicit
    Euler step per tick. With a long tick or a stiff spring that step oscillates and diverges (stiffness 300, damping 37
    at 20 Hz; stiffness 1000, damping 100 at 50 Hz; the lights flicker between the edges of their range), which ruled
-   out the faster Home intensity presets at low update frequencies. Now a tick is split into equal steps of at most
-   20 ms, 1 / damping and 1 / sqrt(stiffness) seconds (`SpringMath.MaxStepMs`, `SpringMath.Substeps`), and the Hybrid
-   interpolator's brightness limit per tick is shared among them. A tick no longer than one such step (20 ms for the
-   fixtures' springs) is integrated exactly as before; the other smoothing fixtures are unchanged. Covered by
+   out the faster Looks at low update frequencies. Now a tick is split into equal steps of at most 20 ms, 1 / damping
+   and 1 / sqrt(stiffness) seconds (`SpringMath.MaxStepMs`, `SpringMath.Substeps`), and the Hybrid interpolator's
+   brightness limit per tick is shared among them. A tick no longer than one such step (20 ms for the fixtures'
+   springs) is integrated exactly as before; the other smoothing fixtures are unchanged. Covered by
    `SmootherTests.StiffSpring_ApproachesWithoutOscillating` and
    `SmootherTests.HybridBrightnessLimit_HoldsPerTick_WhenATickTakesSeveralSteps`.
 5. **The brightness applies to static colors** (no fixture affected). HyperHDR switched the color processing off for
-   static colors (`COLOR`), so the output scale (Home's brightness) didn't change them. Now a `ColorProcessor` without the
-   color settings still applies the output scale and the power limit; the other color settings stay skipped. Covered
-   by `ColorProcessorTests.Process_WithoutColorSettings_KeepsBrightnessAndPowerLimit`.
+   static colors (`COLOR`), so the output scale (Home's brightness) didn't change them. Now a `ColorProcessor` without
+   the color settings still applies the output scale and the power limit; the other color settings stay skipped.
+   Covered by `ColorProcessorTests.Process_WithoutColorSettings_KeepsBrightnessAndPowerLimit`.

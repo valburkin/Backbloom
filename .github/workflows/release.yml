@@ -1,0 +1,141 @@
+name: Release
+
+# Pushing a v<version> tag publishes that version on GitHub Releases: the installer, the Velopack packages and feed
+# (installed copies update from it), checksums and a build provenance attestation. See packaging/README.md.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  # Everything that runs third-party code (npm, NuGet, tests, the build) happens here, with a read-only token.
+  build:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: backend/global.json
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Check the tag against the version
+        id: version
+        shell: pwsh
+        run: |
+          [xml] $props = Get-Content backend/Directory.Build.props
+          $version = ($props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1)
+          if ("v$version" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME doesn't match <Version>$version</Version>." }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          # 1.2.0-rc.1 and the like are published as pre-releases, which installed copies don't update to.
+          "prerelease=$(([string]$version.Contains('-')).ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+      - name: Release notes from CHANGELOG.md
+        shell: pwsh
+        run: ./packaging/Get-ReleaseNotes.ps1 -Version ${{ steps.version.outputs.version }} -OutFile artifacts/release-notes.md
+
+      - name: Test
+        working-directory: backend
+        run: dotnet test -c Release
+
+      - name: Build the installer
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}  # read-only here; lets vpk fetch the previous release for the delta
+        run: >-
+          ./packaging/build.ps1
+          -ReleaseNotes artifacts/release-notes.md
+          -PreviousReleaseRepo https://github.com/${{ github.repository }}
+
+      - name: Checksums
+        shell: pwsh
+        working-directory: artifacts/releases
+        run: |
+          # This release's files only: the folder also holds the previous full package (for the delta).
+          $version = '${{ steps.version.outputs.version }}'
+          $files = Get-ChildItem -File | Where-Object { $_.Name -like '*-Setup.exe' -or $_.Name -like '*-Portable.zip' -or $_.Name -like "*-$version-*.nupkg" } | Sort-Object Name
+          $lines = $files | ForEach-Object { '{0}  {1}' -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name }
+          [IO.File]::WriteAllText((Join-Path $PWD 'SHA256SUMS.txt'), (($lines -join "`n") + "`n"))  # LF, for sha256sum -c
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: artifacts/releases/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Only this job can write: it attests and uploads what the build job produced, and runs no project code.
+  publish:
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write       # create the release and upload its assets
+      id-token: write       # build provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            backend/global.json
+            packaging/dotnet-tools.json
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: backend/global.json
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: artifacts/releases
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            artifacts/releases/*-Setup.exe
+            artifacts/releases/*-Portable.zip
+            artifacts/releases/*-${{ needs.build.outputs.version }}-*.nupkg
+            artifacts/releases/SHA256SUMS.txt
+
+      # A draft first, published only when every asset is there: a failed run leaves a draft to delete, not a
+      # half-uploaded release that installed copies would see.
+      - name: Publish on GitHub Releases
+        shell: pwsh
+        working-directory: packaging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          dotnet tool restore
+          $upload = @('vpk', 'upload', 'github', '--outputDir', '../artifacts/releases', '--channel', 'stable',
+            '--repoUrl', "https://github.com/$env:GITHUB_REPOSITORY", '--token', $env:GH_TOKEN,
+            '--releaseName', "Backbloom $env:VERSION", '--tag', $env:GITHUB_REF_NAME)
+          if ($env:PRERELEASE -eq 'true') { $upload += '--pre' }
+          dotnet @upload
+          if ($LASTEXITCODE -ne 0) { throw "vpk upload failed ($LASTEXITCODE)." }
+          gh release upload $env:GITHUB_REF_NAME ../artifacts/releases/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw 'Uploading the checksums failed.' }
+          gh release edit $env:GITHUB_REF_NAME --draft=false --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing the release failed.' }

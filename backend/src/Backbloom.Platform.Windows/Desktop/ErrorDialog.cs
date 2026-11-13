@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -8,6 +9,7 @@ namespace Backbloom.Platform.Windows.Desktop;
 /// user closes it.
 /// </summary>
 [SupportedOSPlatform("windows")]
+[ExcludeFromCodeCoverage(Justification = "Shows a modal message box.")]
 public static partial class ErrorDialog
 {
     private const uint MbIconError = 0x10;

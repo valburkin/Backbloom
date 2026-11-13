@@ -15,3 +15,6 @@ Thumbs.db
 
 # Netlify CLI link to the site (local state)
 .netlify/
+
+# Personal notes for AI-assisted work (machine-specific)
+CLAUDE.local.md

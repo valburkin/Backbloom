@@ -1,6 +1,6 @@
 {
   "source": "C++ reference: the interpolators of InfiniteSmoothing (tests/golden/SmoothingGolden.cpp)",
-  "description": "The owner's smoothing settings with the RgbInterpolator.",
+  "description": "The reference setup's smoothing settings with the RgbInterpolator.",
   "name": "rgb",
   "settings": {
     "antiFlickeringFilter": true,

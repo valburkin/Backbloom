@@ -1,0 +1,51 @@
+name: Hardware report
+description: Tell us how Backbloom works with your LED controller, lights or PC (it works, or it doesn't).
+labels: [hardware]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reports on devices that work are just as useful as problems. The [hardware testing guide](https://github.com/valburkin/Backbloom/blob/main/docs/testing-guide.md) has a checklist.
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: Name and model.
+      placeholder: Athom WLED controller, 720-LED WS2812B strip
+    validations:
+      required: true
+  - type: dropdown
+    id: added
+    attributes:
+      label: How it was added
+      options:
+        - LED strips on a WLED board
+        - Room lights
+        - Another kind of device
+    validations:
+      required: true
+  - type: input
+    id: pc
+    attributes:
+      label: PC
+      placeholder: Graphics card, monitor or TV, Windows 10 or 11
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options: [Works well, Works with problems, Doesn't work]
+    validations:
+      required: true
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Checklist and notes
+      description: The checklist from the testing guide, and anything that was confusing or wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: system
+    attributes:
+      label: System report
+      description: Settings > About > Copy system report.
+      render: text

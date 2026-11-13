@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -6,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Backbloom.Discovery.Mdns;
 using Backbloom.Discovery.Ssdp;
 using Backbloom.Discovery.Usb;
+using Backbloom.Tests.Time;
 
 namespace Backbloom.Discovery.Tests;
 
@@ -96,20 +96,23 @@ public sealed class DiscoveryTests
     public async Task Resolve_AsksForTheHostAndReturnsTheAnswer_OrNullWhenNoneComes()
     {
         var transport = new FakeTransport();
-        using var mdns = new MdnsService(() => transport, () => transport, NullLogger<MdnsService>.Instance, isOwnAddress: _ => false);
+        var time = new SteppingClock();
+        using var mdns = new MdnsService(() => transport, () => transport, NullLogger<MdnsService>.Instance, time, isOwnAddress: _ => false);
         var answer = new DnsMessage { IsResponse = true, Answers = [new DnsRecord("wled-desk.local.", DnsType.A, 120, s_wled, CacheFlush: true)] }.Encode();
 
-        // the answer arrives a little later than the query
-        transport.OnSend = query => _ = Task.Delay(30).ContinueWith(_ => transport.Deliver(answer, new IPEndPoint(s_wled, 5353)), TaskScheduler.Default);
-        var found = await mdns.ResolveAsync("wled-desk.local", TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        // the answer arrives while the resolve waits for its first poll
+        var resolving = mdns.ResolveAsync("wled-desk.local", TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        transport.Deliver(answer, new IPEndPoint(s_wled, 5353));
+        var started = time.GetUtcNow();
+        var found = await time.RunAsync(resolving);
 
         Assert.Equal(s_wled, found);
+        Assert.Equal(TimeSpan.FromMilliseconds(50), time.GetUtcNow() - started);
         Assert.Equal(new DnsQuestion("wled-desk.local.", DnsType.A, UnicastResponse: true), Assert.Single(DnsMessage.Decode(transport.Multicast.First()).Questions));
 
-        transport.OnSend = null;
-        var started = TimeProvider.System.GetTimestamp();
-        Assert.Null(await mdns.ResolveAsync("wled-other.local", TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken));
-        Assert.InRange(TimeProvider.System.GetElapsedTime(started), TimeSpan.FromMilliseconds(150), TimeSpan.FromSeconds(5));
+        started = time.GetUtcNow();
+        Assert.Null(await time.RunAsync(mdns.ResolveAsync("wled-other.local", TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken)));
+        Assert.Equal(TimeSpan.FromMilliseconds(200), time.GetUtcNow() - started);
         // one query for the name that answered, two (the second halfway) for the one that didn't
         Assert.Equal(3, transport.Multicast.Count);
     }
@@ -370,40 +373,5 @@ public sealed class DiscoveryTests
         Assert.Equal("USB-SERIAL CH340", SerialPortEnumerator.Description("USB-SERIAL CH340 (COM3)", "COM3"));
         Assert.True(new SerialPortInfo("COM9", "", "", 0x303a, 0x80c2).IsKnownEspOrPico);
         Assert.True(new SerialPortInfo("COM4", "", "", 0x10c4, 0xea60).IsLikelyEsp);
-    }
-
-    private sealed class FakeTransport(bool canAdvertise = true) : IMdnsTransport
-    {
-        private Action<byte[], IPEndPoint>? _received;
-
-        public bool CanAdvertise => canAdvertise;
-
-        public int Starts { get; private set; }
-
-        public int Disposals { get; private set; }
-
-        public ConcurrentQueue<byte[]> Multicast { get; } = new();
-
-        public ConcurrentQueue<(byte[] Message, IPEndPoint To)> Unicast { get; } = new();
-
-        public Action<byte[]>? OnSend { get; set; }
-
-        public void Start(Action<byte[], IPEndPoint> received)
-        {
-            Starts++;
-            _received = received;
-        }
-
-        public void SendMulticast(byte[] message)
-        {
-            Multicast.Enqueue(message);
-            OnSend?.Invoke(message);
-        }
-
-        public void SendUnicast(byte[] message, IPEndPoint destination) => Unicast.Enqueue((message, destination));
-
-        public void Deliver(byte[] message, IPEndPoint from) => _received!(message, from);
-
-        public void Dispose() => Disposals++;
     }
 }

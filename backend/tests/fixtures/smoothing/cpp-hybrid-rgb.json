@@ -1,6 +1,6 @@
 {
   "source": "C++ reference: the interpolators of InfiniteSmoothing (tests/golden/SmoothingGolden.cpp)",
-  "description": "The owner's smoothing settings (HybridRgbInterpolator).",
+  "description": "The reference setup's smoothing settings (HybridRgbInterpolator).",
   "name": "hybrid-rgb",
   "settings": {
     "antiFlickeringFilter": true,

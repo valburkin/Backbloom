@@ -49,7 +49,7 @@ export function createBackend(): Backend {
     // ?mock=nousb: no new WLED board on USB;
     // ?mock=welcome-hotspot: a new install with only a new board's hotspot nearby; ?mock=location: Windows hides nearby
     // Wi-Fi networks; ?mock=noboards: no new board anywhere;
-    // ?mock=existing: the owner's board on the network, not in the layout yet (Add it as it is)
+    // ?mock=existing: the reference board on the network, not in the layout yet (Add it as it is)
     const mode = new URLSearchParams(loc.search).get('mock');
     const firstRun = mode === 'welcome' || mode === 'welcome-hotspot' || mode === 'welcome-imported' || mode === 'hyperhdr';
     return new MockBackend({

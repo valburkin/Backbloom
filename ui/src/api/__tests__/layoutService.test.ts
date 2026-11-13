@@ -3,7 +3,7 @@ import legacyLeds from '../../layout/__fixtures__/my-layout.json';
 import { compileLayout, defaultRoom, shapePath, type LayoutSpec } from '../../layout';
 import { RpcApi } from '../rpcApi';
 import { MockBackend, MOCK_PASSWORD } from '../mock';
-import { isLayoutSpec, loadLayout, saveBlockers, saveLayout } from '../layoutService';
+import { emptySpecFor, fallbackController, IMPORTED_NOTE, isLayoutSpec, loadLayout, saveBlockers, saveLayout } from '../layoutService';
 import { RpcError } from '../types';
 
 async function connected(opts: ConstructorParameters<typeof MockBackend>[0] = {}) {
@@ -120,5 +120,56 @@ describe('saveLayout', () => {
 
   it('saveBlockers reports errors and missing controllers', () => {
     expect(saveBlockers({ version: 1, room: defaultRoom(), controllers: [], strips: [] }, 2).map((b) => b.reason)).toEqual(['noController', 'errors']);
+  });
+});
+
+describe('loadLayout without the device’s outputs', () => {
+  it('shows every LED on one output when the WLED controller doesn’t answer, and says so', async () => {
+    const device = { type: 'wled', host: 'wled-offline.local' };
+    const { api } = await connected({ config: { device } });
+
+    const res = await loadLayout(api, { admin: true, serverInfo: null });
+
+    expect(res.source).toBe('legacy');
+    expect(res.spec.controllers[0]).toMatchObject({ kind: 'wled', host: 'wled-offline.local', device, outputs: [{ index: 0, start: 0, length: legacyLeds.length }] });
+    expect(res.note).toBe(`Couldn’t read the outputs of wled-offline.local (Failed to fetch), so all ${legacyLeds.length} LEDs are shown as one output. ${IMPORTED_NOTE}`);
+  });
+
+  it('takes one output for drivers whose outputs are entered by hand', async () => {
+    const device = { type: 'adalight', output: 'COM3' };
+    const { api } = await connected({ config: { device } });
+
+    const res = await loadLayout(api, { admin: true, serverInfo: null });
+
+    expect(res.spec.controllers[0]).toMatchObject({ name: 'LED device', kind: 'adalight', host: '', device });
+    expect(res.spec.controllers[0].outputs).toEqual([{ index: 0, start: 0, length: legacyLeds.length }]);
+    expect(res.note).toBe(IMPORTED_NOTE);
+  });
+});
+
+describe('emptySpecFor', () => {
+  it('puts one strip per output around the screen, along the ceiling, then behind the desk', () => {
+    const controller = { ...fallbackController('wled.local', 0), outputs: [0, 1, 2, 3].map((i) => ({ index: i, start: i * 10, length: i === 3 ? 0 : 10 })) };
+
+    const spec = emptySpecFor(controller);
+
+    expect(spec.strips.map((s) => s.name)).toEqual(['Strip 1', 'Strip 2', 'Strip 3', 'Strip 4']);
+    expect(spec.strips.map((s) => s.path)).toEqual(
+      (['around-screen', 'ceiling-front', 'behind-furniture', 'behind-furniture'] as const).map((id) => shapePath(spec.room, id)),
+    );
+    // a strip has at least one LED, even on an empty output
+    expect(spec.strips.map((s) => s.ledCount)).toEqual([10, 10, 10, 1]);
+    expect(isLayoutSpec(spec)).toBe(true);
+    expect(emptySpecFor(fallbackController('', 50)).strips.map((s) => s.name)).toEqual(['Main strip']);
+  });
+});
+
+describe('saveLayout without a controller', () => {
+  it('refuses before writing anything', async () => {
+    const { api } = await connected();
+    const before = await api.getConfig();
+
+    await expect(saveLayout(api, { version: 1, room: defaultRoom(), controllers: [], strips: [] })).rejects.toThrow('The layout has no controller.');
+    expect(await api.getConfig()).toEqual(before);
   });
 });

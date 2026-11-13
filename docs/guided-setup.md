@@ -6,6 +6,21 @@ board. Real setups vary (several strips per board, several boards, strips behind
 or a shelf), so boards and strips are first-class; strips around a monitor are one case among them. This page
 describes the parts and the protocol between the UI and the backend.
 
+## Contents
+
+- [Overview](#overview)
+- [Set up a WLED board](#set-up-a-wled-board)
+- [Plan the cuts and power](#plan-the-cuts-and-power)
+- [Add lights](#add-lights)
+- [Protocol: `hardware`](#protocol-hardware)
+- [Trying it without hardware](#trying-it-without-hardware)
+- [Safety](#safety)
+
+The backend parts behind this flow (Improv, the WLED client, the board search, Wi-Fi handling) are described in
+[Guided hardware setup (backend)](backend/hardware-setup.md).
+
+## Overview
+
 | Part | What the user does | Where |
 |---|---|---|
 | **Set up a WLED board** | Searches once (USB, the home Wi-Fi, new boards' hotspots), gives a new board the Wi-Fi, says what's on the power supply, finds each strip by lighting the board's connections one at a time and says where it runs, picks each strip's type and checks it with guided tests; then back to Your lights | Devices → Add device → LED strips on a WLED board, Home's and Devices' "No lights yet", and the first-run setup's Your lights |
@@ -28,13 +43,13 @@ Save bar saves the layout). A flow opened from there goes Back to it.
 of the layout's own roles, `ROLE_CHOICES`), whether it comes from Set up a WLED board, Add lights, Another kind of
 device or a lamp added to a lamp list on Devices. It looks right whichever way the strip runs, and sharp changes at
 the edge of vision distract ([immersion.md](immersion.md)). Following the part of the screen next to it (Screen edge)
-needs the strip's real route (from which end, which way round, across which places: one owner's strip starts at the
+needs the strip's real route (from which end, which way round, across which places: one real strip starts at the
 desk's right end, runs left to under the monitor, up and around it counterclockwise and on along the desk's left
 half), which can't be guessed, so it is never set by itself: the first-run setup's What each light does traces it
 (below), and Layout draws and matches it.
 
 **Make it ready** (the first-run setup after Your lights, before Turn on; `ui/src/pages/welcome/ReadySteps.tsx`, logic
-in `ready.ts`; the whole setup is described in [backend/README.md](../backend/README.md#first-run-hyperhdr-and-network-access)).
+in `ready.ts`; the whole setup is described in [Access, first run and network](backend/access-and-first-run.md#first-run-setup)).
 Each step can be passed by:
 
 1. **What each light does**: the room as Layout draws it, in its live colors (else each strip in its Layout color),
@@ -64,7 +79,7 @@ Each step can be passed by:
      (lit again with `points`), which matches that corner to its LED (`at`, LED n's middle: n − 0.5) and spreads the
      LEDs between matched corners evenly (gaps and uneven runs need no more than that); **Change the route** goes back
      to drawing. The path is the route on the front wall, every part following the screen next to it, so any route
-     works; **Cancel** keeps what the strip showed. The board's state comes back afterwards (`off`). Where the board is
+     works; **Cancel** keeps what the strip showed. The board's state comes back afterward (`off`). Where the board is
      only decides which end is LED 1: the layout has no place for a device's position, so it isn't kept. A strip
      following the screen's edge already offers **Trace its route**. A room light (one LED) gets Screen edge at once;
      a strip on another kind of device too, with a hint to draw where it runs on Layout.
@@ -77,7 +92,7 @@ Each step can be passed by:
 
 Without lights (Your lights skipped) the setup goes from Your lights to Look. Turn on lights saves the
 layout first, unless something blocks saving it. On a new install (not imported) whose Brightness is still at 100%, it
-sets Brightness to 60% (about a third of the light; full is far too bright in a room); Home's slider changes it.
+sets Brightness to 60% (about a fifth of the light; full is far too bright in a room); Home's slider changes it.
 
 **No lights yet.** A new install has only the test device (`file`, which writes the colors nowhere). Without expert
 tools it is never shown: Home and Devices show "No lights yet" with one primary **Add your lights** until a real
@@ -307,7 +322,7 @@ without holding up the connection's other requests (joining a Wi-Fi network take
 | `screens` | | `{ screens: [{ name, primary, widthMm, heightMm, device, devicePath }] }`: sizes from the monitor's EDID, null when it doesn't report them, as the desktop shows the monitor (swapped when it is turned to portrait); `device` is Windows' name for the output (`\\.\DISPLAY1`), `devicePath` the id screen capture keeps |
 | `usb-scan` | | `{ boards: [{ port, name, state, firmware, version, chip, deviceName, address }], silent: [{ port, name }] }`: USB serial ports of ESP boards that answer Improv; `name` is the USB bridge's name; `state` `ready` (no Wi-Fi yet), `provisioned` (on Wi-Fi, `address` set), `authorize` (press the board's button first), `provisioning` (joining), `unavailable` (Wi-Fi off). `silent`: ESP ports that didn't answer (no WLED on them, or another program has the port) |
 | `usb-networks` | `{ port }` | `{ networks: [{ ssid, signal, secure, rssi }] }` (signal in %, 2 × (RSSI + 100) as WLED shows it; strongest first, one entry per name, hidden networks left out) |
-| `usb-wifi` | `{ port, ssid, password }` | `{ address, host }`: the URL the board reports (`http://192.168.1.50`) and its host part for `wled-*`; `address` null when the board joined without reporting one. Fails with "couldn’t join <ssid>: check the password", "The board didn’t join <ssid> in time: check the network name and password", "Press the button on the board, then try again" |
+| `usb-wifi` | `{ port, ssid, password }` | `{ address, host }`: the URL the board reports (`http://192.168.1.50`) and its host part for `wled-*`; `address` null when the board joined without reporting one. Fails with "couldn’t join &lt;ssid&gt;: check the password", "The board didn’t join &lt;ssid&gt; in time: check the network name and password", "Press the button on the board, then try again" |
 | `wled-read` | `{ host }` | `{ name, version, chip, mac, address, ledCount, outputs: [{ index, strip, type, pin, clockPin, length, start, colorOrder, reverse }], maxCurrent, ledCurrent, wifi: { ssid } }`; `strip` null for a WLED type without a preset (`type` is WLED's number), `clockPin` only for two-wire strips, `maxCurrent` 0 without a limit, `ledCurrent` null when not set |
 | `wled-write` | `{ host, name?, outputs?: [{ strip, length, pin?, clockPin?, start?, colorOrder?, reverse? }], maxCurrent?, ledCurrent?, wifi?: { ssid, password } }` | `{ restarting }`; while restarting the UI polls `wled-read` (30 s at most). Without a restart it answers once the board has applied the new LED settings. A shorter output turns every LED black first (the LEDs past its new end would keep their colors) |
 | `wled-wifi` | `{ host, ssid, password }` | `{ restarting }` (the access point fallback; same as `wled-write` with only `wifi`) |
@@ -336,7 +351,7 @@ nothing; the others still answer. A board found on USB and the network carries b
 `useSavedPassword: true` reads the key of the current connection's profile (`WlanGetProfile` with
 WLAN_PROFILE_GET_PLAINTEXT_KEY, what `netsh wlan show profile key=clear` shows the user without elevation) for that call
 only: it goes to the board and is never returned, logged or stored. It works only for the network this PC is on
-("This PC has no saved password for <ssid>: type it" otherwise, or without such a key).
+("This PC has no saved password for &lt;ssid&gt;: type it" otherwise, or without such a key).
 
 **`connect-wifi`** puts a found board on the home network:
 
@@ -352,9 +367,9 @@ only: it goes to the board and is never returned, logged or stored. It works onl
 { tan, id, step } }` with `step` `"joining-hotspot"`, `"sending"`, `"rejoining"`, `"waiting"` (`tan` is the request's;
 the `-update` suffix makes them events in the UI's client, so they don't answer the request). The UI's connection is
 on loopback and survives the PC's Wi-Fi switching. Errors: "This PC has no Wi-Fi: plug the board into this PC with a
-USB cable instead", "This PC couldn’t join the board’s Wi-Fi (<hotspot>): move closer to the board, or plug it into
-this PC with a USB cable", "This PC joined the board’s Wi-Fi (<hotspot>) but got no address from it: try again", "The
-board didn’t show up on <ssid>: check the Wi-Fi password, and that <ssid> is a 2.4 GHz network (WLED boards can’t
+USB cable instead", "This PC couldn’t join the board’s Wi-Fi (&lt;hotspot&gt;): move closer to the board, or plug it into
+this PC with a USB cable", "This PC joined the board’s Wi-Fi (&lt;hotspot&gt;) but got no address from it: try again", "The
+board didn’t show up on &lt;ssid&gt;: check the Wi-Fi password, and that &lt;ssid&gt; is a 2.4 GHz network (WLED boards can’t
 join 5 GHz)", "Search again: that board isn’t there any more" (an unknown `id`), and the USB and `wled-*` errors.
 
 **Finding the strips** (`wled-probe-start`, for a board whose strips are wired but whose pins aren't known): the board's
@@ -377,7 +392,7 @@ without the pins the board's settings give to buttons (`hw.btn`, enabled ones), 
 Never tried: the flash and PSRAM pins, the USB pins, input-only pins, the boot straps (ESP32 0 and 12; S2/S3 0, 45, 46
 and S3's 3; C3 8 and 9) and the serial console's TX. An unknown chip is treated as an ESP32. The saved settings are kept
 30 minutes after the last probe or check, like a check's saved state. A board that doesn't answer within 30 s after the
-restart fails with "The board at <host> didn’t come back after restarting: check its power, then try again".
+restart fails with "The board at &lt;host&gt; didn’t come back after restarting: check its power, then try again".
 
 **This PC's Wi-Fi** (`IWifi`; on Windows `WindowsWifi` over wlanapi.dll). The temporary profile is a per-user profile
 named "Backbloom setup <8 hex digits>" (manual connection, so Windows never joins it by itself), created without
@@ -435,10 +450,10 @@ saved state does nothing. A board in realtime mode is refused.
 `wled.lan`, `fritz.box`, `desk.home.arpa`, a single label) or an IP address (IPv6 with its scope, `fe80::1%12`); the
 address it resolves to must be one of a private, link-local or unique-local network, or 4.3.2.1 (WLED's access point)
 while this computer is on that access point (an interface address in 4.3.2.0/24; otherwise 4.3.2.1 is a public
-address). Others ("<host> isn’t on your local network: only boards there can be set up") — loopback, multicast,
-broadcast and public addresses — are refused, and so is something that isn't a host name at all ("<host> isn’t an
-address: use the board’s IP address or its name"). A name that can't be resolved fails with "Couldn’t find <host> on your network", a
-board that doesn't answer with "Couldn’t reach <host>" (no socket details).
+address). Others ("&lt;host&gt; isn’t on your local network: only boards there can be set up") — loopback, multicast,
+broadcast and public addresses — are refused, and so is something that isn't a host name at all ("&lt;host&gt; isn’t an
+address: use the board’s IP address or its name"). A name that can't be resolved fails with "Couldn’t find &lt;host&gt; on your network", a
+board that doesn't answer with "Couldn’t reach &lt;host&gt;" (no socket details).
 
 | `strip` | WLED type | Notes |
 |---|---|---|
@@ -472,12 +487,12 @@ for `ws2811-12v` and `ws2814-rgbw`.
 (the port a serial device names, or for `auto` the one it would pick), one at a time, with DTR and RTS off (so opening
 the port doesn't reset the board), at 115200 baud, and closes them again. It asks for the state and the device
 information and waits 1.2 s, then once more 2.5 s (for a board that is still starting). `usb-networks` and `usb-wifi`
-open only such a port too ("<port> is used by one of your devices", "There is no ESP board on <port>").
+open only such a port too ("&lt;port&gt; is used by one of your devices", "There is no ESP board on &lt;port&gt;").
 
 **Add lights.** Pairing and the other Add lights steps report what the user can act on in `properties.error`
 (`success` stays true): not in pairing mode, a refused token, a bridge or server that can't be reached ("Couldn't
-reach the Hue bridge at <host>", no socket details), an unknown light. Only requests the backend can't handle at all
-(and `identify` failures) reply `success: false` ("getProperties failed for <type>: ...").
+reach the Hue bridge at &lt;host&gt;", no socket details), an unknown light. Only requests the backend can't handle at all
+(and `identify` failures) reply `success: false` ("getProperties failed for &lt;type&gt;: ...").
 `leddevice getProperties nanoleaf { host, pair: true }` posts to `/api/v1/new` and replies
 `{ properties: { token } }`, or `{ properties: { error } }` when the controller isn't in pairing mode or can't be
 reached. `leddevice getProperties philipshue { host, pair: true }` replies `{ username, clientkey }` or `{ error }`.
@@ -500,22 +515,22 @@ its `friendly_name`, else the id; sorted by name), or `{ properties: { error } }
 missing, the token is refused (HTTP 401/403) or the server can't be reached. `host` is as the device's
 `homeAssistantHost` takes it (`ha.local`, `192.168.1.5:8123`, `https://...`; port 8123 by default).
 `leddevice identify home_assistant { host, token, entityId }` flashes the light once (`light.turn_on` with
-`flash: "short"`; a light that was off stays on afterwards, as Home Assistant handles the flash); failures reply
+`flash: "short"`; a light that was off stays on afterward, as Home Assistant handles the flash); failures reply
 `success: false` ("identify failed for home_assistant: Home Assistant answered HTTP 401").
 
 ## Trying it without hardware
 
 The mock backend (`?mock`, `ui/src/api/mockHardware.ts`) has a new WLED board on USB ("Silicon Labs CP210x (COM5)",
-an ESP32, joins Wi-Fi at 192.168.1.77; the owner's wiring: a WS2812B strip of 91 LEDs on GPIO 16 and a 720 LEDs/m
+an ESP32, joins Wi-Fi at 192.168.1.77; the reference wiring: a WS2812B strip of 91 LEDs on GPIO 16 and a 720 LEDs/m
 WS2811 COB strip of 77 segments on GPIO 2), a new board that only opens its hotspot "WLED-AP" (88% signal, joins at
-192.168.1.78 with progress events; one strip of 60 on GPIO 16), and in the demo the owner's board "Desk" on the network
+192.168.1.78 with progress events; one strip of 60 on GPIO 16), and in the demo the reference board "Desk" on the network
 (91 and 77 LEDs, in the layout, so it refuses tests while Backbloom streams to it). This PC has the Wi-Fi password
 saved (not with `?mock=location`). The strip search gives each candidate pin 300 LEDs and lights the first 20; only the
 wired ones are strips. A write that makes an output shorter or removes one turns every LED black first, like the
 backend; ending the search with `keep` only forgets the settings from before it. `wled-test` `points` checks its LEDs like the backend. Boards restart for 4 s after a new pin or LED type; other writes answer after 0.7 s, once the board applied
 them. The LED preview keeps running while the first-run setup holds the output (as the backend's does), so What each
 light does shows live colors. To see the other paths: `?mock=welcome` (a new
-install), `?mock=welcome-hotspot` (a new install with only the hotspot board), `?mock=existing` (the owner's board on
+install), `?mock=welcome-hotspot` (a new install with only the hotspot board), `?mock=existing` (the reference board on
 the network, not in the layout: Add it as it is), `?mock=nousb`, `?mock=noboards` (nothing
 found), `?mock=location` (Windows hides nearby Wi-Fi). Failures: the Wi-Fi password `wrongpass` (or one shorter than 8
 characters), the network "Garage" (too far), the first Hue Connect (button not pressed), the Home Assistant token
@@ -524,14 +539,14 @@ characters), the network "Garage" (too far), the first Hue Connect (button not p
 ## Safety
 
 - Development and tests never contact a real board: a fake WLED (HTTP on 127.0.0.1) and a fake serial stream speak
-  the protocol in tests. The owner's WLED in particular is never written to by a test or a dev run.
+  the protocol in tests. A developer's real WLED in particular is never written to by a test or a dev run.
 - `wled-write`, `wled-wifi` and `wled-test` refuse a board that a device of the layout streams to: a WLED, DDP, E1.31
   or Art-Net device that is connected or connecting (not one waiting to retry, nor other types) whose `host` names it,
   also by a name resolving to the same address (the shared resolver falls back to the last address the name had, the
-  one the device connected to). The reply is "Backbloom is sending colors to this board (the device "<name>"): turn
+  one the device connected to). The reply is "Backbloom is sending colors to this board (the device "&lt;name&gt;"): turn
   that device off first" (the user stops it, or the wizard is for new boards). A connected device whose host has no
   known address at all is assumed to be sending to it ("Backbloom may be sending colors to this board (the device
-  "<name>" at <host>, which can’t be found right now)"); one still connecting to such a name sends nothing and is
+  "&lt;name&gt;" at &lt;host&gt;, which can’t be found right now)"); one still connecting to such a name sends nothing and is
   ignored.
 - The Govee search binds each interface address on port 4002 and sends its query from that socket, so the answers
   come back as replies to our own query; Windows Firewall should let them in without a rule (as for the other

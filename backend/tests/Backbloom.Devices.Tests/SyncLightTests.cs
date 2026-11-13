@@ -1,4 +1,5 @@
 using Backbloom.Devices.Drivers.Hid;
+using Backbloom.Devices.Transport;
 using Backbloom.Discovery.Usb;
 
 namespace Backbloom.Devices.Tests;
@@ -113,6 +114,112 @@ public sealed class SyncLightTests
         Assert.Equal(128, device.Reports[1][6]);
         Assert.Equal(new byte[] { 1, 50, 0, 50, 65, 66 }, device.Reports[4][6..12]);
         Assert.Equal("65 LEDs", driver.Status);
+    }
+
+    private static FakeHidDevice AnsweringDevice() => new()
+    {
+        Answer = report =>
+        {
+            if (report[5] != SyncLightProtocol.ActionReadInfo)
+            {
+                return null;
+            }
+
+            var reply = new byte[64];
+            (reply[0], reply[1], reply[2], reply[3], reply[8], reply[11]) = ((byte)'R', (byte)'B', 24, report[4], 27, 65);
+            return reply;
+        },
+    };
+
+    [Fact]
+    public async Task Open_SkipsAnInterfaceThatCantBeOpened_AndTakesTheNext()
+    {
+        var other = s_lights with { Path = @"\\?\hid#vid_1a86&pid_fe0c&mi_01", ProductId = 0xfe0c };
+        var device = AnsweringDevice();
+        var opener = new ScriptedHidOpener(path => path == s_lights.Path ? throw new IOException("in use by another program") : device);
+        var context = Ctx.Create(hid: opener, discovery: Ctx.Discovery(hid: new FakeHidEnumerator(s_lights, other)));
+        using var driver = new SyncLightDriver(new SyncLightOptions(), context);
+
+        await driver.OpenAsync(10, TestContext.Current.CancellationToken);
+
+        Assert.Equal([s_lights.Path, other.Path], opener.Opened);
+        Assert.Equal("65 LEDs", driver.Status);
+    }
+
+    [Fact]
+    public async Task Open_FailsWhenNoInterfaceCanBeOpened_NamingWhy()
+    {
+        var opener = new ScriptedHidOpener(_ => throw new IOException("in use by another program"));
+        var context = Ctx.Create(hid: opener, discovery: Ctx.Discovery(hid: new FakeHidEnumerator(s_keyboard, s_lights)));
+        using var driver = new SyncLightDriver(new SyncLightOptions(), context);
+
+        var error = await Assert.ThrowsAsync<IOException>(async () => await driver.OpenAsync(10, TestContext.Current.CancellationToken));
+
+        Assert.Equal("in use by another program", error.Message);
+        // the keyboard interface of the same device is never opened
+        Assert.Equal([s_lights.Path], opener.Opened);
+
+        using var nothing = new SyncLightDriver(new SyncLightOptions(), Ctx.Create(hid: opener, discovery: Ctx.Discovery(hid: new FakeHidEnumerator(s_keyboard))));
+        error = await Assert.ThrowsAsync<IOException>(async () => await nothing.OpenAsync(10, TestContext.Current.CancellationToken));
+        Assert.Equal("No supported HID device found.", error.Message);
+    }
+
+    [Fact]
+    public async Task Open_ClosesTheDevice_WhenItDoesntTakeTheInitialization()
+    {
+        var device = new FakeHidDevice { Fails = true };
+        var context = Ctx.Create(hid: new FakeHidOpener(device), discovery: Ctx.Discovery(hid: new FakeHidEnumerator(s_lights)));
+        using var driver = new SyncLightDriver(new SyncLightOptions(), context);
+
+        await Assert.ThrowsAsync<IOException>(async () => await driver.OpenAsync(10, TestContext.Current.CancellationToken));
+
+        Assert.True(device.Disposed);
+        Assert.False(driver.Write([1, 2, 3]));
+    }
+
+    [Fact]
+    public async Task Write_ReportsAFailedSend_AndNothingIsSentAfterClosing()
+    {
+        var device = AnsweringDevice();
+        var context = Ctx.Create(hid: new FakeHidOpener(device), discovery: Ctx.Discovery(hid: new FakeHidEnumerator(s_lights)));
+        using var driver = new SyncLightDriver(new SyncLightOptions(), context);
+        await driver.OpenAsync(10, TestContext.Current.CancellationToken);
+
+        Assert.False(driver.Write([]));
+        device.Fails = true;
+        Assert.False(driver.Write([1, 2, 3]));
+        device.Fails = false;
+        Assert.True(driver.Write([1, 2, 3]));
+
+        await driver.CloseAsync(TestContext.Current.CancellationToken);
+        Assert.True(device.Disposed);
+        Assert.Null(driver.Status);
+        Assert.False(driver.Write([1, 2, 3]));
+    }
+
+    [Fact]
+    public void Options_ChooseTheDevicesByVendorAndProduct()
+    {
+        Assert.Equal(SyncLightOptions.DefaultDevices, SyncLightOptions.FromConfig(Ctx.Json("{}")).SupportedDevices);
+        Assert.Equal([(0x1a86, 0xfe0c)], SyncLightOptions.FromConfig(Ctx.Json("""{ "VID": "0x1a86", "PID": "0xfe0c" }""")).SupportedDevices);
+        // an id that doesn't parse, or a vendor without known products, falls back to the known devices
+        Assert.Equal(SyncLightOptions.DefaultDevices, SyncLightOptions.FromConfig(Ctx.Json("""{ "VID": "zz" }""")).SupportedDevices);
+        Assert.Equal(SyncLightOptions.DefaultDevices, SyncLightOptions.FromConfig(Ctx.Json("""{ "VID": "0x1234" }""")).SupportedDevices);
+        Assert.Equal(SyncLightOptions.DefaultDevices, SyncLightOptions.FromConfig(Ctx.Json("""{ "PID": "0789" }""")).SupportedDevices);
+
+        var options = SyncLightOptions.FromConfig(Ctx.Json("""{ "output": " ", "brightness": 0, "outputMode": "Segments", "controllerLedCount": 999 }"""));
+        Assert.Equal(("auto", (byte)1, true, 254), (options.Output, options.Brightness, options.PerLed, options.ControllerLeds));
+    }
+
+    private sealed class ScriptedHidOpener(Func<string, IHidDevice> open) : IHidOpener
+    {
+        public List<string> Opened { get; } = [];
+
+        public IHidDevice Open(string path)
+        {
+            Opened.Add(path);
+            return open(path);
+        }
     }
 
     [Fact]

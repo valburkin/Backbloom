@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Text;
+using Backbloom.App.Updates;
 
 namespace Backbloom.App;
 
@@ -43,7 +44,8 @@ internal sealed record CommandLine(LaunchMode Mode, IReadOnlyList<string> Config
           --capture-image <file>    Use a still picture (binary PPM) as the frame source instead (screenshots)
           --fps <n>                 Rate of the synthetic test pattern or the picture (default 60)
           --lut-dirs <dirs>         Folders searched for the HDR tone mapping table, separated by ';'
-          --update-url <url>        Release feed for automatic updates of an installed copy
+          --update-url <url>|none   Release feed for automatic updates of an installed copy
+                                    (default: the GitHub releases); none turns them off
           --update-channel <name>   Release channel to follow (default: the installed one, e.g. stable)
           --no-window               Start in the tray without opening the window (used by autostart)
           --service                 No tray icon or window; logs to the console (headless use)
@@ -164,8 +166,9 @@ internal sealed record CommandLine(LaunchMode Mode, IReadOnlyList<string> Config
         "capture" when !Enum.TryParse<CaptureKind>(value, ignoreCase: true, out var kind) || kind is not (CaptureKind.Screen or CaptureKind.Synthetic) || int.TryParse(value, out _) =>
             $"--capture must be 'screen' or 'synthetic', not '{value}'.",
         "capture-image" when !File.Exists(value) => $"--capture-image: there is no file '{value}'.",
-        "update-url" when !Uri.TryCreate(value, UriKind.Absolute, out var feed) || feed.Scheme is not ("https" or "http" or "file") =>
-            $"--update-url must be an absolute http(s) or file URL, not '{value}'.",
+        "update-url" when !value.Equals(UpdateSettings.Off, StringComparison.OrdinalIgnoreCase)
+            && (!Uri.TryCreate(value, UriKind.Absolute, out var feed) || feed.Scheme is not ("https" or "http" or "file")) =>
+            $"--update-url must be an absolute http(s) or file URL, or '{UpdateSettings.Off}', not '{value}'.",
         "fps" when !double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var fps) || fps is <= 0 or > 1000 =>
             $"--fps must be a number above 0 and up to 1000, not '{value}'.",
         _ => null,

@@ -5,7 +5,7 @@ namespace Backbloom.Engine.Tests;
 
 public sealed class PowerBudgetTests
 {
-    // the owner's strip: 168 LEDs at 60 mA under a 5313 mA limit (budget 5313 - 100 - 168 = 5045 mA, full white 10080 mA)
+    // the reference setup's strip: 168 LEDs at 60 mA under a 5313 mA limit (budget 5313 - 100 - 168 = 5045 mA, full white 10080 mA)
     private static readonly ControllerTelemetry s_wled = new(DateTimeOffset.UnixEpoch)
     {
         PowerGroups = [new PowerGroup(5045, [new PowerRange(0, 168, 60, false)])],

@@ -9,7 +9,7 @@ import cfg from './__fixtures__/wled-two-outputs.json';
 import segmentsJson from './__fixtures__/my-layout.segments.json';
 
 const rects = legacy as LedRect[];
-/** The owner's layout as HyperHDR-style segments, made by hand. */
+/** The reference setup's layout as HyperHDR-style segments, made by hand. */
 const handSegments = segmentsJson as { monitor: LegacySegment[]; ceiling: LegacySegment[] };
 const KEYS = ['hmin', 'hmax', 'vmin', 'vmax'] as const;
 
@@ -39,7 +39,7 @@ function expectClose(actual: LegacySegment[], expected: LegacySegment[], tol = 2
 }
 
 describe('hand-made segments (ground truth)', () => {
-  it("compile to the owner's rects within 0.0006", () => {
+  it("compile to the reference setup's rects within 0.0006", () => {
     expect(roundTripError(rects.slice(0, 91), handSegments.monitor)).toBeLessThan(0.0006);
     expect(roundTripError(rects.slice(91), handSegments.ceiling)).toBeLessThan(0.0006);
   });

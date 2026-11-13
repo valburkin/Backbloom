@@ -24,6 +24,27 @@ public sealed class YeelightTests
         Assert.Equal((hue, sat, value), LampColor.RgbToHsv(r, g, b));
 
     [Fact]
+    public void Options_ReadTheLampsAndTheSchemaDefaults()
+    {
+        var options = YeelightOptions.FromConfig(Ctx.Json("""
+            { "lights": [ { "host": "10.0.0.7:55443", "name": "Desk" }, { "host": "10.0.0.8", "port": 1234 }, { "host": "" } ],
+              "colorModel": 0, "transEffect": 1, "quotaWait": 1000 }
+            """));
+
+        // a host with a port keeps only the host; lamps without a host are left out
+        Assert.Equal([("10.0.0.7", YeelightOptions.DefaultPort, "Desk"), ("10.0.0.8", 1234, "")], options.Lights);
+        Assert.False(options.Rgb);
+        Assert.False(options.Smooth);
+        Assert.Equal((50, 0, 100, 60), (options.TransitionMs, options.BrightnessMin, options.BrightnessMax, options.MaxRetry));
+        Assert.Equal(TimeSpan.FromSeconds(1), options.QuotaWait);
+        Assert.Equal(TimeSpan.FromMilliseconds(500), options.ResponseSilence);
+    }
+
+    [Fact]
+    public void Driver_NeedsALamp() =>
+        Assert.Throws<ArgumentException>(() => new YeelightDriver(YeelightOptions.FromConfig(Ctx.Json("{}")), Ctx.Create()));
+
+    [Fact]
     public async Task Driver_PowersOnStreamsInMusicModeAndPowersOff()
     {
         await using var lamp = new FakeLamp();

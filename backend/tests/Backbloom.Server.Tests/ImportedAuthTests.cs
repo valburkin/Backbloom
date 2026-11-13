@@ -5,7 +5,7 @@ using Backbloom.Settings.Auth;
 
 namespace Backbloom.Server.Tests;
 
-/// <summary>A password imported from the owner's HyperHDR database keeps working and is re-hashed on first use.</summary>
+/// <summary>A password imported from the reference setup's HyperHDR database keeps working and is re-hashed on first use.</summary>
 public sealed class ImportedAuthTests : IDisposable
 {
     private readonly string _dir = TestServer.NewDataDirectory();
@@ -16,7 +16,7 @@ public sealed class ImportedAuthTests : IDisposable
     public void ImportedPassword_LogsInAndIsUpgradedToPbkdf2()
     {
         using var services = SettingsServices.Open(new SettingsOptions(_dir, null), TestServer.Schema(), NullLoggerFactory.Instance);
-        services.ImportDatabase(Path.Combine(AppContext.BaseDirectory, "fixtures", "settings", "owner-hyperhdr-v22.db"));
+        services.ImportDatabase(Path.Combine(AppContext.BaseDirectory, "fixtures", "settings", "reference-hyperhdr-v22.db"));
         Assert.Equal(SecretAlgorithm.LegacySha512, services.Auth.Load().Password!.Algorithm);
 
         var auth = new AuthService(services.Auth);

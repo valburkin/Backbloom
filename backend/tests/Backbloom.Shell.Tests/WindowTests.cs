@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.Versioning;
 using Microsoft.Extensions.Configuration;
 using Backbloom.App;
@@ -21,6 +22,45 @@ public sealed class WindowTests : IDisposable
         Assert.Equal(new WindowPlacement(100, 50, 1280, 860, true), store.Load());
         Assert.DoesNotContain("isUsable", File.ReadAllText(store.Path), StringComparison.Ordinal);
         Assert.False(File.Exists(store.Path + ".tmp"));
+    }
+
+    [Fact]
+    public void Placement_ThatCantBeWritten_IsReportedNotThrown()
+    {
+        var store = new WindowPlacementStore(_dir);
+        Directory.CreateDirectory(store.Path);
+
+        Assert.False(store.Save(new WindowPlacement(100, 50, 1280, 860, false)));
+    }
+
+    [Theory]
+    [InlineData("file:///C:/Windows/System32/calc.exe")]
+    [InlineData("ms-settings:privacy-microphone")]
+    [InlineData("ftp://127.0.0.1/")]
+    public void Browser_OpensOnlyWebPages(string url)
+    {
+        var started = new List<ProcessStartInfo>();
+        var launcher = new SystemBrowserLauncher(start => { started.Add(start); return null; });
+        Assert.Throws<ArgumentException>(() => launcher.Open(new Uri(url)));
+        Assert.Empty(started);
+    }
+
+    [Fact]
+    public void Browser_HandsAWebPageToTheSystem()
+    {
+        var started = new List<ProcessStartInfo>();
+        new SystemBrowserLauncher(start => { started.Add(start); return null; }).Open(new Uri("https://github.com/valburkin/Backbloom/issues"));
+
+        var start = Assert.Single(started);
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Equal("https://github.com/valburkin/Backbloom/issues", start.FileName);
+            Assert.True(start.UseShellExecute);
+        }
+        else
+        {
+            Assert.Equal(["https://github.com/valburkin/Backbloom/issues"], start.ArgumentList);
+        }
     }
 
     [Theory]

@@ -1,15 +1,31 @@
 # Settings and HyperHDR import
 
+Where Backbloom keeps its data, the settings sections and their rules, the room layout and presets, and what happens on
+the first start, including the import of HyperHDR's settings. The storage details and every import rule are in
+[Settings storage and HyperHDR import](backend/settings-storage.md).
+
+## Contents
+
+- [Where settings live](#where-settings-live)
+- [Sections](#sections)
+  - [Screen sync, effects and sound](#screen-sync-effects-and-sound)
+  - [The layout](#the-layout)
+  - [Presets](#presets)
+- [Importing HyperHDR](#importing-hyperhdr)
+- [First run](#first-run)
+
 ## Where settings live
 
 The data directory holds everything that belongs to one user's setup:
 
-| Path | |
+| Path | Contents |
 |---|---|
 | `settings.db` | SQLite: settings sections, controllers, credentials (hashes), instance id |
 | `backups/` | settings saved before an import or a restore |
 | `imported/` | copies of imported databases (only the copy is opened) |
-| `logs/` | `backbloom-yyyyMMdd.log`, a new file per day and per 10 MB, the newest 10 kept; a failed start or a crash is recorded there as a `FATAL` entry (and shown in a message box). `performance-yyyyMMdd.jsonl`: a start line per app start and a performance sample every 10 s, the newest 14 files (days the app ran) kept; `crash-yyyyMMdd-HHmmss.jsonl`: the start line and the last 30 minutes of samples before a crash, the newest 10 kept (format: [backend/README.md](../backend/README.md#performance-recording)) |
+| `logs/backbloom-yyyyMMdd.log` | the log: a new file per day and per 10 MB, the newest 10 kept; a failed start or a crash is recorded there as a `FATAL` entry (and shown in a message box) |
+| `logs/performance-yyyyMMdd.jsonl` | a start line per app start and a performance sample every 10 s, the newest 14 files (days the app ran) kept (format: [Performance recording](backend/performance-recording.md#file-format)) |
+| `logs/crash-yyyyMMdd-HHmmss.jsonl` | the start line and the last 30 minutes of samples before a crash, the newest 10 kept |
 | `window.json`, `webview/` | window placement, the window's browser profile |
 | `lut_lin_tables.3d` | HDR tone mapping table, created on first use |
 
@@ -64,38 +80,56 @@ the program in `%LOCALAPPDATA%\BackbloomApp`, separate from the data, so uninsta
   position `at`; "bends" and "matched" in the UI). Optional: `dark` LED ranges ("turned-off LEDs"), `depth`, `blend`
   ("softness") and `brightness`.
 - The points split a strip into sections ("parts" in the UI); a point's `next` says what the section to the following
-  point does: `{ kind: "edge", from, to }` repeats a stretch of the screen's outline (positions 0..4 clockwise from the
-  top-left corner, one per edge; "Screen edge"), `whole` shows the whole picture ("Screen average"; its color changes more slowly than
-  the smoothing settings say, about half a second more, so small changes in the picture don't make it flicker),
-  `{ kind: "area", area }` one area of it (these roles are for the screen: effects and music play along `whole` and
-  `area` LEDs, once around the picture's edge from the middle of the bottom), `none` nothing, and `gap` means the strip
-  has no LEDs there (a cut corner, a cable). Without `next` a section repeats the stretch of the outline it faces when the room is seen straight on
-  against the front wall.
-- `{ kind: "effect", effect }` (an effect by its name, music effects included) and `{ kind: "color", color: [r, g, b] }`
-  make a section play something of its own with the layout (the screen, or nothing else shown; music, an effect or a
-  color picked for every light plays on it too, until the layout shows again): its LEDs leave the screen mapping
-  and form a zone with every other section of the same role, across strips and controllers. A zone's effect runs as
-  if the zone were the screen (each LED where `auto` would put it), so it flows across strips; it goes through the
-  color settings like any effect, a color zone doesn't (like a static color), except the brightness and the power
-  limit. Zones keep the lights on when nothing else shows (the other LEDs are black then), and pause while the lights
-  are off or held. An effect that doesn't exist leaves its zone dark.
+  point does (see the table below).
 - `profiles` (optional, the app's presets): other roles for the sections while a profile is on, and optionally its
-  own Look, e.g.
-  `{ id: "witcher", name: "Witcher 3", apps: ["witcher3.exe"], sections: { "ceiling": [{ kind: "color", color: [0, 40, 80] }, null] }, look: { time_ms: 150, stiffness: 817, damping: 61, saturationGain: 1.5, luminanceGain: 1.2, backlightThreshold: 0 } }`:
-  per strip id, one entry per section (`null` = auto); strips not listed keep the layout's sections, gaps can't be
-  changed, and a list made for another number of sections is ignored. `look` (optional) replaces the saved transition
+  own Look, for example:
+
+  ```jsonc
+  { "id": "witcher", "name": "Witcher 3", "apps": ["witcher3.exe"],
+    "sections": { "ceiling": [{ "kind": "color", "color": [0, 40, 80] }, null] },
+    "look": { "time_ms": 150, "stiffness": 817, "damping": 61,
+              "saturationGain": 1.5, "luminanceGain": 1.2, "backlightThreshold": 0 } }
+  ```
+
+  `sections` holds, per strip id, one entry per section (`null` = auto); strips not listed keep the layout's sections,
+  gaps can't be changed, and a list made for another number of sections is ignored. `look` (optional) replaces the saved transition
   and the first channel adjustment's gains and minimum glow while the profile is on, without saving them. A profile is
   on while one of its programs runs (checked every 2 seconds, names compared without regard to case; `apps` may be
   empty for a profile turned on by hand only), the first in the list winning when programs of several run, or when it
   is turned on by hand (`profile select`, saved in [`presets`](#presets)); Everyday in the UI (`profile dismiss`) turns
-  it off until its programs quit. Switching doesn't change the layout and doesn't reconnect the controllers. The UI gives a layout that has strips and no `profiles` yet the
-  default presets (Gaming, Movie, Music, Cozy) when it saves it; an empty list stays empty.
+  it off until its programs quit. Switching doesn't change the layout and doesn't reconnect the controllers. The UI
+  gives a layout that has strips and no `profiles` yet the default presets (Gaming, Movie, Music, Cozy) when it saves
+  it; an empty list stays empty.
+
+Section kinds (`next`):
+
+| `next` | UI name | The section's LEDs |
+|---|---|---|
+| `{ kind: "edge", from, to }` | Screen edge | repeat a stretch of the screen's outline (positions 0..4 clockwise from the top-left corner, one per edge) |
+| none | (automatic) | repeat the stretch of the outline the section faces when the room is seen straight on against the front wall |
+| `whole` | Screen average | show the whole picture; its color changes more slowly than the smoothing settings say (about half a second more), so small changes in the picture don't make it flicker |
+| `{ kind: "area", area }` | (not offered in the editor yet) | show one area of the picture |
+| `none` | Off | show nothing |
+| `gap` | gap | the strip has no LEDs there (a cut corner, a cable) |
+| `{ kind: "effect", effect }` | an effect | play an effect by its name, music effects included (a zone, see below) |
+| `{ kind: "color", color: [r, g, b] }` | a color | show a color (a zone, see below) |
+
+`edge`, `whole` and `area` are roles for the screen: effects and music play along `whole` and `area` LEDs once around
+the picture's edge, from the middle of the bottom.
+
+**Zones.** `effect` and `color` sections play something of their own with the layout (the screen, or nothing else
+shown; music, an effect or a color picked for every light plays on them too, until the layout shows again). Their LEDs
+leave the screen mapping and form a zone with every other section of the same role, across strips and controllers. A
+zone's effect runs as if the zone were the screen (each LED where `auto` would put it), so it flows across strips; it
+goes through the color settings like any effect, while a color zone doesn't (like a static color), except the
+brightness and the power limit. Zones keep the lights on when nothing else shows (the other LEDs are black then), and
+pause while the lights are off or held. An effect that doesn't exist leaves its zone dark.
 
 The LEDs are spread evenly over the sections that have LEDs (gaps count no length), so strips anywhere in the room get
 sensible colors. The backend compiles the layout into the `leds` sampling areas (one per LED, all controllers one after
 the other) whenever it is saved; `leds` sent along with it is replaced. An invalid layout is rejected with the path of
-the problem (e.g. `layout.strips.1.path.0: is outside the room (the ceiling is 4.2 x 3.6 m)`). Details:
-[backend/README.md](../backend/README.md#led-controllers-and-the-layout-port-step-6b).
+the problem (for example `layout.strips.1.path.0: is outside the room (the ceiling is 4.2 x 3.6 m)`). Details:
+[LED controllers and the layout](backend/layout-and-controllers.md).
 
 ### Presets
 
@@ -148,4 +182,4 @@ checkbox, tray menu, Settings → General → Start with Windows).
 Backups (`save-db`) use the `Backbloom_export_format_v1` JSON format; `load-db` also accepts HyperHDR's v17/v20
 exports. Credentials are never part of a backup.
 
-Details, including the table layout and every migration rule: [backend/README.md](../backend/README.md#settings-storage-and-hyperhdr-import).
+Details, including the table layout and every import rule: [Settings storage and HyperHDR import](backend/settings-storage.md).

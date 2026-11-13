@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
 using Backbloom.Shell;
@@ -12,6 +13,7 @@ namespace Backbloom.Platform.Windows.Desktop;
 /// opens; the icon is added again when Explorer restarts (<c>TaskbarCreated</c>).
 /// </summary>
 [SupportedOSPlatform("windows10.0.17763")]
+[ExcludeFromCodeCoverage(Justification = "Puts a real icon into the notification area. The tray menu is tested with a fake ITrayIcon.")]
 public sealed unsafe partial class WindowsTrayIcon : ITrayIcon
 {
     private const uint CallbackMessage = WM.WM_APP + 2;

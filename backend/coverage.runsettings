@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Code coverage for the product assemblies (Microsoft.CodeCoverage, part of the test SDK).
+  Usage: see the Coverage section of docs/development.md.
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <CodeCoverage>
+            <IncludeTestAssembly>false</IncludeTestAssembly>
+            <SkipAutoProps>true</SkipAutoProps>
+            <ModulePaths>
+              <Include>
+                <!-- backbloom.dll (the app) and Backbloom.*.dll -->
+                <ModulePath>.*[\\/]backbloom(\.[^\\/]+)?\.dll$</ModulePath>
+              </Include>
+              <Exclude>
+                <ModulePath>.*\.Tests\.dll$</ModulePath>
+                <ModulePath>.*TerraFX.*</ModulePath>
+              </Exclude>
+            </ModulePaths>
+            <Attributes>
+              <Exclude>
+                <Attribute>^System\.Diagnostics\.CodeAnalysis\.ExcludeFromCodeCoverageAttribute$</Attribute>
+                <Attribute>^System\.CodeDom\.Compiler\.GeneratedCodeAttribute$</Attribute>
+                <Attribute>^System\.Runtime\.CompilerServices\.CompilerGeneratedAttribute$</Attribute>
+                <Attribute>^System\.Diagnostics\.DebuggerNonUserCodeAttribute$</Attribute>
+              </Exclude>
+            </Attributes>
+            <Sources>
+              <Exclude>
+                <!-- Source generator output: [LoggerMessage], [GeneratedRegex], JSON contexts, [LibraryImport] -->
+                <Source>.*\.g\.cs$</Source>
+                <Source>.*[\\/]obj[\\/].*</Source>
+              </Exclude>
+            </Sources>
+          </CodeCoverage>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

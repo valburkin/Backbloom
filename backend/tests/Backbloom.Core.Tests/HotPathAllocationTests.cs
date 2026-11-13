@@ -22,8 +22,8 @@ public sealed class HotPathAllocationTests
     [Fact]
     public void MappingProcessingAndQuantization_DoNotAllocatePerFrame()
     {
-        // the owner's layout plus a few "Screen average" LEDs
-        var owner = LedLayout.FromJson(Fixtures.Load("layouts/owner-168.json"));
+        // the reference setup's layout plus a few "Screen average" LEDs
+        var owner = LedLayout.FromJson(Fixtures.Load("layouts/reference-168.json"));
         var layout = new LedLayout([.. owner.Areas, new LedArea(0, 1, 0, 1), new LedArea(0, 1, 0, 1)]);
         var frame = TestFrames.Solid(512, 288, 30, 120, 220);
         var options = new LedMappingOptions(layout);

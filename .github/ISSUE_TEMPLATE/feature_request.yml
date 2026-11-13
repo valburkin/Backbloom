@@ -1,0 +1,24 @@
+name: Feature request
+description: An idea for Backbloom.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Not sure yet or want to talk it through first? Start a [discussion](https://github.com/valburkin/Backbloom/discussions) instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you'd like to do
+      description: The situation and what's missing today. Check the roadmap (docs/roadmap.md) first.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How it could work
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware involved
+      description: Devices, if the idea is about a device.

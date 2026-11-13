@@ -65,6 +65,15 @@ public sealed class SingleInstanceTests : IDisposable
     }
 
     [Fact]
+    public void TheRunningInstance_ListensOnce()
+    {
+        using var running = SingleInstance.TryAcquire(_dir)!;
+        running.Listen(_ => new InstanceReply(true));
+
+        Assert.Throws<InvalidOperationException>(() => running.Listen(_ => new InstanceReply(false)));
+    }
+
+    [Fact]
     public async Task NoRunningInstance_NoAnswer()
     {
         var reply = await SingleInstance.SendAsync(_dir, InstanceRequest.Activate, TimeSpan.FromMilliseconds(300));

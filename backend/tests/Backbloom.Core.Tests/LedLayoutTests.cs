@@ -64,7 +64,7 @@ public sealed class LedLayoutTests
     [Fact]
     public void FromJson_OwnersLayoutHas168Leds()
     {
-        var layout = LedLayout.FromJson(Fixtures.Load("layouts/owner-168.json"));
+        var layout = LedLayout.FromJson(Fixtures.Load("layouts/reference-168.json"));
 
         Assert.Equal(168, layout.Count);
         Assert.Equal(new LedArea(0.9694, 1, 0.8, 1), layout.Areas[0]);

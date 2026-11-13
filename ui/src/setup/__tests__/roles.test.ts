@@ -22,7 +22,7 @@ describe('the screen’s average by default', () => {
   it('starts every strip with the screen’s average, wherever it runs: its route isn’t known yet', () => {
     expect(new Set(kinds(placedPath(strip({ places: ['screen'] }), room, 60)))).toEqual(new Set(['whole']));
     expect(new Set(kinds(placedPath(strip({ places: ['ceiling'] }), room, 60)))).toEqual(new Set(['whole']));
-    // the owner's first strip: along the desk, then behind the monitor; the gap between them stays
+    // the reference setup's first strip: along the desk, then behind the monitor; the gap between them stays
     const both = kinds(placedPath(strip({ places: ['desk', 'screen'] }), room, 91));
     expect(both.filter((k) => k === 'gap')).toHaveLength(1);
     expect(new Set(both.filter((k) => k !== 'gap'))).toEqual(new Set(['whole']));

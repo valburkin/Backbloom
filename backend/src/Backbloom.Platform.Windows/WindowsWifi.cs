@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security;
@@ -41,9 +42,13 @@ public sealed partial class WindowsWifi : IWifi
     private static readonly TimeSpan s_scanWait = TimeSpan.FromSeconds(3.5);
     private static readonly TimeSpan s_poll = TimeSpan.FromMilliseconds(250);
 
+    // the methods calling wlanapi scan, join and leave the PC's real Wi-Fi networks, which tests must never do
+    private const string WlanApi = "Calls the Native Wifi API on the real adapter; the profile XML and key parsing are tested.";
+
     private readonly Lock _lock = new();
     private readonly List<(Guid Interface, string Profile)> _temporary = [];
 
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     public unsafe WifiState GetState()
     {
         using var client = Client.Open();
@@ -77,6 +82,7 @@ public sealed partial class WindowsWifi : IWifi
         return new WifiState(true, null, null, interfaces[0].ToString(), blocked);
     }
 
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     public async Task<WifiScanResult> ScanAsync(CancellationToken cancellationToken)
     {
         var (interfaces, blocked) = StartScan();
@@ -90,6 +96,7 @@ public sealed partial class WindowsWifi : IWifi
         return ReadNetworks(interfaces);
     }
 
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     private static unsafe (List<Guid>? Interfaces, WifiBlock Blocked) StartScan()
     {
         using var client = Client.Open();
@@ -111,6 +118,7 @@ public sealed partial class WindowsWifi : IWifi
         return (interfaces, WifiBlock.None);
     }
 
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     private static unsafe WifiScanResult ReadNetworks(List<Guid> interfaces)
     {
         using var reader = Client.Open();
@@ -163,6 +171,8 @@ public sealed partial class WindowsWifi : IWifi
 
         return new WifiScanResult([.. found.Values.OrderByDescending(n => n.SignalPercent)], WifiBlock.None);
     }
+
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     public async Task<bool> JoinTemporaryAsync(string ssid, string? password, TimeSpan timeout, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(ssid);
@@ -224,6 +234,7 @@ public sealed partial class WindowsWifi : IWifi
         return Connect(client.Handle, id, name) ? id : null;
     }
 
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     private static (uint Result, bool Connected, string? Profile) Connection(Guid id)
     {
         using var client = Client.Open();
@@ -236,11 +247,14 @@ public sealed partial class WindowsWifi : IWifi
         return (result, connected, profile);
     }
 
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     private static bool InterfaceConnected(Guid id)
     {
         using var client = Client.Open();
         return client is not null && InterfaceConnected(client.Handle, id);
     }
+
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     public async Task RestoreAsync(WifiState previous, TimeSpan timeout, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(previous);
@@ -270,6 +284,7 @@ public sealed partial class WindowsWifi : IWifi
         }
     }
 
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     private static void ConnectProfile(Guid id, string profile)
     {
         using var client = Client.Open();
@@ -283,6 +298,7 @@ public sealed partial class WindowsWifi : IWifi
     /// <c>netsh wlan show profile key=clear</c> shows it to the user without elevation); null when there is none or it
     /// comes back encrypted.
     /// </summary>
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     public unsafe string? ReadSavedKey(WifiState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -376,6 +392,7 @@ public sealed partial class WindowsWifi : IWifi
         }
     }
 
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     private static unsafe bool Connect(nint handle, Guid id, string profile)
     {
         fixed (char* p = profile)
@@ -385,6 +402,7 @@ public sealed partial class WindowsWifi : IWifi
         }
     }
 
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     private static unsafe List<Guid> Interfaces(nint handle)
     {
         var result = new List<Guid>();
@@ -410,6 +428,7 @@ public sealed partial class WindowsWifi : IWifi
         return result;
     }
 
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     private static unsafe (uint Result, bool Connected, string? Profile, string? Ssid) CurrentConnection(nint handle, Guid id)
     {
         uint size;
@@ -436,6 +455,7 @@ public sealed partial class WindowsWifi : IWifi
         }
     }
 
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     private static unsafe bool InterfaceConnected(nint handle, Guid id)
     {
         uint size;
@@ -457,6 +477,7 @@ public sealed partial class WindowsWifi : IWifi
     }
 
     // DOT11_SSID: a length, then up to 32 bytes (UTF-8 in practice)
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     private static unsafe string Ssid(byte* dot11Ssid)
     {
         var length = (int)Math.Min(*(uint*)dot11Ssid, 32);
@@ -475,6 +496,7 @@ public sealed partial class WindowsWifi : IWifi
     }
 
     /// <summary>A WLAN client handle, closed on dispose; null when the WLAN service doesn't run (no Wi-Fi adapter).</summary>
+    [ExcludeFromCodeCoverage(Justification = WlanApi)]
     private sealed class Client : IDisposable
     {
         private Client(nint handle) => Handle = handle;

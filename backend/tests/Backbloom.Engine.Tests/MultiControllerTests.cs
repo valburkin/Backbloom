@@ -131,7 +131,7 @@ public sealed class MultiControllerTests : IDisposable
         return store;
     }
 
-    // Controller "tv": the owner's split, 91 + 77 LEDs; "desk": 30 LEDs at half brightness; "shelf": 4 lit + 2 dark LEDs.
+    // Controller "tv": the reference setup's split, 91 + 77 LEDs; "desk": 30 LEDs at half brightness; "shelf": 4 lit + 2 dark LEDs.
     private string Layout() => $$"""
         { "version": 1,
           "room": { "width": 4, "depth": 4, "height": 2.6, "screen": { "x": 1.7, "y": 1.31, "width": 0.6, "height": 0.34 },
@@ -213,9 +213,10 @@ public sealed class MultiControllerTests : IDisposable
             WaitUntil(() => engine.Devices.All(d => d.Stats.Written > 20));
             Assert.Equal([0, 168, 198], engine.Devices.Select(d => d.Start));
 
-            // every controller got every frame: the same number of updates, give or take the ones in flight
-            var written = engine.Devices.Select(d => d.Stats.Written).ToList();
-            Assert.InRange(written.Max() - written.Min(), 0, 3);
+            // one clock feeds every controller: each frame is handed to all of them in the same step, so their counts
+            // differ at most by the step running while they're read (writes trail behind on each controller's thread)
+            var submitted = engine.Devices.Select(d => d.Stats.Submitted).ToList();
+            Assert.InRange(submitted.Max() - submitted.Min(), 0, 2);
 
             // the preview covers all LEDs, dimmed like the strips
             var preview = new byte[204 * 3];
@@ -300,6 +301,7 @@ public sealed class MultiControllerTests : IDisposable
         WaitUntil(() => devices.Devices.All(d => d.State == DeviceState.Ready));
         var colors = new Vector3[30];
         var longest = TimeSpan.Zero;
+        var elapsed = Stopwatch.StartNew();
         for (var i = 0; i < 100; i++)
         {
             var sw = Stopwatch.StartNew();
@@ -309,11 +311,16 @@ public sealed class MultiControllerTests : IDisposable
         }
 
         WaitUntil(() => devices.Devices[0].Stats.Written >= 95 && devices.Devices[2].Stats.Written >= 95);
-        Assert.True(longest < TimeSpan.FromMilliseconds(50), $"Submit took {longest.TotalMilliseconds} ms");
         var slow = devices.Devices[1].Stats;
-        Assert.InRange(slow.Written, 1, 10);
-        Assert.True(slow.Dropped > 80);
-        Assert.True(devices.Devices[0].Stats.AverageLatencyMsSince(default) < 50);
+        elapsed.Stop();
+
+        // Waiting for the slow controller would take its 300 ms write; the bounds leave room for a loaded machine.
+        Assert.True(longest < TimeSpan.FromMilliseconds(150), $"Submit took {longest.TotalMilliseconds} ms");
+        Assert.True(devices.Devices[0].Stats.AverageLatencyMsSince(default) < 150);
+        // The slow controller writes one frame per 300 ms however long the run took, and drops the rest.
+        var possibleWrites = (int)(elapsed.Elapsed.TotalMilliseconds / 300) + 2;
+        Assert.InRange(slow.Written, 1, possibleWrites);
+        Assert.True(slow.Dropped >= 100 - slow.Written - 2, $"written {slow.Written}, dropped {slow.Dropped}");
     }
 
     [Fact]

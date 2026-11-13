@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO.Ports;
 using System.Text.RegularExpressions;
@@ -33,6 +34,7 @@ public interface ISerialPortEnumerator
 /// </summary>
 public sealed partial class SerialPortEnumerator : ISerialPortEnumerator
 {
+    [ExcludeFromCodeCoverage(Justification = "Lists the computer's real serial ports; the name and id parsing it uses is tested separately.")]
     public IReadOnlyList<SerialPortInfo> GetPorts()
     {
         var ports = new Dictionary<string, SerialPortInfo>(StringComparer.OrdinalIgnoreCase);
@@ -94,6 +96,7 @@ public sealed partial class SerialPortEnumerator : ISerialPortEnumerator
             : (null, null);
     }
 
+    [ExcludeFromCodeCoverage(Justification = "Reads a real serial device.")]
     private static string FriendlyName(SerialDevice device)
     {
         try

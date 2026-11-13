@@ -248,6 +248,81 @@ public sealed unsafe class WasapiTests
     }
 
     [Fact]
+    public void MixFormats_OfOtherBitDepths_AreParsedOrRefused()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "WASAPI is Windows only.");
+        var pcm24 = new WAVEFORMATEX { wFormatTag = WAVE.WAVE_FORMAT_PCM, nChannels = 2, nSamplesPerSec = 96000, wBitsPerSample = 24 };
+        Assert.Equal(new AudioFormat(96000, 2, AudioSampleFormat.Pcm24), WasapiSession.ParseFormat(&pcm24));
+        var extensible = new WAVEFORMATEXTENSIBLE
+        {
+            Format = new WAVEFORMATEX { wFormatTag = WAVE.WAVE_FORMAT_EXTENSIBLE, nChannels = 8, nSamplesPerSec = 48000, wBitsPerSample = 32, cbSize = 22 },
+            SubFormat = IID.IID_KSDATAFORMAT_SUBTYPE_PCM,
+        };
+        Assert.Equal(new AudioFormat(48000, 8, AudioSampleFormat.Pcm32), WasapiSession.ParseFormat(&extensible.Format));
+
+        var pcm8 = new WAVEFORMATEX { wFormatTag = WAVE.WAVE_FORMAT_PCM, nChannels = 1, nSamplesPerSec = 8000, wBitsPerSample = 8 };
+        Assert.Equal("Unsupported mix format (tag 1, 8 bits)", Assert.Throws<AudioException>(() => Parse(pcm8)).Message);
+        var float64 = new WAVEFORMATEX { wFormatTag = WAVE.WAVE_FORMAT_IEEE_FLOAT, nChannels = 2, nSamplesPerSec = 48000, wBitsPerSample = 64 };
+        Assert.Throws<AudioException>(() => Parse(float64));
+    }
+
+    private static AudioFormat Parse(WAVEFORMATEX format) => WasapiSession.ParseFormat(&format);
+
+    /// <summary>The failures a user can fix are explained in words; the UI shows them as the reason sound isn't captured.</summary>
+    [Theory]
+    [InlineData(0x80070005u, "Windows blocks access to the device; allow desktop apps to use the microphone in Settings")]
+    [InlineData(0x88890004u, "The device was disconnected or disabled (Activate, 0x88890004)")]
+    [InlineData(0x8889000Au, "Another app uses the device exclusively (Activate, 0x8889000A)")]
+    [InlineData(0x80070490u, "The device isn't connected (Activate, 0x80070490)")]
+    [InlineData(0x80004005u, "Activate failed (0x80004005)")]
+    public void Failures_AreExplained(uint hresult, string message)
+    {
+        var failure = new AudioException("Activate", unchecked((int)hresult));
+
+        Assert.StartsWith(message, failure.Message, StringComparison.Ordinal);
+        Assert.Equal(unchecked((int)hresult), failure.HResult);
+    }
+
+    /// <summary>A configured device that isn't there anymore: the capture reports why and keeps trying, it doesn't crash.</summary>
+    [Theory]
+    [InlineData("input:{0.0.1.00000000}.{00000000-0000-0000-0000-000000000000}", "The device isn't connected")]
+    [InlineData("loopback:{0.0.0.00000000}.{00000000-0000-0000-0000-000000000000}", "The device isn't connected")]
+    [InlineData("A microphone that isn't there", "There is no recording device named 'A microphone that isn't there'")]
+    public void Session_ForAMissingDevice_ReportsWhy(string device, string reason)
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "WASAPI is Windows only.");
+        var analysis = new MusicAnalysis();
+        var observer = new Observer();
+        using (new WasapiSession(device, new AudioBlockWriter(analysis), observer, NullLogger.Instance))
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (observer.Failure is null && DateTime.UtcNow < deadline)
+            {
+                Thread.Sleep(10);
+            }
+        }
+
+        // Build servers often run without the Windows Audio service: no devices at all, and another error than this one.
+        Assert.SkipWhen(
+            observer.Failure?.StartsWith(reason, StringComparison.Ordinal) != true && !HasAudioDevices(),
+            $"No sound devices on this machine: {observer.Failure ?? "no answer"}");
+        Assert.StartsWith(reason, observer.Failure, StringComparison.Ordinal);
+        Assert.Null(observer.Format);
+    }
+
+    private static bool HasAudioDevices()
+    {
+        try
+        {
+            return new WasapiAudioCapture(NullLogger<WasapiAudioCapture>.Instance).GetDevices().Count > 1;  // beyond the "default" entry
+        }
+        catch (Exception ex) when (ex is AudioException or COMException or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    [Fact]
     public void Loopback_CapturesTheDefaultOutputWithoutAllocating()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "WASAPI is Windows only.");

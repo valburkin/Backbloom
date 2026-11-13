@@ -170,4 +170,17 @@ public sealed class TrayMenuTests : IDisposable
         Item(tray.Build(), "Start with the OS").Invoke!();
         Assert.False(_autostart.IsEnabled);
     }
+
+    [Fact]
+    public async Task Autostart_ThatCantBeChanged_LeavesTheMenuAsItWas()
+    {
+        await using var host = await TestHost.StartAsync();
+        using var tray = Create(host);
+        _autostart.Failure = new UnauthorizedAccessException("The Run key is read-only");
+
+        Item(tray.Build(), "Start with the OS").Invoke!();
+
+        Assert.False(_autostart.IsEnabled);
+        Assert.False(Item(tray.Build(), "Start with the OS").Checked);
+    }
 }

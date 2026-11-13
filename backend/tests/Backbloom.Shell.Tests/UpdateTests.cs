@@ -15,13 +15,22 @@ public sealed class UpdateTests
         UpdateSettings.FromConfiguration(new ConfigurationBuilder().AddInMemoryCollection(values.ToDictionary(v => v.Key, v => (string?)v.Value)).Build());
 
     [Fact]
-    public void Settings_ThePlaceholderFeedTurnsUpdatesOff()
+    public void Settings_DefaultToTheGitHubReleases_AndNoneTurnsUpdatesOff()
     {
         var defaults = Settings();
-        Assert.False(defaults.Enabled);
+        Assert.True(defaults.Enabled);
+        Assert.True(defaults.IsGitHubRepository);
+        Assert.Equal(new Uri(UpdateSettings.DefaultFeedUrl), defaults.FeedUrl);
         Assert.Null(defaults.Channel);
-        Assert.False(Settings(("update-url", UpdateSettings.PlaceholderFeedUrl)).Enabled);
+        Assert.False(Settings(("update-url", "none")).Enabled);
+        Assert.False(Settings(("update-url", "NONE")).Enabled);
         Assert.False(Settings(("update-url", "not a url")).Enabled);
+        Assert.False(Settings(("update-url", s_feed.AbsoluteUri)).IsGitHubRepository);
+        Assert.False(Settings(("update-url", "http://github.com/someone/fork")).IsGitHubRepository);
+        Assert.True(Settings(("update-url", "https://github.com/someone/fork/")).IsGitHubRepository);
+        // a release download folder on GitHub is a plain feed, not a repository
+        Assert.False(Settings(("update-url", "https://github.com/someone/fork/releases/download/v1.0.0")).IsGitHubRepository);
+        Assert.False(Settings(("update-url", "https://github.com/someone")).IsGitHubRepository);
     }
 
     [Fact]
@@ -44,6 +53,7 @@ public sealed class UpdateTests
         Assert.Null(error);
         Assert.Equal(["--update-url", s_feed.AbsoluteUri, "--update-channel", "beta"], line!.ConfigurationArgs);
         Assert.Contains("absolute", CommandLine.Parse(["--update-url", "updates"]).Error, StringComparison.Ordinal);
+        Assert.Null(CommandLine.Parse(["--update-url", "none"]).Error);
         Assert.Contains("--update-url", CommandLine.Usage, StringComparison.Ordinal);
     }
 
@@ -55,7 +65,7 @@ public sealed class UpdateTests
         Assert.Equal(0, notInstalled.Checks);
 
         var noFeed = new FakeClient();
-        await RunAsync(Settings(), noFeed, advance: TimeSpan.FromDays(3));
+        await RunAsync(Settings(("update-url", "none")), noFeed, advance: TimeSpan.FromDays(3));
         Assert.Equal(0, noFeed.Checks);
     }
 

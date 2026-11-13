@@ -13,7 +13,7 @@ public sealed class MultiControllerRpcTests
 
     private static string? Error(JsonObject reply) => reply["error"]?.GetValue<string>();
 
-    // "tv" drives the owner's 91 + 77 LEDs, "desk" 10 more; both write to the null device.
+    // "tv" drives the reference setup's 91 + 77 LEDs, "desk" 10 more; both write to the null device.
     private static JsonObject Layout() => Obj("""
         { "version": 1,
           "room": { "width": 4, "depth": 4, "height": 2.6, "screen": { "x": 1.7, "y": 1.31, "width": 0.6, "height": 0.34 },

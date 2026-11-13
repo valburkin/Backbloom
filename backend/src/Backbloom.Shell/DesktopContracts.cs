@@ -46,8 +46,11 @@ public interface IBrowserLauncher
 }
 
 /// <summary>Uses the OS's URL handler (<c>ShellExecute</c>, <c>open</c>, <c>xdg-open</c>).</summary>
-public sealed class SystemBrowserLauncher : IBrowserLauncher
+/// <param name="startProcess">Starts the process (tests pass a fake, so nothing is launched); default <see cref="Process.Start(ProcessStartInfo)"/>.</param>
+public sealed class SystemBrowserLauncher(Func<ProcessStartInfo, Process?>? startProcess = null) : IBrowserLauncher
 {
+    private readonly Func<ProcessStartInfo, Process?> _startProcess = startProcess ?? Process.Start;
+
     public void Open(Uri url)
     {
         ArgumentNullException.ThrowIfNull(url);
@@ -67,6 +70,6 @@ public sealed class SystemBrowserLauncher : IBrowserLauncher
             start.ArgumentList.Add(url.AbsoluteUri);
         }
 
-        using var process = Process.Start(start);
+        using var process = _startProcess(start);
     }
 }

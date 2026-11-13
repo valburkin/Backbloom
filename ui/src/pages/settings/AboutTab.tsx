@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Copy, Info, Scale } from 'lucide-react';
-import { IconButton } from '../../components/ui';
+import { Bug, Copy, Info, LifeBuoy, MessageCircleQuestion, Scale } from 'lucide-react';
+import { buttonClass, IconButton } from '../../components/ui';
 import { Section } from '../../components/form';
 import { Logo } from '../../components/Logo';
 import { useConnection } from '../../app/connection';
 import { useToast } from '../../app/toast';
 import { parseLicenses, UI_LIBRARIES, type LicenseEntry } from '../../settings/licenses';
+import { bugReportUrl, DISCUSSIONS_URL, KNOWN_ISSUES_URL } from '../../settings/help';
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -76,12 +77,39 @@ export function AboutTab() {
         </dl>
       </Section>
 
+      <Section title="Get help" icon={<LifeBuoy size={18} />}>
+        <p className="text-[13px] text-ink-muted">
+          Something not working? Check the{' '}
+          <a className="text-accent-strong hover:underline" href={KNOWN_ISSUES_URL} target="_blank" rel="noreferrer">
+            known issues
+          </a>{' '}
+          first: if yours is there, give it a thumbs-up or add your details. Otherwise report it on GitHub; the form opens with this
+          PC's system report filled in.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <a className={buttonClass('primary')} href={bugReportUrl(o?.version, report)} target="_blank" rel="noreferrer">
+            <Bug size={16} aria-hidden="true" />
+            Report a problem
+          </a>
+          <a className={buttonClass('secondary')} href={DISCUSSIONS_URL} target="_blank" rel="noreferrer">
+            <MessageCircleQuestion size={16} aria-hidden="true" />
+            Ask a question
+          </a>
+        </div>
+      </Section>
+
       <Section title="Licenses" icon={<Scale size={18} />}>
         <div>
-          <p className="text-[13px] font-medium">Backbloom {o?.version ?? ''}</p>
+          <p className="text-[13px] font-medium">Backbloom {o?.version ?? ''} · MIT License</p>
+          <p className="text-[13px] text-ink-muted">
+            Open source:{' '}
+            <a className="text-accent-strong hover:underline" href="https://github.com/valburkin/Backbloom" target="_blank" rel="noreferrer">
+              github.com/valburkin/Backbloom
+            </a>
+          </p>
         </div>
         <details>
-          <summary className="cursor-pointer text-[13px] font-medium">Based on HyperHDR by awawa-dev (MIT License)</summary>
+          <summary className="cursor-pointer text-[13px] font-medium">License text (based on HyperHDR by awawa-dev)</summary>
           {licenses ? <LicenseText text={licenses.own} /> : <p className="mt-2 text-xs text-ink-faint">Loading…</p>}
         </details>
         <div>

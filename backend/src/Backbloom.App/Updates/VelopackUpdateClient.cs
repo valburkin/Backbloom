@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Velopack;
 using Velopack.Sources;
 
@@ -7,6 +8,7 @@ namespace Backbloom.App.Updates;
 /// <see cref="IUpdateClient"/> with Velopack (MIT). Velopack is only touched in an installed copy: its locator writes
 /// a log file to the user's profile as soon as it is created, which a development or test run must not do.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Velopack writes a log to the user's profile as soon as it is used and downloads from the release feed; UpdateService is tested with a fake IUpdateClient.")]
 internal sealed class VelopackUpdateClient(UpdateSettings settings) : IUpdateClient
 {
     private UpdateManager? _manager;
@@ -34,7 +36,9 @@ internal sealed class VelopackUpdateClient(UpdateSettings settings) : IUpdateCli
     private UpdateManager CreateManager()
     {
         var feed = settings.FeedUrl ?? throw new InvalidOperationException("No update feed is configured.");
-        IUpdateSource source = feed.IsFile ? new SimpleFileSource(new DirectoryInfo(feed.LocalPath)) : new SimpleWebSource(feed);
+        IUpdateSource source = feed.IsFile ? new SimpleFileSource(new DirectoryInfo(feed.LocalPath))
+            : settings.IsGitHubRepository ? new GithubSource(feed.AbsoluteUri.TrimEnd('/'), accessToken: null, prerelease: false)
+            : new SimpleWebSource(feed);
         return new UpdateManager(source, new UpdateOptions { ExplicitChannel = settings.Channel });
     }
 }

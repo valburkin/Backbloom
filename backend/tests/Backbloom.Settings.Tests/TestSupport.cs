@@ -66,11 +66,11 @@ internal static class TestSchema
 
 internal static class Fixtures
 {
-    /// <summary>The owner's HyperHDR v22 database, sanitized (see the README section on settings).</summary>
-    public static string OwnerDatabase => Path.Combine(AppContext.BaseDirectory, "fixtures", "settings", "owner-hyperhdr-v22.db");
+    /// <summary>The reference setup's HyperHDR v22 database, sanitized (see the README section on settings).</summary>
+    public static string ReferenceDatabase => Path.Combine(AppContext.BaseDirectory, "fixtures", "settings", "reference-hyperhdr-v22.db");
 
-    /// <summary>The fixture's admin password (the owner's real one was replaced).</summary>
-    public const string OwnerPassword = "fixture-password";
+    /// <summary>The fixture's admin password ((the original one was replaced)).</summary>
+    public const string FixturePassword = "fixture-password";
 }
 
 /// <summary>Writes databases in the table layout HyperHDR created.</summary>

@@ -144,7 +144,7 @@ describe('finding boards (mock)', () => {
     const { api, backend } = await connected({ hotspot: false, stepMs: 0 });
     const [b] = (await api.findBoards()).boards;
     const { host } = await api.connectWifi(b.id, 'Home Wi-Fi', 'correct horse');
-    // the owner's board: strips on GPIO 16 and 2
+    // the reference board: strips on GPIO 16 and 2
     expect(backend.hardware.wiredAt(host).map((w) => w.pin)).toEqual([16, 2]);
     const candidates = await api.wledProbeStart(host, 1);
     expect(candidates.map((c) => c.pin)).toEqual([16, 2, 17, 4, 5, 18]);

@@ -10,8 +10,16 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ## Unreleased
 
+## 0.2.0 – 2026-11-13
+
+First public release.
+
 ### Added
 
+- **Open source**: Backbloom is now open source under the MIT License, developed in the open on GitHub. Downloads
+  and automatic updates come from its GitHub releases, each with checksums and a build provenance attestation.
+- **Get help from the app**: Settings > About > Report a problem opens a bug report on GitHub with your system
+  details filled in; Ask a question opens GitHub Discussions.
 - **Set up new LED strips without the board's web page**: Add device → LED strips on a WLED board. One Search finds
   the board over USB, on its own Wi-Fi or on your network, and puts it on your Wi-Fi (with the password this PC knows,
   if you like). Then Backbloom finds which connection each strip is on by lighting them one at a time, asks the strip
@@ -21,7 +29,8 @@ release note (the landing page in `site/` isn't part of a release and has no ent
   found and added from Add device → Room lights.
 - **A first-run setup that ends ready to use**: after your lights, say what each one does (every light follows the
   screen's average colors until you choose; Screen edge lets you draw the strip's route and checks it on the strip),
-  pick the Look and add your game to the Gaming preset. New lights start at 20% brightness.
+  pick the Look and add your game to the Gaming preset. New lights start at 60% on the brightness slider (about a
+  fifth of their full light).
 - **Live colors on the Layout page**: in Customize, show every LED in the color it lights your room right now,
   instead of the rainbow that marks what each LED follows.
 - **`--capture-image <file>`** (for developers): a still picture as the frame source instead of the screen, so
@@ -54,9 +63,11 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ### Changed
 
-- **A fresher look**: lighter cards without heavy outlines, the landing page's glowing buttons, choices that slide
-  into place, softer fields and lists, and live previews whose light glows and blends like the real thing. The
-  previews show your LEDs as they light the room: dimmer when you turn the brightness down, but still easy to see.
+- **A new look** that matches the Backbloom website: new fonts, the pink-to-cyan Backbloom colors on the main
+  buttons, switches and the brightness slider, lighter cards without heavy outlines, glowing buttons, choices that
+  slide into place, softer fields and lists, and a soft glow at the top of every page (on Home, in the colors your
+  lights show right now). Live previews glow and blend like the real light: dimmer when you turn the brightness down,
+  but still easy to see.
 - **What you pick stays**: Screen edges, Screen average, an effect, music or a color picked on the new **Effects**
   page is saved to the preset in use and plays on every strip, also after a restart; there's no temporary effect to
   stop any more. Picking one replaces what you customized per strip in Layout (Off parts stay off; Undo puts it
@@ -69,14 +80,9 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 - **WLED power limits by version**: Backbloom reads a WLED board's current limit the way its WLED version enforces it
   (0.15 limits each output on its own), so the performance recording no longer reports a strip as limited when it isn't, or the
   other way round.
-- **A fresh look**: the app now matches the Backbloom website, with new fonts, the pink-to-cyan Backbloom colors on
-  the main buttons, switches and the brightness slider, sliders that fill up to their handle, and a soft glow at the
-  top of every page. On Home the glow takes the colors your lights show right now.
 - **Find an LED** keeps the LED lit (cycling red, green and blue) until you pick another one or turn it off, and works
   while the lights are off.
 - Effect previews and the live preview show your LEDs where they are in the room.
-- Layouts saved by earlier test builds are rebuilt around the screen from your LED positions the first time you open
-  the Layout page; drag the strips to where they are and save.
 - The log no longer calls WLED's power limiter an error: it protects the LEDs and the power supply from drawing too
   much.
 - **The Look replaces Intensity**: Relaxed, Natural, Rich, Vivid and Intense (before: Subtle, Moderate, High, Intense)

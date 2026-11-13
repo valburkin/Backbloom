@@ -1,6 +1,6 @@
 {
   "source": "C++ reference: InfiniteProcessing (tests/golden/ColorGolden.cpp)",
-  "description": "The owner's settings with processing switched off (sRGB encoding only).",
+  "description": "The reference setup's settings with processing switched off (sRGB encoding only).",
   "step": "process",
   "enabled": false,
   "colorOrder": "rgb",

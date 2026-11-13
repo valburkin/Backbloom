@@ -10,10 +10,10 @@ import { IssueSummary } from '../IssueSummary';
 import { PlaceGuide } from '../PlaceGuide';
 import { ProfileSettings, ProfileTabs } from '../ProfileBar';
 
-// Smoke test: the editor's presentational pieces render the product owner's real layout without throwing.
+// Smoke test: the editor's presentational pieces render the real reference layout without throwing.
 const spec = specFromLegacy(legacyLeds as LedRect[], controllerFromWledConfig('wled.local', wledCfg));
 const noop = () => {};
-/** The owner's two strips in the fixture: 91 + 77 LEDs. */
+/** The reference setup's two strips in the fixture: 91 + 77 LEDs. */
 const FIXTURE_LEDS = 168;
 
 describe('layout editor rendering', () => {

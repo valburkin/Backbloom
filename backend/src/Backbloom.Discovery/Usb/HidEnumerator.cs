@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using HidSharp;
 
 namespace Backbloom.Discovery.Usb;
@@ -16,6 +17,7 @@ public interface IHidEnumerator
 /// Lists HID devices with HidSharp (port of <c>ProviderHid::enumerateDevices</c>, which used SetupAPI and hid.dll).
 /// Devices whose details can't be read (e.g. opened exclusively) are skipped.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Reads the computer's real HID devices; tests never touch hardware. Drivers are tested against fake HID devices.")]
 public sealed class HidEnumerator : IHidEnumerator
 {
     public IReadOnlyList<HidDeviceInfo> GetDevices()

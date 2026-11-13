@@ -78,6 +78,7 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
     private static readonly TimeSpan s_retryDelay = TimeSpan.FromSeconds(5);
 
     private readonly ILogger _logger;
+    private readonly TimeProvider _time;
     private readonly IMqttClient _client;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Lock _lock = new();
@@ -85,12 +86,14 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
     private readonly Dictionary<string, IReadOnlyList<KeyValuePair<string, string>>> _shutdownMessages = new(StringComparer.Ordinal);
     private MqttSettings _settings = MqttSettings.Disabled;
     private CancellationTokenSource? _reconnect;
-    private bool _disposed;
+    private volatile bool _disposed;  // read by the reconnect timer and the disconnect handler
 
-    public MqttConnection(ILogger<MqttConnection> logger)
+    /// <param name="time">Clock of the reconnect delays (tests: a fake one).</param>
+    public MqttConnection(ILogger<MqttConnection> logger, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(logger);
         _logger = logger;
+        _time = time ?? TimeProvider.System;
         _client = new MqttClientFactory().CreateMqttClient();
         _client.ApplicationMessageReceivedAsync += e =>
         {
@@ -237,7 +240,8 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
         _reconnect?.Dispose();
     }
 
-    private async Task ConnectCoreAsync(CancellationToken cancellationToken)
+    /// <param name="retryOnFailure">Start the reconnect attempts when this one fails (not when it is one of them).</param>
+    private async Task ConnectCoreAsync(CancellationToken cancellationToken, bool retryOnFailure = true)
     {
         var settings = _settings;
         var builder = new MqttClientOptionsBuilder()
@@ -290,7 +294,10 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
         catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
         {
             LogConnectFailed(settings, ex.Message);
-            StartReconnecting();
+            if (retryOnFailure)
+            {
+                StartReconnecting();
+            }
         }
     }
 
@@ -331,7 +338,7 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
     private void StartReconnecting()
     {
         var settings = _settings;
-        if (!settings.Enabled || settings.MaxRetry <= 0)
+        if (_disposed || !settings.Enabled || settings.MaxRetry <= 0)
         {
             return;
         }
@@ -342,7 +349,7 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
         {
             for (var attempt = 1; attempt <= settings.MaxRetry && !cts.IsCancellationRequested; attempt++)
             {
-                await Task.Delay(s_retryDelay, cts.Token).ConfigureAwait(false);
+                await Task.Delay(s_retryDelay, _time, cts.Token).ConfigureAwait(false);
                 await _gate.WaitAsync(cts.Token).ConfigureAwait(false);
                 try
                 {
@@ -352,7 +359,7 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
                     }
 
                     LogRetrying(attempt, settings.MaxRetry);
-                    await ConnectCoreAsync(cts.Token).ConfigureAwait(false);
+                    await ConnectCoreAsync(cts.Token, retryOnFailure: false).ConfigureAwait(false);
                     if (_client.IsConnected)
                     {
                         return;
@@ -393,7 +400,7 @@ public sealed partial class MqttConnection : IMqttConnection, IAsyncDisposable
             last = handlers.Count == 0;
         }
 
-        if (last && _client.IsConnected)
+        if (last && !_disposed && _client.IsConnected)
         {
             await _client.UnsubscribeAsync(new MqttClientUnsubscribeOptionsBuilder().WithTopicFilter(topic).Build());
         }

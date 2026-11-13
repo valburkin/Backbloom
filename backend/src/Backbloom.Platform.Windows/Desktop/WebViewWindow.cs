@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,7 @@ namespace Backbloom.Platform.Windows.Desktop;
 /// the WebView2 runtime the UI opens in the default browser.
 /// </summary>
 [SupportedOSPlatform("windows10.0.17763")]
+[ExcludeFromCodeCoverage(Justification = "Opens a real WebView2 window on the desktop. Its placement and the shell around it are tested with a fake IAppWindow.")]
 public sealed partial class WebViewWindow : IAppWindow
 {
     private const string ClassName = "BackbloomWindow";

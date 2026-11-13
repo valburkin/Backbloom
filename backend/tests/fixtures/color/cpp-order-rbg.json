@@ -1,6 +1,6 @@
 {
   "source": "C++ reference: InfiniteProcessing (tests/golden/ColorGolden.cpp)",
-  "description": "The owner's settings with the device color order rbg (applied by InfiniteProcessing).",
+  "description": "The reference setup's settings with the device color order rbg (applied by InfiniteProcessing).",
   "step": "process",
   "enabled": true,
   "colorOrder": "rbg",

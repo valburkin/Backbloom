@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Win32;
 using Backbloom.Platform.Windows.Desktop;
 using Backbloom.Settings;
@@ -10,6 +11,7 @@ namespace Backbloom.App.Updates;
 /// the program with its own arguments for them and ends the process afterwards. A downloaded update is applied there
 /// too, before anything else starts.
 /// </summary>
+[ExcludeFromCodeCoverage(Justification = "Runs inside the installer only: quits the installed app and removes the real autostart entry, which tests must never do.")]
 internal static class InstallerHooks
 {
     /// <summary>Only an installed copy calls Velopack (it writes a log to the user's profile as soon as it runs).</summary>

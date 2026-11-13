@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\..\src\Backbloom.Discovery\Backbloom.Discovery.csproj" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\SteppingClock.cs" Link="Shared\SteppingClock.cs" />
   </ItemGroup>
 </Project>

@@ -2,11 +2,14 @@ using System.Net;
 using System.Numerics;
 using System.Text;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Backbloom.Devices.Drivers.HomeAssistant;
 using Backbloom.Devices.Drivers.Lifx;
 using Backbloom.Devices.Drivers.Nanoleaf;
 using Backbloom.Devices.Drivers.Wiz;
 using Backbloom.Devices.Drivers.Zigbee2Mqtt;
+using Backbloom.Devices.Setup;
 using Backbloom.Discovery;
 using Backbloom.Discovery.Mdns;
 
@@ -279,6 +282,77 @@ public sealed class LampDriverTests
         var devices = await Zigbee2MqttDriver.DiscoverAsync(Ctx.Request(Ctx.Create(mqtt: mqtt)));
 
         Assert.Equal("""[{"value":"RGB","name":"Desk"},{"value":"HSV","name":"Bulb"}]""", devices.ToJsonString());
+    }
+
+    /// <summary>
+    /// With a constant brightness the lamps get it when they light up again, 0 when they go dark, and every 10 s as a
+    /// refresh; the frames in between carry only the color, so the lamps don't flicker from brightness steps.
+    /// </summary>
+    [Fact]
+    public async Task Zigbee2Mqtt_ConstantBrightness_IsSentOnlyWhenTheLampLightsUpGoesDarkOrForARefresh()
+    {
+        var mqtt = new FakeMqtt();
+        var time = new FakeTimeProvider();
+        var context = new DriverContext(NullLoggerFactory.Instance, new HttpClient(new FakeHttpHandler((_, _) => new())), () => new RecordingChannel())
+        {
+            Mqtt = mqtt,
+            Time = time,
+            SerialPorts = new FakeSerialFactory(),
+            Hid = new FakeHidOpener(new FakeHidDevice()),
+        };
+        var options = Zigbee2MqttOptions.FromConfig(Ctx.Json("""{ "constantBrightness": 200, "lamps": [ { "name": "Desk", "colorModel": 0 } ] }"""));
+        using var driver = new Zigbee2MqttDriver(options, context);
+        await driver.OpenAsync(1, TestContext.Current.CancellationToken);
+        mqtt.Published.Clear();
+
+        int? Brightness(byte[] rgb)
+        {
+            Assert.True(driver.Write(rgb));
+            return JsonNode.Parse(mqtt.Published[^1].Payload)!["brightness"]?.GetValue<int>();
+        }
+
+        // switched on, the lamp is taken to be at the constant brightness; it is sent a second after opening
+        Assert.Null(Brightness([255, 0, 0]));
+        time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(200, Brightness([255, 0, 0]));
+        Assert.Null(Brightness([0, 255, 0]));
+        Assert.Equal(0, Brightness([0, 0, 0]));
+        Assert.Null(Brightness([0, 0, 0]));
+        Assert.Equal(200, Brightness([0, 0, 255]));
+        Assert.Null(Brightness([0, 0, 255]));
+        time.Advance(TimeSpan.FromSeconds(10));
+        Assert.Equal(200, Brightness([0, 0, 255]));
+        Assert.Null(Brightness([0, 0, 255]));
+    }
+
+    [Fact]
+    public async Task Zigbee2Mqtt_WithoutTheBroker_CantOpen_AndReportsFailedFrames()
+    {
+        var mqtt = new FakeMqtt { IsConnected = false };
+        using var driver = new Zigbee2MqttDriver(new Zigbee2MqttOptions([new LampEntity("Desk", false)]), Ctx.Create(mqtt: mqtt));
+
+        await Assert.ThrowsAsync<IOException>(async () => await driver.OpenAsync(1, TestContext.Current.CancellationToken));
+        Assert.False(driver.Write([1, 2, 3]));
+        Assert.Throws<ArgumentException>(() => new Zigbee2MqttDriver(new Zigbee2MqttOptions([]), Ctx.Create(mqtt: mqtt)));
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("{}")]
+    [InlineData("""[ { "friendly_name": "", "definition": {} }, 5 ]""")]
+    public void Zigbee2Mqtt_ADeviceListThatIsntOne_ListsNothing(string payload) =>
+        Assert.Empty(Zigbee2MqttDriver.ParseDevices(payload));
+
+    [Fact]
+    public async Task NoWifi_HasNoNetworksAndJoinsNone()
+    {
+        var wifi = new NoWifi();
+
+        Assert.Equal(WifiState.None, wifi.GetState());
+        Assert.Empty((await wifi.ScanAsync(TestContext.Current.CancellationToken)).Networks);
+        Assert.Null(wifi.ReadSavedKey(WifiState.None));
+        Assert.False(await wifi.JoinTemporaryAsync("WLED-AP", "wled1234", TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken));
+        await wifi.RestoreAsync(WifiState.None, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
     }
 
     [Fact]

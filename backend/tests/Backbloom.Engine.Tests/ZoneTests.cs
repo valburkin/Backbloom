@@ -319,7 +319,7 @@ public sealed class ZoneTests : IDisposable
     // Two effect zones (a picture and LED colors) and a color zone over 168 + 30 LEDs.
     private static (LedLayout Layout, ZoneLayer Zones) AllocationSetup(IClock clock)
     {
-        var areas = LedLayout.FromJson(JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "layouts", "owner-168.json")))).Areas.ToList();
+        var areas = LedLayout.FromJson(JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", "layouts", "reference-168.json")))).Areas.ToList();
         areas.AddRange(Enumerable.Repeat(new LedArea(0.5, 0.5, 0.5, 0.5, 0, Disabled: true), 30));
         JsonArray Rects(int n) => [.. Enumerable.Range(0, n).Select(i => (JsonNode)new JsonObject { ["hmin"] = i / (double)n, ["hmax"] = (i + 1) / (double)n, ["vmin"] = 0, ["vmax"] = 0.1 })];
         LayoutZone[] zones =

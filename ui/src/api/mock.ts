@@ -46,7 +46,7 @@ export interface MockOptions {
   otherApp?: boolean;
   /** The app can start with Windows (default true). */
   autostart?: boolean;
-  /** Start with the owner's layout saved (placed in the room) instead of only the imported LED positions. */
+  /** Start with the reference setup's layout saved (placed in the room) instead of only the imported LED positions. */
   demoLayout?: boolean;
   /** A new WLED board is plugged in over USB (default true; `?mock=nousb`: none, for the WLED-AP fallback). */
   usb?: boolean;
@@ -56,7 +56,7 @@ export interface MockOptions {
   now?: () => number;
   /** A new board opens its hotspot nearby (default true). */
   hotspot?: boolean;
-  /** The owner's board is on the network (default: with the demo layout). */
+  /** The reference board is on the network (default: with the demo layout). */
   existingBoard?: boolean;
   /** Windows keeps nearby Wi-Fi networks from Backbloom (`?mock=location`). */
   locationBlocked?: boolean;
@@ -118,7 +118,7 @@ const LOG_LINES: Array<[string, string, string]> = [
 
 /**
  * In-memory stand-in for Backbloom, built from fixtures captured from the .NET app (see __fixtures__): a two-output
- * WLED controller with the product owner's 168-LED layout. Implements the same Backend interface as WsClient,
+ * WLED controller with the reference 168-LED layout. Implements the same Backend interface as WsClient,
  * with the app's behavior: auth errors, partial setconfig that rejects invalid values with per-field `errors`,
  * stored adjustments, restore while running, live LED colors, logs, performance reports and the screen capture's
  * HDR state, so the whole UI runs without a server (`?mock` / VITE_MOCK=1).

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
@@ -9,6 +10,7 @@ namespace Backbloom.Platform.Windows.Desktop;
 /// of <c>--service</c> show there. Output redirected to a file or pipe works without attaching.
 /// </summary>
 [SupportedOSPlatform("windows")]
+[ExcludeFromCodeCoverage(Justification = "Attaches the process to the console of the program that started it, which would take over the test runner's console.")]
 public static partial class ParentConsole
 {
     private const uint AttachParentProcess = unchecked((uint)-1);

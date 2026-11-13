@@ -56,7 +56,7 @@ describe('the product name from an order', () => {
   });
 
   it('knows COB strips light in segments: never takes their hundreds of LEDs/m as the count', () => {
-    // the owner's strip: 720 LEDs/m, no IC/m in the name
+    // the reference setup's strip: 720 LEDs/m, no IC/m in the name
     const owner = parseListing('BTF-LIGHTING FCOB WS2811 COB LED Strip 720LEDs/m DC24V Addressable');
     expect(owner).toMatchObject({ id: 'ws2811-cob', density: null, volts: 24 });
     expect(owner.note).toMatch(/IC\/m/);

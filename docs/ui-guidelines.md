@@ -4,6 +4,16 @@ Backbloom is used by people who just bought an LED strip, not by lighting engine
 do my lights do and how do I change that" with as few visible controls as possible. These rules keep it that way as
 features are added.
 
+## Contents
+
+- [Structure](#structure)
+  - [Setups and the Show](#setups-and-the-show)
+  - [Linking to a control](#linking-to-a-control)
+- [Setting tiers](#setting-tiers)
+- [Words](#words)
+- [Visual rules](#visual-rules)
+  - [Setup wizards](#setup-wizards)
+
 ## Structure
 
 One app, no modes. The sidebar has two groups (`MAIN_NAV` and `SHARED_NAV` in `ui/src/app/nav.tsx`): four sections
@@ -21,32 +31,40 @@ about what the lights show and how they look, and the hardware and the app at th
 A new feature goes into one of these sections; Setup when it is about the hardware. Each setting lives in exactly one
 place; Home may offer a shortcut to a setting, but it is the same control and the same value.
 
-**Setups and the Show.** One setup is always in use: Everyday (the layout's own strips with the saved Look) or a
-preset (its strip sections and its Look; none of its own = Everyday's). A preset picked by hand stays in use after a
-restart (the backend keeps it in the `presets` settings; the UI only sends `profile select`). What a setup plays, the Show (Screen edges,
-Screen average, an effect, music or a color), is stored only in its strip sections, so nothing the user picks is
-temporary and nothing is started for a while. A pick on Effects is written into the setup in use (`usePick` in
-`ui/src/control/usePick.ts`, the logic in `control/setup.ts` and `control/show.ts`): every part that isn't Off or a
-gap plays it (an effect's parts form one zone, so it flows across all strips), replacing what the strips were
-customized with (a toast with Undo then), and the layout is saved at once. A pick never switches to another setup.
-What plays is read back from the sections; a mix is "Customized in Layout". Two exceptions show something for a
-while: dragging the color picker (the color is sent live, then saved when the drag ends) and a source another app
-started (Playing now says so, with **Back to <setup>**). The Look on Home and the Look values on Colors save to the
-setup in use too ("Changes save to Gaming"); the other Colors settings are the same for every preset, and Colors says
-so. Picks and Looks change the layout as saved last (and the edited one the same way, a mirror: `editor/mirror.ts`),
-so Layout edits that aren't saved yet neither block them nor get saved with them. While a mirror is saved it doesn't
-count as an unsaved Layout edit; a failed save puts what it wrote back to the layout saved last, value by value, where
-nothing changed it since. Every layout save goes through the editor's one queue (`quietSave` in `app/editor.tsx`,
-`app/layoutSaver.ts`); changes saved together are made one at a time, so one that can't be made fails alone. A layout
-that never had presets gets Gaming, Movie, Music and Cozy at its first save with strips (`withDefaultPresets` in
-`control/presets.ts`, applied in `saveLayout`); deleting them leaves an empty list. A preset that plays one thing on
-all its parts follows the strips: each save gives strips added or reshaped since the last one its pick
-(`followStrips`; a list a pick wrote for a strip while it was still being drawn doesn't make the preset customized);
-presets customized in Layout keep their lists. The previews show what the LEDs light right now: each
-channel at the screen value of its light, brightened by part of what Home's Brightness took away (the stream's
-`share`), so they get darker along the slider but stay readable at the low brightness most people use; colors keep
-their hue, LEDs that are off stay off (`live/previewLight.ts`). The light around the LEDs adds up like light: a glow
-close to each LED and a faint wide wash, each by the LED's own color and brightness (`LayoutLights`).
+### Setups and the Show
+
+- **One setup is always in use.** Everyday (the layout's own strips with the saved Look) or a preset (its strip sections
+  and its Look; none of its own = Everyday's). A preset picked by hand stays in use after a restart (the backend keeps
+  it in the `presets` settings; the UI only sends `profile select`).
+- **What a setup plays**, the Show (Screen edges, Screen average, an effect, music or a color), is stored only in its
+  strip sections, so nothing the user picks is temporary and nothing is started for a while.
+- **Picks.** A pick on Effects is written into the setup in use (`usePick` in `ui/src/control/usePick.ts`, the logic in
+  `control/setup.ts` and `control/show.ts`): every part that isn't Off or a gap plays it (an effect's parts form one
+  zone, so it flows across all strips), replacing what the strips were customized with (a toast with Undo then), and the
+  layout is saved at once. A pick never switches to another setup.
+- **Reading back.** What plays is read back from the sections; a mix is "Customized in Layout". Two exceptions show
+  something for a while: dragging the color picker (the color is sent live, then saved when the drag ends) and a source
+  another app started (Playing now says so, with **Back to &lt;setup&gt;**).
+- **Looks.** The Look on Home and the Look values on Colors save to the setup in use too ("Changes save to Gaming"); the
+  other Colors settings are the same for every preset, and Colors says so.
+- **Saving.** Picks and Looks change the layout as saved last (and the edited one the same way, a mirror:
+  `editor/mirror.ts`), so Layout edits that aren't saved yet neither block them nor get saved with them. While a mirror
+  is saved it doesn't count as an unsaved Layout edit; a failed save puts what it wrote back to the layout saved last,
+  value by value, where nothing changed it since. Every layout save goes through the editor's one queue (`quietSave` in
+  `app/editor.tsx`, `app/layoutSaver.ts`); changes saved together are made one at a time, so one that can't be made
+  fails alone.
+- **Default presets.** A layout that never had presets gets Gaming, Movie, Music and Cozy at its first save with strips
+  (`withDefaultPresets` in `control/presets.ts`, applied in `saveLayout`); deleting them leaves an empty list. A preset
+  that plays one thing on all its parts follows the strips: each save gives strips added or reshaped since the last one
+  its pick (`followStrips`; a list a pick wrote for a strip while it was still being drawn doesn't make the preset
+  customized); presets customized in Layout keep their lists.
+- **Previews.** The previews show what the LEDs light right now: each channel at the screen value of its light,
+  brightened by part of what Home's Brightness took away (the stream's `share`), so they get darker along the slider but
+  stay readable at the low brightness most people use; colors keep their hue, LEDs that are off stay off
+  (`live/previewLight.ts`). The light around the LEDs adds up like light: a glow close to each LED and a faint wide
+  wash, each by the LED's own color and brightness (`LayoutLights`).
+
+### Linking to a control
 
 To send the user to one control (Home's "Lights look wrong?" troubleshooter does), link with a focus:
 `hrefFor('capture', null, 'crop')` is `#/capture?focus=crop`. The page scrolls to the element with that id (else the
