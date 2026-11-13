@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Backbloom: ambient lighting &amp; game immersion for Windows</title>
+    <meta
+      name="description"
+      content="Your LED strips and smart lights follow your screen in real time. Presets for games and movies, HDR, music, your whole room mapped. Works with any game on your screen, no mods. Free and open source, for Windows."
+    />
+    <meta name="theme-color" content="#8b5cf6" />
+    <!-- %SITE_URL% is filled in at build time (vite.config.ts): link previews need absolute URLs. -->
+    <link rel="canonical" href="%SITE_URL%/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Backbloom" />
+    <meta property="og:url" content="%SITE_URL%/" />
+    <meta property="og:title" content="Backbloom: play beyond the screen" />
+    <meta property="og:description" content="Your lights follow your screen in real time. Free, open-source ambient lighting and game immersion for Windows." />
+    <meta property="og:image" content="%SITE_URL%/og.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A monitor in a dark room, its picture glowing onto the wall around it, with the Backbloom logo" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Backbloom: play beyond the screen" />
+    <meta name="twitter:description" content="Your lights follow your screen in real time. Free, open-source ambient lighting and game immersion for Windows." />
+    <meta name="twitter:image" content="%SITE_URL%/og.jpg" />
+    <meta name="twitter:image:alt" content="A monitor in a dark room, its picture glowing onto the wall around it, with the Backbloom logo" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="preload" as="image" href="/img/scene-space.webp" />
+  </head>
+  <body>
+    <a class="skip" href="#modes">Skip to content</a>
+    <div class="progress" aria-hidden="true"><span></span></div>
+    <div class="cursor-glow" data-live aria-hidden="true"></div>
+
+    <header class="nav" data-live>
+      <a class="brand" href="#top" aria-label="Backbloom home">
+        <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true">
+          <defs>
+            <linearGradient id="nav-grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#FF3CAC" />
+              <stop offset="0.5" stop-color="#8B5CF6" />
+              <stop offset="1" stop-color="#22D3EE" />
+            </linearGradient>
+          </defs>
+          <rect x="96" y="136" width="320" height="240" rx="40" fill="none" stroke="url(#nav-grad)" stroke-width="56" />
+        </svg>
+        <span>Backbloom</span>
+      </a>
+      <nav class="nav-links" aria-label="Sections">
+        <a href="#modes">Modes</a>
+        <a href="#features">Features</a>
+        <a href="#app">The app</a>
+        <a href="#gear">Gear</a>
+        <a href="#roadmap">Roadmap</a>
+      </nav>
+      <div class="nav-end">
+        <a class="nav-gh" href="https://github.com/valburkin/Backbloom" aria-label="Backbloom on GitHub" title="Backbloom on GitHub"><svg class="gh-mark" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z" /></svg></a>
+        <a class="btn btn-primary btn-sm magnetic" href="https://github.com/valburkin/Backbloom/releases/latest">Download</a>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- HERO: a live demo. The glow on the wall is computed from the picture on the monitor, like Backbloom does. -->
+      <section class="hero" aria-label="Backbloom">
+        <div class="hero-sticky">
+          <div class="wall" aria-hidden="true"></div>
+          <canvas class="glow" aria-hidden="true"></canvas>
+          <div class="hero-copy">
+            <p class="eyebrow"><span class="dot"></span> Ambient lighting &amp; game immersion for Windows</p>
+            <h1 class="hero-title" data-split>Play beyond the screen.</h1>
+            <p class="hero-sub">
+              Backbloom follows your screen in real time and spills its colors onto your walls through the LED strips and
+              smart lights around you. Movies feel bigger. Games feel closer.
+            </p>
+            <p class="hero-proof">Works with any game on your screen. No mods, no plugins: it only watches the screen.</p>
+            <div class="hero-ctas">
+              <a class="btn btn-primary magnetic" href="https://github.com/valburkin/Backbloom/releases/latest">Download for Windows</a>
+              <a class="btn btn-ghost magnetic" href="#modes">See how it works</a>
+            </div>
+          </div>
+          <div class="rig">
+            <div class="monitor">
+              <canvas class="screen" width="960" height="540" role="img" aria-label="Game scenes playing on a monitor"></canvas>
+              <div class="screen-sheen" aria-hidden="true"></div>
+            </div>
+            <div class="stand" aria-hidden="true"><span class="neck"></span><span class="foot"></span></div>
+          </div>
+          <div class="desk" aria-hidden="true"></div>
+          <div class="demo-bar" role="group" aria-label="Live demo controls">
+            <button type="button" class="switch on" role="switch" aria-checked="true" data-demo-lights>
+              <span class="switch-track"><span class="switch-knob"></span></span>
+              <span class="switch-label">Backbloom glow</span>
+            </button>
+            <button type="button" class="icon-btn" data-demo-pause aria-pressed="false" aria-label="Pause demo">
+              <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+              <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10-6.5a1 1 0 0 0 0-1.7l-10-6.5A1 1 0 0 0 8 5.5Z" /></svg>
+            </button>
+            <p class="demo-note">Live demo: the glow is worked out from the picture, like Backbloom does. Switch it off to compare.</p>
+          </div>
+          <a class="scroll-cue" href="#modes" aria-label="Scroll down"><span></span></a>
+        </div>
+      </section>
+
+      <section class="ticker" aria-label="Compatible with">
+        <p class="ticker-label">Compatible with</p>
+        <div class="ticker-track">
+          <div class="ticker-row">
+            <span>WLED</span><span>Philips Hue</span><span>Nanoleaf</span><span>LIFX</span><span>WiZ</span><span>Yeelight</span><span>Adalight</span><span>Skydimo</span><span>Home Assistant</span><span>Zigbee2MQTT</span><span class="dim">DIY: E1.31 &middot; Art-Net &middot; DDP</span>
+          </div>
+          <div class="ticker-row" aria-hidden="true">
+            <span>WLED</span><span>Philips Hue</span><span>Nanoleaf</span><span>LIFX</span><span>WiZ</span><span>Yeelight</span><span>Adalight</span><span>Skydimo</span><span>Home Assistant</span><span>Zigbee2MQTT</span><span class="dim">DIY: E1.31 &middot; Art-Net &middot; DDP</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- MODES -->
+      <section id="modes" class="modes" data-mode="ambient">
+        <div class="modes-bg" aria-hidden="true"></div>
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <p class="kicker">Presets</p>
+            <h2 data-split>Calm for movie night. Fierce for the fight.</h2>
+            <p class="lead">Pick a preset on Home, or let your game turn its own on. Each keeps its own Look, so your movie night never inherits your raid settings.</p>
+          </div>
+          <div class="modes-grid">
+            <div class="modes-media" data-reveal>
+              <img src="/img/ambient.webp" srcset="/img/ambient-sm.webp 800w, /img/ambient.webp 1600w" sizes="(max-width: 900px) 100vw, 58vw" alt="Desk at evening with a monitor playing an ocean film, the wall behind it glowing the same turquoise" class="m-ambient" loading="lazy" />
+              <img src="/img/game.webp" srcset="/img/game-sm.webp 800w, /img/game.webp 1600w" sizes="(max-width: 900px) 100vw, 58vw" alt="Gamer at a monitor showing a fire explosion, the wall behind lit in matching orange" class="m-game" loading="lazy" />
+            </div>
+            <div class="modes-copy" data-reveal>
+              <div class="seg seg-lg" data-modes-switch role="group" aria-label="Preset">
+                <button type="button" class="on" data-mode="ambient" aria-pressed="true">Movie</button>
+                <button type="button" data-mode="game" aria-pressed="false">Gaming</button>
+                <span class="seg-thumb" aria-hidden="true"></span>
+              </div>
+              <div class="mode-panel" data-panel="ambient">
+                <h3>Movie</h3>
+                <p>For films, series and slow evenings. Your room breathes with the picture, softly and smoothly.</p>
+                <ul class="ticks">
+                  <li>The <b>Relaxed</b> Look: soft colors that drift slowly</li>
+                  <li>Screen sync, music, effects or a single color</li>
+                  <li>Built for HDR, with tone mapping for HDR films and games</li>
+                </ul>
+              </div>
+              <div class="mode-panel" data-panel="game" hidden>
+                <h3>Gaming</h3>
+                <p>Made for playing. The lights react faster, colors hit harder, and dark scenes stay dark.</p>
+                <ul class="ticks">
+                  <li>The <b>Intense</b> Look, or another of the five Looks</li>
+                  <li>Turns on by itself when one of your games starts, and Everyday comes back when it quits</li>
+                  <li>Reads the screen more often for snappier light</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STATS -->
+      <!-- BEFORE / AFTER: drag to compare the same setup without and with Backbloom -->
+      <section class="compare container" aria-label="Before and after">
+        <div class="section-head center" data-reveal>
+          <p class="kicker">See the difference</p>
+          <h2 data-split>Same game. A bigger world.</h2>
+          <p class="lead">Drag across the picture to switch Backbloom on.</p>
+        </div>
+        <div class="ba" data-ba data-reveal>
+          <img src="/img/ba-off.webp" alt="The setup with Backbloom off: the wall around the monitor is dark" loading="lazy" />
+          <div class="ba-on">
+            <img src="/img/ba-on.webp" alt="The same setup with Backbloom on: the wall glows magenta and cyan, continuing the picture" loading="lazy" />
+          </div>
+          <div class="ba-handle" aria-hidden="true"><span></span></div>
+          <span class="ba-label ba-off-label" aria-hidden="true">Backbloom off</span>
+          <span class="ba-label ba-on-label" aria-hidden="true">Backbloom on</span>
+          <input class="ba-range" type="range" min="0" max="100" value="50" aria-label="Compare: drag left to see more of Backbloom on" />
+        </div>
+      </section>
+
+      <!-- FEATURES: sticky media on the left, story on the right -->
+      <section id="features" class="features">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <p class="kicker">Features</p>
+            <h2 data-split>Every LED knows where it is.</h2>
+          </div>
+          <div class="story">
+            <div class="story-media" aria-hidden="true">
+              <figure class="story-frame on" data-step="0">
+                <img src="/img/hero.webp" alt="" loading="lazy" />
+                <img class="shot" src="/screens/home.webp" alt="" loading="lazy" />
+              </figure>
+              <figure class="story-frame" data-step="1">
+                <img src="/img/room.webp" alt="" loading="lazy" />
+                <img class="shot" src="/screens/layout.webp" alt="" loading="lazy" />
+              </figure>
+              <figure class="story-frame" data-step="2" data-music>
+                <img class="music-room" src="/img/music.webp" alt="" loading="lazy" />
+                <div class="eq"></div>
+                <div class="shot shot-live">
+                  <img src="/screens/playing-music.webp" alt="" loading="lazy" />
+                  <canvas class="live-preview"></canvas>
+                </div>
+              </figure>
+              <figure class="story-frame" data-step="3">
+                <img src="/img/sim.webp" alt="" loading="lazy" />
+                <img class="shot" src="/screens/presets.webp" alt="" loading="lazy" />
+              </figure>
+              <figure class="story-frame" data-step="4">
+                <img src="/img/install.webp" alt="" loading="lazy" />
+                <img class="shot" src="/screens/colors.webp" alt="" loading="lazy" />
+              </figure>
+            </div>
+            <div class="story-steps">
+              <article class="step" data-step="0">
+                <span class="step-num">01</span>
+                <h3>Screen sync, HDR included</h3>
+                <p>Backbloom captures your screen on the GPU and maps each edge of the picture to the LEDs behind it. HDR games and films are tone mapped, so the light matches what you see instead of washing out. It never touches the game itself.</p>
+                <img class="step-img" src="/img/hero-sm.webp" alt="Ultrawide monitor with neon city game, glowing magenta and cyan on the wall" loading="lazy" />
+              </article>
+              <article class="step" data-step="1">
+                <span class="step-num">02</span>
+                <h3>Your room, mapped</h3>
+                <p>Draw your strips where they really are, on your walls, ceiling and desk, around your monitor or TV. Pick a ready-made shape or drag the bends yourself. Each LED repeats the part of the screen it faces.</p>
+                <img class="step-img" src="/img/room-sm.webp" alt="Gaming room where the wall, the ceiling strip and the desk strip glow orange on the left and teal on the right, like the picture" loading="lazy" />
+              </article>
+              <article class="step" data-step="2">
+                <span class="step-num">03</span>
+                <h3>Music that moves the room</h3>
+                <p>Nine music effects react to whatever is playing on your PC, or to a microphone. Give the ceiling the beat while the screen strip follows the picture.</p>
+                <img class="step-img" src="/img/music-sm.webp" alt="Dark room with a pink ceiling strip and a turntable" loading="lazy" />
+              </article>
+              <article class="step" data-step="3">
+                <span class="step-num">04</span>
+                <h3>A preset for every game</h3>
+                <p>Gaming, Movie, Music and Cozy are ready to go, and you can add your own. Add your games and a preset takes over by itself while one runs. Presets can give strips other roles too: the whole screen on the ceiling in your racer, a calm color in your editor.</p>
+                <img class="step-img" src="/img/sim-sm.webp" alt="Racing simulator with three monitors and red light on the wall" loading="lazy" />
+              </article>
+              <article class="step" data-step="4">
+                <span class="step-num">05</span>
+                <h3>Set up in minutes, tuned for years</h3>
+                <p>Stick a strip behind your screen, plug in the controller, and Backbloom's search finds WLED controllers on your network. Three short steps and the lights are on. White balance, calibration and a power limit wait under Setup when you want them.</p>
+                <img class="step-img" src="/img/install-sm.webp" alt="Hands sticking an LED strip to the back of a monitor" loading="lazy" />
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- APP SHOWCASE -->
+      <section id="app" class="showcase">
+        <div class="container">
+          <div class="section-head center" data-reveal>
+            <p class="kicker">The app</p>
+            <h2 data-split>Simple on top. Deep when you want it.</h2>
+            <p class="lead">Everyday controls in view, fine-tuning tucked under More options. One click away in the tray.</p>
+          </div>
+          <div class="window-stage">
+            <div class="window">
+              <div class="window-bar">
+                <span class="window-title" aria-hidden="true"></span>
+                <span class="window-ctl" aria-hidden="true"><i></i><i></i><i></i></span>
+              </div>
+              <div class="window-body" role="tabpanel" id="app-panel" aria-label="App screen">
+                <img src="/screens/home.webp" alt="Backbloom app: Home page" data-shot="home" class="on" />
+                <img src="/screens/home-gaming.webp" alt="Backbloom app: Home with the Gaming preset in use" data-shot="home-gaming" loading="lazy" aria-hidden="true" />
+                <img src="/screens/layout.webp" alt="Backbloom app: Layout page with the room drawing" data-shot="layout" loading="lazy" aria-hidden="true" />
+                <img src="/screens/effects.webp" alt="Backbloom app: Effects, with effects and music" data-shot="effects" loading="lazy" aria-hidden="true" />
+                <img src="/screens/colors.webp" alt="Backbloom app: Colors" data-shot="colors" loading="lazy" aria-hidden="true" />
+                <img src="/screens/presets.webp" alt="Backbloom app: Presets page" data-shot="presets" loading="lazy" aria-hidden="true" />
+              </div>
+            </div>
+            <div class="window-tabs" role="tablist" aria-label="App screens">
+              <button type="button" role="tab" class="on" data-tab="home" aria-selected="true" aria-controls="app-panel">Home</button>
+              <button type="button" role="tab" data-tab="home-gaming" aria-selected="false" aria-controls="app-panel" tabindex="-1">Gaming</button>
+              <button type="button" role="tab" data-tab="layout" aria-selected="false" aria-controls="app-panel" tabindex="-1">Layout</button>
+              <button type="button" role="tab" data-tab="effects" aria-selected="false" aria-controls="app-panel" tabindex="-1">Effects</button>
+              <button type="button" role="tab" data-tab="colors" aria-selected="false" aria-controls="app-panel" tabindex="-1">Colors</button>
+              <button type="button" role="tab" data-tab="presets" aria-selected="false" aria-controls="app-panel" tabindex="-1">Presets</button>
+            </div>
+          </div>
+          <div class="perks">
+            <div class="perk" data-reveal><h3>Private by default</h3><p>Listens only on your PC until you turn on remote access. No account, and nothing about you is sent anywhere.</p></div>
+            <div class="perk" data-reveal style="--d: 80ms"><h3>Lives in the tray</h3><p>Lights, screen sync, music and pause one click away. Starts with Windows if you like.</p></div>
+            <div class="perk" data-reveal style="--d: 160ms"><h3>Smart home ready</h3><p>MQTT with Home Assistant discovery: lights, colors and effects in your dashboards and automations.</p></div>
+          </div>
+          <div class="cta-row" data-reveal><a class="btn btn-primary magnetic" href="https://github.com/valburkin/Backbloom/releases/latest">Download for Windows</a><span>Free and open source &middot; Windows 10 and 11</span></div>
+        </div>
+      </section>
+
+      <!-- GEAR -->
+      <section id="gear" class="gear">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <p class="kicker">Gear</p>
+            <h2 data-split>Works with the most popular devices.</h2>
+            <p class="lead">LED strips on WLED controllers, USB light kits, and smart lights from Philips Hue, Nanoleaf, WiZ, LIFX, Govee and more. Use what you already have, or start with a simple strip behind your screen.</p>
+          </div>
+          <ol class="gear-steps" data-reveal>
+            <li><span>1</span><div><b>Found for you</b><small>One search finds controllers over USB, on Wi-Fi and on your network.</small></div></li>
+            <li><span>2</span><div><b>Set up step by step</b><small>No flashing, no device web pages: Backbloom checks the strip, the colors and the power.</small></div></li>
+            <li><span>3</span><div><b>Uses what you have</b><small>Hue, Nanoleaf, WiZ and more work too, mixed in one setup.</small></div></li>
+          </ol>
+          <div class="gear-grid" data-gear></div>
+          <noscript><p class="gear-noscript">Turn on JavaScript to see the supported devices.</p></noscript>
+          <div class="gear-soon" data-gear-soon></div>
+        </div>
+      </section>
+
+      <!-- ROADMAP: a vertical timeline of chapters; its line fills as you scroll -->
+      <section id="roadmap" class="roadmap">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <p class="kicker">Roadmap</p>
+            <h2 data-split>Light was only the first sense.</h2>
+          </div>
+          <div class="timeline" data-roadmap></div>
+          <noscript><p class="roadmap-also">Turn on JavaScript to see the roadmap: light, game events, haptics and wind.</p></noscript>
+          <p class="roadmap-also" data-reveal>Also coming: keyboard, mouse and PC RGB, older Govee lights over Bluetooth, a phone remote, and Backbloom on macOS and Linux.</p>
+          <div class="roadmap-cta" data-reveal><a class="btn btn-ghost magnetic" href="https://github.com/valburkin/Backbloom/blob/main/docs/roadmap.md"><svg class="gh-mark" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z" /></svg>Follow the roadmap on GitHub</a></div>
+        </div>
+      </section>
+
+      <!-- DOWNLOAD -->
+      <section id="download" class="get">
+        <div class="get-glow" aria-hidden="true"></div>
+        <div class="container">
+          <div class="get-card" data-reveal>
+            <p class="kicker">Free and open source</p>
+            <h2 data-split>Get Backbloom.</h2>
+            <p class="lead">Free for everyone, open source under the MIT License. Download it, plug in your lights and let the picture spill onto your walls.</p>
+            <div class="get-ctas">
+              <a class="btn btn-primary btn-lg magnetic" href="https://github.com/valburkin/Backbloom/releases/latest"><svg class="dl-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>Download for Windows</a>
+              <a class="btn btn-ghost btn-lg magnetic" href="https://github.com/valburkin/Backbloom"><svg class="gh-mark" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z" /></svg>View on GitHub</a>
+            </div>
+            <ul class="get-facts">
+              <li>Windows 10 and 11</li>
+              <li>MIT License</li>
+              <li>No account</li>
+            </ul>
+            <p class="get-note">Built in the open on GitHub. Ideas, bug reports and pull requests are welcome.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section class="faq container" aria-label="Questions">
+        <h2 class="faq-title" data-reveal>Questions</h2>
+        <details data-reveal>
+          <summary>I'm new to LED lights. What do I need?</summary>
+          <p>A Windows 10 or 11 PC (Mac and Linux are planned) and something to light: usually an LED strip behind your screen with a small Wi-Fi controller (WLED) and a power supply, or smart bulbs and panels you already own. A ready-made controller needs no soldering. Not sure what fits your setup? <a href="https://github.com/valburkin/Backbloom/discussions">Ask on GitHub</a>.</p>
+        </details>
+        <details data-reveal>
+          <summary>Will it work with my Hue, Nanoleaf or Govee lights?</summary>
+          <p>Philips Hue (through the Hue Bridge), Nanoleaf, LIFX, WiZ, Yeelight, Govee models with LAN Control, WLED and USB backlight kits like Skydimo work today, and you can mix brands in one setup. Older Govee models that only have Bluetooth are planned. Keyboard, mouse and PC case RGB are planned too.</p>
+        </details>
+        <details data-reveal>
+          <summary>Is it safe with anti-cheat? Can it get me banned?</summary>
+          <p>Backbloom never reads game memory, injects into a game or needs a mod. It only watches the screen and listens to the sound, the same way recording and streaming apps do. That's also why it works with any game.</p>
+        </details>
+        <details data-reveal>
+          <summary>Will it lower my FPS or lag behind the game?</summary>
+          <p>Screen capture and scaling run on your graphics card; the processor's share stays small: a few percent of one CPU core for a typical setup. With a quick Look, such as the Gaming preset's, the screen is read at least 60 times a second and LED strips keep up; smart bulbs update more slowly (Hue about 25 times a second), so they're best for setting the room's mood. If a game ever stutters, the app keeps a performance record on your PC that you can attach to a <a href="https://github.com/valburkin/Backbloom/issues/new/choose">bug report</a>.</p>
+        </details>
+        <details data-reveal>
+          <summary>Does it work with HDR, Netflix, a TV or my console?</summary>
+          <p>It follows whatever your PC shows, HDR included, on a monitor or on a TV plugged into the PC. Some streaming apps block screen capture, so their videos can't be followed. A console only works if its picture goes through your PC.</p>
+        </details>
+        <details data-reveal>
+          <summary>Why not Hue Sync or my lights' own app?</summary>
+          <p>Those drive one brand. Backbloom drives strips, bulbs and panels from many brands at once, lets you draw your strips where they really are in your room, and has presets that turn on by themselves when your game starts.</p>
+        </details>
+        <details data-reveal>
+          <summary>Is it free?</summary>
+          <p>Yes. Backbloom is free and open source under the MIT License, and its code is on <a href="https://github.com/valburkin/Backbloom">GitHub</a>.</p>
+        </details>
+        <details data-reveal>
+          <summary>When are haptics and wind coming? Should I buy a shaker now?</summary>
+          <p>They're planned after game events, with no dates yet. <a href="https://github.com/valburkin/Backbloom/blob/main/docs/roadmap.md">Follow the roadmap on GitHub</a> to see when they land.</p>
+        </details>
+        <details data-reveal>
+          <summary>Found a bug or have a question?</summary>
+          <p>Check the <a href="https://github.com/valburkin/Backbloom/issues">open issues</a> first: if yours is there, give it a thumbs-up or add your details. Otherwise <a href="https://github.com/valburkin/Backbloom/issues/new/choose">report a bug</a> (in the app, Settings &gt; About &gt; Report a problem fills in your system details), or ask questions and share ideas in <a href="https://github.com/valburkin/Backbloom/discussions">Discussions</a>.</p>
+          <p><a class="btn btn-ghost btn-sm" href="https://github.com/valburkin/Backbloom/issues/new/choose">Get help or report a bug</a></p>
+        </details>
+      </section>
+
+      <section class="finale">
+        <div class="finale-glow" aria-hidden="true"></div>
+        <h2 data-split>Your room is a bigger screen.</h2>
+        <a class="btn btn-primary btn-lg magnetic" href="https://github.com/valburkin/Backbloom/releases/latest">Download for Windows</a>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer-grid">
+        <a class="brand" href="#top"><svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><rect x="96" y="136" width="320" height="240" rx="40" fill="none" stroke="url(#nav-grad)" stroke-width="56" /></svg><span>Backbloom</span></a>
+        <p class="fine">
+          Pictures of rooms, people and products are AI-generated concept renders; app screens are real. Product names are
+          trademarks of their owners and are used only to describe compatibility; Backbloom is not affiliated with or endorsed
+          by them. <a href="/privacy.html">Privacy</a> &middot; <a href="/licenses.txt">Licenses</a>.
+        </p>
+        <div class="footer-end">
+          <a class="footer-gh" href="https://github.com/valburkin/Backbloom"><svg class="gh-mark" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z" /></svg><span>GitHub</span></a>
+          <a class="footer-gh" href="https://github.com/valburkin/Backbloom/issues/new/choose">Get help or report a bug</a>
+          <p class="fine">&copy; 2026 Val Burkin &middot; MIT License</p>
+        </div>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

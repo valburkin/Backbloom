@@ -1,0 +1,26 @@
+# The landing page in site/ (the app itself isn't deployed anywhere). [build] applies when Netlify builds from the
+# repository; the site is currently deployed from a local build instead (site/README.md, Deployment), which uses only
+# the headers below.
+[build]
+  base = "site"
+  command = "npm run build"  # Netlify installs the dependencies (npm ci) itself
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    # script-src: our scripts, plus the inline script of the 'Built with Netlify' badge that Netlify injects on free-plan
+    # sites (its exact hash; if Netlify changes it, the badge is blocked again, harmlessly).
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'sha256-BkKP2XO6WOEc3kXOiLr2ZoY83hamalKjPY9xBcbXVuw='; img-src 'self' data:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
