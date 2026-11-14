@@ -121,35 +121,41 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider
     {
         foreach (var (line, flushed) in _queue.GetConsumingEnumerable())
         {
-            if (line is null)
-            {
-                _file?.Flush();
-                flushed?.Set();
-                continue;
-            }
-
             try
             {
-                Write(line);
-                if (_queue.Count == 0)
+                if (line is not null)
+                {
+                    Write(line);
+                }
+
+                if (line is null || _queue.Count == 0)
                 {
                     _file?.Flush();
                 }
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // a full or vanished disk: keep running without the file
-                _file?.Dispose();
-                _file = null;
+                CloseFile();
             }
-            catch (UnauthorizedAccessException)
-            {
-                _file?.Dispose();
-                _file = null;
-            }
+
+            flushed?.Set();
         }
 
-        _file?.Dispose();
+        CloseFile();
+    }
+
+    // Closing writes out what is still buffered, which fails the same way on a full disk; a log never stops the app.
+    private void CloseFile()
+    {
+        try
+        {
+            _file?.Dispose();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+
         _file = null;
     }
 

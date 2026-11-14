@@ -51,6 +51,9 @@ npm run dev                        # http://127.0.0.1:5190
 npm run build                      # type check + site/dist
 ```
 
+Run `dotnet test` in `backend/`: its `global.json` switches it to Microsoft.Testing.Platform, which xUnit v3 4
+needs; from another folder `dotnet test` falls back to VSTest and fails.
+
 ### UI without a backend
 
 The UI has a built-in mock backend. Open the dev server with one of these query strings instead of `?backend=...`:
