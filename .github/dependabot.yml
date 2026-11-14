@@ -1,13 +1,13 @@
-# Minor and patch updates come grouped, one pull request per area; a major version comes on its own, since it usually
-# needs code changes, except for packages that only work at the same version (xunit, vitest, React, vite and Tailwind,
-# each with its companion packages), which come together. Updates of the UI's production dependencies, Tailwind or the
-# app's NuGet packages change the bundled licenses: run packaging/Update-ThirdPartyNotices.ps1 on the branch and commit
-# the result (CI checks it, so such a pull request fails until then).
+# Once a month; minor and patch updates come grouped, one pull request per area; a major version comes on its own, since
+# it usually needs code changes, except for packages that only work at the same version (xunit, vitest, React, vite and
+# Tailwind, each with its companion packages), which come together. Updates of the UI's production dependencies,
+# Tailwind or the app's NuGet packages change the bundled licenses: run packaging/Update-ThirdPartyNotices.ps1 on the
+# branch and commit the result (CI checks it, so such a pull request fails until then).
 version: 2
 updates:
   - package-ecosystem: nuget
     directory: /backend
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
     ignore:
       # Packages of the .NET release itself follow the target framework (net10.0, the LTS release): their next major
       # comes with the move to the next .NET, not on its own.
@@ -26,7 +26,7 @@ updates:
         update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /ui
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
     groups:
       # a dependency goes to the first group it matches, so these come first
       vitest:
@@ -45,14 +45,14 @@ updates:
         update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /site
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
     groups:
       site:
         patterns: ['*']
         update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: monthly }
     groups:
       actions:
         patterns: ['*']

@@ -111,6 +111,13 @@ foreach ($dir in ($npmDirs | Sort-Object -Unique)) {
     $components.Add((New-Component $manifest.name $manifest.version $manifest.license $copyright $url $text 'Web interface'))
 }
 
+# Vite is a build tool, but the bundle carries its small runtime helper that loads the lazily loaded parts of the UI.
+# Major version only, so its patches don't change these files.
+$vite = Get-Content -Raw (Join-Path $ui 'node_modules/vite/package.json') | ConvertFrom-Json
+$viteCopyright = 'Copyright (c) 2019-present, VoidZero Inc. and Vite contributors'
+$components.Add((New-Component 'Vite (module loading helper)' $vite.version.Split('.')[0] 'MIT' $viteCopyright 'https://vite.dev' `
+    (Get-MitText $viteCopyright) 'Web interface'))
+
 # --- THIRD-PARTY-NOTICES.md ---
 $md = [System.Text.StringBuilder]::new()
 [void] $md.AppendLine('# Third-party notices')
