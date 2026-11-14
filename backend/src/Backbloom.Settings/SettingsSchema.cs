@@ -20,7 +20,7 @@ public sealed class SettingsSchema
     public static readonly IReadOnlyList<string> BuiltinSections =
     [
         "general", "logger", "device", "color", "smoothing", "systemGrabber", "blackborderdetector", "foregroundEffect",
-        "backgroundEffect", "soundEffect", "webConfig", "effects", "systemControl", "network", "ledConfig", "leds", "mqtt",
+        "backgroundEffect", "soundEffect", "effects", "systemControl", "network", "ledConfig", "leds", "mqtt",
         "layout", "presets",
     ];
 

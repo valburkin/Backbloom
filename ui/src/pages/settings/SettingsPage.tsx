@@ -13,8 +13,6 @@ import { STARTUP_LABELS } from './StartupIdle';
 
 export const SETTINGS_LABELS: Record<string, string> = {
   'general.name': 'Name',
-  'webConfig.port': 'Port (http)',
-  'webConfig.sslPort': 'Secure port (https)',
   'mqtt.host': 'Broker address',
   'mqtt.port': 'Broker port',
   'logger.level': 'Log detail',
@@ -36,7 +34,7 @@ interface Tab {
 
 const TABS: Tab[] = [
   { id: 'general', label: 'General', icon: <SlidersHorizontal size={16} />, config: true },
-  { id: 'remote-access', label: 'Remote access', icon: <Smartphone size={16} />, config: true },
+  { id: 'remote-access', label: 'Remote access', icon: <Smartphone size={16} />, config: false },
   { id: 'integrations', label: 'Integrations', icon: <Plug size={16} />, config: true },
   { id: 'about', label: 'About', icon: <Info size={16} />, config: false },
   { id: 'support', label: 'Support', icon: <LifeBuoy size={16} />, config: true, expert: true },

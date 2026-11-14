@@ -208,6 +208,33 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Open_RemovesTheSettingsThatNothingReadsFromTheDatabase()
+    {
+        var open = Track(OpenStore.In(_dir.Path));
+        open.Database.Write((c, t) =>
+        {
+            SettingsDatabase.Execute(c, t, "INSERT INTO settings VALUES ('webConfig', '{\"port\": 8090, \"sslPort\": 8092, \"keyPassPhrase\": \"secret\"}', 'now')");
+            SettingsDatabase.Execute(c, t,
+                "INSERT INTO settings VALUES ('general', '{\"name\": \"Living room\", \"showOptHelp\": true, \"version\": 6, \"disableOnLocked\": true, \"disableLedsStartup\": false}', 'now')");
+        });
+        CloseAll();
+
+        var store = Open();
+        Assert.Null(store.GetSection("webConfig"));
+        Assert.Equal("Living room", store.GetSection("general")!["name"]!.GetValue<string>());
+        Assert.Null(store.GetSection("general")!["showOptHelp"]);
+        var stored = _open[^1].Database.Read(c =>
+        {
+            using var command = c.CreateCommand();
+            command.CommandText = "SELECT group_concat(section || '=' || value, ' | ') FROM settings WHERE section IN ('webConfig', 'general')";
+            return command.ExecuteScalar() as string;
+        });
+        Assert.DoesNotContain("webConfig", stored, StringComparison.Ordinal);
+        Assert.DoesNotContain("showOptHelp", stored, StringComparison.Ordinal);
+        Assert.Contains("Living room", stored, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Replace_ValidatesEverythingAndFillsDefaults()
     {
         var store = Open();

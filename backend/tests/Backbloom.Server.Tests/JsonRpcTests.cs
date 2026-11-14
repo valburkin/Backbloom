@@ -296,6 +296,17 @@ public sealed class JsonRpcTests
         var network = (await client.CallAsync("config", "getconfig"))["info"]!["network"]!.AsObject();
         Assert.Equal(["remoteAccess"], network.Select(p => p.Key));
 
+        // so are the settings nothing reads, which 0.2.0 still had (HyperHDR's web server section and help toggle)
+        var before = (await client.CallAsync("config", "getconfig"))["info"]!.AsObject();
+        Assert.False(before.ContainsKey("webConfig"));
+        var general = before["general"]!.DeepClone().AsObject();
+        general["showOptHelp"] = true;
+        var sent = new JsonObject { ["webConfig"] = new JsonObject { ["port"] = 8091, ["sslPort"] = 8092, ["keyPassPhrase"] = "x" }, ["general"] = general };
+        Assert.True(Success(await client.CallAsync("config", "setconfig", new JsonObject { ["config"] = sent })));
+        var after = (await client.CallAsync("config", "getconfig"))["info"]!.AsObject();
+        Assert.False(after.ContainsKey("webConfig"));
+        Assert.True(JsonNode.DeepEquals(before["general"], after["general"]));
+
         Assert.True(Success(await client.CallAsync("authorize", "newPassword", Obj("""{ "newPassword": "long-enough-1" }"""))));
         Assert.True(Success(await client.CallAsync("config", "setconfig", Obj("""{ "config": { "network": { "remoteAccess": true } } }"""))));
     }

@@ -237,6 +237,9 @@ describe('network explanations', () => {
     expect(html).toContain('Windows will ask next');
     expect(html).toContain('Private');
     expect(html).toContain('not Public networks');
+    // honest about plain http until https comes
+    expect(html).toContain('Not encrypted yet');
+    expect(html).toContain('a network you trust');
     expect(html).toContain('Turn off');
     expect(html).toContain('Turn on remote access');
     expect(html).toContain('sign in with your Backbloom password');

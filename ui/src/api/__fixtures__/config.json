@@ -111,7 +111,6 @@
   "disableLedsStartup": false,
   "disableOnLocked": true,
   "name": "My Backbloom Config",
-  "showOptHelp": true,
   "version": 6
  },
  "ledConfig": {
@@ -199,13 +198,5 @@
   "monitor_nits_auto": true,
   "reorder_displays": 0,
   "videoMode": 512
- },
- "webConfig": {
-  "crtPath": "",
-  "document_root": "",
-  "keyPassPhrase": "",
-  "keyPath": "",
-  "port": 8090,
-  "sslPort": 8092
  }
 }

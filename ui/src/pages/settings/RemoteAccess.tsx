@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Copy, KeyRound, Loader2, Lock, Plus, ShieldAlert, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
 import { Button, Dialog, IconButton, StatusDot } from '../../components/ui';
-import { Advanced, Callout, Expert, Input, NumberField, Section } from '../../components/form';
+import { Advanced, Callout, Input, Section } from '../../components/form';
 import { NewPasswordFields } from '../../components/PasswordFields';
 import { QrCode } from '../../components/QrCode';
 import { newPasswordProblem } from '../../settings/password';
-import { deepEqual } from '../../settings/drafts';
-import { differsFromDefault, propertyAt, rangeOf } from '../../schema/schema';
 import type { PageSettings } from '../../app/config';
 import { useConnection } from '../../app/connection';
 import { useAction } from '../../app/useAction';
@@ -67,6 +65,10 @@ export function RemoteAccessDialog({
         <p>
           <span className="font-medium text-ink">What it does:</span> Backbloom starts accepting connections from your home network, so you can open it
           on your phone, a tablet or another PC, and it announces itself on the network so apps can find it. Until now only this PC could open it.
+        </p>
+        <p>
+          <span className="font-medium text-ink">Not encrypted yet:</span> other devices connect over plain http, so someone else on the same network
+          could read what they send, the password included. Turn this on only on a network you trust, such as your home Wi-Fi.
         </p>
         <div className="rounded-2xl border border-accent/30 bg-accent/10 p-3 text-ink">
           <p className="font-medium">Windows will ask next</p>
@@ -284,30 +286,16 @@ function AppKeys() {
   );
 }
 
-const PORTS = ['port', 'sslPort'] as const;
-const CERTIFICATE = ['crtPath', 'keyPath', 'keyPassPhrase'] as const;
-
-/** Settings → Remote access: on/off (the `network.remoteAccess` setting, off by default), password, app keys, ports. */
+/**
+ * Settings → Remote access: on/off (the `network.remoteAccess` setting, off by default), password, app keys. The port
+ * is the app's `--port` option (shown in the addresses), not a setting.
+ */
 export function RemoteAccessTab({ ps }: { ps: PageSettings }) {
-  const { setup, api, remote, backend } = useConnection();
+  const { setup, api, remote } = useConnection();
   const { run, busy } = useAction();
   const [asking, setAsking] = useState(false);
   const status = setup?.remoteAccess;
   const passwordSet = setup?.passwordSet ?? false;
-
-  const web = ps.value<Obj>('webConfig');
-  const webSchema = ps.schemaOf('webConfig');
-  const set = (k: string) => (v: unknown) => ps.setPath('webConfig', [k], v);
-  const err = (p: string) => ps.issues.find((i) => i.path === p)?.message;
-  const port = rangeOf(propertyAt(webSchema, 'port'), { min: 80, max: 65535 });
-  const before = ps.baseline.webConfig as Obj | undefined;
-  const portChanged = !!before && PORTS.some((k) => !deepEqual(before[k], web[k]));
-  const host = backend.mode === 'live' ? new URL(backend.url.replace(/^ws/, 'http')).hostname : 'localhost';
-  const moreKeys = [...PORTS, ...CERTIFICATE];
-  const changed = moreKeys.filter((k) => {
-    const s = propertyAt(webSchema, k);
-    return !!s && differsFromDefault(s, web[k]);
-  });
 
   const apply = (on: boolean, password?: string) =>
     run('remote-access', on ? 'Couldn’t turn on remote access' : 'Couldn’t turn off remote access', async () => {
@@ -353,29 +341,8 @@ export function RemoteAccessTab({ ps }: { ps: PageSettings }) {
             {status.enabled && <RemoteAccessAddresses status={status} />}
           </>
         )}
-        <Advanced
-          changed={changed.length}
-          invalid={moreKeys.some((k) => !!err(`webConfig.${k}`))}
-          onReset={ps.canEdit ? () => ps.set('webConfig', { ...web, ...Object.fromEntries(changed.map((k) => [k, propertyAt(webSchema, k)?.default])) }) : undefined}
-        >
+        <Advanced>
           <AppKeys />
-          <div className="grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
-            <NumberField integer label="Port (http)" min={port.min} max={port.max} value={Number(web.port)} error={err('webConfig.port')} onChange={set('port')} />
-            <NumberField integer label="Secure port (https)" min={port.min} max={port.max} value={Number(web.sslPort)} error={err('webConfig.sslPort')} onChange={set('sslPort')} />
-          </div>
-          {portChanged && (
-            <Callout tone="warn">
-              After saving, this page moves to <span className="font-mono">http://{host}:{String(web.port)}</span>. Bookmarks and apps that use the old port need updating.
-            </Callout>
-          )}
-          <Expert always={CERTIFICATE.some((k) => changed.includes(k))}>
-            <div className="space-y-4 border-t border-line pt-4">
-              <p className="text-xs text-ink-faint">Backbloom uses a self-signed certificate for https unless you provide one.</p>
-              <Input label="Certificate file (PEM)" placeholder="C:\certs\backbloom.crt" value={String(web.crtPath ?? '')} onChange={set('crtPath')} />
-              <Input label="Private key file (PEM)" placeholder="C:\certs\backbloom.key" value={String(web.keyPath ?? '')} onChange={set('keyPath')} />
-              <Input label="Key password" type="password" autoComplete="new-password" hint="Only if the key is protected with a password." value={String(web.keyPassPhrase ?? '')} onChange={set('keyPassPhrase')} />
-            </div>
-          </Expert>
         </Advanced>
         <RemoteAccessDialog
           open={asking}

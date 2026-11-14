@@ -24,3 +24,8 @@ in with a password the user chose. Issues of particular interest:
 - anything that makes the app listen on a network address without the user turning remote access on;
 - the update path (packages are downloaded from this repository's GitHub releases);
 - the handling of Wi-Fi credentials during the guided setup of a new LED controller.
+
+Known limitation: other devices connect over plain http, so someone who can read traffic on the same network can read
+the password and the session. The app says so before remote access is turned on; https with a certificate that
+phones trust is planned (see the [roadmap](docs/roadmap.md#platform-and-distribution)). Reports of this alone aren't
+needed.

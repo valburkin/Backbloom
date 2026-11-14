@@ -40,6 +40,21 @@ public sealed class MigrationTests
     }
 
     [Fact]
+    public void RemoveUnusedSettings_DropsHyperHdrsWebServerAndHelpToggleWithoutAReport()
+    {
+        var config = Parse("""
+            { "webConfig": { "document_root": "", "port": 8090, "sslPort": 8092, "crtPath": "", "keyPath": "", "keyPassPhrase": "secret" },
+              "general": { "name": "Living room", "showOptHelp": true } }
+            """);
+
+        var changes = Run((c, _) => LegacyMigrations.RemoveUnusedSettings(c), config);
+
+        Assert.Empty(changes);
+        Assert.Equal(["general"], config.Select(p => p.Key));
+        Assert.Equal(["name"], config["general"]!.AsObject().Select(p => p.Key));
+    }
+
+    [Fact]
     public void UseDefaultSoundDevice_ReplacesHyperHdrsRecordingDeviceWithTheDefaultOutput()
     {
         var config = Parse("""{ "soundEffect": { "device": "Microphone (HD Pro Webcam C920)", "enable": false, "enable_smoothing": false } }""");

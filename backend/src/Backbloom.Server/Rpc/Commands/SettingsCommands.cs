@@ -10,7 +10,8 @@ namespace Backbloom.Server.Rpc;
 /// <c>config</c>: <c>getschema</c>, <c>getconfig</c> and <c>setconfig</c>. setconfig replaces the top-level sections
 /// it receives and keeps the others; invalid values reject the whole update with per-field errors (HyperHDR silently
 /// reset them to defaults), and saving also works while the lights are off. HyperHDR's removed access options in
-/// <c>network</c> are ignored, and <c>network.remoteAccess</c> can't be turned on before a password is set.
+/// <c>network</c> and the settings nothing reads (<see cref="LegacyMigrations.UnusedSettingsTypes"/>, such as
+/// <c>webConfig</c>) are ignored, and <c>network.remoteAccess</c> can't be turned on before a password is set.
 /// </summary>
 public sealed class ConfigCommand(ISettingsStore settings, SettingsSchema schema, AuthService auth) : IRpcCommand
 {
@@ -51,9 +52,11 @@ public sealed class ConfigCommand(ISettingsStore settings, SettingsSchema schema
                     break;
                 }
 
+                // what HyperHDR clients send back but this version doesn't have is ignored (on a copy of the message)
+                config = config.DeepClone().AsObject();
+                LegacyMigrations.RemoveUnusedSettings(config);
                 if (config.ContainsKey("network"))
                 {
-                    config = config.DeepClone().AsObject();
                     LegacyMigrations.RemoveAccessOptions(config, []);
                     if (config["network"]?["remoteAccess"] is JsonValue on && on.TryGetValue(out bool enabled) && enabled && !auth.HasPassword)
                     {

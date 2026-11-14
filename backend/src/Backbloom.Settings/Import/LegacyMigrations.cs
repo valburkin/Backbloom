@@ -30,7 +30,8 @@ public static class LegacyMigrations
 
     /// <summary>
     /// Types HyperHDR stored once for all instances (SettingsTable::isSettingGlobal of HyperHDR 24 plus the Backbloom
-    /// C++ <c>layout</c>); every other type was stored per instance.
+    /// C++ <c>layout</c>); every other type was stored per instance. It describes HyperHDR's databases, so it keeps
+    /// types this version drops (<c>webConfig</c>, the removed servers).
     /// </summary>
     public static readonly IReadOnlySet<string> GlobalTypes = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -45,6 +46,20 @@ public static class LegacyMigrations
     /// </summary>
     public static readonly IReadOnlyList<string> RemovedNetworkOptions =
         ["apiAuth", "localApiAuth", "localAdminAuth", "internetAccessAPI", "restirctedInternetAccessAPI", "ipWhitelist"];
+
+    /// <summary>
+    /// Settings that HyperHDR had and nothing in Backbloom ever read, though 0.2.0 still stored them (and showed the
+    /// web server's port and https fields): HyperHDR's web server section (its port, https port, certificate and web
+    /// root; Backbloom's port is the <c>--port</c> option and it serves http only) and the help toggle of HyperHDR's
+    /// UI. They are dropped without a report, since dropping them changes nothing: by imports and restores, from the
+    /// database when it is opened (so a key password typed into 0.2.0 doesn't stay in the settings), and by
+    /// <c>setconfig</c> (so clients that send them back still work).
+    /// </summary>
+    public static readonly IReadOnlySet<string> UnusedSettingsTypes = new HashSet<string>(StringComparer.Ordinal) { "webConfig" };
+
+    /// <summary>Options of kept sections in the same situation as <see cref="UnusedSettingsTypes"/>.</summary>
+    public static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> UnusedFields =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal) { ["general"] = ["showOptHelp"] };
 
     private const string DefaultSoundDevice = "default";
     private const string RainbowSwirl = "Rainbow swirl";
@@ -128,6 +143,7 @@ public static class LegacyMigrations
         RenameFactoryName(config, changes);
         DropEmptyLayout(config, changes);
         RemoveAccessOptions(config, changes);
+        RemoveUnusedSettings(config);
         UseDefaultSoundDevice(config, changes);
 
         if (config["systemGrabber"] is JsonObject capture)
@@ -286,6 +302,40 @@ public static class LegacyMigrations
         {
             changes.Add($"Removed the network access options ({string.Join(", ", removed)}): this computer always has full access, other devices always need the password");
         }
+    }
+
+    /// <summary>Removes <see cref="UnusedSettingsTypes"/> and <see cref="UnusedFields"/>, without a report.</summary>
+    public static void RemoveUnusedSettings(JsonObject config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        foreach (var type in UnusedSettingsTypes)
+        {
+            config.Remove(type);
+        }
+
+        foreach (var type in UnusedFields.Keys)
+        {
+            if (config[type] is JsonObject section)
+            {
+                RemoveUnusedFields(type, section);
+            }
+        }
+    }
+
+    /// <summary>Removes the <see cref="UnusedFields"/> of one section from its value; true when it held any.</summary>
+    public static bool RemoveUnusedFields(string type, JsonObject section)
+    {
+        ArgumentNullException.ThrowIfNull(section);
+        var removed = false;
+        if (UnusedFields.TryGetValue(type, out var fields))
+        {
+            foreach (var field in fields)
+            {
+                removed |= section.Remove(field);
+            }
+        }
+
+        return removed;
     }
 
     /// <summary>

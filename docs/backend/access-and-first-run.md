@@ -46,6 +46,15 @@ unexplained Windows Firewall prompt. The rules below prevent both.
   `restirctedInternetAccessAPI` and `ipWhitelist` are no longer in the `network` schema: imports drop them
   (`LegacyMigrations.RemoveAccessOptions`) and `setconfig` ignores them, so HyperHDR clients that send the whole
   section back keep working.
+- **http only, port from the command line.** Backbloom serves http on the `--port` port (default 18290); there is no
+  https listener. HyperHDR's `webConfig` section (its web server's port, https port, certificate, key and key password,
+  web root) and `general.showOptHelp` were never read here, though 0.2.0 still stored them and showed the port and https
+  fields in Settings → Remote access. They are gone from the schema: imports and restores drop them without a report
+  (dropping them changes nothing), opening a database written by 0.2.0 deletes them from it (so a key password typed
+  into those fields doesn't stay in the settings; backups made before still hold it), and `setconfig` ignores them
+  (`LegacyMigrations.UnusedSettingsTypes` and `UnusedFields`). Encrypted access from other devices needs a certificate
+  their browsers trust without a warning; the [roadmap](../roadmap.md#platform-and-distribution) plans it with the phone
+  remote. Until then the turn-on dialog says that connections aren't encrypted.
 
 ## Lighting gate
 
@@ -121,7 +130,7 @@ colors" in green ("Test device: the colors go nowhere").
   responder starts and stops with them.
 - **`--bind`** fixes one address instead, and the setting has no effect.
 
-The UI (Settings → Remote access, with the password, app keys and ports) explains what turning it on does (and that
+The UI (Settings → Remote access, with the password and app keys) explains what turning it on does (and that
 Windows asks next, Private networks only) before it sets the setting. Without a password the endpoints stay closed even
 when the setting is on (see [Access](#access-this-computer-and-other-devices)); setting one opens them at once.
 
