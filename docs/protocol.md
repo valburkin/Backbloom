@@ -59,7 +59,9 @@ set), `login` (password or token), `logout`, `newPassword` (`{ newPassword, pass
 needed only from another device; this computer can set a new one without it, also when it was forgotten),
 `createToken`, `getTokenList`, `deleteToken`. Passwords and tokens are stored as PBKDF2 hashes. HyperHDR's
 `network.apiAuth`, `localApiAuth`, `localAdminAuth`, `internetAccessAPI`, `restirctedInternetAccessAPI` and
-`ipWhitelist` no longer exist; `setconfig` ignores them.
+`ipWhitelist` no longer exist; `setconfig` ignores them, as it ignores HyperHDR's `webConfig` section and
+`general.showOptHelp`: the web port is the `--port` option, and the API is served over http and WebSocket (`ws://`)
+only.
 
 ## Commands
 

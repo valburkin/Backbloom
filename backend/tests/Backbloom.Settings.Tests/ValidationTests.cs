@@ -41,7 +41,7 @@ public sealed class ValidationTests
     [InlineData("foregroundEffect", """{ "duration_ms": -2 }""", "foregroundEffect.duration_ms", "must be at least -1")]
     [InlineData("backgroundEffect", """{ "color": [255, 0, 256] }""", "backgroundEffect.color.2", "must be at most 255")]
     [InlineData("soundEffect", """{ "enable": "on" }""", "soundEffect.enable", "must be true or false")]
-    [InlineData("webConfig", """{ "port": 70000 }""", "webConfig.port", "must be at most 65535")]
+    [InlineData("mqtt", """{ "port": 70000 }""", "mqtt.port", "must be at most 65535")]
     [InlineData("effects", """{ "paths": [] }""", "effects.paths", "needs at least 1 item")]
     [InlineData("systemControl", """{ "systemInstancePriority": 254 }""", "systemControl.systemInstancePriority", "must be at most 253")]
     [InlineData("systemControl", """{ "cecControl": false }""", "systemControl.cecControl", "isn't a known setting")]

@@ -121,9 +121,9 @@ Ideas and loose ends, roughly in priority order:
   list every connected one, and say when a fallback captures another than the setting names.
 - **Phone remote**: Remote access (Settings) already opens the full UI on a phone through its QR code, but the UI
   is designed for the PC and looks poor on a phone. Add a phone-first remote: the everyday controls only (on/off,
-  what's shown, brightness, the Look, presets), large touch targets, installable to the home
-  screen (web app manifest) and staying signed in. Setup pages (Layout, Devices) stay on the PC. Later: a native app
-  or widgets/quick tiles, if the web remote proves popular.
+  what's shown, brightness, the Look, presets), large touch targets, installable to the home screen (web app
+  manifest; needs [https](#platform-and-distribution)) and staying signed in. Setup pages (Layout, Devices) stay on
+  the PC. Later: a native app or widgets/quick tiles, if the web remote proves popular.
 - Hotkeys (also for turning presets on and off).
 - Phone-camera auto-mapping of LED positions.
 - Tray menu dark theme.
@@ -134,7 +134,14 @@ Ideas and loose ends, roughly in priority order:
 
 - **Code signing** (removes the SmartScreen "unknown publisher" warning): get a certificate, fill in
   `packaging/build.ps1 -SignTemplate`.
-- **Per-install TLS certificate** if HTTPS for remote access is added.
+- **https for remote access**: Backbloom serves http only, so the password and session cross the home network
+  unencrypted. A self-signed certificate isn't the answer (phones show a full-page warning, and an installable phone
+  remote needs a certificate the phone trusts), so the plan is a trusted one per install: a name under a domain
+  Backbloom owns that points at the PC's local address, with a Let's Encrypt certificate (DNS challenge). It needs that
+  domain and a small DNS service, so it comes with the phone remote. To weigh first: every such name is listed in the
+  public certificate transparency logs (names must not identify the user), and some home routers refuse DNS answers
+  that point to a local address (rebinding protection), so a fallback is needed. 0.2.0 showed https port and
+  certificate fields that did nothing; they were removed.
 - Run as a Windows service (`--service`) for headless setups.
 - macOS and Linux: capture (ScreenCaptureKit / PipeWire), audio, tray and window behind the existing interfaces; the
   upstream HyperHDR C++ grabbers are reference implementations: they are in this repo's first commit (`118190e`, e.g.

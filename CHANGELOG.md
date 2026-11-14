@@ -10,6 +10,22 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ## Unreleased
 
+### Changed
+
+- **Remote access says it isn't encrypted**: the dialog that turns it on now tells you that other devices connect
+  without encryption, so turn it on only on a network you trust. https, with a certificate that phones trust without a
+  warning, is planned together with a phone remote (see the
+  [roadmap](https://github.com/valburkin/Backbloom/blob/main/docs/roadmap.md#platform-and-distribution)).
+
+### Removed
+
+- **Remote access settings that did nothing**: under More options, Settings → Remote access showed a port field and a
+  "Secure port (https)" field, and with expert tools on, certificate and key fields. Backbloom never read any of them:
+  it doesn't serve https, and its port is set when it starts (18290 unless started with `--port`). Changing them had no
+  effect, so they are gone. Nothing changes for devices that already connect: same address, same port, `http://` as
+  before. The old values are deleted from your settings, including a key password if you typed one in (backups made
+  before still contain it).
+
 ### Fixed
 
 - **Keys in logs and error messages**: when a Nanoleaf panel or a Philips Hue bridge didn't answer, the log line and

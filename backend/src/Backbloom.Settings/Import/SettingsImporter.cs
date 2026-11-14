@@ -91,6 +91,11 @@ public sealed class SettingsImporter(SettingsSchema schema)
     {
         foreach (var type in snapshot.Settings.Select(s => s.Type).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
         {
+            if (LegacyMigrations.UnusedSettingsTypes.Contains(type))
+            {
+                continue;
+            }
+
             if (LegacyMigrations.RemovedSettingsTypes.Contains(type))
             {
                 changes.Add($"Removed the '{type}' settings: the feature is not part of this version");

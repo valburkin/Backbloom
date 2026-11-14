@@ -36,19 +36,19 @@ the program in `%LOCALAPPDATA%\BackbloomApp`, separate from the data, so uninsta
 ## Sections
 
 `general`, `logger`, `device`, `color`, `smoothing`, `systemGrabber`, `blackborderdetector`, `foregroundEffect`,
-`backgroundEffect`, `soundEffect`, `webConfig`, `effects`, `systemControl`, `network`, `ledConfig`, `leds`, `mqtt`,
-`layout`, `presets`. Their JSON schemas are in `backend/src/Backbloom.Settings/Schemas` (the LED driver schemas in
+`backgroundEffect`, `soundEffect`, `effects`, `systemControl`, `network`, `ledConfig`, `leds`, `mqtt`, `layout`,
+`presets`. Their JSON schemas are in `backend/src/Backbloom.Settings/Schemas` (the LED driver schemas in
 `backend/src/Backbloom.Devices/Schemas`); defaults exist only there.
 
 - `setconfig` validates strictly: an invalid value is rejected with a per-field error and nothing is stored.
 - The UI stores most changes on its own, 0.5 s after the last edit or when the page closes (Colors, Screen sync,
-  Effects, Settings → General and Support). `webConfig`, `mqtt` and the layout wait for Save, since a half-typed port
-  or address would take effect; `network.remoteAccess` is stored when it is turned on or off.
+  Effects, Settings → General and Support). `mqtt` and the layout wait for Save, since a half-typed port or address
+  would take effect; `network.remoteAccess` is stored when it is turned on or off.
 - Each property's `access` is its tier in the UI (none: always shown, `"advanced"`: under More options, `"expert"`:
   only with Settings → General → Show expert and diagnostic tools, or while its value isn't the default); see
   [ui-guidelines.md](ui-guidelines.md).
 - The UI's Settings page: General (`general`, Start with Windows, backups), Remote access (`network`, the password,
-  app keys, `webConfig`), Integrations (`mqtt`), About, and Support (live log, `logger`) with expert tools on.
+  app keys), Integrations (`mqtt`), About, and Support (live log, `logger`) with expert tools on.
   `logger.level` defaults to `warn` (warnings and errors).
 - Imports and data written by an older schema version are repaired instead (numbers clamped, unknown fields dropped,
   invalid values reset to their default), and every repair is logged.
@@ -162,6 +162,10 @@ What the import does (idempotent, one log line per change, never logging secrets
 - HyperHDR's access options in `network` (`apiAuth`, `localApiAuth`, `localAdminAuth`, `internetAccessAPI`,
   `restirctedInternetAccessAPI`, `ipWhitelist`) are removed: this computer always has full access, other devices
   always sign in. Imports drop them.
+- HyperHDR's web server section (`webConfig`: port, https port and certificate, web root) and `general.showOptHelp`
+  are dropped without a report: nothing reads them. Backbloom's port is the `--port` option and it serves http only
+  (see [Access](backend/access-and-first-run.md#access-this-computer-and-other-devices)). A database written by 0.2.0,
+  which still stored them, loses them when it is opened.
 
 ## First run
 

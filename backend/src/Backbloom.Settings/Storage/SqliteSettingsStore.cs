@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using Backbloom.Settings.Import;
 using Backbloom.Settings.Layout;
 
 namespace Backbloom.Settings.Storage;
@@ -468,6 +469,7 @@ public sealed partial class SqliteSettingsStore : ISettingsStore
             return (sections, controllers);
         });
 
+        RemoveUnusedSettings(storedSections);
         foreach (var section in SettingsSchema.BuiltinSections.Where(_schema.HasSection))
         {
             if (section == SettingsSchema.ControllerSection)
@@ -526,6 +528,62 @@ public sealed partial class SqliteSettingsStore : ISettingsStore
             var now = SettingsDatabase.Timestamp(_time.GetUtcNow());
             _db.Write((c, t) => ReplaceControllers(c, t, derived.Controllers, now));
             _controllers = derived.Controllers;
+        }
+    }
+
+    // Settings 0.2.0 stored that nothing reads (LegacyMigrations.UnusedSettingsTypes and UnusedFields) leave the
+    // database for good, so a key password typed into its https fields doesn't stay in the settings.
+    private void RemoveUnusedSettings(Dictionary<string, string> storedSections)
+    {
+        var unused = storedSections.Keys.Where(LegacyMigrations.UnusedSettingsTypes.Contains).ToList();
+        var cleaned = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
+        foreach (var section in LegacyMigrations.UnusedFields.Keys)
+        {
+            if (storedSections.TryGetValue(section, out var json) && ParseObject(json) is { } value &&
+                LegacyMigrations.RemoveUnusedFields(section, value))
+            {
+                cleaned[section] = value;
+            }
+        }
+
+        if (unused.Count == 0 && cleaned.Count == 0)
+        {
+            return;
+        }
+
+        var now = SettingsDatabase.Timestamp(_time.GetUtcNow());
+        _db.Write((c, t) =>
+        {
+            foreach (var section in unused)
+            {
+                SettingsDatabase.Execute(c, t, "DELETE FROM settings WHERE section = $section", ("$section", section));
+            }
+
+            foreach (var (section, value) in cleaned)
+            {
+                UpsertSection(c, t, section, value, now);
+            }
+        });
+        foreach (var section in unused)
+        {
+            storedSections.Remove(section);
+        }
+
+        foreach (var (section, value) in cleaned)
+        {
+            storedSections[section] = value.ToJsonString();
+        }
+    }
+
+    private static JsonObject? ParseObject(string json)
+    {
+        try
+        {
+            return JsonNode.Parse(json) as JsonObject;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
         }
     }
 

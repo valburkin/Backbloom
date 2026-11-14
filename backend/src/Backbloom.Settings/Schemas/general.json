@@ -12,14 +12,6 @@
       "required": true,
       "propertyOrder": 1
     },
-    "showOptHelp": {
-      "type": "boolean",
-      "format": "checkbox",
-      "title": "edt_conf_gen_showOptHelp_title",
-      "default": true,
-      "required": true,
-      "propertyOrder": 3
-    },
     "version": {
       "type": "integer",
       "default": 2,

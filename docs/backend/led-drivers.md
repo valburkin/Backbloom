@@ -59,7 +59,7 @@ Every driver of HyperHDR's C++ code is ported (`sources/led-drivers`). The setti
 
 ## Setting tiers
 
-Every property of a driver schema (and of `device`, `mqtt`, `webConfig`) has a tier in `access` (see
+Every property of a driver schema (and of `device`, `mqtt`) has a tier in `access` (see
 [docs/ui-guidelines.md](../ui-guidelines.md#setting-tiers)):
 
 | Tier | Used for |

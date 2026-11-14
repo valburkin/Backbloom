@@ -16,7 +16,7 @@ overview of the same data.
 ## Sections and validation
 
 Every settings type HyperHDR's C++ code kept is a section: `general`, `logger`, `device`, `color`, `smoothing`,
-`systemGrabber`, `blackborderdetector`, `foregroundEffect`, `backgroundEffect`, `soundEffect`, `webConfig`, `effects`,
+`systemGrabber`, `blackborderdetector`, `foregroundEffect`, `backgroundEffect`, `soundEffect`, `effects`,
 `systemControl`, `network`, `ledConfig`, `leds`, `mqtt`, `layout`, plus Backbloom's own `presets` (the profile chosen by
 hand, see [Profiles](layout-and-controllers.md#profiles-the-apps-presets)).
 
@@ -55,7 +55,8 @@ HyperHDR ran a complete pipeline per instance; Backbloom runs one pipeline that 
 
 | HyperHDR | Backbloom |
 |---|---|
-| global types (`general`, `logger`, `network`, `webConfig`, `mqtt`, `systemGrabber`, `soundEffect`, `layout`) | pipeline sections |
+| global types (`general`, `logger`, `network`, `mqtt`, `systemGrabber`, `soundEffect`, `layout`) | pipeline sections |
+| `webConfig` (HyperHDR's web server: port, https, web root) | dropped without a report: nothing reads it (the port is `--port`) |
 | per-instance types of the first instance (`leds`, `ledConfig`, `color`, `smoothing`, `blackborderdetector`, `foregroundEffect`, `backgroundEffect`, `effects`, `systemControl`) | pipeline sections |
 | `device` of instance N (in instance order), name and enabled flag from `instances` | controller N; controller 0 is the `device` of `getconfig`/`setconfig` (with a `layout`, the table mirrors its controllers) |
 | per-instance settings of further instances | not imported (reported) |
@@ -86,7 +87,9 @@ The rules are all idempotent and logged one line each (never with secrets):
   working; `AuthService` replaces them with PBKDF2 on first use. A password still at HyperHDR's (or an earlier C++
   build's) factory default isn't imported: Backbloom has no factory password, and the user sets one for remote access;
 - HyperHDR's `network` access options (`apiAuth`, `localApiAuth`, `localAdminAuth`, internet access, IP whitelist) are
-  removed.
+  removed;
+- `general.showOptHelp` (the help toggle of HyperHDR's UI, which nothing reads) is removed without a report, here and
+  from a database that 0.2.0 wrote when it is opened (with its `webConfig` row; `LegacyMigrations.UnusedFields`).
 
 Converting is a pure function of the source, so importing the same file again changes nothing.
 
