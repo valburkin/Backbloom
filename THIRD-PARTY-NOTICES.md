@@ -34,7 +34,7 @@ dependencies of the web interface; don't edit it by hand. Every code license is 
 |---|---|---|---|
 | [@fontsource-variable/inter](https://fontsource.org/fonts/inter) | 5.3.0 | OFL-1.1 | Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter) Inter-Italic[opsz,wght].ttf: Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter) |
 | [@fontsource-variable/space-grotesk](https://fontsource.org/fonts/space-grotesk) | 5.3.0 | OFL-1.1 | Copyright 2020 The Space Grotesk Project Authors (https://github.com/floriankarsten/space-grotesk) |
-| [lucide-react](https://lucide.dev) | 1.71.0 | ISC | Copyright (c) 2026 Lucide Icons and Contributors |
+| [lucide-react](https://lucide.dev) | 1.72.0 | ISC | Copyright (c) 2026 Lucide Icons and Contributors |
 | [react](https://react.dev/) | 19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | [react-dom](https://react.dev/) | 19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | [scheduler](https://react.dev/) | 0.28.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
@@ -1563,7 +1563,7 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
-### lucide-react 1.71.0
+### lucide-react 1.72.0
 
 ```text
 ISC License
