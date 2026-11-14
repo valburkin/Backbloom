@@ -61,7 +61,8 @@ public sealed class JsonRest(HttpClient http, IReadOnlyDictionary<string, string
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new TimeoutException($"{method} {uri} timed out.");
+            // only the address: Nanoleaf and older Hue requests carry their key in the path, and this goes to the log
+            throw new TimeoutException($"{method} {uri.Scheme}://{uri.Authority.Split('@')[^1]} timed out.");
         }
     }
 }

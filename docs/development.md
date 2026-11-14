@@ -42,7 +42,7 @@ cd ../ui
 npm ci
 npx tsc --noEmit
 npm test                           # Vitest
-npm run dev                        # Vite dev server; open http://localhost:5173/?backend=127.0.0.1:18290
+npm run dev                        # Vite dev server; open http://localhost:5173/?backend=127.0.0.1:18300
 npm run build                      # ui/dist, copied next to the app by the backend build
 
 cd ../site                         # the landing page, see site/README.md
@@ -72,7 +72,7 @@ The guided hardware setup has more mock variants; see
 
 ```powershell
 cd backend
-dotnet run --project src/Backbloom.App -c Release -- --capture synthetic --port 18290 --data-dir .local/dev --legacy-data-dir none
+dotnet run --project src/Backbloom.App -c Release -- --capture synthetic --port 18300 --data-dir .local/dev --legacy-data-dir none
 ```
 
 - A build from the source tree uses `backend/.local/data` unless `--data-dir` says otherwise, listens on 127.0.0.1

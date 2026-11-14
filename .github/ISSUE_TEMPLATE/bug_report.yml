@@ -56,4 +56,5 @@ body:
       label: Logs
       description: >-
         Attach the newest backbloom-….log (and any crash-….jsonl) from %LOCALAPPDATA%\Backbloom\logs. They contain
-        your PC's name and your devices' names and local addresses; replace anything you'd rather not share.
+        your PC's name and your devices' names and local addresses (logs from 0.2.0 may also hold a Nanoleaf or Hue
+        key); replace anything you'd rather not share.

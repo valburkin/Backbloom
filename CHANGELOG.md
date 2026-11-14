@@ -10,6 +10,12 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ## Unreleased
 
+### Fixed
+
+- **Keys in the log**: when a Nanoleaf panel or a Philips Hue bridge using the older connection didn't answer, the log
+  line carried the light's key. Logs no longer do. If you shared a log from 0.2.0 in an issue, pair that light again
+  in the app to replace its key.
+
 ## 0.2.0 – 2026-11-13
 
 First public release.
