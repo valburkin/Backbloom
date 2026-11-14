@@ -12,9 +12,10 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ### Fixed
 
-- **Keys in the log**: when a Nanoleaf panel or a Philips Hue bridge using the older connection didn't answer, the log
-  line carried the light's key. Logs no longer do. If you shared a log from 0.2.0 in an issue, pair that light again
-  in the app to replace its key.
+- **Keys in logs and error messages**: when a Nanoleaf panel or a Philips Hue bridge didn't answer, the log line and
+  the error shown in the app could carry the key Backbloom uses to control it. They no longer do. If you posted a log
+  or a screenshot of such an error from 0.2.0, edit the key out (the long code after `/api/` in an address); it works
+  only on your home network. Pairing the light again gives Backbloom a new key but doesn't cancel the old one.
 
 ## 0.2.0 – 2026-11-13
 
