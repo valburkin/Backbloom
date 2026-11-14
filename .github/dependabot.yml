@@ -1,8 +1,8 @@
 # Minor and patch updates come grouped, one pull request per area; a major version comes on its own, since it usually
-# needs code changes, except for packages that only work at the same version (vitest and its plugins, React and its
-# types), which come together. Updates of the UI's production dependencies, Tailwind or the app's NuGet packages change
-# the bundled licenses: run packaging/Update-ThirdPartyNotices.ps1 on the branch and commit the result (CI checks it,
-# so such a pull request fails until then).
+# needs code changes, except for packages that only work at the same version (vitest, React, vite and Tailwind, each
+# with its companion packages), which come together. Updates of the UI's production dependencies, Tailwind or the app's
+# NuGet packages change the bundled licenses: run packaging/Update-ThirdPartyNotices.ps1 on the branch and commit the
+# result (CI checks it, so such a pull request fails until then).
 version: 2
 updates:
   - package-ecosystem: nuget
@@ -30,6 +30,10 @@ updates:
         patterns: ['vitest', '@vitest/*']
       react:
         patterns: ['react', 'react-dom', '@types/react', '@types/react-dom']
+      vite:
+        patterns: ['vite', '@vitejs/*']
+      tailwind:
+        patterns: ['tailwindcss', '@tailwindcss/*']
       ui-dev:
         dependency-type: development
         update-types: [minor, patch]

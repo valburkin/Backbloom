@@ -30,10 +30,10 @@ export default defineConfig({
         // types only
         'src/layout/types.ts',
       ],
-      // a floor a little under the measured numbers, so a change that drops tests shows; components are mostly
-      // covered by rendering tests of whole pages. Vitest 4 and later map V8's coverage onto the source's syntax tree,
-      // which counts more branches and functions than Vitest 3 did (same tests: lines 65.8 % became 60.8 %, branches
-      // 78.1 % became 52.3 %)
+      // a floor a little under the measured numbers, so a change that drops tests shows; components are mostly covered
+      // by rendering tests of whole pages. Vitest 4 and later map V8's coverage onto the source's syntax tree, which
+      // counts more branches and functions than Vitest 3 did (same tests: lines 65.8 % became 60.8 %, branches 78.1 %
+      // became 52.3 %; Vitest 3 with experimentalAstAwareRemapping measures the same as Vitest 5)
       thresholds: { lines: 59, statements: 57, branches: 51, functions: 47 },
     },
   },
