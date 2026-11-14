@@ -16,7 +16,8 @@ namespace Backbloom.Engine.Tests;
 /// CPU cost of the whole pipeline: the reference setup's 168 LEDs on one file controller writing to the null device, or the
 /// same plus two 30-LED controllers (three controllers, one mapping pass), the synthetic source at 60 fps, with or
 /// without smoothing at 50 Hz. Explicit: run with
-/// <c>dotnet test -c Release --filter PipelineProfile -- xUnit.Explicit=on</c>; the result is written to the output.
+/// <c>dotnet test -c Release --project tests/Backbloom.Engine.Tests --output detailed -- --filter "FullyQualifiedName~PipelineProfile"
+/// --explicit on</c>; the result is in each test's standard output.
 /// </summary>
 public sealed class PipelineProfile(ITestOutputHelper output)
 {

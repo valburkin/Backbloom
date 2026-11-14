@@ -34,7 +34,9 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider
         _time = time ?? TimeProvider.System;
         _maxFileBytes = maxFileBytes;
         Directory.CreateDirectory(directory);
-        _writer = new Thread(WriteLoop) { Name = "Backbloom log file", IsBackground = true, Priority = ThreadPriority.BelowNormal };
+        // normal priority: below it, a PC at full load (a game, a build) starved the writer for seconds, so Flush and
+        // Dispose gave up and the last lines of a shutdown could go missing; the writer is idle almost all the time
+        _writer = new Thread(WriteLoop) { Name = "Backbloom log file", IsBackground = true };
         _writer.Start();
     }
 
@@ -69,11 +71,9 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider
             return;
         }
 
+        // the writer closes the file when it has written the rest, also after this gives up waiting
         _queue.CompleteAdding();
-        if (_writer.Join(TimeSpan.FromSeconds(5)))
-        {
-            _file?.Dispose();
-        }
+        _writer.Join(TimeSpan.FromSeconds(5));
     }
 
     internal static string Format(DateTimeOffset time, LogLevel level, string category, string message, Exception? exception)
@@ -149,7 +149,8 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider
             }
         }
 
-        _file?.Flush();
+        _file?.Dispose();
+        _file = null;
     }
 
     private void Write(string line)
