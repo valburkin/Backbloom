@@ -168,7 +168,11 @@ next patch from that branch, then merge the fix into `main` too.
 
 After adding or updating a NuGet package used by the app or an npm production dependency, run
 `packaging/Update-ThirdPartyNotices.ps1` (it fails on non-permissive licenses; fonts may also be OFL-1.1) and commit
-`THIRD-PARTY-NOTICES.md` and `3RD_PARTY_LICENSES`. CI checks that they are up to date.
+`THIRD-PARTY-NOTICES.md` and `3RD_PARTY_LICENSES`. CI checks that they are up to date, so a Dependabot pull request that
+updates such a package fails until the script has run on its branch. Packages that hold only type definitions (such as
+`@types/react`) are left out: nothing of theirs is bundled. Dependabot's rules are in `.github/dependabot.yml`; packages
+of the .NET release itself (`Microsoft.Extensions.*`, `System.*`, `Microsoft.Data.Sqlite`) keep the target framework's
+major version.
 
 The landing page in `site/` isn't shipped with the app, so its dependencies don't go into these files (they must still
 be permissively licensed); it lists them in `site/public/licenses.txt`.

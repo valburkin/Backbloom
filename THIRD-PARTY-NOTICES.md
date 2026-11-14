@@ -14,19 +14,19 @@ dependencies of the web interface; don't edit it by hand. Every code license is 
 | [BouncyCastle.Cryptography](https://www.bouncycastle.org/stable/nuget/csharp/website) | 2.7.0 | MIT | Copyright © Legion of the Bouncy Castle Inc. 2000-2026 |
 | [HidSharp](https://software.seekye.com/hidsharp) | 2.6.4 | Apache-2.0 | Copyright 2010-2025 James Bellinger |
 | [Hyperion.ng](https://github.com/hyperion-project/hyperion.ng) |  | MIT | Copyright (c) 2014-2020 Hyperion Project |
-| [Microsoft.Data.Sqlite](https://docs.microsoft.com/dotnet/standard/data/sqlite/) | 10.0.13 | MIT | © Microsoft Corporation. All rights reserved. |
-| [Microsoft.Data.Sqlite.Core](https://docs.microsoft.com/dotnet/standard/data/sqlite/) | 10.0.13 | MIT | © Microsoft Corporation. All rights reserved. |
-| [Microsoft.Web.WebView2](https://aka.ms/webview) | 1.0.4258.31 | BSD-3-Clause | © Microsoft Corporation. All rights reserved. |
+| [Microsoft.Data.Sqlite](https://docs.microsoft.com/dotnet/standard/data/sqlite/) | 10.0.15 | MIT | © Microsoft Corporation. All rights reserved. |
+| [Microsoft.Data.Sqlite.Core](https://docs.microsoft.com/dotnet/standard/data/sqlite/) | 10.0.15 | MIT | © Microsoft Corporation. All rights reserved. |
+| [Microsoft.Web.WebView2](https://aka.ms/webview) | 1.0.4314.35 | BSD-3-Clause | © Microsoft Corporation. All rights reserved. |
 | [MQTTnet](https://github.com/dotnet/MQTTnet) | 5.2.0.1603 | MIT | Copyright (c) .NET Foundation and Contributors |
 | [SQLite](https://sqlite.org/copyright.html) | 3 | Public domain | D. Richard Hipp and contributors |
 | [SQLitePCLRaw.bundle_e_sqlite3](https://www.nuget.org/packages/SQLitePCLRaw.bundle_e_sqlite3) | 2.1.13 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC |
 | [SQLitePCLRaw.core](https://www.nuget.org/packages/SQLitePCLRaw.core) | 2.1.13 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC |
 | [SQLitePCLRaw.lib.e_sqlite3](https://www.nuget.org/packages/SQLitePCLRaw.lib.e_sqlite3) | 2.1.13 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC |
 | [SQLitePCLRaw.provider.e_sqlite3](https://www.nuget.org/packages/SQLitePCLRaw.provider.e_sqlite3) | 2.1.13 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC |
-| [System.IO.Ports](https://dot.net/) | 10.0.12 | MIT | © Microsoft Corporation. All rights reserved. |
+| [System.IO.Ports](https://dot.net/) | 10.0.15 | MIT | © Microsoft Corporation. All rights reserved. |
 | [TerraFX.Interop.Windows](https://github.com/terrafx/terrafx.interop.windows) | 10.0.26100.6 | MIT | Copyright © Tanner Gooding and Contributors |
 | [Velopack](https://github.com/velopack/velopack) | 1.2.161 | MIT | Copyright © Velopack Ltd. All rights reserved. |
-| [ZstdSharp.Port](https://github.com/oleg-st/ZstdSharp) | 0.8.7 | MIT | Copyright Oleg Stepanischev 2026 |
+| [ZstdSharp.Port](https://github.com/oleg-st/ZstdSharp) | 0.8.8 | MIT | Copyright Oleg Stepanischev 2026 |
 
 ## Web interface
 
@@ -34,11 +34,11 @@ dependencies of the web interface; don't edit it by hand. Every code license is 
 |---|---|---|---|
 | [@fontsource-variable/inter](https://fontsource.org/fonts/inter) | 5.3.0 | OFL-1.1 | Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter) Inter-Italic[opsz,wght].ttf: Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter) |
 | [@fontsource-variable/space-grotesk](https://fontsource.org/fonts/space-grotesk) | 5.3.0 | OFL-1.1 | Copyright 2020 The Space Grotesk Project Authors (https://github.com/floriankarsten/space-grotesk) |
-| [lucide-react](https://lucide.dev) | 0.544.0 | ISC | Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2023 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2025. |
-| [react](https://react.dev/) | 19.1.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| [react-dom](https://react.dev/) | 19.1.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| [scheduler](https://react.dev/) | 0.26.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| [tailwindcss](https://tailwindcss.com) | 4.1.13 | MIT | Copyright (c) Tailwind Labs, Inc. |
+| [lucide-react](https://lucide.dev) | 1.71.0 | ISC | Copyright (c) 2026 Lucide Icons and Contributors |
+| [react](https://react.dev/) | 19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| [react-dom](https://react.dev/) | 19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| [scheduler](https://react.dev/) | 0.28.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| [tailwindcss](https://tailwindcss.com) | 4.3.5 | MIT | Copyright (c) Tailwind Labs, Inc. |
 | [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT | Copyright (c) Project Nayuki |
 
 ## License texts
@@ -314,7 +314,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### Microsoft.Data.Sqlite 10.0.13
+### Microsoft.Data.Sqlite 10.0.15
 
 ```text
 The MIT License (MIT)
@@ -340,7 +340,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### Microsoft.Data.Sqlite.Core 10.0.13
+### Microsoft.Data.Sqlite.Core 10.0.15
 
 ```text
 The MIT License (MIT)
@@ -366,7 +366,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### Microsoft.Web.WebView2 1.0.4258.31
+### Microsoft.Web.WebView2 1.0.4314.35
 
 ```text
 Copyright (C) Microsoft Corporation. All rights reserved.
@@ -1263,7 +1263,7 @@ Copyright 2014-2024 SourceGear, LLC
    limitations under the License.
 ```
 
-### System.IO.Ports 10.0.12
+### System.IO.Ports 10.0.15
 
 ```text
 The MIT License (MIT)
@@ -1341,7 +1341,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### ZstdSharp.Port 0.8.7
+### ZstdSharp.Port 0.8.8
 
 ```text
 The MIT License (MIT)
@@ -1563,12 +1563,12 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
-### lucide-react 0.544.0
+### lucide-react 1.71.0
 
 ```text
 ISC License
 
-Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2023 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2025.
+Copyright (c) 2026 Lucide Icons and Contributors
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -1584,9 +1584,13 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-The MIT License (MIT) (for portions derived from Feather)
+The following Lucide icons are derived from the Feather project:
 
-Copyright (c) 2013-2023 Cole Bemis
+airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circle, arrow-down-left, arrow-down-right, arrow-down, arrow-left-circle, arrow-left, arrow-right-circle, arrow-right, arrow-up-circle, arrow-up-left, arrow-up-right, arrow-up, at-sign, calendar, cast, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-down, chevrons-left, chevrons-right, chevrons-up, circle, clipboard, clock, code, columns, command, compass, corner-down-left, corner-down-right, corner-left-down, corner-left-up, corner-right-down, corner-right-up, corner-up-left, corner-up-right, crosshair, database, divide-circle, divide-square, dollar-sign, download, external-link, feather, frown, hash, headphones, help-circle, info, italic, key, layout, life-buoy, link-2, link, loader, lock, log-in, log-out, maximize, meh, minimize, minimize-2, minus-circle, minus-square, minus, monitor, moon, more-horizontal, more-vertical, move, music, navigation-2, navigation, octagon, pause-circle, percent, plus-circle, plus-square, plus, power, radio, rss, search, server, share, shopping-bag, sidebar, smartphone, smile, square, table-2, tablet, target, terminal, trash-2, trash, triangle, tv, type, upload, x-circle, x-octagon, x-square, x, zoom-in, zoom-out
+
+The MIT License (MIT) (for the icons listed above)
+
+Copyright (c) 2013-present Cole Bemis
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -1607,7 +1611,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### react 19.1.1
+### react 19.3.1
 
 ```text
 MIT License
@@ -1633,7 +1637,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### react-dom 19.1.1
+### react-dom 19.3.1
 
 ```text
 MIT License
@@ -1659,7 +1663,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### scheduler 0.26.0
+### scheduler 0.28.0
 
 ```text
 MIT License
@@ -1685,7 +1689,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### tailwindcss 4.1.13
+### tailwindcss 4.3.5
 
 ```text
 MIT License

@@ -97,6 +97,10 @@ try { $npmPaths = npm ls --omit=dev --all --parseable } finally { Pop-Location }
 if ($LASTEXITCODE -ne 0) { throw 'npm ls failed: run npm ci in ui/ first.' }
 $npmDirs = @($npmPaths | Select-Object -Skip 1) + (Join-Path $ui 'node_modules/tailwindcss')
 foreach ($dir in ($npmDirs | Sort-Object -Unique)) {
+    # Type definitions only (@types/react and its csstype, an optional peer of lucide-react that npm ls counts): no
+    # file of theirs can end up in the bundle.
+    $runtime = Get-ChildItem $dir -Recurse -File -Include '*.js', '*.mjs', '*.cjs', '*.css', '*.woff', '*.woff2' | Select-Object -First 1
+    if (-not $runtime) { continue }
     $manifest = Get-Content -Raw (Join-Path $dir 'package.json') | ConvertFrom-Json
     $licenseFile = Get-ChildItem $dir -File | Where-Object Name -match '^licen[cs]e' | Select-Object -First 1
     if (-not $licenseFile) { throw "$($manifest.name) has no license file." }
