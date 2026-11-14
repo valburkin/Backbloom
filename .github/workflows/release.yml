@@ -56,7 +56,7 @@ jobs:
 
       - name: Test
         working-directory: backend
-        run: dotnet test -c Release
+        run: dotnet test -c Release --max-parallel-test-modules 4
 
       - name: Build the installer
         shell: pwsh

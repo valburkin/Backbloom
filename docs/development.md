@@ -52,7 +52,9 @@ npm run build                      # type check + site/dist
 ```
 
 Run `dotnet test` in `backend/`: its `global.json` switches it to Microsoft.Testing.Platform, which xUnit v3 4
-needs; from another folder `dotnet test` falls back to VSTest and fails.
+needs; from another folder `dotnet test` falls back to VSTest and fails. It runs the test projects in parallel; on a
+machine with few cores, add `--max-parallel-test-modules 4` (as CI does), since a few tests have deadlines that an
+overloaded CPU misses.
 
 ### UI without a backend
 

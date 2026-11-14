@@ -70,10 +70,12 @@ jobs:
         working-directory: backend
         run: dotnet build -warnaserror -c Release
 
+      # Test projects run at most four at a time (the runner's cores): all ten at once, instrumented, starved the
+      # tests that have a deadline (the 4.5 s shutdown at the end of a Windows session).
       - name: Test with coverage
         working-directory: backend
         run: >-
-          dotnet test -c Release --no-build
+          dotnet test -c Release --no-build --max-parallel-test-modules 4
           --coverage --coverage-output-format cobertura --coverage-settings coverage.config
           --results-directory ${{ github.workspace }}/artifacts/coverage
 
