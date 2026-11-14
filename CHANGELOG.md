@@ -28,6 +28,8 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ### Fixed
 
+- **Credits**: Settings → About now also names uqr, which draws the remote access QR code. About and the third-party
+  notices now name Vite and Rolldown too, whose small runtime helpers are part of the interface.
 - **Last lines of the log on a busy PC**: when the PC was fully loaded (a game, a build), the last lines Backbloom
   wrote before quitting could be missing from its log file. Its log writer no longer waits behind other programs.
 - **Keys in logs and error messages**: when a Nanoleaf panel or a Philips Hue bridge didn't answer, the log line and
