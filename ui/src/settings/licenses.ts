@@ -32,6 +32,7 @@ export const UI_LIBRARIES: ReadonlyArray<{ name: string; license: string; url: s
   { name: 'Tailwind CSS', license: 'MIT', url: 'https://tailwindcss.com' },
   { name: 'uqr (QR codes)', license: 'MIT', url: 'https://github.com/unjs/uqr' },
   { name: 'Vite (module loading helper)', license: 'MIT', url: 'https://vite.dev' },
+  { name: 'Rolldown (module wrapper)', license: 'MIT', url: 'https://rolldown.rs' },
   { name: 'Inter (font)', license: 'OFL-1.1', url: 'https://rsms.me/inter' },
   { name: 'Space Grotesk (font)', license: 'OFL-1.1', url: 'https://github.com/floriankarsten/space-grotesk' },
 ];

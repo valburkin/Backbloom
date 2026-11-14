@@ -5,8 +5,9 @@
 .DESCRIPTION
     - backend: the NuGet packages of Backbloom.App (direct and transitive; restore first), with the license and
       copyright of each package's .nuspec and its license file when it has one;
-    - ui: the npm production dependencies (npm ls --omit=dev; run npm ci first) plus Tailwind CSS, whose generated
-      styles are part of the bundle, with each package's LICENSE file;
+    - ui: the npm production dependencies (npm ls --omit=dev; run npm ci first; packages of type definitions only are
+      left out) plus Tailwind CSS, whose generated styles are part of the bundle, with each package's LICENSE file, and
+      the build tools whose runtime helpers are in the bundle (Vite, Rolldown; major version only);
     - components that come with the build: the .NET runtime and ASP.NET Core (self-contained), SQLite (in
       e_sqlite3.dll), and Hyperion.ng, whose code HyperHDR (and so Backbloom) is derived from.
 
@@ -106,17 +107,24 @@ foreach ($dir in ($npmDirs | Sort-Object -Unique)) {
     $licenseFile = Get-ChildItem $dir -File | Where-Object Name -match '^licen[cs]e' | Select-Object -First 1
     if (-not $licenseFile) { throw "$($manifest.name) has no license file." }
     $text = Get-Content -Raw $licenseFile.FullName
-    $copyright = ((Normalize $text) -split "`n" | Where-Object { $_ -match 'Copyright' } | Select-Object -First 1)
+    # every holder in the summary (lucide's own and Feather's, from which some icons come)
+    $copyright = ((Normalize $text) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -cmatch '^Copyright\s+(\(c\)|\(C\)|©|\d)' } | Select-Object -Unique) -join '; '
     $url = if ($manifest.PSObject.Properties['homepage']) { $manifest.homepage } else { "https://www.npmjs.com/package/$($manifest.name)" }
     $components.Add((New-Component $manifest.name $manifest.version $manifest.license $copyright $url $text 'Web interface'))
 }
 
-# Vite is a build tool, but the bundle carries its small runtime helper that loads the lazily loaded parts of the UI.
-# Major version only, so its patches don't change these files.
-$vite = Get-Content -Raw (Join-Path $ui 'node_modules/vite/package.json') | ConvertFrom-Json
-$viteCopyright = 'Copyright (c) 2019-present, VoidZero Inc. and Vite contributors'
-$components.Add((New-Component 'Vite (module loading helper)' $vite.version.Split('.')[0] 'MIT' $viteCopyright 'https://vite.dev' `
-    (Get-MitText $viteCopyright) 'Web interface'))
+# Build tools whose small runtime helpers end up in the bundle: Vite's loader for the lazily loaded parts of the UI and
+# Rolldown's CommonJS wrapper. Major version only, so their patches don't change these files.
+foreach ($tool in @(
+        @{ Package = 'vite'; Name = 'Vite (module loading helper)'; Url = 'https://vite.dev' },
+        @{ Package = 'rolldown'; Name = 'Rolldown (module wrapper)'; Url = 'https://rolldown.rs' })) {
+    $dir = Join-Path $ui "node_modules/$($tool.Package)"
+    $manifest = Get-Content -Raw (Join-Path $dir 'package.json') | ConvertFrom-Json
+    if ($manifest.license -ne 'MIT') { throw "$($tool.Package) is no longer MIT-licensed ($($manifest.license))." }
+    $licenseFile = Get-ChildItem $dir -File | Where-Object Name -match '^licen[cs]e' | Select-Object -First 1
+    $copyright = (Normalize (Get-Content -Raw $licenseFile.FullName)) -split "`n" | Where-Object { $_ -match 'Copyright' } | Select-Object -First 1
+    $components.Add((New-Component $tool.Name $manifest.version.Split('.')[0] 'MIT' $copyright $tool.Url (Get-MitText $copyright) 'Web interface'))
+}
 
 # --- THIRD-PARTY-NOTICES.md ---
 $md = [System.Text.StringBuilder]::new()

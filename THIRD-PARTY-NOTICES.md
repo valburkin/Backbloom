@@ -34,12 +34,13 @@ dependencies of the web interface; don't edit it by hand. Every code license is 
 |---|---|---|---|
 | [@fontsource-variable/inter](https://fontsource.org/fonts/inter) | 5.3.0 | OFL-1.1 | Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter) Inter-Italic[opsz,wght].ttf: Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter) |
 | [@fontsource-variable/space-grotesk](https://fontsource.org/fonts/space-grotesk) | 5.3.0 | OFL-1.1 | Copyright 2020 The Space Grotesk Project Authors (https://github.com/floriankarsten/space-grotesk) |
-| [lucide-react](https://lucide.dev) | 1.73.0 | ISC | Copyright (c) 2026 Lucide Icons and Contributors |
+| [lucide-react](https://lucide.dev) | 1.73.0 | ISC | Copyright (c) 2026 Lucide Icons and Contributors; Copyright (c) 2013-present Cole Bemis |
 | [react](https://react.dev/) | 19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | [react-dom](https://react.dev/) | 19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| [Rolldown (module wrapper)](https://rolldown.rs) | 1 | MIT | Copyright (c) 2024-present VoidZero Inc. & Contributors |
 | [scheduler](https://react.dev/) | 0.28.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | [tailwindcss](https://tailwindcss.com) | 4.3.5 | MIT | Copyright (c) Tailwind Labs, Inc. |
-| [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT | Copyright (c) Project Nayuki |
+| [uqr](https://github.com/unjs/uqr#readme) | 0.1.3 | MIT | Copyright (c) Project Nayuki; Copyright (c) 2023 Anthony Fu <https://github.com/antfu> |
 | [Vite (module loading helper)](https://vite.dev) | 8 | MIT | Copyright (c) 2019-present, VoidZero Inc. and Vite contributors |
 
 ## License texts
@@ -1644,6 +1645,32 @@ SOFTWARE.
 MIT License
 
 Copyright (c) Meta Platforms, Inc. and affiliates.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### Rolldown (module wrapper) 1
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2024-present VoidZero Inc. & Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -153,8 +153,9 @@ without installing it:
 
 ## Third-party notices
 
-`Update-ThirdPartyNotices.ps1` regenerates `THIRD-PARTY-NOTICES.md` (summary and license texts) and
-`3RD_PARTY_LICENSES` (shown on the UI's About page) from the app's NuGet packages and the UI's npm production
-dependencies. It fails on a license outside the permissive allow list (fonts, the `@fontsource` packages, may also be
-OFL-1.1, which allows bundling them with any software). `-Check` only verifies (CI). `licenses/` holds the MIT template
-and the Apache 2.0 text used for packages that don't ship their license file.
+`Update-ThirdPartyNotices.ps1` regenerates `THIRD-PARTY-NOTICES.md` (summary and license texts) and `3RD_PARTY_LICENSES`
+(shown on the UI's About page) from the app's NuGet packages, the UI's npm production dependencies (without
+type-definition-only packages) and the build tools whose small runtime helpers end up in the UI bundle (Vite, Rolldown;
+listed with their major version only). It fails on a license outside the permissive allow list (fonts, the `@fontsource`
+packages, may also be OFL-1.1, which allows bundling them with any software). `-Check` only verifies (CI). `licenses/`
+holds the MIT template and the Apache 2.0 text used for packages that don't ship their license file.
