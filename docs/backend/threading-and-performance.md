@@ -20,11 +20,14 @@ keep the per-frame path free of allocations. The [architecture overview](../arch
 | One per controller | `LedDeviceRunner` | open (with retries), send the newest frame (its slice of the LEDs), refresh, blink, close |
 | Thread pool | ASP.NET Core, `OtherAppMonitor`, `ProfileMonitor`, `PerformanceRecorder` | JSON-RPC requests (in order per connection), event pushes, LED stream timers, the HyperHDR process check, (while the layout has profiles) the profile programs check every 2 s, and the performance samples (CPU every 2 s, a sample every 10 s) |
 | UI (1, STA, Windows) | `UiThread` | Win32 message loop: hidden message window (power/session notifications, tray callbacks), tray menu, WebView2 window |
-| Log file (1, below normal) | `RollingFileLoggerProvider` | writes queued log lines |
+| Log file (1, normal priority) | `RollingFileLoggerProvider` | writes queued log lines; closes the file when it stops |
 
 - **The frame loop never waits on a controller or a client.** `LedDeviceRunner.Submit` copies the colors into a
   preallocated buffer; if the device thread hasn't sent the previous frame yet, that frame is dropped (counted in the
   stats), never queued.
+- **The log writer runs at normal priority.** It is idle almost all the time; below normal, a PC at full load (a game,
+  a build) starved it for seconds, so a shutdown's `Flush` and `Dispose` gave up before the last lines were written.
+  The frame loop, smoothing and sound capture run above normal, so it never takes time from them.
 - **Settings changes swap immutable objects.** Changes arrive on request threads. They build new immutable objects
   (`PipelineConfig`: LED map options + `ColorProcessor`) and swap them in with one reference write; the frame loop
   picks them up on its next frame.

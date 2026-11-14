@@ -35,8 +35,8 @@ for how to propose a change.
 ```powershell
 cd backend
 dotnet build -warnaserror          # warnings are errors, analyzers and code style enforced
-dotnet test                        # every test project (xUnit v3)
-dotnet test tests/Backbloom.Core.Tests --filter "FullyQualifiedName~Smoothing"
+dotnet test                        # every test project (xUnit v3 on Microsoft.Testing.Platform)
+dotnet test --project tests/Backbloom.Core.Tests -- --filter "FullyQualifiedName~Smoothing"
 
 cd ../ui
 npm ci
@@ -50,6 +50,11 @@ npm ci
 npm run dev                        # http://127.0.0.1:5190
 npm run build                      # type check + site/dist
 ```
+
+Run `dotnet test` in `backend/`: its `global.json` switches it to Microsoft.Testing.Platform, which xUnit v3 4
+needs; from another folder `dotnet test` falls back to VSTest and fails. It runs the test projects in parallel; on a
+machine with few cores, add `--max-parallel-test-modules 4` (as CI does), since a few tests have deadlines that an
+overloaded CPU misses.
 
 ### UI without a backend
 
@@ -108,8 +113,8 @@ Every option is listed in [Running the backend](backend/running.md#command-line-
 
 ```powershell
 cd backend
-dotnet test --settings coverage.runsettings --results-directory TestResults
-# one merged report of all test projects: TestResults/<guid>/*.cobertura.xml
+dotnet test --coverage --coverage-output-format cobertura --coverage-settings coverage.config --results-directory TestResults
+# one report per test project: TestResults/<guid>.cobertura.xml
 
 cd ../ui
 npm run coverage                   # text summary; ui/coverage/lcov.info and cobertura-coverage.xml
@@ -120,8 +125,8 @@ npm run coverage                   # text summary; ui/coverage/lcov.info and cob
 - Code that can't run in a test without touching hardware or the user's system (real HID and serial devices, the
   mDNS responder on port 5353, Wi-Fi, the tray icon, the WebView2 window, the installer hooks) is marked
   `[ExcludeFromCodeCoverage(Justification = "...")]`; the logic around it is tested through its interfaces.
-- For an HTML report: `dotnet tool install -g dotnet-reportgenerator-globaltool`, then
-  `reportgenerator -reports:"TestResults/*/*.cobertura.xml" -targetdir:TestResults/report`.
+- For one merged HTML report: `dotnet tool install -g dotnet-reportgenerator-globaltool`, then
+  `reportgenerator -reports:"TestResults/*.cobertura.xml" -targetdir:TestResults/report`.
 - The UI's coverage covers `src/` except tests, the dev-only mock backend and type-only files; `npm run coverage`
   fails below the floors set in `ui/vite.config.ts` (a little under the measured numbers).
 - On Windows, run the UI's coverage from a path whose drive letter is upper case (`C:\...`, as PowerShell and

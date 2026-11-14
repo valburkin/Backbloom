@@ -28,6 +28,8 @@ release note (the landing page in `site/` isn't part of a release and has no ent
 
 ### Fixed
 
+- **Last lines of the log on a busy PC**: when the PC was fully loaded (a game, a build), the last lines Backbloom
+  wrote before quitting could be missing from its log file. Its log writer no longer waits behind other programs.
 - **Keys in logs and error messages**: when a Nanoleaf panel or a Philips Hue bridge didn't answer, the log line and
   the error shown in the app could carry the key Backbloom uses to control it. They no longer do. If you posted a log
   or a screenshot of such an error from 0.2.0, edit the key out (the long code after `/api/` in an address); it works
